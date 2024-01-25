@@ -5,7 +5,7 @@
  */
 
 /** @file
- * @brief Utility functions to be used by the Wi-Fi subsytem.
+ * @brief Utility functions to be used by the Wi-Fi subsystem.
  */
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_wifi_utils, CONFIG_NET_L2_WIFI_MGMT_LOG_LEVEL);
