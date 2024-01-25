@@ -240,7 +240,7 @@ enum uart_event_type {
      */
     UART_RX_BUF_RELEASED,
     /**
-     * @brief RX has been disabled and can be reenabled.
+     * @brief RX has been disabled and can be re-enabled.
      *
      * This event is generated whenever receiver has been stopped, disabled
      * or finished its operation and can be enabled again using

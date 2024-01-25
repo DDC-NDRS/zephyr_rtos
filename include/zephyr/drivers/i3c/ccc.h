@@ -482,7 +482,7 @@ struct i3c_ccc_address {
 	 * @note For SETDATA, SETNEWDA and SETGRAP,
 	 * the address is left-shift by 1, and bit[0] is always 0.
 	 *
-	 * @note Fpr SET GETACCCR, the address is left-shift by 1,
+	 * @note For SET GETACCCR, the address is left-shift by 1,
 	 * and bit[0] is the calculated odd parity bit.
 	 */
 	uint8_t addr;
@@ -713,7 +713,7 @@ union i3c_ccc_getmxds {
 
 		/**
 		 * Defining Byte 0x91: CRHDLY
-		 * - Bit[2]: Set Bus Actibity State
+		 * - Bit[2]: Set Bus Activity State
 		 * - Bit[1:0]: Controller Handoff Activity State
 		 */
 		uint8_t crhdly1;

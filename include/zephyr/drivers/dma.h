@@ -272,7 +272,7 @@ struct dma_config {
 struct dma_status {
     /** Is the current DMA transfer busy or idle */
     bool busy;
-    /** Direction fo the transfer */
+    /** Direction of the transfer */
     enum dma_channel_direction dir;
     /** Pending length to be transferred in bytes, HW specific */
     uint32_t pending_length;
