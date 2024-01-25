@@ -494,7 +494,7 @@ static int http_wait_data(int sock, struct http_request *req, int32_t timeout)
 					req->internal.response.cb(&req->internal.response, event,
 								  req->internal.user_data);
 
-					/* Re-use the result buffer and start to fill it again */
+					/* Reuse the result buffer and start to fill it again */
 					req->internal.response.data_len = 0;
 					req->internal.response.body_frag_start = NULL;
 					req->internal.response.body_frag_len = 0;

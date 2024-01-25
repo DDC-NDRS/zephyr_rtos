@@ -385,7 +385,7 @@ int websocket_connect(int sock, struct websocket_request *wreq,
 
 	NET_DBG("[%p] WS connection to peer established (fd %d)", ctx, fd);
 
-	/* We will re-use the temp buffer in receive function if needed but
+	/* We will reuse the temp buffer in receive function if needed but
 	 * in order that to work the amount of data in buffer must be set to 0
 	 */
 	ctx->recv_buf.count = 0;
