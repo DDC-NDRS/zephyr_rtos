@@ -427,7 +427,7 @@ static void ase_exit_state_enabling(struct bt_ascs_ase *ase)
 
 	/*
 	 * When the EP direction is BT_AUDIO_DIR_SOURCE the state machine goes from
-	 * enabled to disabled where the disabled calback will be called,
+	 * enabled to disabled where the disabled callback will be called,
 	 * for BT_AUDIO_DIR_SINK we go from enabled to qos_configured,
 	 * and logically we have to do the disabled callback first
 	 */
@@ -1674,7 +1674,7 @@ int bt_ascs_config_ase(struct bt_conn *conn, struct bt_bap_stream *stream,
 		return -EALREADY;
 	}
 
-	/* Get a free ASE or NULL if all ASE instances are aready in use */
+	/* Get a free ASE or NULL if all ASE instances are already in use */
 	for (int i = 1; i <= ASE_COUNT; i++) {
 		if (ase_find(conn, i) == NULL) {
 			ase = ase_new(conn, i);

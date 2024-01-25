@@ -986,7 +986,7 @@ static void notify_string(struct bt_conn *conn, const struct bt_uuid *uuid, cons
 	__ASSERT(att_mtu > att_header_size, "Could not get valid ATT MTU");
 	maxlen = att_mtu - att_header_size; /* Subtract opcode and handle */
 
-	/* Send notifcation potentially truncated to the MTU */
+	/* Send notification potentially truncated to the MTU */
 	err = bt_gatt_notify_uuid(conn, uuid, mcs.attrs, (void *)str,
 				  MIN(strlen(str), maxlen));
 	if (err != 0) {

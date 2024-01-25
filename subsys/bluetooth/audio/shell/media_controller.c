@@ -356,7 +356,7 @@ static void search_results_id_cb(struct media_player *plr, int err, uint64_t id)
 	}
 
 	if (id == 0) {
-		shell_print(ctx_shell, "Player: %p, Search result not avilable", plr);
+		shell_print(ctx_shell, "Player: %p, Search result not available", plr);
 	}
 
 	(void)bt_ots_obj_id_to_str(id, str, sizeof(str));

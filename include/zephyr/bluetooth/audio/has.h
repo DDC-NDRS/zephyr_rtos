@@ -63,7 +63,7 @@ enum bt_has_properties {
 	BT_HAS_PROP_AVAILABLE = BIT(1),
 };
 
-/** Hearing Aid device capablilities */
+/** Hearing Aid device capabilities */
 enum bt_has_capabilities {
 	BT_HAS_PRESET_SUPPORT = BIT(0),
 };

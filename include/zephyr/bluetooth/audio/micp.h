@@ -126,7 +126,7 @@ int bt_micp_mic_dev_mute(void);
 /**
  * @brief Disable the mute functionality on the Microphone Device.
  *
- * Can be reenabled by called @ref bt_micp_mic_dev_mute or @ref bt_micp_mic_dev_unmute.
+ * Can be re-enabled by called @ref bt_micp_mic_dev_mute or @ref bt_micp_mic_dev_unmute.
  *
  * @return 0 on success, GATT error value on fail.
  */

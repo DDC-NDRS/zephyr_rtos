@@ -65,7 +65,7 @@ static bool data_func_cb(struct bt_data *data, void *user_data)
 			const uint8_t ccid = data->data[i];
 
 			if (bt_ccid_find_attr(ccid) == NULL) {
-				LOG_DBG("Unknown characterstic for CCID 0x%02X", ccid);
+				LOG_DBG("Unknown characteristic for CCID 0x%02X", ccid);
 				metadata_param->valid = false;
 
 				return false;
@@ -520,7 +520,7 @@ static int cap_initiator_unicast_audio_configure(
 		} else {
 			struct bt_cap_common_client *client;
 
-			/* We have verified that `client` wont be NULL in
+			/* We have verified that `client` won't be NULL in
 			 * `valid_unicast_audio_start_param`.
 			 */
 			client = bt_cap_common_get_client_by_csis(member->csip);
