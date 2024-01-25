@@ -696,7 +696,7 @@ enum net_verdict net_conn_input(struct net_pkt *pkt,
 			/* We might have a match for v4-to-v6 mapping, check more */
 		}
 
-		/* Is the candidate connection matching the packet's protocol wihin the family? */
+		/* Is the candidate connection matching the packet's protocol within the family? */
 		if (conn->proto != proto) {
 			/* For packet socket data, the proto is set to ETH_P_ALL
 			 * or IPPROTO_RAW but the listener might have a specific
