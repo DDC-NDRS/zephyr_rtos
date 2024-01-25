@@ -346,7 +346,7 @@ __syscall k_tid_t k_thread_create(struct k_thread* new_thread,
  * Memory domain membership, resource pool assignment, kernel object
  * permissions, priority, and thread options are preserved.
  *
- * A common use of this function is to re-use the main thread as a user thread
+ * A common use of this function is to reuse the main thread as a user thread
  * once all supervisor mode-only tasks have been completed.
  *
  * @param entry Function to start executing from
