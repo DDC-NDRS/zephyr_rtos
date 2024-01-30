@@ -195,7 +195,8 @@ ZTEST(demand_paging, test_touch_anon_pages)
 static void test_k_mem_page_out(void)
 {
 	unsigned long faults;
-	int key, ret;
+	unsigned int key;
+	int ret;
 
 	/* Lock IRQs to prevent other pagefaults from happening while we
 	 * are measuring stuff
@@ -224,7 +225,8 @@ static void test_k_mem_page_out(void)
 ZTEST(demand_paging_api, test_k_mem_page_in)
 {
 	unsigned long faults;
-	int key, ret;
+	unsigned int key;
+	int ret;
 
 	/* Lock IRQs to prevent other pagefaults from happening while we
 	 * are measuring stuff

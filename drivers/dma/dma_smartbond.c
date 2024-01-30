@@ -774,7 +774,7 @@ static int dma_smartbond_get_status(const struct device *dev, uint32_t channel,
 							struct dma_status *stat)
 {
 	struct channel_regs *regs;
-	int key;
+	unsigned int key;
 	struct dma_smartbond_data *data = dev->data;
 	uint8_t bus_width;
 	uint32_t dma_ctrl_reg, dma_idx_reg, dma_len_reg;

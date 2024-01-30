@@ -104,7 +104,7 @@ static void it8xxx2_sha256_init(bool init_k)
 
 static void it8xxx2_sha256_module_calculation(void)
 {
-	uint32_t key;
+	unsigned int key;
 	uint8_t hash_ctrl;
 
 	/*

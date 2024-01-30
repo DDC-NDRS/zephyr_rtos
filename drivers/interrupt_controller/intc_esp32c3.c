@@ -94,7 +94,7 @@ int esp_intr_alloc(int source,
         return (-EINVAL);
     }
 
-    uint32_t key = irq_lock();
+    unsigned int key = irq_lock();
 
     irq_connect_dynamic(source,
                         ESP32C3_INTC_DEFAULT_PRIORITY,
@@ -123,7 +123,7 @@ int esp_intr_disable(int source) {
         return (-EINVAL);
     }
 
-    uint32_t key = irq_lock();
+    unsigned int key = irq_lock();
 
     esp_rom_intr_matrix_set(0,
                             source,
@@ -149,7 +149,7 @@ int esp_intr_enable(int source) {
         return (-EINVAL);
     }
 
-    uint32_t key = irq_lock();
+    unsigned int key = irq_lock();
     uint32_t irq = esp_intr_find_irq_for_source(source);
 
     esp_rom_intr_matrix_set(0, source, irq);

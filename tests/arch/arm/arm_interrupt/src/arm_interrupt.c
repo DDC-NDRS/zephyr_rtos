@@ -428,9 +428,9 @@ ZTEST_USER(arm_interrupt, test_arm_user_interrupt)
 	/* Attempt to lock again should return non-zero value of previous
 	 * locking attempt, if that were to be successful.
 	 */
-	int lock = irq_lock();
+	unsigned int key = irq_lock();
 
-	zassert_false(lock, "IRQs shown locked in user mode\n");
+	zassert_false(key, "IRQs shown locked in user mode\n");
 
 	/* Generate a system call to manage the IRQ locking */
 	test_arm_user_interrupt_syscall();

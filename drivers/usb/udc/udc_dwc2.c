@@ -925,10 +925,10 @@ static int udc_dwc2_ep_enqueue(const struct device *dev,
 static int udc_dwc2_ep_dequeue(const struct device *dev,
 			       struct udc_ep_config *const cfg)
 {
-	unsigned int lock_key;
+	unsigned int key;
 	struct net_buf *buf;
 
-	lock_key = irq_lock();
+	key = irq_lock();
 
 	if (USB_EP_DIR_IS_IN(cfg->addr)) {
 		dwc2_flush_tx_fifo(dev, USB_EP_GET_IDX(cfg->addr));
@@ -939,7 +939,7 @@ static int udc_dwc2_ep_dequeue(const struct device *dev,
 		udc_submit_ep_event(dev, buf, -ECONNABORTED);
 	}
 
-	irq_unlock(lock_key);
+	irq_unlock(key);
 	LOG_DBG("dequeue ep 0x%02x", cfg->addr);
 
 	return 0;

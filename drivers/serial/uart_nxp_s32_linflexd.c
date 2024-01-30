@@ -42,7 +42,7 @@ static void uart_nxp_s32_poll_out(const struct device *dev, unsigned char c)
 {
 	const struct uart_nxp_s32_config *config = dev->config;
 	uint32_t linflexd_ier;
-	uint8_t key;
+	unsigned int key;
 
 	key = irq_lock();
 
@@ -132,7 +132,7 @@ static void uart_nxp_s32_irq_tx_enable(const struct device *dev)
 
 	struct uart_nxp_s32_data *data = dev->data;
 	struct uart_nxp_s32_int *int_data = &(data->int_data);
-	uint8_t key;
+	unsigned int key;
 
 	int_data->irq_tx_enable = true;
 

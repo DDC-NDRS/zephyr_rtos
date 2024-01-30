@@ -476,7 +476,7 @@ static int dma_mcux_edma_reload(const struct device *dev, uint32_t channel,
 	struct call_back *data = DEV_CHANNEL_DATA(dev, channel);
 
 	/* Lock the channel configuration */
-	const unsigned int key = irq_lock();
+	unsigned int key = irq_lock();
 	int ret = 0;
 
 	if (!data->transfer_settings.valid) {

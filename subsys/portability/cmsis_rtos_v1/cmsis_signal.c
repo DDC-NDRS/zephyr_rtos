@@ -19,7 +19,8 @@ void *k_thread_other_custom_data_get(struct k_thread *thread_id)
  */
 int32_t osSignalSet(osThreadId thread_id, int32_t signals)
 {
-	int sig, key;
+	int sig;
+	unsigned int key;
 
 	if ((thread_id == NULL) || (!signals) ||
 		(signals & 0x80000000) || (signals > MAX_VALID_SIGNAL_VAL)) {
@@ -45,7 +46,8 @@ int32_t osSignalSet(osThreadId thread_id, int32_t signals)
  */
 int32_t osSignalClear(osThreadId thread_id, int32_t signals)
 {
-	int sig, key;
+	int sig;
+	unsigned int key;
 
 	if (k_is_in_isr() || (thread_id == NULL) || (!signals) ||
 		(signals & 0x80000000) || (signals > MAX_VALID_SIGNAL_VAL)) {
@@ -70,7 +72,8 @@ int32_t osSignalClear(osThreadId thread_id, int32_t signals)
  */
 osEvent osSignalWait(int32_t signals, uint32_t millisec)
 {
-	int retval, key;
+	int retval;
+	unsigned int key;
 	osEvent evt = {0};
 	uint32_t time_delta_ms, timeout = millisec;
 	uint64_t time_stamp_start, hwclk_cycles_delta, time_delta_ns;

@@ -191,11 +191,11 @@ static void SYSTEM_write32(size_t offset, uint32_t value)
 static int clock_control_ra_on(const struct device *dev, clock_control_subsys_t subsys)
 {
 	uint32_t clkid = (uint32_t)subsys;
-	int lock = irq_lock();
+	unsigned int key = irq_lock();
 
 	MSTP_write(MSTPCRA_OFFSET + RA_CLOCK_GROUP(clkid),
 		   MSTP_read(MSTPCRB_OFFSET) & ~RA_CLOCK_BIT(clkid));
-	irq_unlock(lock);
+	irq_unlock(key);
 
 	return 0;
 }
@@ -203,11 +203,11 @@ static int clock_control_ra_on(const struct device *dev, clock_control_subsys_t 
 static int clock_control_ra_off(const struct device *dev, clock_control_subsys_t subsys)
 {
 	uint32_t clkid = (uint32_t)subsys;
-	int lock = irq_lock();
+	unsigned int key = irq_lock();
 
 	MSTP_write(MSTPCRA_OFFSET + RA_CLOCK_GROUP(clkid),
 		   MSTP_read(MSTPCRB_OFFSET) | RA_CLOCK_BIT(clkid));
-	irq_unlock(lock);
+	irq_unlock(key);
 
 	return 0;
 }

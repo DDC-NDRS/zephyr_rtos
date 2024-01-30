@@ -18,7 +18,7 @@
 ssize_t z_impl_hwinfo_get_device_id(uint8_t *buffer, size_t length)
 {
 	uint8_t id[FLASH_RUID_DATA_BYTES];
-	uint32_t key;
+	unsigned int key;
 
 	/*
 	 * flash_get_unique_id temporarily disables XIP to query the

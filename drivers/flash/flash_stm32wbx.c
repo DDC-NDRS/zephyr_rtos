@@ -66,7 +66,7 @@ static int write_dword(const struct device *dev, off_t offset, uint64_t val)
 	int ret, rc;
 	uint32_t cpu1_sem_status;
 	uint32_t cpu2_sem_status = 0;
-	uint32_t key;
+	unsigned int key;
 
 	/* if the control register is locked, do not fail silently */
 	if (regs->CR & FLASH_CR_LOCK) {
@@ -203,7 +203,7 @@ static int erase_page(const struct device *dev, uint32_t page)
 {
 	uint32_t cpu1_sem_status;
 	uint32_t cpu2_sem_status = 0;
-	uint32_t key;
+	unsigned int key;
 
 	FLASH_TypeDef *regs = FLASH_STM32_REGS(dev);
 	int rc;

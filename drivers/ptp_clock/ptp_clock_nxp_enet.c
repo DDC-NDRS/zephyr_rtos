@@ -68,7 +68,7 @@ static int ptp_clock_nxp_enet_adjust(const struct device *dev,
 {
 	const struct ptp_clock_nxp_enet_config *config = dev->config;
 	int ret = 0;
-	int key;
+	unsigned int key;
 
 	if ((increment <= (int32_t)(-NSEC_PER_SEC)) ||
 			(increment >= (int32_t)NSEC_PER_SEC)) {
@@ -211,7 +211,7 @@ static void ptp_clock_nxp_enet_isr(const struct device *dev)
 	struct ptp_clock_nxp_enet_data *data = dev->data;
 	enet_ptp_timer_channel_t channel;
 
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	/* clear channel */
 	for (channel = kENET_PtpTimerChannel1; channel <= kENET_PtpTimerChannel4; channel++) {
@@ -222,7 +222,7 @@ static void ptp_clock_nxp_enet_isr(const struct device *dev)
 
 	ENET_TimeStampIRQHandler(config->base, &data->enet_handle);
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 }
 
 static const struct ptp_clock_driver_api ptp_clock_nxp_enet_api = {

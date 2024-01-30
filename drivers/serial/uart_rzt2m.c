@@ -244,7 +244,7 @@ static int rzt2m_module_start(const struct device *dev)
 	const struct rzt2m_device_config *config = dev->config;
 	struct rzt2m_device_data *data = dev->data;
 	int interface_id = BASE_TO_IFACE_ID(config->base);
-	unsigned int irqkey = irq_lock();
+	unsigned int key = irq_lock();
 	volatile uint32_t dummy;
 
 	k_spinlock_key_t key = k_spin_lock(&data->lock);
@@ -266,7 +266,7 @@ static int rzt2m_module_start(const struct device *dev)
 	dummy = *RDR(config->base);
 
 	k_spin_unlock(&data->lock, key);
-	irq_unlock(irqkey);
+	irq_unlock(key);
 	return 0;
 }
 

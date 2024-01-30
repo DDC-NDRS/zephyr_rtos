@@ -32,7 +32,7 @@ struct beetle_clock_control_cfg_t {
 static inline void beetle_set_clock(volatile uint32_t *base,
 				    uint8_t bit, enum arm_soc_state_t state)
 {
-	uint32_t key;
+	unsigned int key;
 
 	key = irq_lock();
 

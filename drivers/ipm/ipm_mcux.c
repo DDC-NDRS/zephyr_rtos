@@ -83,7 +83,7 @@ static int mcux_mailbox_ipm_send(const struct device *d, int wait,
 	MAILBOX_Type *base = config->base;
 	/* Until we change API to uint32_t array */
 	uint32_t data32[MCUX_IPM_DATA_REGS] = {0};
-	unsigned int flags;
+	unsigned int key;
 	int i;
 
 	ARG_UNUSED(wait);
@@ -96,7 +96,7 @@ static int mcux_mailbox_ipm_send(const struct device *d, int wait,
 		return -EMSGSIZE;
 	}
 
-	flags = irq_lock();
+	key = irq_lock();
 
 	/* Actual message is passing using 32 bits registers */
 	memcpy(data32, data, size);
@@ -105,7 +105,7 @@ static int mcux_mailbox_ipm_send(const struct device *d, int wait,
 		MAILBOX_SetValueBits(base, MAILBOX_ID_OTHER_CPU, data32[i]);
 	}
 
-	irq_unlock(flags);
+	irq_unlock(key);
 
 	return 0;
 }

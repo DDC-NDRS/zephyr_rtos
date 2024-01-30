@@ -55,29 +55,29 @@ static struct gnttab {
 static grant_ref_t get_free_entry(void)
 {
 	grant_ref_t gref;
-	unsigned int flags;
+	unsigned int key;
 
 	k_sem_take(&gnttab.sem, K_FOREVER);
 
-	flags = irq_lock();
+	key = irq_lock();
 	gref = gnttab.gref_list[0];
 	__ASSERT((gref >= GNTTAB_NR_RESERVED_ENTRIES &&
 		gref < NR_GRANT_ENTRIES), "Invalid gref = %d", gref);
 	gnttab.gref_list[0] = gnttab.gref_list[gref];
-	irq_unlock(flags);
+	irq_unlock(key);
 
 	return gref;
 }
 
 static void put_free_entry(grant_ref_t gref)
 {
-	unsigned int flags;
+	unsigned int key;
 
-	flags = irq_lock();
+	key = irq_lock();
 	gnttab.gref_list[gref] = gnttab.gref_list[0];
 	gnttab.gref_list[0] = gref;
 
-	irq_unlock(flags);
+	irq_unlock(key);
 
 	k_sem_give(&gnttab.sem);
 }

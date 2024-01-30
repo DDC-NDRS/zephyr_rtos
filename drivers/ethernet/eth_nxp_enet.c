@@ -605,7 +605,7 @@ static void eth_nxp_enet_isr(const struct device *dev)
 {
 	const struct nxp_enet_mac_config *config = dev->config;
 	struct nxp_enet_mac_data *data = dev->data;
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	uint32_t eir = ENET_GetInterruptStatus(config->base);
 
@@ -628,7 +628,7 @@ static void eth_nxp_enet_isr(const struct device *dev)
 		nxp_enet_driver_cb(config->mdio, NXP_ENET_MDIO, NXP_ENET_INTERRUPT, NULL);
 	}
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 }
 
 /*

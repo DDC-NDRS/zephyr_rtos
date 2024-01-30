@@ -567,7 +567,7 @@ static int flash_stm32h7_read(const struct device *dev, off_t offset,
 	 * If the flash has a double ECC error then there is normally
 	 * a bus fault, but we want to return an error code instead.
 	 */
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	__set_FAULTMASK(1);
 	SCB->CCR |= SCB_CCR_BFHFNMIGN_Msk;
@@ -580,7 +580,7 @@ static int flash_stm32h7_read(const struct device *dev, off_t offset,
 	SCB->CCR &= ~SCB_CCR_BFHFNMIGN_Msk;
 	barrier_dsync_fence_full();
 	barrier_isync_fence_full();
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 
 	return flash_stm32_check_status(dev);
 }

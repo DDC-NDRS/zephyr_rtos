@@ -1169,7 +1169,8 @@ static int do_mem_evict(void *addr)
 	bool dirty;
 	struct z_page_frame *pf;
 	uintptr_t location;
-	int key, ret;
+	unsigned int key;
+	int ret;
 	uintptr_t flags, phys;
 
 #if CONFIG_DEMAND_PAGING_ALLOW_IRQ
@@ -1236,7 +1237,8 @@ int k_mem_page_out(void *addr, size_t size)
 
 int z_page_frame_evict(uintptr_t phys)
 {
-	int key, ret;
+	unsigned int key;
+	int ret;
 	struct z_page_frame *pf;
 	bool dirty;
 	uintptr_t flags;
@@ -1385,7 +1387,8 @@ static inline struct z_page_frame *do_eviction_select(bool *dirty)
 static bool do_page_fault(void *addr, bool pin)
 {
 	struct z_page_frame *pf;
-	int key, ret;
+	unsigned int key;
+	int ret;
 	uintptr_t page_in_location, page_out_location;
 	enum arch_page_location status;
 	bool result;

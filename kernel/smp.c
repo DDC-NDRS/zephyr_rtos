@@ -240,9 +240,9 @@ void z_smp_init(void)
 
 bool z_smp_cpu_mobile(void)
 {
-	unsigned int k = arch_irq_lock();
+	unsigned int key = arch_irq_lock();
 	bool pinned = arch_is_in_isr() || !arch_irq_unlocked(k);
 
-	arch_irq_unlock(k);
+	arch_irq_unlock(key);
 	return !pinned;
 }

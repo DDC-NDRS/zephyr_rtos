@@ -56,7 +56,8 @@ uint32_t osThreadFlagsGet(void)
 uint32_t osThreadFlagsClear(uint32_t flags)
 {
 	struct cv2_thread *tid;
-	int sig, key;
+	int sig;
+	unsigned int key;
 
 	if (k_is_in_isr()) {
 		return osFlagsErrorUnknown;
@@ -86,7 +87,8 @@ uint32_t osThreadFlagsClear(uint32_t flags)
 uint32_t osThreadFlagsWait(uint32_t flags, uint32_t options, uint32_t timeout)
 {
 	struct cv2_thread *tid;
-	int retval, key;
+	int retval;
+	unsigned int key;
 	uint32_t sig;
 	uint32_t time_delta_ms, timeout_ms = k_ticks_to_ms_floor64(timeout);
 	uint64_t time_stamp_start, hwclk_cycles_delta, time_delta_ns;

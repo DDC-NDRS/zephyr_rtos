@@ -807,13 +807,13 @@ int z_mchp_xec_pcr_periph_reset(uint8_t slp_idx, uint8_t slp_pos)
 		return -EINVAL;
 	}
 
-	uint32_t lock = irq_lock();
+	unsigned int key = irq_lock();
 
 	pcr->RST_EN_LOCK = XEC_CC_PCR_RST_EN_UNLOCK;
 	pcr->RST_EN[slp_idx] = BIT(slp_pos);
 	pcr->RST_EN_LOCK = XEC_CC_PCR_RST_EN_LOCK;
 
-	irq_unlock(lock);
+	irq_unlock(key);
 
 	return 0;
 }
@@ -839,12 +839,12 @@ static int xec_cc_on(const struct device *dev,
 		break;
 	case MCHP_XEC_PCR_CLK_CPU:
 		if (cc->pcr_info & MCHP_XEC_CLK_CPU_MASK) {
-			uint32_t lock = irq_lock();
+			unsigned int key = irq_lock();
 
 			xec_clock_control_core_clock_divider_set(
 				cc->pcr_info & MCHP_XEC_CLK_CPU_MASK);
 
-			irq_unlock(lock);
+			irq_unlock(key);
 		} else {
 			return -EINVAL;
 		}

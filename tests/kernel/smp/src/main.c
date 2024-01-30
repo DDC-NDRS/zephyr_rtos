@@ -59,10 +59,10 @@ static struct k_poll_event tevent[MAX_NUM_THREADS];
 
 static int curr_cpu(void)
 {
-	unsigned int k = arch_irq_lock();
+	unsigned int key = arch_irq_lock();
 	int ret = arch_curr_cpu()->id;
 
-	arch_irq_unlock(k);
+	arch_irq_unlock(key);
 	return ret;
 }
 

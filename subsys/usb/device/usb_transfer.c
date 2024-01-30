@@ -201,7 +201,8 @@ int usb_transfer(uint8_t ep, uint8_t *data, size_t dlen, unsigned int flags,
 		 usb_transfer_callback cb, void *cb_data)
 {
 	struct usb_transfer_data *trans = NULL;
-	int key, ret = 0;
+	unsigned int key;
+	int ret = 0;
 
 	/* Parallel transfer to same endpoint is not supported. */
 	if (usb_transfer_is_busy(ep)) {

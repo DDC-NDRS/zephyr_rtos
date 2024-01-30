@@ -106,7 +106,8 @@ uint32_t osEventFlagsWait(osEventFlagsId_t ef_id, uint32_t flags,
 			  uint32_t options, uint32_t timeout)
 {
 	struct cv2_event_flags *events = (struct cv2_event_flags *)ef_id;
-	int retval, key;
+	int retval;
+	unsigned int key;
 	uint32_t sig;
 	k_timeout_t poll_timeout;
 	uint64_t time_stamp_start, ticks_elapsed;

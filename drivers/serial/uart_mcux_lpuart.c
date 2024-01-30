@@ -495,7 +495,7 @@ static int mcux_lpuart_rx_disable(const struct device *dev)
 	const struct mcux_lpuart_config *config = dev->config;
 	struct mcux_lpuart_data *data = (struct mcux_lpuart_data *)dev->data;
 	LPUART_Type *lpuart = config->base;
-	const unsigned int key = irq_lock();
+	unsigned int key = irq_lock();
 
 	LPUART_EnableRx(lpuart, false);
 	(void)k_work_cancel_delayable(&data->async.rx_dma_params.timeout_work);

@@ -723,14 +723,14 @@ static int usbfsotg_ep_dequeue(const struct device *dev,
 			       struct udc_ep_config *const cfg)
 {
 	struct usbfsotg_bd *bd;
-	unsigned int lock_key;
+	unsigned int key;
 	struct net_buf *buf;
 
 	bd = usbfsotg_get_ebd(dev, cfg, false);
 
-	lock_key = irq_lock();
+	key = irq_lock();
 	bd->set.bd_ctrl = USBFSOTG_BD_DTS;
-	irq_unlock(lock_key);
+	irq_unlock(key);
 
 	cfg->stat.halted = false;
 	buf = udc_buf_get_all(dev, cfg->addr);

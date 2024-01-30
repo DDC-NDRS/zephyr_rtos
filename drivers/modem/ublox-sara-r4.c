@@ -998,7 +998,7 @@ static int pin_init(void)
 
 	LOG_DBG("MDM_POWER_PIN -> DISABLE");
 
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	gpio_pin_set_dt(&power_gpio, 0);
 #if defined(CONFIG_MODEM_UBLOX_SARA_U2)
@@ -1008,7 +1008,7 @@ static int pin_init(void)
 #endif
 	gpio_pin_set_dt(&power_gpio, 1);
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 
 	LOG_DBG("MDM_POWER_PIN -> ENABLE");
 

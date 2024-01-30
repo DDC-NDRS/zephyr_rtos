@@ -114,17 +114,17 @@ static int udc_skeleton_ep_enqueue(const struct device *dev,
 static int udc_skeleton_ep_dequeue(const struct device *dev,
 				   struct udc_ep_config *const cfg)
 {
-	unsigned int lock_key;
+	unsigned int key;
 	struct net_buf *buf;
 
-	lock_key = irq_lock();
+	key = irq_lock();
 
 	buf = udc_buf_get_all(dev, cfg->addr);
 	if (buf) {
 		udc_submit_ep_event(dev, buf, -ECONNABORTED);
 	}
 
-	irq_unlock(lock_key);
+	irq_unlock(key);
 
 	return 0;
 }

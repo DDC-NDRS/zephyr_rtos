@@ -1112,7 +1112,7 @@ int ztest_main(void)    /* #CUSTOM@NDRS */
 	 * Rather than yielding to idle thread, keep the part awake so debugger can
 	 * still access it, since some SOCs cannot be debugged in low power states.
 	 */
-	uint32_t key = irq_lock();
+	unsigned int key = irq_lock();
 
 	while (1) {
 		; /* Spin */
@@ -1341,7 +1341,7 @@ int ztest_main(void) /* #CUSTOM@NDRS */ {
 	 * Rather than yielding to idle thread, keep the part awake so debugger can
 	 * still access it, since some SOCs cannot be debugged in low power states.
 	 */
-	uint32_t key = irq_lock();
+	unsigned int key = irq_lock();
 
 	while (1) {
 		; /* Spin */

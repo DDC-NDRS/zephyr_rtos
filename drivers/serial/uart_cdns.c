@@ -192,7 +192,7 @@ void uart_cdns_set_irq_callback(const struct device *dev, uart_irq_callback_user
 static void uart_cdns_irq_handler(const struct device *dev)
 {
 	struct uart_cdns_regs *uart_regs = DEV_UART(dev);
-	uint32_t key = irq_lock();
+	unsigned int key = irq_lock();
 	uint32_t isr_status;
 	struct uart_cdns_data *data = dev->data;
 

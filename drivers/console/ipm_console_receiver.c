@@ -20,7 +20,7 @@ static void ipm_console_thread(void *arg1, void *arg2, void *arg3)
 {
 	uint8_t size32;
 	uint16_t type;
-	int ret, key;
+	int ret;
 	const struct ipm_console_receiver_config_info *config_info;
 	struct ipm_console_receiver_runtime_data *driver_data;
 	int pos;
@@ -74,7 +74,7 @@ static void ipm_console_thread(void *arg1, void *arg2, void *arg3)
 		 */
 		if (driver_data->channel_disabled &&
 		    ring_buf_item_space_get(&driver_data->rb)) {
-			key = irq_lock();
+			unsigned int key = irq_lock();
 			ipm_set_enabled(driver_data->ipm_device, 1);
 			driver_data->channel_disabled = 0;
 			irq_unlock(key);

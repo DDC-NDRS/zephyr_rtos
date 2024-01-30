@@ -254,7 +254,7 @@ static int nxp_s32_eth_rx(const struct device *dev)
 	Netc_Eth_Ip_StatusType status;
 	uint16_t vlan_tag = NET_VLAN_TAG_UNSPEC;
 	struct net_pkt *pkt;
-	int key;
+	unsigned int key;
 	int res = 0;
 
 	key = irq_lock();

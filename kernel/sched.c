@@ -1701,13 +1701,13 @@ k_tid_t z_impl_k_sched_current_thread_query(void)
 	 * can race with preemption before it is read.  We must lock
 	 * local interrupts when reading it.
 	 */
-	unsigned int k = arch_irq_lock();
+	unsigned int key = arch_irq_lock();
 #endif
 
 	k_tid_t ret = _current_cpu->current;
 
 #ifdef CONFIG_SMP
-	arch_irq_unlock(k);
+	arch_irq_unlock(key);
 #endif
 	return ret;
 }

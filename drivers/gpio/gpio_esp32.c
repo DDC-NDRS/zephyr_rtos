@@ -87,7 +87,7 @@ static int gpio_esp32_config(const struct device* dev,
     const struct gpio_esp32_config* const cfg = dev->config;
     struct gpio_esp32_data* data = dev->data;
     uint32_t io_pin = ((uint32_t)pin + ((cfg->gpio_port == 1 && pin < 32) ? 32 : 0));
-    uint32_t key;
+    unsigned int key;
     int ret = 0;
 
     if (!gpio_pin_is_valid(io_pin)) {
@@ -291,7 +291,7 @@ static int gpio_esp32_port_set_masked_raw(const struct device* port,
                                           uint32_t mask, uint32_t value) {
     const struct gpio_esp32_config* const cfg = port->config;
 
-    uint32_t key = irq_lock();
+    unsigned int key = irq_lock();
 
     if (cfg->gpio_port == 0) {
         cfg->gpio_dev->out = (cfg->gpio_dev->out & ~mask) | (mask & value);
@@ -342,7 +342,7 @@ static int gpio_esp32_port_clear_bits_raw(const struct device* port,
 static int gpio_esp32_port_toggle_bits(const struct device* port,
                                        uint32_t pins) {
     const struct gpio_esp32_config* const cfg = port->config;
-    uint32_t key = irq_lock();
+    unsigned int key = irq_lock();
 
     if (cfg->gpio_port == 0) {
         cfg->gpio_dev->out ^= pins;
@@ -403,7 +403,7 @@ static int gpio_esp32_pin_interrupt_configure(const struct device* port,
     const struct gpio_esp32_config* const cfg = port->config;
     uint32_t io_pin = ((uint32_t)pin + ((cfg->gpio_port == 1 && pin < 32) ? 32 : 0));
     int intr_trig_mode = convert_int_type(mode, trig);
-    uint32_t key;
+    unsigned int key;
 
     if (intr_trig_mode < 0) {
         return (intr_trig_mode);

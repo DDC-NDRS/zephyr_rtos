@@ -823,7 +823,7 @@ static int uart_nrfx_fifo_read(const struct device *dev,
 /** Interrupt driven transfer enabling function */
 static void uart_nrfx_irq_tx_enable(const struct device *dev)
 {
-	uint32_t key;
+	unsigned int key;
 
 	disable_tx_irq = false;
 

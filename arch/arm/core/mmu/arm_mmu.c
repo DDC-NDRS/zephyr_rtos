@@ -470,7 +470,7 @@ static void arm_mmu_remap_l1_section_to_l2_table(uint32_t va,
 			    ARM_MMU_PTE_L1_INDEX_MASK;
 	uint32_t rem_size = MB(1);
 	uint32_t reg_val;
-	unsigned int lock_key;
+	unsigned int key;
 
 	/*
 	 * Extract the permissions and attributes from the current 1 MB section entry.
@@ -495,7 +495,7 @@ static void arm_mmu_remap_l1_section_to_l2_table(uint32_t va,
 	 * been set up in place of the former L1 section entry.
 	 */
 
-	lock_key = arch_irq_lock();
+	key = arch_irq_lock();
 
 	/*
 	 * Disable the MMU. The L1 PTE array and the L2 PT array may actually be
@@ -536,7 +536,7 @@ static void arm_mmu_remap_l1_section_to_l2_table(uint32_t va,
 	invalidate_tlb_all();
 	__set_SCTLR(reg_val);
 
-	arch_irq_unlock(lock_key);
+	arch_irq_unlock(key);
 }
 
 /**

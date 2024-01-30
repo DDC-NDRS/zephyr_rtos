@@ -232,7 +232,7 @@ static int test_loop_suspend_resume(const struct device *dma)
 	dma_block_cfg.dest_address = (uint32_t)rx_data[transfer_count];
 #endif
 
-	unsigned int irq_key;
+	unsigned int key;
 
 	if (dma_config(dma, chan_id, &dma_cfg)) {
 		TC_PRINT("ERROR: transfer config (%d)\n", chan_id);
@@ -248,7 +248,7 @@ static int test_loop_suspend_resume(const struct device *dma)
 	uint32_t tc = transfer_count;
 
 	do {
-		irq_key = irq_lock();
+		key = irq_lock();
 		res = dma_suspend(dma, chan_id);
 		if (res == -ENOSYS) {
 			done = 1;
@@ -257,7 +257,7 @@ static int test_loop_suspend_resume(const struct device *dma)
 			return TC_PASS;
 		}
 		tc = transfer_count;
-		irq_unlock(irq_key);
+		irq_unlock(key);
 		k_busy_wait(100);
 	} while (tc != transfer_count);
 

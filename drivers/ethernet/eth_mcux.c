@@ -1294,7 +1294,7 @@ static const struct ethernet_api api_funcs = {
 static void eth_mcux_ptp_isr(const struct device *dev)
 {
 	struct eth_context *context = dev->data;
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 	enet_ptp_timer_channel_t channel;
 
 	/* clear channel */
@@ -1304,7 +1304,7 @@ static void eth_mcux_ptp_isr(const struct device *dev)
 		}
 	}
 	ENET_TimeStampIRQHandler(context->base, &context->enet_handle);
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 }
 #endif
 
@@ -1313,7 +1313,7 @@ static void eth_mcux_common_isr(const struct device *dev)
 {
 	struct eth_context *context = dev->data;
 	uint32_t EIR = ENET_GetInterruptStatus(context->base);
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	if (EIR & (kENET_RxBufferInterrupt | kENET_RxFrameInterrupt)) {
 		/* disable the IRQ for RX */
@@ -1350,7 +1350,7 @@ static void eth_mcux_common_isr(const struct device *dev)
 		ENET_TimeStampIRQHandler(context->base, &context->enet_handle);
 	}
 #endif
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 }
 #endif
 
@@ -1705,7 +1705,8 @@ static int ptp_clock_mcux_adjust(const struct device *dev, int increment)
 {
 	struct ptp_context *ptp_context = dev->data;
 	struct eth_context *context = ptp_context->eth_context;
-	int key, ret;
+	unsigned int key;
+	int ret;
 
 	ARG_UNUSED(dev);
 

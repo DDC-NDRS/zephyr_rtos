@@ -509,7 +509,7 @@ static inline void usbd_dma_pending_clear(void)
  */
 static inline void usbd_ep_abort(nrf_usbd_common_ep_t ep)
 {
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 	usbd_ep_state_t *p_state = ep_state_access(ep);
 
 	if (NRF_USBD_COMMON_EP_IS_OUT(ep)) {
@@ -558,7 +558,7 @@ static inline void usbd_ep_abort(nrf_usbd_common_ep_t ep)
 		}
 	}
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 }
 
 void nrf_usbd_common_ep_abort(nrf_usbd_common_ep_t ep)
@@ -921,7 +921,7 @@ static void usbd_dmareq_process(void)
  */
 static inline void usbd_errata_171_begin(void)
 {
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	if (*((volatile uint32_t *)(0x4006EC00)) == 0x00000000) {
 		*((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
@@ -931,7 +931,7 @@ static inline void usbd_errata_171_begin(void)
 		*((volatile uint32_t *)(0x4006EC14)) = 0x000000C0;
 	}
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 }
 
 /**
@@ -939,7 +939,7 @@ static inline void usbd_errata_171_begin(void)
  */
 static inline void usbd_errata_171_end(void)
 {
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	if (*((volatile uint32_t *)(0x4006EC00)) == 0x00000000) {
 		*((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
@@ -949,7 +949,7 @@ static inline void usbd_errata_171_end(void)
 		*((volatile uint32_t *)(0x4006EC14)) = 0x00000000;
 	}
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 }
 
 /**
@@ -957,7 +957,7 @@ static inline void usbd_errata_171_end(void)
  */
 static inline void usbd_errata_187_211_begin(void)
 {
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	if (*((volatile uint32_t *)(0x4006EC00)) == 0x00000000) {
 		*((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
@@ -967,7 +967,7 @@ static inline void usbd_errata_187_211_begin(void)
 		*((volatile uint32_t *)(0x4006ED14)) = 0x00000003;
 	}
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 }
 
 /**
@@ -975,7 +975,7 @@ static inline void usbd_errata_187_211_begin(void)
  */
 static inline void usbd_errata_187_211_end(void)
 {
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	if (*((volatile uint32_t *)(0x4006EC00)) == 0x00000000) {
 		*((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
@@ -985,7 +985,7 @@ static inline void usbd_errata_187_211_end(void)
 		*((volatile uint32_t *)(0x4006ED14)) = 0x00000000;
 	}
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 }
 
 /**
@@ -1310,7 +1310,7 @@ bool nrf_usbd_common_is_started(void)
 bool nrf_usbd_common_suspend(void)
 {
 	bool suspended = false;
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	if (m_bus_suspend) {
 		if (!(NRF_USBD->EVENTCAUSE & USBD_EVENTCAUSE_RESUME_Msk)) {
@@ -1326,7 +1326,7 @@ bool nrf_usbd_common_suspend(void)
 		}
 	}
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 
 	return suspended;
 }
@@ -1334,7 +1334,7 @@ bool nrf_usbd_common_suspend(void)
 bool nrf_usbd_common_wakeup_req(void)
 {
 	bool started = false;
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	if (m_bus_suspend && nrf_usbd_common_suspend_check()) {
 		NRF_USBD->LOWPOWER = USBD_LOWPOWER_LOWPOWER_ForceNormal
@@ -1352,7 +1352,7 @@ bool nrf_usbd_common_wakeup_req(void)
 		}
 	}
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 
 	return started;
 }
@@ -1421,12 +1421,12 @@ void nrf_usbd_common_ep_enable(nrf_usbd_common_ep_t ep)
 	}
 
 	if (ep >= NRF_USBD_COMMON_EPOUT1 && ep <= NRF_USBD_COMMON_EPOUT7) {
-		unsigned int irq_lock_key = irq_lock();
+		unsigned int key = irq_lock();
 
 		nrf_usbd_common_transfer_out_drop(ep);
 		m_ep_dma_waiting &= ~(1U << ep2bit(ep));
 
-		irq_unlock(irq_lock_key);
+		irq_unlock(key);
 	}
 }
 
@@ -1457,7 +1457,7 @@ nrfx_err_t nrf_usbd_common_ep_transfer(nrf_usbd_common_ep_t ep,
 {
 	nrfx_err_t ret;
 	const uint8_t ep_bitpos = ep2bit(ep);
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	__ASSERT_NO_MSG(p_transfer != NULL);
 
@@ -1492,7 +1492,7 @@ nrfx_err_t nrf_usbd_common_ep_transfer(nrf_usbd_common_ep_t ep,
 		usbd_int_rise();
 	}
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 
 	return ret;
 }
@@ -1501,12 +1501,12 @@ nrf_usbd_common_ep_status_t nrf_usbd_common_ep_status_get(nrf_usbd_common_ep_t e
 {
 	nrf_usbd_common_ep_status_t ret;
 	usbd_ep_state_t const *p_state = ep_state_access(ep);
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	*p_size = p_state->transfer_cnt;
 	ret = (!p_state->more_transactions) ? p_state->status : NRF_USBD_COMMON_EP_BUSY;
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 
 	return ret;
 }
@@ -1608,7 +1608,7 @@ nrf_usbd_common_ep_t nrf_usbd_common_last_setup_dir_get(void)
 
 void nrf_usbd_common_transfer_out_drop(nrf_usbd_common_ep_t ep)
 {
-	unsigned int irq_lock_key = irq_lock();
+	unsigned int key = irq_lock();
 
 	__ASSERT_NO_MSG(NRF_USBD_COMMON_EP_IS_OUT(ep));
 
@@ -1617,7 +1617,7 @@ void nrf_usbd_common_transfer_out_drop(nrf_usbd_common_ep_t ep)
 		NRF_USBD->SIZE.EPOUT[NRF_USBD_COMMON_EP_NUM(ep)] = 0;
 	}
 
-	irq_unlock(irq_lock_key);
+	irq_unlock(key);
 }
 
 /** @endcond */

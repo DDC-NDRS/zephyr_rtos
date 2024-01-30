@@ -57,11 +57,11 @@ static int uart_imx_init(const struct device *dev)
 {
 	UART_Type *uart = UART_STRUCT(dev);
 	const struct imx_uart_config *config = dev->config;
-	unsigned int old_level;
+	unsigned int key;
 	int err;
 
 	/* disable interrupts */
-	old_level = irq_lock();
+	key = irq_lock();
 
 	/* Setup UART init structure */
 	uart_init_config_t initConfig = {
@@ -87,7 +87,7 @@ static int uart_imx_init(const struct device *dev)
 	UART_SetRxFifoWatermark(uart, 1);
 
 	/* restore interrupt state */
-	irq_unlock(old_level);
+	irq_unlock(key);
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	config->irq_config_func(dev);

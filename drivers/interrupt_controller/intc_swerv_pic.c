@@ -56,7 +56,7 @@ static void swerv_pic_write(uint32_t reg, uint32_t val)
 
 void swerv_pic_irq_enable(uint32_t irq)
 {
-	uint32_t key;
+    unsigned int key;
 
 	if ((irq >= SWERV_PIC_MAX_ID) || (irq < RISCV_MAX_GENERIC_IRQ)) {
 		return;
@@ -69,7 +69,7 @@ void swerv_pic_irq_enable(uint32_t irq)
 
 void swerv_pic_irq_disable(uint32_t irq)
 {
-	uint32_t key;
+    unsigned int key;
 
 	if ((irq >= SWERV_PIC_MAX_ID) || (irq < RISCV_MAX_GENERIC_IRQ)) {
 		return;
@@ -92,7 +92,7 @@ int swerv_pic_irq_is_enabled(uint32_t irq)
 
 void swerv_pic_set_priority(uint32_t irq, uint32_t priority)
 {
-	uint32_t key;
+    unsigned int key;
 
 	if (irq <= RISCV_MAX_GENERIC_IRQ) {
 		return;

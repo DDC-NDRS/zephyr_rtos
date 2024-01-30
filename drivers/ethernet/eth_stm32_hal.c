@@ -1796,7 +1796,8 @@ static int ptp_clock_stm32_adjust(const struct device *dev, int increment)
 	struct ptp_context *ptp_context = dev->data;
 	struct eth_stm32_hal_dev_data *eth_dev_data = ptp_context->eth_dev_data;
 	ETH_HandleTypeDef *heth = &eth_dev_data->heth;
-	int key, ret;
+	unsigned int key;
+	int ret;
 
 	if ((increment <= (int32_t)(-NSEC_PER_SEC)) ||
 			(increment >= (int32_t)NSEC_PER_SEC)) {
@@ -1840,7 +1841,8 @@ static int ptp_clock_stm32_rate_adjust(const struct device *dev, double ratio)
 	struct ptp_context *ptp_context = dev->data;
 	struct eth_stm32_hal_dev_data *eth_dev_data = ptp_context->eth_dev_data;
 	ETH_HandleTypeDef *heth = &eth_dev_data->heth;
-	int key, ret;
+	unsigned int key;
+	int ret;
 	uint32_t addend_val;
 
 	/* No change needed */

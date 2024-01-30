@@ -352,7 +352,7 @@ static void usb_dc_ctrl_stall_data(uint32_t flags)
 
 static void usb_dc_ctrl_send_zlp_in(void)
 {
-	uint32_t key;
+	unsigned int key;
 
 	LOG_INF("STP - ZLP IN");
 
@@ -375,7 +375,7 @@ static void usb_dc_ctrl_send_zlp_in(void)
 
 static void usb_dc_ctrl_send_zlp_out(void)
 {
-	uint32_t key;
+	unsigned int key;
 
 	LOG_INF("STP - ZLP OUT");
 
@@ -662,7 +662,7 @@ int usb_dc_attach(void)
 {
 	uint32_t pmcon;
 	uint32_t regval;
-	uint32_t key = irq_lock();
+	unsigned int key = irq_lock();
 	int retval;
 
 	/* Enable USBC asynchronous wake-up source */
@@ -767,7 +767,7 @@ int usb_dc_attach(void)
 
 int usb_dc_detach(void)
 {
-	uint32_t key = irq_lock();
+	unsigned int key = irq_lock();
 
 	regs->UDCON |= USBC_UDCON_DETACH;
 
@@ -795,7 +795,7 @@ int usb_dc_detach(void)
 
 int usb_dc_reset(void)
 {
-	uint32_t key = irq_lock();
+	unsigned int key = irq_lock();
 
 	/* Reset the controller */
 	regs->USBCON = USBC_USBCON_UIMOD | USBC_USBCON_FRZCLK;
@@ -980,7 +980,7 @@ int usb_dc_ep_set_stall(uint8_t ep)
 int usb_dc_ep_clear_stall(uint8_t ep)
 {
 	uint8_t ep_idx = USB_EP_GET_IDX(ep);
-	uint32_t key;
+	unsigned int key;
 
 	if (ep_idx >= NUM_OF_EP_MAX) {
 		LOG_ERR("wrong endpoint index/address");
@@ -1032,7 +1032,7 @@ int usb_dc_ep_halt(uint8_t ep)
 int usb_dc_ep_enable(uint8_t ep)
 {
 	uint8_t ep_idx = USB_EP_GET_IDX(ep);
-	uint32_t key;
+	unsigned int key;
 
 	if (ep_idx >= NUM_OF_EP_MAX) {
 		LOG_ERR("wrong endpoint index/address");
@@ -1062,7 +1062,7 @@ int usb_dc_ep_enable(uint8_t ep)
 int usb_dc_ep_disable(uint8_t ep)
 {
 	uint8_t ep_idx = USB_EP_GET_IDX(ep);
-	uint32_t key;
+	unsigned int key;
 
 	if (ep_idx >= NUM_OF_EP_MAX) {
 		LOG_ERR("wrong endpoint index/address");
@@ -1086,7 +1086,7 @@ int usb_dc_ep_disable(uint8_t ep)
 int usb_dc_ep_flush(uint8_t ep)
 {
 	uint8_t ep_idx = USB_EP_GET_IDX(ep);
-	uint32_t key;
+	unsigned int key;
 
 	if (ep_idx >= NUM_OF_EP_MAX) {
 		LOG_ERR("wrong endpoint index/address");
@@ -1141,7 +1141,7 @@ int usb_dc_ep_set_callback(uint8_t ep, const usb_dc_ep_callback cb)
 static int usb_dc_ep_write_stp(uint8_t ep_bank, const uint8_t *data,
 			       uint32_t packet_len)
 {
-	uint32_t key;
+	unsigned int key;
 
 	if (epctrl_fsm == USB_EPCTRL_SETUP) {
 		regs->UESTACLR[0] = USBC_UESTA0CLR_RXSTPIC;
@@ -1288,7 +1288,7 @@ int usb_dc_ep_write(uint8_t ep, const uint8_t *data,
 
 static int usb_dc_ep_read_ex_stp(uint32_t take, uint32_t wLength)
 {
-	uint32_t key;
+	unsigned int key;
 
 	if (epctrl_fsm == USB_EPCTRL_SETUP) {
 		if (regs->UESTA[0] & USBC_UESTA0_CTRLDIR) {

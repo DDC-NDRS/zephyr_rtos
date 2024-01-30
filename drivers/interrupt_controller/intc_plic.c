@@ -213,7 +213,7 @@ static void plic_irq_enable_set_state(uint32_t irq, bool enable)
 			get_context_en_addr(dev, cpu_num) + local_irq_to_reg_offset(local_irq);
 
 		uint32_t en_value;
-		uint32_t key;
+		unsigned int key;
 
 		key = irq_lock();
 		en_value = sys_read32(en_addr);

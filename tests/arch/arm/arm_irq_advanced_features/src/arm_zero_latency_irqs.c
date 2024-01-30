@@ -28,7 +28,8 @@ ZTEST(arm_irq_advanced_features, test_arm_zero_latency_irqs)
 	}
 
 	/* Determine an NVIC IRQ line that is not currently in use. */
-	int i, key;
+	int i;
+	unsigned int key;
 	int init_flag, post_flag;
 
 	init_flag = test_flag;

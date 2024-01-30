@@ -232,9 +232,9 @@ static void eth_stellaris_isr(const struct device *dev)
 {
 	struct eth_stellaris_runtime *dev_data = dev->data;
 	int isr_val = sys_read32(REG_MACRIS);
-	uint32_t lock;
+	unsigned int key;
 
-	lock = irq_lock();
+	key = irq_lock();
 
 	/* Acknowledge the interrupt. */
 	sys_write32(isr_val, REG_MACRIS);
@@ -265,7 +265,7 @@ static void eth_stellaris_isr(const struct device *dev)
 		eth_stellaris_rx_error(dev_data->iface);
 	}
 
-	irq_unlock(lock);
+	irq_unlock(key);
 }
 
 static void eth_stellaris_init(struct net_if *iface)

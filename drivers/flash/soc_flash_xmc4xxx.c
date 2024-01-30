@@ -71,7 +71,7 @@ static int flash_xmc4xxx_write(const struct device *dev, off_t offset, const voi
 {
 	struct flash_xmc4xxx_data *dev_data = dev->data;
 	const struct flash_xmc4xxx_config *dev_config = dev->config;
-	uint32_t irq_key;
+	unsigned int key;
 	uint32_t flash_addr = dev_config->base;
 	const uint8_t *src = data;
 	int num_pages;
@@ -102,9 +102,9 @@ static int flash_xmc4xxx_write(const struct device *dev, off_t offset, const voi
 			src_ptr = (uint32_t *)aligned_page;
 		}
 
-		irq_key = irq_lock();
+		key = irq_lock();
 		XMC_FLASH_ProgramPage((uint32_t *)flash_addr, src_ptr);
-		irq_unlock(irq_key);
+		irq_unlock(key);
 		flash_addr += dev_config->parameters.write_block_size;
 		src += dev_config->parameters.write_block_size;
 	}
@@ -118,7 +118,7 @@ static int flash_xmc4xxx_erase(const struct device *dev, off_t offset, size_t si
 {
 	struct flash_xmc4xxx_data *dev_data = dev->data;
 	const struct flash_xmc4xxx_config *dev_config = dev->config;
-	uint32_t irq_key;
+	unsigned int key;
 	uint32_t offset_page = 0;
 	int ret = 0;
 
@@ -136,9 +136,9 @@ static int flash_xmc4xxx_erase(const struct device *dev, off_t offset, size_t si
 
 			if (offset == offset_page && size >= pages_size) {
 				flash_addr += offset;
-				irq_key = irq_lock();
+				key = irq_lock();
 				XMC_FLASH_EraseSector((uint32_t *)flash_addr);
-				irq_unlock(irq_key);
+				irq_unlock(key);
 
 				size -= pages_size;
 				offset += pages_size;

@@ -279,7 +279,7 @@ static int fs26_wd_refresh(const struct device *dev)
 	const struct wdt_nxp_fs26_config *config = dev->config;
 	struct wdt_nxp_fs26_data *data = dev->data;
 	int retval = 0;
-	int key;
+	unsigned int key;
 	uint16_t answer;
 	struct fs26_spi_rx_frame rx_frame;
 

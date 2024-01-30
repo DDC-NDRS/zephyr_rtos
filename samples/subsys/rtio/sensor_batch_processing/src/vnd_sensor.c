@@ -31,7 +31,7 @@ static int vnd_sensor_iodev_read(const struct device *dev, uint8_t *buf,
 	const struct vnd_sensor_config *config = dev->config;
 	struct vnd_sensor_data *data = dev->data;
 	uint32_t sample_number;
-	uint32_t key;
+	unsigned int key;
 
 	LOG_DBG("%s: buf_len = %d, buf = %p", dev->name, buf_len, buf);
 

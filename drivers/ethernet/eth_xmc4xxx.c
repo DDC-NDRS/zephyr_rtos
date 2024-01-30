@@ -586,11 +586,11 @@ static void eth_xmc4xxx_handle_tx(const struct device *dev)
 
 static void eth_xmc4xxx_isr(const struct device *dev)
 {
-	uint32_t lock;
+	unsigned int key;
 	uint32_t status;
 	const struct eth_xmc4xxx_config *dev_cfg = dev->config;
 
-	lock = irq_lock();
+	key = irq_lock();
 	status = dev_cfg->regs->STATUS;
 
 	if ((status & XMC_ETH_MAC_EVENT_RECEIVE) != 0) {
@@ -613,7 +613,7 @@ static void eth_xmc4xxx_isr(const struct device *dev)
 
 	dev_cfg->regs->STATUS = status & ETH_STATUS_CLEARABLE_BITS;
 
-	irq_unlock(lock);
+	irq_unlock(key);
 }
 
 static inline void eth_xmc4xxx_enable_tx(ETH_GLOBAL_TypeDef *regs)

@@ -205,7 +205,7 @@ static int flash_rpi_read(const struct device *dev, off_t offset, void *data, si
 
 static int flash_rpi_write(const struct device *dev, off_t offset, const void *data, size_t size)
 {
-	uint32_t key;
+	unsigned int key;
 	size_t bytes_to_write;
 	uint8_t *data_pointer = (uint8_t *)data;
 
@@ -248,7 +248,7 @@ static int flash_rpi_write(const struct device *dev, off_t offset, const void *d
 
 static int flash_rpi_erase(const struct device *dev, off_t offset, size_t size)
 {
-	uint32_t key;
+	unsigned int key;
 
 	if (size == 0) {
 		return 0;

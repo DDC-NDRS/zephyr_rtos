@@ -110,7 +110,7 @@ static int esp32_ipm_send(const struct device *dev, int wait, uint32_t id,
 		return -ENOMEM;
 	}
 
-	uint32_t key = irq_lock();
+	unsigned int key = irq_lock();
 
 	/* try to lock the shared memory */
 	while (!atomic_cas(&dev_data->control->lock,
@@ -166,7 +166,7 @@ static void esp32_ipm_register_callback(const struct device *dev,
 {
 	struct esp32_ipm_data *data = (struct esp32_ipm_data *)dev->data;
 
-	uint32_t key = irq_lock();
+	unsigned int key = irq_lock();
 
 	data->cb = cb;
 	data->user_data = user_data;

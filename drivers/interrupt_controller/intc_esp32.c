@@ -49,7 +49,7 @@ typedef void (*intc_handler_t)(void *);
 typedef void (*intc_dyn_handler_t)(const void *);
 
 /* shared critical section context */
-static int esp_intc_csec;
+static unsigned int esp_intc_csec;
 
 static inline void esp_intr_lock(void)
 {

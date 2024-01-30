@@ -102,10 +102,10 @@ extern "C" {
 #define NRFX_IRQ_IS_PENDING(irq_number)  (NVIC_GetPendingIRQ(irq_number) == 1)
 
 /** @brief Macro for entering into a critical section. */
-#define NRFX_CRITICAL_SECTION_ENTER()  { unsigned int irq_lock_key = irq_lock();
+#define NRFX_CRITICAL_SECTION_ENTER()  { unsigned int key = irq_lock();
 
 /** @brief Macro for exiting from a critical section. */
-#define NRFX_CRITICAL_SECTION_EXIT()     irq_unlock(irq_lock_key); }
+#define NRFX_CRITICAL_SECTION_EXIT()     irq_unlock(key); }
 
 //------------------------------------------------------------------------------
 

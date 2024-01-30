@@ -720,12 +720,12 @@ static int udc_stm32_ep_enqueue(const struct device *dev,
 				struct udc_ep_config *epcfg,
 				struct net_buf *buf)
 {
-	unsigned int lock_key;
+	unsigned int key;
 	int ret;
 
 	udc_buf_put(epcfg, buf);
 
-	lock_key = irq_lock();
+	key = irq_lock();
 
 	if (USB_EP_DIR_IS_IN(epcfg->addr)) {
 		ret = udc_stm32_tx(dev, epcfg->addr, buf);
@@ -733,7 +733,7 @@ static int udc_stm32_ep_enqueue(const struct device *dev,
 		ret = udc_stm32_rx(dev, epcfg->addr, buf);
 	}
 
-	irq_unlock(lock_key);
+	irq_unlock(key);
 
 	return ret;
 }

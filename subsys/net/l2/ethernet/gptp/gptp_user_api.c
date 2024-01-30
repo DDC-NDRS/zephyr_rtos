@@ -53,7 +53,8 @@ void gptp_call_phase_dis_cb(void)
 
 int gptp_event_capture(struct net_ptp_time *slave_time, bool *gm_present)
 {
-	int port, key;
+	int port;
+	unsigned int key;
 	const struct device *clk;
 
 	key = irq_lock();

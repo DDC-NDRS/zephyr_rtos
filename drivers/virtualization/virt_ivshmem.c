@@ -40,7 +40,7 @@ static bool ivshmem_configure_msi_x_interrupts(const struct device *dev)
 	struct ivshmem *data = dev->data;
 	bool ret = false;
 	uint8_t n_vectors;
-	uint32_t key;
+	unsigned int key;
 	int i;
 
 	key = irq_lock();
