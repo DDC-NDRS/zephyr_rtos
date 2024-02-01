@@ -33,7 +33,7 @@ static int sock_obj_stats_raw(struct k_obj_core *obj_core, void *stats);
 static int sock_obj_core_get_reg_and_proto(int sock,
 					   struct net_socket_register **reg);
 
-struct k_obj_core_stats_desc sock_obj_type_stats_desc = {
+static const struct k_obj_core_stats_desc sock_obj_type_stats_desc = {
 	.raw_size = sizeof(struct sock_obj_type_raw_stats),
 	.raw = sock_obj_stats_raw,
 	.reset = sock_obj_core_stats_reset,

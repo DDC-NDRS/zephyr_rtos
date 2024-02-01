@@ -33,7 +33,7 @@ void k_obj_core_init(struct k_obj_core *obj_core, struct k_obj_type *type)
 
 void k_obj_core_link(struct k_obj_core *obj_core)
 {
-	k_spinlock_key_t  key = k_spin_lock(&lock);
+	k_spinlock_key_t key = k_spin_lock(&lock);
 
 	sys_slist_append(&obj_core->type->list, &obj_core->node);
 
@@ -171,7 +171,7 @@ int k_obj_core_stats_raw(struct k_obj_core *obj_core, void *stats,
 			 size_t stats_len)
 {
 	int  rv;
-	struct k_obj_core_stats_desc *desc;
+	struct k_obj_core_stats_desc const* desc;
 
 	k_spinlock_key_t  key = k_spin_lock(&lock);
 
@@ -205,7 +205,7 @@ int k_obj_core_stats_query(struct k_obj_core *obj_core, void *stats,
 			   size_t stats_len)
 {
 	int  rv;
-	struct k_obj_core_stats_desc *desc;
+	struct k_obj_core_stats_desc const* desc;
 
 	k_spinlock_key_t  key = k_spin_lock(&lock);
 
@@ -238,7 +238,7 @@ int k_obj_core_stats_query(struct k_obj_core *obj_core, void *stats,
 int k_obj_core_stats_reset(struct k_obj_core *obj_core)
 {
 	int  rv;
-	struct k_obj_core_stats_desc *desc;
+	struct k_obj_core_stats_desc const* desc;
 
 	k_spinlock_key_t  key = k_spin_lock(&lock);
 
@@ -268,7 +268,7 @@ int k_obj_core_stats_reset(struct k_obj_core *obj_core)
 int k_obj_core_stats_disable(struct k_obj_core *obj_core)
 {
 	int  rv;
-	struct k_obj_core_stats_desc *desc;
+	struct k_obj_core_stats_desc const* desc;
 
 	k_spinlock_key_t  key = k_spin_lock(&lock);
 
@@ -298,7 +298,7 @@ int k_obj_core_stats_disable(struct k_obj_core *obj_core)
 int k_obj_core_stats_enable(struct k_obj_core *obj_core)
 {
 	int  rv;
-	struct k_obj_core_stats_desc *desc;
+	struct k_obj_core_stats_desc const* desc;
 
 	k_spinlock_key_t  key = k_spin_lock(&lock);
 

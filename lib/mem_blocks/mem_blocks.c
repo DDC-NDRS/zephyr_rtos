@@ -512,7 +512,7 @@ static int sys_mem_blocks_stats_reset(struct k_obj_core *obj_core)
 
 static struct k_obj_type obj_type_sys_mem_blocks;
 
-static struct k_obj_core_stats_desc sys_mem_blocks_stats_desc = {
+static const struct k_obj_core_stats_desc sys_mem_blocks_stats_desc = {
 	.raw_size = sizeof(struct sys_mem_blocks_info),
 	.query_size = sizeof(struct sys_memory_stats),
 	.raw = sys_mem_blocks_stats_raw,

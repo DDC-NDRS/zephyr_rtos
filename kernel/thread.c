@@ -38,7 +38,7 @@ LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
 static struct k_obj_type  obj_type_thread;
 
 #ifdef CONFIG_OBJ_CORE_STATS_THREAD
-static struct k_obj_core_stats_desc  thread_stats_desc = {
+static const struct k_obj_core_stats_desc thread_stats_desc = {
 	.raw_size = sizeof(struct k_cycle_stats),
 	.query_size = sizeof(struct k_thread_runtime_stats),
 	.raw   = z_thread_stats_raw,

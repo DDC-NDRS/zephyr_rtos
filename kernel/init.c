@@ -102,7 +102,7 @@ static struct k_obj_type obj_type_cpu;
 static struct k_obj_type obj_type_kernel;
 
 #ifdef CONFIG_OBJ_CORE_STATS_SYSTEM
-static struct k_obj_core_stats_desc  cpu_stats_desc = {
+static const struct k_obj_core_stats_desc cpu_stats_desc = {
 	.raw_size = sizeof(struct k_cycle_stats),
 	.query_size = sizeof(struct k_thread_runtime_stats),
 	.raw   = z_cpu_stats_raw,
@@ -112,7 +112,7 @@ static struct k_obj_core_stats_desc  cpu_stats_desc = {
 	.enable  = NULL,
 };
 
-static struct k_obj_core_stats_desc  kernel_stats_desc = {
+static const struct k_obj_core_stats_desc kernel_stats_desc = {
 	.raw_size = sizeof(struct k_cycle_stats) * CONFIG_MP_MAX_NUM_CPUS,
 	.query_size = sizeof(struct k_thread_runtime_stats),
 	.raw   = z_kernel_stats_raw,

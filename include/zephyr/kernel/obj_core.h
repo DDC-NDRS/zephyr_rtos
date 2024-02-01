@@ -113,7 +113,7 @@ struct k_obj_type {
 	size_t         obj_core_offset;  /**< Offset to obj_core field */
 #ifdef CONFIG_OBJ_CORE_STATS
 	/** Pointer to object core statistics descriptor */
-	struct k_obj_core_stats_desc *stats_desc;
+	struct k_obj_core_stats_desc const* stats_desc;
 #endif
 };
 
@@ -261,7 +261,7 @@ void k_obj_core_unlink(struct k_obj_core *obj_core);
  * @param stats_desc Pointer to the object core statistics descriptor
  */
 static inline void k_obj_type_stats_init(struct k_obj_type *type,
-					 struct k_obj_core_stats_desc *stats_desc)
+					 struct k_obj_core_stats_desc const* stats_desc)
 {
 	type->stats_desc = stats_desc;
 }

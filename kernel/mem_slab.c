@@ -80,7 +80,7 @@ static int k_mem_slab_stats_reset(struct k_obj_core *obj_core)
 	return 0;
 }
 
-static struct k_obj_core_stats_desc mem_slab_stats_desc = {
+static const struct k_obj_core_stats_desc mem_slab_stats_desc = {
 	.raw_size = sizeof(struct k_mem_slab_info),
 	.query_size = sizeof(struct sys_memory_stats),
 	.raw   = k_mem_slab_stats_raw,
