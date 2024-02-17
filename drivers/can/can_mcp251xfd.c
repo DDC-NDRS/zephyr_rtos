@@ -1116,7 +1116,7 @@ static void mcp251xfd_int_thread(const struct device *dev)
 		mcp251xfd_handle_interrupts(dev);
 
 		/* Re-enable pin interrupts */
-		ret = gpio_pin_interrupt_configure_dt(&dev_cfg->int_gpio_dt, GPIO_INT_LEVEL_ACTIVE);
+		ret = gpio_pin_interrupt_configure_dt(&dev_cfg->int_gpio_dt, GPIO_INT_EDGE_FALLING);
 		if (ret < 0) {
 			LOG_ERR("Couldn't enable pin interrupt [%d]", ret);
 			k_oops();
@@ -1576,7 +1576,7 @@ static int mcp251xfd_init(const struct device *dev)
 		return -EINVAL;
 	}
 
-	if (gpio_pin_interrupt_configure_dt(&dev_cfg->int_gpio_dt, GPIO_INT_LEVEL_ACTIVE) < 0) {
+	if (gpio_pin_interrupt_configure_dt(&dev_cfg->int_gpio_dt, GPIO_INT_EDGE_FALLING) < 0) {
 		return -EINVAL;
 	}
 
