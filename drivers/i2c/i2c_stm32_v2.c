@@ -232,38 +232,44 @@ static void i2c_stm32_slave_event(const struct device* dev) {
     struct i2c_stm32_data* data = dev->data;
     I2C_TypeDef* i2c = cfg->i2c;
     const struct i2c_target_callbacks* slave_cb;
-    struct i2c_target_config* slave_cfg;
+    struct i2c_target_config* slave_cfg = NULL;
 
-    if (data->slave_cfg->flags != I2C_TARGET_FLAGS_ADDR_10_BITS) {
-        uint8_t slave_address;
-
-        /* Choose the right slave from the address match code */
-        slave_address = LL_I2C_GetAddressMatchCode(i2c) >> 1;
-        if ((data->slave_cfg != NULL) &&
-            (slave_address == data->slave_cfg->address)) {
+    if (data->slave_cfg != NULL) {
+        /**
+         * Slave1 is configured and could be in 7- or 10-bit mode.
+         * If 10-bit mode is enabled, Slave2 cannot be in use because
+         * it only supports 7-bit mode, so we know which cfg is matched.
+         * If 7-bit mode is enabled, find the correct cfg based on
+         * the I2C address sent by bus master.
+         */
+        if (data->slave_cfg->flags == I2C_TARGET_FLAGS_ADDR_10_BITS) {
             slave_cfg = data->slave_cfg;
         }
-        else if ((data->slave2_cfg != NULL) &&
-                 (slave_address == data->slave2_cfg->address)) {
-            slave_cfg = data->slave2_cfg;
-        }
         else {
-            __ASSERT_NO_MSG(0);
-            return;
+            uint8_t slave_address;
+
+            /* Choose the right target from the address match code */
+            slave_address = LL_I2C_GetAddressMatchCode(i2c) >> 1;
+            if (slave_address == data->slave_cfg->address) {
+                slave_cfg = data->slave_cfg;
+            }
+            else if ((data->slave2_cfg != NULL) &&
+                     (slave_address == data->slave2_cfg->address)) {
+                slave_cfg = data->slave2_cfg;
+            }
         }
     }
     else {
-        /* On STM32 the LL_I2C_GetAddressMatchCode & (ISR register) returns
-         * only 7bits of address match so 10 bit dual addressing is broken.
-         * Revert to assuming single address match.
+        /**
+         * If we received an event but Slave1 is not configured,
+         * then Slave2 should be the target for the event.
          */
-        if (data->slave_cfg != NULL) {
-            slave_cfg = data->slave_cfg;
-        }
-        else {
-            __ASSERT_NO_MSG(0);
-            return;
-        }
+        slave_cfg = data->slave2_cfg;
+    }
+
+    if (slave_cfg == NULL) {
+        __ASSERT_NO_MSG(0);
+        return;
     }
 
     slave_cb = slave_cfg->callbacks;
@@ -950,9 +956,9 @@ static inline void msg_init(const struct device* dev, struct i2c_msg* msg,
 
 static inline int msg_done(const struct device* dev,
                            unsigned int current_msg_flags) {
-    const struct i2c_stm32_config* cfg        = dev->config;
-    I2C_TypeDef*                   i2c        = cfg->i2c;
-    int64_t                        start_time = k_uptime_get();
+    const struct i2c_stm32_config* cfg = dev->config;
+    I2C_TypeDef* i2c = cfg->i2c;
+    int64_t start_time = k_uptime_get();
 
     /* Wait for transfer to complete */
     while (!LL_I2C_IsActiveFlag_TC(i2c) && !LL_I2C_IsActiveFlag_TCR(i2c)) {

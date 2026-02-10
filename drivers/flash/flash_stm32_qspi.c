@@ -206,7 +206,6 @@ struct stm32_dma_stream {
 };
 
 struct flash_stm32_qspi_config {
-    QUADSPI_TypeDef* regs;
     struct stm32_pclken pclken;
     irq_config_func_t irq_config;
     size_t flash_size;
@@ -325,11 +324,8 @@ static inline int qspi_prepare_quad_program(struct device const* dev,
  * Send a command over QSPI bus.
  */
 static int qspi_send_cmd(struct device const* dev, QSPI_CommandTypeDef const* cmd) {
-    const struct flash_stm32_qspi_config* dev_cfg = dev->config;
     struct flash_stm32_qspi_data* dev_data = dev->data;
     HAL_StatusTypeDef hal_sts;
-
-    ARG_UNUSED(dev_cfg);
 
     LOG_DBG("Instruction 0x%x", cmd->Instruction);
 
@@ -340,7 +336,7 @@ static int qspi_send_cmd(struct device const* dev, QSPI_CommandTypeDef const* cm
         LOG_ERR("%d: Failed to send QSPI instruction", hal_sts);
         return (-EIO);
     }
-    LOG_DBG("CCR 0x%x", dev_cfg->regs->CCR);
+    LOG_DBG("CCR 0x%x", dev_data->hqspi.Instance->CCR);
 
     k_sem_take(&dev_data->sync, K_FOREVER);
 
@@ -352,11 +348,8 @@ static int qspi_send_cmd(struct device const* dev, QSPI_CommandTypeDef const* cm
  */
 static int qspi_read_access(struct device const* dev, QSPI_CommandTypeDef* cmd,
                             uint8_t* data, size_t size) {
-    const struct flash_stm32_qspi_config* dev_cfg  = dev->config;
     struct flash_stm32_qspi_data* dev_data = dev->data;
     HAL_StatusTypeDef hal_sts;
-
-    ARG_UNUSED(dev_cfg);
 
     cmd->NbData = size;
 
@@ -392,11 +385,8 @@ static int qspi_read_access(struct device const* dev, QSPI_CommandTypeDef* cmd,
  */
 static int qspi_write_access(struct device const* dev, QSPI_CommandTypeDef* cmd,
                              uint8_t const* data, size_t size) {
-    const struct flash_stm32_qspi_config* dev_cfg = dev->config;
     struct flash_stm32_qspi_data* dev_data = dev->data;
     HAL_StatusTypeDef hal_sts;
-
-    ARG_UNUSED(dev_cfg);
 
     LOG_DBG("Instruction 0x%x", cmd->Instruction);
 
@@ -423,7 +413,7 @@ static int qspi_write_access(struct device const* dev, QSPI_CommandTypeDef* cmd,
         LOG_ERR("%d: Failed to read data", hal_sts);
         return (-EIO);
     }
-    LOG_DBG("CCR 0x%x", dev_cfg->regs->CCR);
+    LOG_DBG("CCR 0x%x", dev_data->hqspi.Instance->CCR);
 
     k_sem_take(&dev_data->sync, K_FOREVER);
 
@@ -1969,7 +1959,6 @@ static void flash_stm32_qspi_irq_config_func(struct device const* dev);
 PINCTRL_DT_DEFINE(STM32_QSPI_NODE);
 
 static struct flash_stm32_qspi_config DT_CONST flash_stm32_qspi_cfg = {
-    .regs = (QUADSPI_TypeDef*)DT_REG_ADDR(STM32_QSPI_NODE),
     .pclken = STM32_CLOCK_INFO(0, STM32_QSPI_NODE),
     .irq_config    = flash_stm32_qspi_irq_config_func,
     .flash_size    = (DT_INST_PROP(0, size) / 8) << STM32_QSPI_DOUBLE_FLASH,

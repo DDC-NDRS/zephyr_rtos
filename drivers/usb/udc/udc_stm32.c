@@ -476,8 +476,13 @@ static void handle_msg_data_out(struct udc_stm32_data *priv, uint8_t epnum, uint
 		 *  - receive Status OUT ZLP during s-in-(status)
 		 */
 		if (udc_ctrl_stage_is_status_out(dev)) {
-			/* s-in-status completed */
+			/*
+			 * s-in-status completed (ZLP)
+			 *
+			 * Dequeue packet and submit it to stack.
+			 */
 			__ASSERT_NO_MSG(rx_count == 0);
+			buf = udc_buf_get(ep_cfg);
 			udc_ctrl_update_stage(dev, buf);        /* USBD_PACKET_SEQ04 */
 			udc_ctrl_submit_status(dev, buf);
 		} else {
@@ -501,18 +506,19 @@ static void handle_msg_data_out(struct udc_stm32_data *priv, uint8_t epnum, uint
 			 * Data stage is complete: update to next step
 			 * which should be Status IN, then submit the
 			 * Setup+Data phase buffers to UDC stack and
-			 * let it handle the next stage.
+			 * let it handle the next stage. Don't forget
+			 * to dequeue packet before submitting it.
 			 */
+			buf = udc_buf_get(ep_cfg);
 			udc_ctrl_update_stage(dev, buf);
 			__ASSERT_NO_MSG(udc_ctrl_stage_is_status_in(dev));
 			udc_ctrl_submit_s_out_status(dev, buf);
 		}
 	} else {
+		/* All data received - dequeue packet and submit it to stack */
+		buf = udc_buf_get(ep_cfg);
 		udc_submit_ep_event(dev, buf, 0);
 	}
-
-	/* Buffer was filled and submitted - remove it from queue */
-	(void)udc_buf_get(ep_cfg);
 
 	/* Endpoint is no longer busy */
 	udc_ep_set_busy(ep_cfg, false);
@@ -717,6 +723,7 @@ int udc_stm32_init(const struct device *dev)
 	priv->pcd.Init.ep0_mps = UDC_STM32_EP0_MAX_PACKET_SIZE;
 	priv->pcd.Init.phy_itface = cfg->selected_phy;
 	priv->pcd.Init.speed = cfg->selected_speed;
+	priv->pcd.Init.Sof_enable = IS_ENABLED(CONFIG_UDC_ENABLE_SOF);
 
 	status = HAL_PCD_Init(&priv->pcd);
 	if (status != HAL_OK) {

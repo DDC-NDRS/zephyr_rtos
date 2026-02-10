@@ -197,7 +197,7 @@ manifest:
       groups:
         - hal
     - name: hal_microchip
-      revision: dbbff4a054d5888c3e8a27096335197a1a8186ca
+      revision: 39e192079299363f191ee6ab712ca0d67f49e7e3
       path: modules/hal/microchip
       groups:
         - hal
@@ -212,7 +212,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: a482dd4a6a9037f378cfee8c4334385dd332be4f
+      revision: e4afd2a26e58308ce05a421c273c85a30ba9387e
       path: modules/hal/nxp
       groups:
         - hal
@@ -233,7 +233,7 @@ manifest:
         - hal
     - name: hal_renesas
       path: modules/hal/renesas
-      revision: f30a54e266292fd0b958b49ef24eb1ca2afd1981
+      revision: f44af23f0cc1e5e6d06e2c3030b8e401840e314f
       groups:
         - hal
     - name: hal_rpi_pico
@@ -257,7 +257,7 @@ manifest:
       groups:
         - hal
     - name: hal_stm32
-      revision: 4c2c50d371ef81aaa99cff22ee80450ec7178d23
+      revision: 1238057cf8447abe309acf24e4e17e80c1e352a5
       path: modules/hal/stm32
       groups:
         - hal
@@ -349,7 +349,7 @@ manifest:
       revision: cf40f6dc7fc441ee6848ea2e177c4522588c1b8c
       path: modules/bsim_hw_models/nrf_hw_models
     - name: nrf_wifi
-      revision: 29afb11a512787bc68e2afd58c9dfde4bb4d5dc4
+      revision: 1e37ff7a739173cfe7adb248f9637d385a36c96b
       path: modules/lib/nrf_wifi
     - name: open-amp
       revision: 5efe7974f9546582e99f5a842a816ea4b65f5227
