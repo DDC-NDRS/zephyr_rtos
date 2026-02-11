@@ -2332,10 +2332,14 @@ DT_INST_FOREACH_STATUS_OKAY(STM32_SPI_INIT)
 #include "mcu_reg_stub.h"
 
 #define STM32_SPI_CFG_REG_INIT(id)       \
-    zephyr_gtest_spi_stm32_reg_init(&spi_stm32_cfg_##id);
+    zephyr_gtest_spi_stm32_reg_init(DEVICE_DT_GET(DT_DRV_INST(id)), \
+                                    &spi_stm32_dev_data_##id, &spi_stm32_cfg_##id);
 
-static void zephyr_gtest_spi_stm32_reg_init(struct spi_stm32_config* cfg) {
+static void zephyr_gtest_spi_stm32_reg_init(const struct device* dev,
+                                            struct spi_stm32_data* data,
+                                            struct spi_stm32_config* cfg) {
     uintptr_t base_addr = (uintptr_t)cfg->spi;
+	int rc = 0;
 
     switch (base_addr) {
         case SPI1_BASE : {
@@ -2375,8 +2379,17 @@ static void zephyr_gtest_spi_stm32_reg_init(struct spi_stm32_config* cfg) {
         #endif
 
         default : {
+		    rc = -EINVAL;
             break;
         }
+    }
+
+    if (rc == 0) {
+	    rc = dev->ops.init(dev);
+	    if (rc == 0) {
+		    dev->state->initialized = true;
+		    dev->state->init_res = 0U;
+	    }
     }
 }
 
@@ -2384,4 +2397,4 @@ void zephyr_gtest_spi_stm32(void) {
     DT_INST_FOREACH_STATUS_OKAY(STM32_SPI_CFG_REG_INIT)
 }
 
-#endif
+#endif /* (__GTEST == 1U) */

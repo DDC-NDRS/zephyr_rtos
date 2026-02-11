@@ -1681,6 +1681,7 @@ static void zephyr_gtest_uart_s32k3_reg_init(const struct device* dev,
         }
 
         default: {
+            rc = -EINVAL;
             break;
         }
     }

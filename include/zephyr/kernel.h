@@ -1813,18 +1813,18 @@ struct k_timer {
 
 #ifdef CONFIG_TIMER_OBSERVER
 struct k_timer_observer {
-	/* Invoked upon completion of k_timer initialization */
-	void (*on_init)(struct k_timer *timer);
+    /* Invoked upon completion of k_timer initialization */
+    void (*on_init)(struct k_timer *timer);
 
-	/* Invoked after the timer transitions to the running state  */
-	void (*on_start)(struct k_timer *timer, k_timeout_t duration,
-			 k_timeout_t period);
+    /* Invoked after the timer transitions to the running state  */
+    void (*on_start)(struct k_timer *timer, k_timeout_t duration,
+             k_timeout_t period);
 
-	/* Invoked when the active timer is explicitly stopped */
-	void (*on_stop)(struct k_timer *timer);
+    /* Invoked when the active timer is explicitly stopped */
+    void (*on_stop)(struct k_timer *timer);
 
-	/* Executes in ISR context, keep minimal and non-blocking */
-	void (*on_expiry)(struct k_timer *timer);
+    /* Executes in ISR context, keep minimal and non-blocking */
+    void (*on_expiry)(struct k_timer *timer);
 };
 #endif /* CONFIG_TIMER_OBSERVER */
 
@@ -1925,12 +1925,12 @@ typedef void (*k_timer_stop_t)(struct k_timer* timer);
  * @cond INTERNAL_HIDDEN
  */
 #define Z_TIMER_OBSERVER_INITIALIZER(name, init, start, stop, expiry) \
-	{ \
-	.on_init = init, \
-	.on_start = start, \
-	.on_stop = stop, \
-	.on_expiry = expiry \
-	}
+    { \
+    .on_init = init, \
+    .on_start = start, \
+    .on_stop = stop, \
+    .on_expiry = expiry \
+    }
 /**
  * INTERNAL_HIDDEN @endcond
  */
@@ -1949,8 +1949,8 @@ typedef void (*k_timer_stop_t)(struct k_timer* timer);
  * @param expiry Pointer to expiry callback (or NULL).
  */
 #define K_TIMER_OBSERVER_DEFINE(name, init, start, stop, expiry) \
-	static const STRUCT_SECTION_ITERABLE(k_timer_observer, name) = \
-		Z_TIMER_OBSERVER_INITIALIZER(name, init, start, stop, expiry)
+    static const STRUCT_SECTION_ITERABLE(k_timer_observer, name) = \
+        Z_TIMER_OBSERVER_INITIALIZER(name, init, start, stop, expiry)
 
 #endif /* CONFIG_TIMER_OBSERVER */
 
@@ -6222,6 +6222,49 @@ void k_heap_free(struct k_heap* h, void* mem) __attribute_nonnull(1);
 #else
 #define Z_HEAP_MIN_SIZE ((sizeof(void*) > 4) ? 56 : 44)
 #endif /* CONFIG_SYS_HEAP_RUNTIME_STATS */
+
+/* Size of `struct z_heap` */
+#define _Z_HEAP_SIZE                        \
+    ((4 * sizeof(uint32_t)) +               \
+     (3 * (IS_ENABLED(CONFIG_SYS_HEAP_RUNTIME_STATS) ? sizeof(size_t) : 0)))
+
+/* Number of buckets required to store @a bytes */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+/* MSVC can't constant‑fold __builtin_clz, so this uses a conservative constant bucket count.
+ * may slightly reduce usable heap but keeps correctness.
+ */
+#define _Z_HEAP_NUM_BUCKETS(bytes) (sizeof(size_t) * 8U)
+#else
+#define _Z_HEAP_NUM_BUCKETS(bytes) ((31 - __builtin_clz((bytes / 8) - 1)) + 1)
+#endif
+
+/* Number of bytes consumed by buckets */
+#define _Z_HEAP_BUCKETS_SIZE(bytes) (_Z_HEAP_NUM_BUCKETS(bytes) * sizeof(uint32_t))
+
+/**
+ * @brief Minimum heap size required for allocating a given size
+ *
+ * Heaps store metadata at the start of the provided array, resulting in a
+ * heap declaration of N bytes having an actual allocation capacity of less
+ * than N bytes. This macro approximates how much overhead in bytes the metadata
+ * consumes, allowing for real allocations closer to the requested size.
+ *
+ * Assumes small heaps, since for large heaps the importance of tuning single bytes
+ * is small.
+ *
+ * The parameters considered:
+ *   Size of the header "struct z_heap"
+ *   Buckets holding chunk metadata
+ *   Free heap chunk
+ *   End chunk
+ *   Chunk metadata for single allocation
+ *
+ * @param alloc_bytes Size of a desired allocation
+ *
+ * @retval Approximate size of the heap required to allocate @a alloc_bytes
+ */
+#define Z_HEAP_MIN_SIZE_FOR(alloc_bytes) \
+    ((alloc_bytes) + _Z_HEAP_SIZE + _Z_HEAP_BUCKETS_SIZE(alloc_bytes) + (3 * 8))
 
 /**
  * @brief Define a static k_heap in the specified linker section
