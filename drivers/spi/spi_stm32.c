@@ -844,6 +844,10 @@ static void spi_stm32_complete(const struct device* dev, int status) {
                 ll_func_disable_spi(spi);
             }
             #endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) */
+
+            if (LL_SPI_HALF_DUPLEX_RX == LL_SPI_GetTransferDirection(spi)) {
+                ll_func_disable_spi(spi);
+            }
         }
 
         spi_stm32_cs_control(dev, false);
@@ -2339,7 +2343,7 @@ static void zephyr_gtest_spi_stm32_reg_init(const struct device* dev,
                                             struct spi_stm32_data* data,
                                             struct spi_stm32_config* cfg) {
     uintptr_t base_addr = (uintptr_t)cfg->spi;
-	int rc = 0;
+    int rc = 0;
 
     switch (base_addr) {
         case SPI1_BASE : {
@@ -2379,17 +2383,17 @@ static void zephyr_gtest_spi_stm32_reg_init(const struct device* dev,
         #endif
 
         default : {
-		    rc = -EINVAL;
+            rc = -EINVAL;
             break;
         }
     }
 
     if (rc == 0) {
-	    rc = dev->ops.init(dev);
-	    if (rc == 0) {
-		    dev->state->initialized = true;
-		    dev->state->init_res = 0U;
-	    }
+        rc = dev->ops.init(dev);
+        if (rc == 0) {
+            dev->state->initialized = true;
+            dev->state->init_res = 0U;
+        }
     }
 }
 

@@ -1247,6 +1247,7 @@ static void uart_stm32_dma_rx_flush(const struct device *dev, int status) {
     struct uart_stm32_data* data = dev->data;
     struct uart_dma_stream* dma_rx = &data->dma_rx;
     size_t rx_rcv_len = 0;
+    uint32_t half_pos;
 
     switch (status) {
         case DMA_STATUS_COMPLETE :
@@ -1263,7 +1264,7 @@ static void uart_stm32_dma_rx_flush(const struct device *dev, int status) {
 
         case DMA_STATUS_BLOCK :
             /* half complete */
-            uint32_t half_pos = dma_rx->buffer_length / 2;
+            half_pos = dma_rx->buffer_length / 2;
 
             /* Already handled by timeout path has already dealt with this data.
              * Return immediately.

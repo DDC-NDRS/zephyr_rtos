@@ -48,7 +48,7 @@ BUILD_ASSERT((SHELL_THREAD_PRIORITY >= K_HIGHEST_APPLICATION_THREAD_PRIO) &&
 BUILD_ASSERT(CONFIG_SHELL_BYPASS_READ_BUF_SIZE < CONFIG_SHELL_STACK_SIZE,
              "Bypass buffer size must be smaller than shell stack size");
 
-static inline void receive_state_change(const struct shell* sh,
+static inline void receive_state_change(struct shell const* sh,
                                         enum shell_receive_state state) {
     sh->ctx->receive_state = state;
 }
@@ -61,7 +61,7 @@ static void cmd_buffer_clear(struct shell const* sh) {
     ctx->cmd_buff_len = 0;
 }
 
-static void shell_internal_help_print(const struct shell* sh) {
+static void shell_internal_help_print(struct shell const* sh) {
     if (!IS_ENABLED(CONFIG_SHELL_HELP)) {
         return;
     }
@@ -81,7 +81,7 @@ static void shell_internal_help_print(const struct shell* sh) {
  * @return 0       if check passed
  * @return -EINVAL if wrong argument count
  */
-static int cmd_precheck(const struct shell* sh,
+static int cmd_precheck(struct shell const* sh,
                         bool arg_cnt_ok) {
     if (!arg_cnt_ok) {
         z_shell_fprintf(sh, SHELL_ERROR,
@@ -113,12 +113,12 @@ static inline void state_set(struct shell const* sh, enum shell_state state) {
     }
 }
 
-static inline enum shell_state state_get(const struct shell* sh) {
+static inline enum shell_state state_get(struct shell const* sh) {
     return (sh->ctx->state);
 }
 
 static inline const struct shell_static_entry*
-selected_cmd_get(const struct shell* sh) {
+selected_cmd_get(struct shell const* sh) {
     if (IS_ENABLED(CONFIG_SHELL_CMDS_SELECT) ||
         (CONFIG_SHELL_CMD_ROOT[0] != 0)) {
         return (sh->ctx->selected_cmd);
@@ -127,7 +127,7 @@ selected_cmd_get(const struct shell* sh) {
     return (NULL);
 }
 
-static void tab_item_print(const struct shell* sh, char const* option,
+static void tab_item_print(struct shell const* sh, char const* option,
                            uint16_t longest_option) {
     static char const* tab = "  ";
     static uint16_t const tab_len = 2U;
@@ -157,7 +157,7 @@ static void tab_item_print(const struct shell* sh, char const* option,
     z_shell_op_cursor_horiz_move(sh, diff);
 }
 
-static void history_purge(const struct shell* sh) {
+static void history_purge(struct shell const* sh) {
     if (!IS_ENABLED(CONFIG_SHELL_HISTORY)) {
         return;
     }
@@ -165,7 +165,7 @@ static void history_purge(const struct shell* sh) {
     z_shell_history_purge(sh->history);
 }
 
-static void history_mode_exit(const struct shell* sh) {
+static void history_mode_exit(struct shell const* sh) {
     if (!IS_ENABLED(CONFIG_SHELL_HISTORY)) {
         return;
     }
@@ -174,7 +174,7 @@ static void history_mode_exit(const struct shell* sh) {
     z_shell_history_mode_exit(sh->history);
 }
 
-static void history_put(const struct shell* sh, uint8_t* line, size_t length) {
+static void history_put(struct shell const* sh, uint8_t* line, size_t length) {
     if (!IS_ENABLED(CONFIG_SHELL_HISTORY)) {
         return;
     }
@@ -182,13 +182,18 @@ static void history_put(const struct shell* sh, uint8_t* line, size_t length) {
     z_shell_history_put(sh->history, line, length);
 }
 
-static void history_handle(const struct shell* sh, bool up) {
+static void history_handle(struct shell const* sh, bool up) {
     struct shell_ctx* ctx = sh->ctx;
     bool history_mode;
     uint16_t len;
 
     /* optional feature */
     if (!IS_ENABLED(CONFIG_SHELL_HISTORY)) {
+        return;
+    }
+
+    /* No history when capturing user input */
+    if (sh->ctx->readline_state != SHELL_READLINE_INACTIVE) {
         return;
     }
 
@@ -242,7 +247,7 @@ static inline uint16_t completion_space_get(struct shell const* sh) {
 }
 
 /* Prepare arguments and return number of space available for completion. */
-static bool tab_prepare(const struct shell* sh,
+static bool tab_prepare(struct shell const* sh,
                         const struct shell_static_entry** cmd,
                         char const*** argv, size_t* argc,
                         size_t* complete_arg_idx,
@@ -312,7 +317,7 @@ static inline bool is_completion_candidate(char const* candidate,
     return (strncmp(candidate, str, len) == 0) ? true : false;
 }
 
-static void find_completion_candidates(const struct shell* sh,
+static void find_completion_candidates(struct shell const* sh,
                                        const struct shell_static_entry* cmd,
                                        char const* incompl_cmd,
                                        size_t* first_idx, size_t* cnt,
@@ -343,7 +348,7 @@ static void find_completion_candidates(const struct shell* sh,
     }
 }
 
-static void autocomplete(const struct shell* sh,
+static void autocomplete(struct shell const* sh,
                          const struct shell_static_entry* cmd,
                          char const* arg,
                          size_t subcmd_idx) {
@@ -412,7 +417,7 @@ static size_t str_common(char const* s1, char const* s2, size_t n) {
     return (common);
 }
 
-static void tab_options_print(const struct shell* sh,
+static void tab_options_print(struct shell const* sh,
                               const struct shell_static_entry* cmd,
                               char const* str, size_t first, size_t cnt,
                               uint16_t longest) {
@@ -443,7 +448,7 @@ static void tab_options_print(const struct shell* sh,
     z_shell_print_prompt_and_cmd(sh);
 }
 
-static uint16_t common_beginning_find(const struct shell* sh,
+static uint16_t common_beginning_find(struct shell const* sh,
                                       const struct shell_static_entry* cmd,
                                       char const** str,
                                       size_t first, size_t cnt, uint16_t arg_len) {
@@ -482,7 +487,7 @@ static uint16_t common_beginning_find(const struct shell* sh,
     return (common);
 }
 
-static void partial_autocomplete(const struct shell* sh,
+static void partial_autocomplete(struct shell const* sh,
                                  const struct shell_static_entry* cmd,
                                  char const* arg,
                                  size_t first, size_t cnt) {
@@ -501,7 +506,7 @@ static void partial_autocomplete(const struct shell* sh,
     }
 }
 
-static int exec_cmd(const struct shell* sh, size_t argc, char const** argv,
+static int exec_cmd(struct shell const* sh, size_t argc, char const** argv,
                     const struct shell_static_entry* help_entry) {
     struct shell_ctx* ctx = sh->ctx;
     int ret_val = 0;
@@ -583,7 +588,7 @@ static void active_cmd_prepare(const struct shell_static_entry* entry,
     }
 }
 
-static bool wildcard_check_report(const struct shell* sh, bool found,
+static bool wildcard_check_report(struct shell const* sh, bool found,
                                   const struct shell_static_entry* entry) {
     /* An error occurred, fnmatch  argument cannot be followed by argument
      * with a handler to avoid multiple function calls.
@@ -615,7 +620,7 @@ static bool wildcard_check_report(const struct shell* sh, bool found,
  * Because of that feature, command buffer is processed argument by argument and
  * decision on further processing is based on currently processed command.
  */
-static int execute(const struct shell* sh) {
+static int execute(struct shell const* sh) {
     struct shell_static_entry dloc;                             /* Memory for dynamic commands. */
     char const* argv[CONFIG_SHELL_ARGC_MAX + 1];                /* +1 reserved for NULL */
     const struct shell_static_entry* parent = selected_cmd_get(sh);
@@ -802,7 +807,7 @@ static int execute(const struct shell* sh) {
                     &argv[cmd_with_handler_lvl], &help_entry);
 }
 
-static void toggle_logs_output(const struct shell* sh) {
+static void toggle_logs_output(struct shell const* sh) {
     const struct shell_log_backend *backend = sh->log_backend;
 
     if (!IS_ENABLED(CONFIG_SHELL_LOG_BACKEND)) {
@@ -817,7 +822,7 @@ static void toggle_logs_output(const struct shell* sh) {
     }
 }
 
-static void tab_handle(const struct shell* sh) {
+static void tab_handle(struct shell const* sh) {
     char const* __argv[CONFIG_SHELL_ARGC_MAX + 1];
     /* d_entry - placeholder for dynamic command */
     struct shell_static_entry d_entry;
@@ -828,6 +833,11 @@ static void tab_handle(const struct shell* sh) {
     uint16_t longest;
     size_t argc;
     size_t cnt;
+
+    /* Disable tab handling when readline is active */
+    if (sh->ctx->readline_state != SHELL_READLINE_INACTIVE) {
+        return;
+    }
 
     bool tab_possible = tab_prepare(sh, &cmd, &argv, &argc, &arg_idx,
                                     &d_entry);
@@ -850,7 +860,7 @@ static void tab_handle(const struct shell* sh) {
     }
 }
 
-static void alt_metakeys_handle(const struct shell* sh, char data) {
+static void alt_metakeys_handle(struct shell const* sh, char data) {
     /* Optional feature */
     if (!IS_ENABLED(CONFIG_SHELL_METAKEYS)) {
         return;
@@ -879,7 +889,7 @@ static void alt_metakeys_handle(const struct shell* sh, char data) {
     }
 }
 
-static void ctrl_metakeys_handle(const struct shell* sh, char data) {
+static void ctrl_metakeys_handle(struct shell const* sh, char data) {
     /* Optional feature */
     if (!IS_ENABLED(CONFIG_SHELL_METAKEYS)) {
         return;
@@ -900,7 +910,13 @@ static void ctrl_metakeys_handle(const struct shell* sh, char data) {
                 z_cursor_next_line_move(sh);
             }
             z_flag_history_exit_set(sh, true);
-            state_set(sh, SHELL_STATE_ACTIVE);
+
+            if (sh->ctx->readline_state == SHELL_READLINE_ACTIVE) {
+                sh->ctx->readline_state = SHELL_READLINE_CANCELED;
+            }
+            else {
+                state_set(sh, SHELL_STATE_ACTIVE);
+            }
             break;
 
         case SHELL_VT100_ASCII_CTRL_D : /* CTRL + D */
@@ -955,7 +971,7 @@ static void ctrl_metakeys_handle(const struct shell* sh, char data) {
 }
 
 /* Functions returns true if new line character shall be processed */
-static bool process_nl(const struct shell* sh, uint8_t data) {
+static bool process_nl(struct shell const* sh, uint8_t data) {
     if ((data != '\r') && (data != '\n')) {
         z_flag_last_nl_set(sh, 0);
         return (false);
@@ -981,7 +997,7 @@ static inline int ascii_filter(char const data) {
     }
 }
 
-static void state_collect(const struct shell* sh) {
+static void state_collect(struct shell const* sh) {
     struct shell_ctx* ctx = sh->ctx;
     size_t count = 0U;
     char data;
@@ -1035,7 +1051,14 @@ static void state_collect(const struct shell* sh) {
         switch (ctx->receive_state) {
             case SHELL_RECEIVE_DEFAULT :
                 if (process_nl(sh, data)) {
-                    if (!ctx->cmd_buff_len) {
+                    /* Running in a re-entry for user input */
+                    if (sh->ctx->readline_state == SHELL_READLINE_ACTIVE) {
+                        z_cursor_next_line_move(sh);
+                        sh->ctx->readline_state = SHELL_READLINE_DONE;
+                        return;
+                    }
+
+                    if (!sh->ctx->cmd_buff_len) {
                         history_mode_exit(sh);
                         z_cursor_next_line_move(sh);
                     }
@@ -1200,7 +1223,7 @@ static void transport_evt_handler(enum shell_transport_evt evt_type, void* ctx) 
     k_event_post(&sh->ctx->signal_event, sig);
 }
 
-static void shell_log_process(const struct shell* sh) {
+static void shell_log_process(struct shell const* sh) {
     bool processed = false;
 
     do {
@@ -1223,7 +1246,7 @@ static void shell_log_process(const struct shell* sh) {
     } while (processed && !k_event_test(&sh->ctx->signal_event, SHELL_SIGNAL_RXRDY));
 }
 
-static int instance_init(const struct shell* sh,
+static int instance_init(struct shell const* sh,
                          void const* transport_config,
                          struct shell_backend_config_flags cfg_flags) {
     __ASSERT_NO_MSG((sh->shell_flag == SHELL_FLAG_CRLF_DEFAULT) ||
@@ -1274,7 +1297,7 @@ static int instance_init(const struct shell* sh,
     return (ret);
 }
 
-static int instance_uninit(const struct shell* sh) {
+static int instance_uninit(struct shell const* sh) {
     __ASSERT_NO_MSG(sh);
     __ASSERT_NO_MSG(sh->ctx && sh->iface);
 
@@ -1300,9 +1323,9 @@ static int instance_uninit(const struct shell* sh) {
     return (0);
 }
 
-typedef void (*shell_signal_handler_t)(const struct shell* sh);
+typedef void (*shell_signal_handler_t)(struct shell const* sh);
 
-static void shell_signal_handle(const struct shell* sh,
+static void shell_signal_handle(struct shell const* sh,
                                 enum shell_signal sig,
                                 shell_signal_handler_t handler) {
     if (!k_event_test(&sh->ctx->signal_event, sig)) {
@@ -1313,7 +1336,7 @@ static void shell_signal_handle(const struct shell* sh,
     handler(sh);
 }
 
-static void kill_handler(const struct shell* sh) {
+static void kill_handler(struct shell const* sh) {
     int err = instance_uninit(sh);
 
     if (sh->ctx->uninit_cb) {
@@ -1372,7 +1395,7 @@ void shell_thread(void* shell_handle, void* arg_log_backend,
     }
 }
 
-int shell_init(const struct shell* sh, void const* transport_config,
+int shell_init(struct shell const* sh, void const* transport_config,
                struct shell_backend_config_flags cfg_flags,
                bool log_backend, uint32_t init_log_level) {
     __ASSERT_NO_MSG(sh);
@@ -1400,7 +1423,7 @@ int shell_init(const struct shell* sh, void const* transport_config,
     return (0);
 }
 
-void shell_uninit(const struct shell* sh, shell_uninit_cb_t cb) {
+void shell_uninit(struct shell const* sh, shell_uninit_cb_t cb) {
     __ASSERT_NO_MSG(sh);
 
     if (IS_ENABLED(CONFIG_MULTITHREADING)) {
@@ -1419,7 +1442,7 @@ void shell_uninit(const struct shell* sh, shell_uninit_cb_t cb) {
     }
 }
 
-int shell_start(const struct shell* sh) {
+int shell_start(struct shell const* sh) {
     __ASSERT_NO_MSG(sh);
     __ASSERT_NO_MSG(sh->ctx && sh->iface && sh->default_prompt);
 
@@ -1459,7 +1482,7 @@ int shell_start(const struct shell* sh) {
     return (0);
 }
 
-int shell_stop(const struct shell* sh) {
+int shell_stop(struct shell const* sh) {
     __ASSERT_NO_MSG(sh);
     __ASSERT_NO_MSG(sh->ctx);
 
@@ -1479,7 +1502,7 @@ int shell_stop(const struct shell* sh) {
     return (0);
 }
 
-void shell_process(const struct shell* sh) {
+void shell_process(struct shell const* sh) {
     __ASSERT_NO_MSG(sh);
     __ASSERT_NO_MSG(sh->ctx);
 
@@ -1504,7 +1527,7 @@ void shell_process(const struct shell* sh) {
     z_flag_processing_set(sh, false);
 }
 
-const struct shell* shell_backend_get_by_name(char const* backend_name) {
+struct shell const* shell_backend_get_by_name(char const* backend_name) {
     STRUCT_SECTION_FOREACH(shell, backend) {
         if (strcmp(backend_name, backend->name) == 0) {
             return (backend);
@@ -1517,7 +1540,7 @@ const struct shell* shell_backend_get_by_name(char const* backend_name) {
 /* This function mustn't be used from shell context to avoid deadlock.
  * However it can be used in shell command handlers.
  */
-void shell_vfprintf(const struct shell* sh, enum shell_vt100_color color,
+void shell_vfprintf(struct shell const* sh, enum shell_vt100_color color,
                     char const* fmt, va_list args) {
     struct shell_ctx* ctx = sh->ctx;
 
@@ -1600,7 +1623,7 @@ void shell_fprintf_error(struct shell const* sh, const char* fmt, ...) {
     va_end(args);
 }
 
-void shell_hexdump_line_width(const struct shell* sh, unsigned int offset,
+void shell_hexdump_line_width(struct shell const* sh, unsigned int offset,
                               uint8_t const* data, size_t len, uint8_t width) {
     uint8_t group_size = ((width & 7) != 0) ? 1 : (width / 8);
     int i;
@@ -1646,7 +1669,7 @@ void shell_hexdump_line_width(const struct shell* sh, unsigned int offset,
     shell_print(sh, "|");
 }
 
-void shell_hexdump_line(const struct shell* sh, unsigned int offset,
+void shell_hexdump_line(struct shell const* sh, unsigned int offset,
                         uint8_t const* data, size_t len) {
     __ASSERT_NO_MSG(sh);
 
@@ -1688,7 +1711,7 @@ void shell_hexdump_line(const struct shell* sh, unsigned int offset,
     shell_print(sh, "|");
 }
 
-void shell_hexdump(const struct shell* sh, uint8_t const* data, size_t len) {
+void shell_hexdump(struct shell const* sh, uint8_t const* data, size_t len) {
     __ASSERT_NO_MSG(sh);
 
     uint8_t const* p = data;
@@ -1704,7 +1727,7 @@ void shell_hexdump(const struct shell* sh, uint8_t const* data, size_t len) {
     }
 }
 
-int shell_prompt_change(const struct shell* sh, char const* prompt) {
+int shell_prompt_change(struct shell const* sh, char const* prompt) {
     #if IS_ENABLED(CONFIG_SHELL_PROMPT_CHANGE)
     __ASSERT_NO_MSG(sh);
 
@@ -1735,7 +1758,7 @@ int shell_prompt_change(const struct shell* sh, char const* prompt) {
     #endif
 }
 
-void shell_help(const struct shell* sh) {
+void shell_help(struct shell const* sh) {
     if (!z_shell_trylock(sh, SHELL_TX_MTX_TIMEOUT)) {
         return;
     }
@@ -1743,7 +1766,7 @@ void shell_help(const struct shell* sh) {
     z_shell_unlock(sh);
 }
 
-int shell_execute_cmd(const struct shell* sh, char const* cmd) {
+int shell_execute_cmd(struct shell const* sh, char const* cmd) {
     uint16_t cmd_len = z_shell_strlen(cmd);
     int ret_val;
 
@@ -1782,7 +1805,7 @@ int shell_execute_cmd(const struct shell* sh, char const* cmd) {
     return (ret_val);
 }
 
-int shell_insert_mode_set(const struct shell* sh, bool val) {
+int shell_insert_mode_set(struct shell const* sh, bool val) {
     if (sh == NULL) {
         return (-EINVAL);
     }
@@ -1790,7 +1813,7 @@ int shell_insert_mode_set(const struct shell* sh, bool val) {
     return (int)z_flag_insert_mode_set(sh, val);
 }
 
-int shell_use_colors_set(const struct shell* sh, bool val) {
+int shell_use_colors_set(struct shell const* sh, bool val) {
     if (sh == NULL) {
         return (-EINVAL);
     }
@@ -1798,7 +1821,7 @@ int shell_use_colors_set(const struct shell* sh, bool val) {
     return (int)z_flag_use_colors_set(sh, val);
 }
 
-int shell_use_vt100_set(const struct shell* sh, bool val) {
+int shell_use_vt100_set(struct shell const* sh, bool val) {
     if (sh == NULL) {
         return (-EINVAL);
     }
@@ -1806,7 +1829,7 @@ int shell_use_vt100_set(const struct shell* sh, bool val) {
     return (int)z_flag_use_vt100_set(sh, val);
 }
 
-int shell_get_return_value(const struct shell* sh) {
+int shell_get_return_value(struct shell const* sh) {
     if (sh == NULL) {
         return (-EINVAL);
     }
@@ -1814,7 +1837,7 @@ int shell_get_return_value(const struct shell* sh) {
     return z_shell_get_return_value(sh);
 }
 
-int shell_echo_set(const struct shell* sh, bool val) {
+int shell_echo_set(struct shell const* sh, bool val) {
     if (sh == NULL) {
         return (-EINVAL);
     }
@@ -1822,7 +1845,7 @@ int shell_echo_set(const struct shell* sh, bool val) {
     return (int)z_flag_echo_set(sh, val);
 }
 
-int shell_obscure_set(const struct shell* sh, bool val) {
+int shell_obscure_set(struct shell const* sh, bool val) {
     if (sh == NULL) {
         return (-EINVAL);
     }
@@ -1830,7 +1853,7 @@ int shell_obscure_set(const struct shell* sh, bool val) {
     return (int)z_flag_obscure_set(sh, val);
 }
 
-int shell_mode_delete_set(const struct shell* sh, bool val) {
+int shell_mode_delete_set(struct shell const* sh, bool val) {
     if (sh == NULL) {
         return (-EINVAL);
     }
@@ -1849,13 +1872,75 @@ void shell_set_bypass(struct shell const* sh, shell_bypass_cb_t bypass, void* us
     }
 }
 
-bool shell_ready(const struct shell* sh) {
+bool shell_ready(struct shell const* sh) {
     __ASSERT_NO_MSG(sh);
 
     return (state_get(sh) == SHELL_STATE_ACTIVE);
 }
 
-static int cmd_help(const struct shell* sh, size_t argc, char** argv) {
+int shell_readline(struct shell const* sh, uint8_t* buf, size_t len, k_timeout_t timeout) {
+    k_timepoint_t end = sys_timepoint_calc(timeout);
+    int ret;
+
+    __ASSERT_NO_MSG(sh != NULL);
+
+    /* Only allow calling from inside a shell command with no bypass active */
+    if (!z_flag_cmd_ctx_get(sh) || sh->ctx->bypass != NULL) {
+        return (-EACCES);
+    }
+
+    sh->ctx->readline_state = SHELL_READLINE_ACTIVE;
+
+    /* Save the current command buffer */
+    sh->ctx->cmd_tmp_buff_len = sh->ctx->cmd_buff_len;
+    sh->ctx->cmd_tmp_buff_pos = sh->ctx->cmd_buff_pos;
+    memcpy(sh->ctx->temp_buff, sh->ctx->cmd_buff, sh->ctx->cmd_buff_len);
+
+    /* Clear the buffer for user input */
+    cmd_buffer_clear(sh);
+
+    while (true) {
+        state_collect(sh);
+
+        if (sh->ctx->readline_state == SHELL_READLINE_DONE) {
+            if (buf == NULL || sh->ctx->cmd_buff_len >= len) {
+                ret = -ENOBUFS;
+                break;
+            }
+
+            memcpy(buf, sh->ctx->cmd_buff, sh->ctx->cmd_buff_len);
+            buf[sh->ctx->cmd_buff_len] = '\0';
+
+            ret = sh->ctx->cmd_buff_len;
+            break;
+        }
+
+        if (sh->ctx->readline_state == SHELL_READLINE_CANCELED) {
+            ret = -ECANCELED;
+            break;
+        }
+
+        /* Check for timeout */
+        if (sys_timepoint_expired(end)) {
+            ret = -ETIMEDOUT;
+            break;
+        }
+
+        /* Small delay to avoid busy-waiting */
+        k_msleep(1);
+    }
+
+    /* Restore the command state */
+    sh->ctx->cmd_buff_len = sh->ctx->cmd_tmp_buff_len;
+    sh->ctx->cmd_buff_pos = sh->ctx->cmd_tmp_buff_pos;
+    memcpy(sh->ctx->cmd_buff, sh->ctx->temp_buff, sh->ctx->cmd_buff_len);
+
+    sh->ctx->readline_state = SHELL_READLINE_INACTIVE;
+
+    return (ret);
+}
+
+static int cmd_help(struct shell const* sh, size_t argc, char** argv) {
     ARG_UNUSED(argc);
     ARG_UNUSED(argv);
 

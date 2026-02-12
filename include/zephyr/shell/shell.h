@@ -774,6 +774,8 @@ static inline bool shell_help_is_structured(const char* help) {
         SHELL_SUBCMD_SET_END                                    \
     )
 
+/* @cond INTERNAL_HIDDEN */
+
 /**
  * @internal @brief Internal shell state in response to data received from the
  * terminal.
@@ -801,6 +803,15 @@ enum shell_transport_evt {
     SHELL_TRANSPORT_EVT_RX_RDY,
     SHELL_TRANSPORT_EVT_TX_RDY
 };
+
+enum shell_readline_state {
+    SHELL_READLINE_INACTIVE,
+    SHELL_READLINE_ACTIVE,
+    SHELL_READLINE_DONE,
+    SHELL_READLINE_CANCELED,
+};
+
+/* @endcond */
 
 typedef void (*shell_transport_handler_t)(enum shell_transport_evt evt,
                                           void* context);
@@ -999,6 +1010,9 @@ struct shell_ctx {
     enum shell_state state;                 /*!< Internal module state.*/
     enum shell_receive_state receive_state; /*!< Escape sequence indicator.*/
 
+    /** Field tracking the readline state for user input */
+    enum shell_readline_state readline_state;
+
     /** Currently executed command.*/
     struct shell_static_entry active_cmd;
 
@@ -1031,6 +1045,7 @@ struct shell_ctx {
     uint16_t cmd_buff_pos; /*!< Command buffer cursor position.*/
 
     uint16_t cmd_tmp_buff_len; /*!< Command length in tmp buffer.*/
+    uint16_t cmd_tmp_buff_pos; /*!< Command buffer cursor position in tmp buffer.*/
 
     /** Command input buffer.*/
     char cmd_buff[CONFIG_SHELL_CMD_BUFF_SIZE];
@@ -1508,6 +1523,29 @@ int shell_mode_delete_set(struct shell const* sh, bool val);
  * @return return value of previous command
  */
 int shell_get_return_value(struct shell const* sh);
+
+/**
+ * @brief Read a line of input from the shell.
+ *
+ * This function reads from the shell transport until a newline character is
+ * received, storing the data in the provided buffer. The newline character is
+ * not included in the buffer. The buffer is null-terminated on success.
+ *
+ * @note This function should be called from the shell thread in a shell command
+ *       handler and blocks the thread until a result is returned.
+ *
+ * @param[in]  sh      Shell instance.
+ * @param[out] buf     Buffer to store the input line.
+ * @param[in]  len     Maximum buffer size (including null terminator).
+ * @param[in]  timeout Maximum time to wait for a complete line.
+ *
+ * @return Number of bytes read (excluding null terminator) on success.
+ * @retval -ETIMEDOUT If timeout occurred before newline was received.
+ * @retval -ENOBUFS If @a buf is NULL or input exceeds buffer size.
+ * @retval -ECANCELED If CTRL+C was pressed.
+ * @retval -EACCES If not called from an active shell command or bypass callback is set.
+ */
+int shell_readline(struct shell const* sh, uint8_t* buf, size_t len, k_timeout_t timeout);
 
 /**
  * @}

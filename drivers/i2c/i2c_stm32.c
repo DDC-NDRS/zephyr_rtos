@@ -143,7 +143,7 @@ int i2c_stm32_runtime_configure(const struct device* dev, uint32_t config) {
 #define OPERATION(msg) (((struct i2c_msg*)msg)->flags & I2C_MSG_RW_MASK)
 
 static int i2c_stm32_transfer(const struct device* dev, struct i2c_msg* msg,
-                              uint8_t num_msgs, uint16_t slave) {
+                              uint8_t num_msgs, uint16_t target) {
     struct i2c_stm32_data* data = dev->data;
     struct i2c_msg* current;
     struct i2c_msg* next;
@@ -208,7 +208,7 @@ static int i2c_stm32_transfer(const struct device* dev, struct i2c_msg* msg,
             next_msg_flags = &(next->flags);
         }
 
-        ret = i2c_stm32_transaction(dev, *current, next_msg_flags, slave);
+        ret = i2c_stm32_transaction(dev, *current, next_msg_flags, target);
         if (ret < 0) {
             break;
         }
@@ -366,7 +366,7 @@ static int i2c_stm32_init(const struct device* dev) {
     #if defined(CONFIG_SOC_SERIES_STM32F1X)
     /*
      * Force i2c reset for STM32F1 series.
-     * So that they can enter master mode properly.
+     * So that they can enter controller mode properly.
      * Issue described in ES096 2.14.7
      */
     I2C_TypeDef* i2c = cfg->i2c;

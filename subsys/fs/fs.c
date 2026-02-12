@@ -142,8 +142,7 @@ int fs_open(struct fs_file_t *zfp, const char *file_name, fs_mode_t flags)
 	int rc = -EINVAL;
 	bool truncate_file = false;
 
-	if ((file_name == NULL) ||
-			(strlen(file_name) <= 1) || (file_name[0] != '/')) {
+	if ((file_name == NULL) || (file_name[0] != '/') || (file_name[1] == '\0')) {
 		LOG_ERR("invalid file name!!");
 		return -EINVAL;
 	}
@@ -364,8 +363,7 @@ int fs_opendir(struct fs_dir_t *zdp, const char *abs_path)
 	struct fs_mount_t *mp;
 	int rc = -EINVAL;
 
-	if ((abs_path == NULL) ||
-			(strlen(abs_path) < 1) || (abs_path[0] != '/')) {
+	if ((abs_path == NULL) || (abs_path[0] != '/')) {
 		LOG_ERR("invalid directory name!!");
 		return -EINVAL;
 	}
@@ -516,8 +514,7 @@ int fs_mkdir(const char *abs_path)
 	struct fs_mount_t *mp;
 	int rc = -EINVAL;
 
-	if ((abs_path == NULL) ||
-			(strlen(abs_path) <= 1) || (abs_path[0] != '/')) {
+	if ((abs_path == NULL) || (abs_path[0] != '/') || (abs_path[1] == '\0')) {
 		LOG_ERR("invalid directory name!!");
 		return -EINVAL;
 	}
@@ -549,8 +546,7 @@ int fs_unlink(const char *abs_path)
 	struct fs_mount_t *mp;
 	int rc = -EINVAL;
 
-	if ((abs_path == NULL) ||
-			(strlen(abs_path) <= 1) || (abs_path[0] != '/')) {
+	if ((abs_path == NULL) || (abs_path[0] != '/') || (abs_path[1] == '\0')) {
 		LOG_ERR("invalid file name!!");
 		return -EINVAL;
 	}
@@ -583,8 +579,8 @@ int fs_rename(const char *from, const char *to)
 	size_t match_len;
 	int rc = -EINVAL;
 
-	if ((from == NULL) || (strlen(from) <= 1) || (from[0] != '/') ||
-			(to == NULL) || (strlen(to) <= 1) || (to[0] != '/')) {
+	if ((from == NULL) || (from[0] != '/') || (from[1] == '\0') ||
+			(to == NULL) || (to[0] != '/') || (to[1] == '\0')) {
 		LOG_ERR("invalid file name!!");
 		return -EINVAL;
 	}
@@ -670,8 +666,7 @@ int fs_statvfs(const char *abs_path, struct fs_statvfs *stat)
 	struct fs_mount_t *mp;
 	int rc;
 
-	if ((abs_path == NULL) ||
-			(strlen(abs_path) <= 1) || (abs_path[0] != '/')) {
+	if ((abs_path == NULL) || (abs_path[0] != '/') || (abs_path[1] == '\0')) {
 		LOG_ERR("invalid file or dir name!!");
 		return -EINVAL;
 	}
