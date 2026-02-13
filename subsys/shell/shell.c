@@ -1889,12 +1889,13 @@ int shell_readline(struct shell const* sh, uint8_t* buf, size_t len, k_timeout_t
         return (-EACCES);
     }
 
-    sh->ctx->readline_state = SHELL_READLINE_ACTIVE;
+    struct shell_ctx* ctx = sh->ctx;
+    ctx->readline_state = SHELL_READLINE_ACTIVE;
 
     /* Save the current command buffer */
-    sh->ctx->cmd_tmp_buff_len = sh->ctx->cmd_buff_len;
-    sh->ctx->cmd_tmp_buff_pos = sh->ctx->cmd_buff_pos;
-    memcpy(sh->ctx->temp_buff, sh->ctx->cmd_buff, sh->ctx->cmd_buff_len);
+    ctx->cmd_tmp_buff_len = ctx->cmd_buff_len;
+    ctx->cmd_tmp_buff_pos = ctx->cmd_buff_pos;
+    memcpy(ctx->temp_buff, ctx->cmd_buff, ctx->cmd_buff_len);
 
     /* Clear the buffer for user input */
     cmd_buffer_clear(sh);
@@ -1902,20 +1903,20 @@ int shell_readline(struct shell const* sh, uint8_t* buf, size_t len, k_timeout_t
     while (true) {
         state_collect(sh);
 
-        if (sh->ctx->readline_state == SHELL_READLINE_DONE) {
-            if (buf == NULL || sh->ctx->cmd_buff_len >= len) {
+        if (ctx->readline_state == SHELL_READLINE_DONE) {
+            if (buf == NULL || ctx->cmd_buff_len >= len) {
                 ret = -ENOBUFS;
                 break;
             }
 
-            memcpy(buf, sh->ctx->cmd_buff, sh->ctx->cmd_buff_len);
-            buf[sh->ctx->cmd_buff_len] = '\0';
+            memcpy(buf, ctx->cmd_buff, ctx->cmd_buff_len);
+            buf[ctx->cmd_buff_len] = '\0';
 
-            ret = sh->ctx->cmd_buff_len;
+            ret = ctx->cmd_buff_len;
             break;
         }
 
-        if (sh->ctx->readline_state == SHELL_READLINE_CANCELED) {
+        if (ctx->readline_state == SHELL_READLINE_CANCELED) {
             ret = -ECANCELED;
             break;
         }
@@ -1931,11 +1932,11 @@ int shell_readline(struct shell const* sh, uint8_t* buf, size_t len, k_timeout_t
     }
 
     /* Restore the command state */
-    sh->ctx->cmd_buff_len = sh->ctx->cmd_tmp_buff_len;
-    sh->ctx->cmd_buff_pos = sh->ctx->cmd_tmp_buff_pos;
-    memcpy(sh->ctx->cmd_buff, sh->ctx->temp_buff, sh->ctx->cmd_buff_len);
+    ctx->cmd_buff_len = ctx->cmd_tmp_buff_len;
+    ctx->cmd_buff_pos = ctx->cmd_tmp_buff_pos;
+    memcpy(ctx->cmd_buff, ctx->temp_buff, ctx->cmd_buff_len);
 
-    sh->ctx->readline_state = SHELL_READLINE_INACTIVE;
+    ctx->readline_state = SHELL_READLINE_INACTIVE;
 
     return (ret);
 }
