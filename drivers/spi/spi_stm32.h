@@ -159,6 +159,16 @@ static inline void ll_enable_int_errors(SPI_TypeDef* spi) {
     #endif /* st_stm32h7_spi */
 }
 
+/* #CUSTOM@NDRS */
+static inline void ll_disable_int_txe_rxne(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_DisableIT(spi, (SPI_IER_TXPIE | SPI_IER_RXPIE));
+    #else
+    LL_SPI_DisableIT_TXE(spi);
+    LL_SPI_DisableIT_RXNE(spi);
+    #endif /* st_stm32h7_spi */
+}
+
 static inline void ll_disable_int_tx_empty(SPI_TypeDef* spi) {
     #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
     LL_SPI_DisableIT_TXP(spi);

@@ -804,9 +804,8 @@ static void spi_stm32_complete(const struct device* dev, int status) {
     }
     #endif /* CONFIG_SPI_RTIO */
 
-    #ifdef CONFIG_SPI_STM32_INTERRUPT
-    ll_disable_int_tx_empty(spi);
-    ll_disable_int_rx_not_empty(spi);
+    #if defined(CONFIG_SPI_STM32_INTERRUPT)
+    ll_disable_int_txe_rxne(spi);
     ll_disable_int_errors(spi);
 
     #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
