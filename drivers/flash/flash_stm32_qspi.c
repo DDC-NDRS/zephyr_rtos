@@ -1938,9 +1938,6 @@ static int flash_stm32_qspi_dma_init(struct flash_stm32_qspi_data* dev_data) {
                 (NULL))                                                 \
         },
 
-#define QSPI_FLASH_MODULE(drv_id, flash_id)                             \
-    (DT_DRV_INST(drv_id), qspi_nor_flash_##flash_id)
-
 static void flash_stm32_qspi_irq_config_func(struct device const* dev);
 
 #define DT_WRITEOC_PROP_OR(inst, default_value)                                         \

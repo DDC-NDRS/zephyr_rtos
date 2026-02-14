@@ -149,20 +149,20 @@ static void (*const set_timer_compare[TIMER_MAX_CH])(TIM_TypeDef* TIMx,
 #if !defined(CONFIG_SOC_SERIES_STM32MP1X)
 static uint32_t __maybe_unused (*const get_channel_capture[])(const TIM_TypeDef* TIMx) = {
 #else
-static uint32_t __maybe_unused (*const get_channel_capture[])(TIM_TypeDef*) = {
+static uint32_t __maybe_unused (*const get_channel_capture[])(TIM_TypeDef* TIMx) = {
 #endif
     LL_TIM_IC_GetCaptureCH1, LL_TIM_IC_GetCaptureCH2,
     LL_TIM_IC_GetCaptureCH3, LL_TIM_IC_GetCaptureCH4
 };
 
 /** Channel to enable capture interrupt mapping. */
-static void __maybe_unused (*const enable_capture_interrupt[])(TIM_TypeDef*) = {
+static void __maybe_unused (*const enable_capture_interrupt[])(TIM_TypeDef* TIMx) = {
     LL_TIM_EnableIT_CC1, LL_TIM_EnableIT_CC2,
     LL_TIM_EnableIT_CC3, LL_TIM_EnableIT_CC4
 };
 
 /** Channel to disable capture interrupt mapping. */
-static void __maybe_unused (*const disable_capture_interrupt[])(TIM_TypeDef*) = {
+static void __maybe_unused (*const disable_capture_interrupt[])(TIM_TypeDef* TIMx) = {
     LL_TIM_DisableIT_CC1, LL_TIM_DisableIT_CC2,
     LL_TIM_DisableIT_CC3, LL_TIM_DisableIT_CC4
 };
@@ -171,14 +171,14 @@ static void __maybe_unused (*const disable_capture_interrupt[])(TIM_TypeDef*) = 
 #if !defined(CONFIG_SOC_SERIES_STM32MP1X)
 static uint32_t __maybe_unused (*const is_capture_active[])(const TIM_TypeDef* TIMx) = {
 #else
-static uint32_t __maybe_unused (*const is_capture_active[])(TIM_TypeDef*) = {
+static uint32_t __maybe_unused (*const is_capture_active[])(TIM_TypeDef* TIMx) = {
 #endif
     LL_TIM_IsActiveFlag_CC1, LL_TIM_IsActiveFlag_CC2,
     LL_TIM_IsActiveFlag_CC3, LL_TIM_IsActiveFlag_CC4
 };
 
 /** Channel to clearing capture flag mapping. */
-static void __maybe_unused (*const clear_capture_interrupt[])(TIM_TypeDef*) = {
+static void __maybe_unused (*const clear_capture_interrupt[])(TIM_TypeDef* TIMx) = {
     LL_TIM_ClearFlag_CC1, LL_TIM_ClearFlag_CC2,
     LL_TIM_ClearFlag_CC3, LL_TIM_ClearFlag_CC4
 };
@@ -641,11 +641,6 @@ static int pwm_stm32_init(const struct device* dev) {
     const struct device* clk = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
     uint32_t tim_clk;
     int r;
-
-    if (!device_is_ready(clk)) {
-        LOG_ERR("clock control device not ready");
-        return (-ENODEV);
-    }
 
     /* Enable clock and store its speed */
     r = clock_control_on(clk, (clock_control_subsys_t)&cfg->pclken[0]);

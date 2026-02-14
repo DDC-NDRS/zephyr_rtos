@@ -202,7 +202,7 @@ manifest:
       groups:
         - hal
     - name: hal_nordic
-      revision: 63f2083ff9bc9c39b39f0a874becc7cf8e011a2a
+      revision: 5c1df3fe9bc144e558b3506cef6cf33652bb2539
       path: modules/hal/nordic
       groups:
         - hal
@@ -359,7 +359,7 @@ manifest:
       path: modules/lib/openthread
     - name: percepio
       path: modules/debug/percepio
-      revision: 132ed87d617578a6cb70a2443f43e117c315e0f0
+      revision: 94866e8a7016a044e70fb71094facae5fd82fdab
       groups:
         - debug
     - name: picolibc

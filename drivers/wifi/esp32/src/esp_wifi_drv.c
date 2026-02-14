@@ -228,71 +228,71 @@ pkt_unref :
 #endif
 
 static void scan_done_handler(void) {
-	esp_err_t ret;
-	wifi_ap_record_t ap_record;
+    esp_err_t ret;
+    wifi_ap_record_t ap_record;
     struct wifi_scan_result res;
 
-	while ((ret = esp_wifi_scan_get_ap_record(&ap_record)) == ESP_OK) {
-		memset(&res, 0, sizeof(struct wifi_scan_result));
+    while ((ret = esp_wifi_scan_get_ap_record(&ap_record)) == ESP_OK) {
+        memset(&res, 0, sizeof(struct wifi_scan_result));
 
-		int ssid_len = strnlen(ap_record.ssid, WIFI_SSID_MAX_LEN);
+        int ssid_len = strnlen(ap_record.ssid, WIFI_SSID_MAX_LEN);
 
-		res.ssid_length = ssid_len;
-		strncpy(res.ssid, ap_record.ssid, ssid_len);
-		res.rssi = ap_record.rssi;
-		res.channel = ap_record.primary;
+        res.ssid_length = ssid_len;
+        strncpy(res.ssid, ap_record.ssid, ssid_len);
+        res.rssi = ap_record.rssi;
+        res.channel = ap_record.primary;
 
-		memcpy(res.mac, ap_record.bssid, WIFI_MAC_ADDR_LEN);
-		res.mac_length = WIFI_MAC_ADDR_LEN;
+        memcpy(res.mac, ap_record.bssid, WIFI_MAC_ADDR_LEN);
+        res.mac_length = WIFI_MAC_ADDR_LEN;
 
-		switch (ap_record.authmode) {
-		case WIFI_AUTH_OPEN:
-			res.security = WIFI_SECURITY_TYPE_NONE;
-			break;
+        switch (ap_record.authmode) {
+            case WIFI_AUTH_OPEN :
+                res.security = WIFI_SECURITY_TYPE_NONE;
+                break;
 
-		case WIFI_AUTH_WPA2_PSK:
-			res.security = WIFI_SECURITY_TYPE_PSK;
-			break;
+            case WIFI_AUTH_WPA2_PSK :
+                res.security = WIFI_SECURITY_TYPE_PSK;
+                break;
 
-		case WIFI_AUTH_WPA3_PSK:
-			res.security = WIFI_SECURITY_TYPE_SAE;
-			break;
+            case WIFI_AUTH_WPA3_PSK :
+                res.security = WIFI_SECURITY_TYPE_SAE;
+                break;
 
-		case WIFI_AUTH_WAPI_PSK:
-			res.security = WIFI_SECURITY_TYPE_WAPI;
-			break;
+            case WIFI_AUTH_WAPI_PSK :
+                res.security = WIFI_SECURITY_TYPE_WAPI;
+                break;
 
-		case WIFI_AUTH_WPA2_ENTERPRISE:
-			res.security = WIFI_SECURITY_TYPE_EAP;
-			break;
+            case WIFI_AUTH_WPA2_ENTERPRISE :
+                res.security = WIFI_SECURITY_TYPE_EAP;
+                break;
 
-		case WIFI_AUTH_WEP:
-			res.security = WIFI_SECURITY_TYPE_WEP;
-			break;
+            case WIFI_AUTH_WEP :
+                res.security = WIFI_SECURITY_TYPE_WEP;
+                break;
 
-		case WIFI_AUTH_WPA_PSK:
-			res.security = WIFI_SECURITY_TYPE_WPA_PSK;
-			break;
+            case WIFI_AUTH_WPA_PSK :
+                res.security = WIFI_SECURITY_TYPE_WPA_PSK;
+                break;
 
-		default:
-			res.security = WIFI_SECURITY_TYPE_UNKNOWN;
-			break;
-		}
+            default :
+                res.security = WIFI_SECURITY_TYPE_UNKNOWN;
+                break;
+        }
 
-		if (esp32_data.scan_cb) {
-			esp32_data.scan_cb(esp32_wifi_iface, 0, &res);
+        if (esp32_data.scan_cb) {
+            esp32_data.scan_cb(esp32_wifi_iface, 0, &res);
 
-			/* ensure notifications get delivered */
-			k_yield();
-		}
-	}
-
-	if (ret != ESP_FAIL) {
-		LOG_WRN("scan fetch failed unexpectedly: %d", ret);
+            /* ensure notifications get delivered */
+            k_yield();
+        }
     }
 
-	/* Ensure the hardware releases any records we didn't fetch */
-	esp_wifi_clear_ap_list();
+    if (ret != ESP_FAIL) {
+        LOG_WRN("scan fetch failed unexpectedly: %d", ret);
+    }
+
+    /* Ensure the hardware releases any records we didn't fetch */
+    esp_wifi_clear_ap_list();
 
     /* report end of scan event */
     esp32_data.scan_cb(esp32_wifi_iface, 0, NULL);
@@ -600,7 +600,6 @@ static int esp32_wifi_connect(const struct device* dev,
 
     if ((params->bssid[0] != 0) || (params->bssid[1] != 0) || (params->bssid[2] != 0) ||
         (params->bssid[3] != 0) || (params->bssid[4] != 0) || (params->bssid[5] != 0)) {
-
         memcpy(wifi_config.sta.bssid, params->bssid, sizeof(params->bssid));
         wifi_config.sta.bssid_set = true;
     }
@@ -1135,6 +1134,42 @@ int esp32_wifi_dpp_dispatch(const struct device* dev, struct wifi_dpp_params* pa
 }
 #endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_DPP */
 
+static int esp32_wifi_set_power_save(const struct device* dev, struct wifi_ps_params* params) {
+    wifi_config_t config;
+    esp_err_t rc;
+
+    if (params->enabled == WIFI_PS_DISABLED) {
+        rc = esp_wifi_set_ps(WIFI_PS_NONE);
+        if (rc != ESP_OK) {
+            LOG_ERR("Failed to disable power save, error: %d", rc);
+            return (-EIO);
+        }
+
+        return (0);
+    }
+
+    rc = esp_wifi_get_config(ESP_IF_WIFI_STA, &config);
+    if (rc != ESP_OK) {
+        LOG_ERR("Failed to get ESP WiFi config, error: %d", rc);
+        return (-EIO);
+    }
+
+    config.sta.listen_interval = params->listen_interval;
+    rc = esp_wifi_set_config(ESP_IF_WIFI_STA, &config);
+    if (rc != ESP_OK) {
+        LOG_ERR("Failed to set ESP WiFi config, error: %d", rc);
+        return (-EINVAL);
+    }
+
+    rc = esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+    if (rc != ESP_OK) {
+        LOG_ERR("Failed to set ESP power save max modem mode, error: %d", rc);
+        return (-EIO);
+    }
+
+    return (0);
+}
+
 static void esp32_wifi_init(struct net_if* iface) {
     const struct device* dev = net_if_get_device(iface);
     struct esp32_wifi_runtime* dev_data = dev->data;
@@ -1285,6 +1320,7 @@ static const struct wifi_mgmt_ops esp32_wifi_mgmt = {
     .ap_disable   = esp32_wifi_ap_disable,
     .ap_sta_disconnect = esp32_wifi_ap_sta_disconnect,
     .iface_status = esp32_wifi_status,
+    .set_power_save = esp32_wifi_set_power_save,
     #if defined(CONFIG_NET_STATISTICS_WIFI)
     .get_stats   = esp32_wifi_get_stats,
     .reset_stats = esp32_wifi_reset_stats,

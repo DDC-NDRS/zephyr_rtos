@@ -668,7 +668,7 @@ static int adc_stm32_calibrate(const struct device* dev) {
     else if (adc == ADC2) {
         channel_offset = 8UL;
     }
-    else { /* case ADC3*/
+    else { /* Case ADC3*/
         channel_offset = 16UL;
     }
 
@@ -1566,16 +1566,10 @@ static void adc_stm32_disable_analog_supply(void) {
 static int adc_stm32_init(const struct device* dev) {
     struct adc_stm32_data* data = dev->data;
     const struct adc_stm32_cfg* config = dev->config;
-    const struct device* const clk = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
     __maybe_unused ADC_TypeDef* adc = config->base;
     int err;
 
     LOG_DBG("Initializing %s", dev->name);
-
-    if (!device_is_ready(clk)) {
-        LOG_ERR("clock control device not ready");
-        return (-ENODEV);
-    }
 
     data->dev = dev;
 

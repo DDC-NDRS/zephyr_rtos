@@ -157,14 +157,7 @@ static int eth_stm32_initialize(const struct device *dev)
 	struct eth_stm32_hal_dev_data *ctx = dev->data;
 	const struct eth_stm32_hal_dev_cfg *cfg = dev->config;
 	ETH_HandleTypeDef *heth = &ctx->heth;
-	bool is_ready;
 	int ret;
-
-	is_ready = device_is_ready(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE));
-	if (is_ready == false) {
-		LOG_ERR("clock control device not ready");
-		return -ENODEV;
-	}
 
 	/* Enable clocks */
 	for (size_t n = 0; n < cfg->pclken_cnt; n++) {

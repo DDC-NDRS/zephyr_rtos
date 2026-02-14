@@ -845,6 +845,7 @@ static int uart_ns16550_init(const struct device *dev)
 	__maybe_unused struct uart_ns16550_dev_data *data = dev->data;
 	const struct uart_ns16550_dev_config *dev_cfg = dev->config;
 	__maybe_unused int ret;
+	uint8_t c;
 
 	ARG_UNUSED(dev_cfg);
 
@@ -917,6 +918,10 @@ static int uart_ns16550_init(const struct device *dev)
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	dev_cfg->irq_config_func(dev);
 #endif
+
+	/* clear the port */
+	(void)ns16550_read_char(dev, &c);
+	ns16550_outbyte(dev, REG_FCR, (FCR_RCVRCLR | FCR_XMITCLR));
 
 	return pm_device_driver_init(dev, uart_ns16550_pm_action);
 }
