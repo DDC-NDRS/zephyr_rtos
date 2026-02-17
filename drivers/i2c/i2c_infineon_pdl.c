@@ -81,8 +81,9 @@ struct ifx_cat1_i2c_config {
     uint32_t master_frequency;
     CySCB_Type* base;
     const struct pinctrl_dev_config* pcfg;
+    uint16_t irq_num;
     uint8_t  irq_priority;
-    uint32_t irq_num;
+    uint8_t  scb_num;
     en_clk_dst_t clk_dst;
     void (*irq_config_func)(const struct device* dev);
     cy_cb_scb_i2c_handle_events_t i2c_handle_events_func;
@@ -104,8 +105,6 @@ static cy_stc_scb_i2c_config_t _i2c_default_config = {
 };
 
 typedef void (*ifx_cat1_i2c_event_callback_t)(void* callback_arg, uint32_t event);
-
-int32_t ifx_cat1_uart_get_hw_block_num(CySCB_Type* reg_addr);
 
 cy_rslt_t _i2c_abort_async(const struct device* dev) {
     struct ifx_cat1_i2c_data* data = dev->data;
@@ -268,7 +267,7 @@ uint32_t _i2c_set_peri_divider(const struct device* dev, uint32_t freq, bool is_
     struct ifx_cat1_i2c_data* data = dev->data;
     const struct ifx_cat1_i2c_config* const config = dev->config;
     CySCB_Type* base = config->base;
-    uint32_t block_num = ifx_cat1_uart_get_hw_block_num(config->base);
+    uint32_t block_num = config->scb_num;
     uint32_t data_rate = 0;
     uint32_t peri_freq = 0;
     cy_rslt_t status;
@@ -756,6 +755,7 @@ static DEVICE_API(i2c, i2c_cat1_driver_api) = {
         .irq_priority           = DT_INST_IRQ(n, priority),     \
         .irq_num                = DT_INST_IRQN(n),              \
         .clk_dst                = DT_INST_PROP(n, clk_dst),     \
+        .scb_num                = DT_INST_PROP(n, scb_index),   \
         .irq_config_func        = ifx_cat1_i2c_irq_config_func_##n, \
         .i2c_handle_events_func = i2c_handle_events_func_##n,   \
     };                                                          \

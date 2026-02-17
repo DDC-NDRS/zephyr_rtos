@@ -70,6 +70,7 @@ struct spi_ifx_config {
 
     uint8_t cs_oversample[32];
     uint8_t cs_oversample_cnt;
+    uint8_t scb_num;
 };
 
 #ifdef CONFIG_SPI_INFINEON_DMA
@@ -133,150 +134,6 @@ static void spi_ifx_irq_handler(const struct device* dev);
 static void spi_ifx_cb_wrapper(const struct device* dev, uint32_t event);
 cy_rslt_t   spi_ifx_transfer_async(const struct device* dev, uint8_t const* tx, size_t tx_length,
                                    uint8_t* rx, size_t rx_length);
-
-static CySCB_Type* const IFX_SCB_BASE_ADDR[] = {
-    #ifdef SCB0
-    SCB0,
-    #endif
-
-    #ifdef SCB1
-    SCB1,
-    #endif
-
-    #ifdef SCB2
-    SCB2,
-    #endif
-
-    #ifdef SCB3
-    SCB3,
-    #endif
-
-    #ifdef SCB4
-    SCB4,
-    #endif
-
-    #ifdef SCB5
-    SCB5,
-    #endif
-
-    #ifdef SCB6
-    SCB6,
-    #endif
-
-    #ifdef SCB7
-    SCB7,
-    #endif
-
-    #ifdef SCB8
-    SCB8,
-    #endif
-
-    #ifdef SCB9
-    SCB9,
-    #endif
-
-    #ifdef SCB10
-    SCB10,
-    #endif
-
-    #ifdef SCB11
-    SCB11,
-    #endif
-
-    #ifdef SCB12
-    SCB12,
-    #endif
-
-    #ifdef SCB13
-    SCB13,
-    #endif
-
-    #ifdef SCB14
-    SCB14,
-    #endif
-
-    #ifdef SCB15
-    SCB15,
-    #endif
-};
-
-static const uint8_t IFX_SCB_BASE_ADDR_IDX[] = {
-    #ifdef SCB0
-    0U,
-    #endif
-
-    #ifdef SCB1
-    1U,
-    #endif
-
-    #ifdef SCB2
-    2U,
-    #endif
-
-    #ifdef SCB3
-    3U,
-    #endif
-
-    #ifdef SCB4
-    4U,
-    #endif
-
-    #ifdef SCB5
-    5U,
-    #endif
-
-    #ifdef SCB6
-    6U,
-    #endif
-
-    #ifdef SCB7
-    7U,
-    #endif
-
-    #ifdef SCB8
-    8U,
-    #endif
-
-    #ifdef SCB9
-    9U,
-    #endif
-
-    #ifdef SCB10
-    10U,
-    #endif
-
-    #ifdef SCB11
-    11U,
-    #endif
-
-    #ifdef SCB12
-    12U,
-    #endif
-
-    #ifdef SCB13
-    13U,
-    #endif
-
-    #ifdef SCB14
-    14U,
-    #endif
-
-    #ifdef SCB15
-    15U,
-    #endif
-};
-
-static int32_t ifx_get_hw_block_num(CySCB_Type* reg_addr) {
-    uint32_t val;
-
-    for (val = 0U; val < ARRAY_SIZE(IFX_SCB_BASE_ADDR); val++) {
-        if (IFX_SCB_BASE_ADDR[val] == reg_addr) {
-            return IFX_SCB_BASE_ADDR_IDX[val];
-        }
-    }
-
-    return (-1);
-}
 
 static uint8_t get_dfs_value(struct spi_context* ctx) {
     uint8_t word_size = SPI_WORD_SIZE_GET(ctx->config->operation);
@@ -452,7 +309,7 @@ static void spi_ifx_dma_callback(const struct device* dma_dev, void* arg,
 }
 #endif
 
-static int spi_ifx_config(const struct device* dev, const struct spi_config* spi_cfg) {
+static int spi_ifx_configure(const struct device* dev, const struct spi_config* spi_cfg) {
     cy_rslt_t result;
     struct spi_ifx_data* const data = dev->data;
     const struct spi_ifx_config* const config = dev->config;
@@ -583,7 +440,7 @@ static int spi_ifx_pdl_transceive(const struct device* dev, const struct spi_con
 
     spi_context_lock(ctx, asynchronous, cb, userdata, spi_cfg);
 
-    ret = spi_ifx_config(dev, spi_cfg);
+    ret = spi_ifx_configure(dev, spi_cfg);
     if (ret != 0) {
         LOG_ERR("Error in SPI Configuration (result: 0x%x)", ret);
         spi_context_release(ctx, ret);
@@ -647,7 +504,7 @@ static int spi_ifx_init(const struct device* dev) {
 
     /* Dedicate SCB HW resource */
     data->resource.type      = IFX_RSC_SCB;
-    data->resource.block_num = ifx_get_hw_block_num(config->reg_addr);
+    data->resource.block_num = config->scb_num;
 
     /* Connect this SCB to the peripheral clock */
     result = ifx_cat1_utils_peri_pclk_assign_divider(config->clk_dst, &data->clock);
@@ -822,10 +679,11 @@ static int spi_ifx_init(const struct device* dev) {
              .txFifoTriggerLevel      = DT_INST_PROP_OR(n, tx_fifo_trigger_level, 1),           \
             .txFifoIntEnableMask      = DT_INST_PROP_OR(n, tx_fifo_int_enable_mask, 0),         \
             .masterSlaveIntEnableMask = DT_INST_PROP_OR(n, master_slave_int_enable_mask, 0),    \
-             ADVANCED_SPI_FIELDS(n)                                                             \
+             ADVANCED_SPI_FIELDS(n)                             \
         },                                                      \
                                                                 \
         .clk_dst = DT_INST_PROP(n, clk_dst),                    \
+        .scb_num = DT_INST_PROP(n, scb_index),                  \
         .irq_num = DT_INST_IRQN(n),                             \
         .irq_config_func = spi_ifx_irq_config_func_##n,         \
                                                                 \

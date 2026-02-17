@@ -38,14 +38,6 @@ LOG_MODULE_REGISTER(uart_ifx, CONFIG_UART_LOG_LEVEL);
 #define IFX_UART_OVERSAMPLE_MAX              16UL
 #define IFX_UART_MAX_BAUD_PERCENT_DIFFERENCE 10U
 
-#if defined(CY_IP_MXSCB_INSTANCES)
-#define _IFX_CAT1_SCB_ARRAY_SIZE (CY_IP_MXSCB_INSTANCES)
-#elif defined(CY_IP_M0S8SCB_INSTANCES)
-#define _IFX_CAT1_SCB_ARRAY_SIZE (CY_IP_M0S8SCB_INSTANCES)
-#elif defined(CY_IP_MXS22SCB_INSTANCES)
-#define _IFX_CAT1_SCB_ARRAY_SIZE (CY_IP_MXS22SCB_INSTANCES)
-#endif /* CY_IP_MXSCB_INSTANCES */
-
 #if defined(CONFIG_SOC_FAMILY_INFINEON_PSOC4)
 #define IFX_UART_RX_FIFO_TRIGGER_LEVEL 7
 #define IFX_UART_TX_FIFO_TRIGGER_LEVEL 0
@@ -134,6 +126,7 @@ struct ifx_cat1_uart_config {
     struct uart_config dt_cfg;
     uint16_t irq_num;
     uint8_t irq_priority;
+    uint8_t scb_num;
     en_clk_dst_t clk_dst;
 };
 
@@ -1176,150 +1169,6 @@ static int ifx_cat1_uart_async_rx_buf_rsp(const struct device* dev, uint8_t* buf
 
 #endif /* CONFIG_UART_ASYNC_API */
 
-CySCB_Type* const _IFX_CAT1_SCB_BASE_ADDRESSES[_IFX_CAT1_SCB_ARRAY_SIZE] = {
-    #ifdef SCB0
-    SCB0,
-    #endif
-
-    #ifdef SCB1
-    SCB1,
-    #endif
-
-    #ifdef SCB2
-    SCB2,
-    #endif
-
-    #ifdef SCB3
-    SCB3,
-    #endif
-
-    #ifdef SCB4
-    SCB4,
-    #endif
-
-    #ifdef SCB5
-    SCB5,
-    #endif
-
-    #ifdef SCB6
-    SCB6,
-    #endif
-
-    #ifdef SCB7
-    SCB7,
-    #endif
-
-    #ifdef SCB8
-    SCB8,
-    #endif
-
-    #ifdef SCB9
-    SCB9,
-    #endif
-
-    #ifdef SCB10
-    SCB10,
-    #endif
-
-    #ifdef SCB11
-    SCB11,
-    #endif
-
-    #ifdef SCB12
-    SCB12,
-    #endif
-
-    #ifdef SCB13
-    SCB13,
-    #endif
-
-    #ifdef SCB14
-    SCB14,
-    #endif
-
-    #ifdef SCB15
-    SCB15,
-    #endif
-};
-
-uint8_t const _IFX_CAT1_SCB_BASE_ADDRESS_INDEX[_IFX_CAT1_SCB_ARRAY_SIZE] = {
-    #ifdef SCB0
-    0u,
-    #endif
-
-    #ifdef SCB1
-    1u,
-    #endif
-
-    #ifdef SCB2
-    2u,
-    #endif
-
-    #ifdef SCB3
-    3u,
-    #endif
-
-    #ifdef SCB4
-    4u,
-    #endif
-
-    #ifdef SCB5
-    5u,
-    #endif
-
-    #ifdef SCB6
-    6u,
-    #endif
-
-    #ifdef SCB7
-    7u,
-    #endif
-
-    #ifdef SCB8
-    8u,
-    #endif
-
-    #ifdef SCB9
-    9u,
-    #endif
-
-    #ifdef SCB10
-    10u,
-    #endif
-
-    #ifdef SCB11
-    11u,
-    #endif
-
-    #ifdef SCB12
-    12u,
-    #endif
-
-    #ifdef SCB13
-    13u,
-    #endif
-
-    #ifdef SCB14
-    14u,
-    #endif
-
-    #ifdef SCB15
-    15u,
-    #endif
-};
-
-int32_t ifx_cat1_uart_get_hw_block_num(CySCB_Type* reg_addr) {
-    uint32_t i;
-
-    for (i = 0u; i < _IFX_CAT1_SCB_ARRAY_SIZE; i++) {
-        if (_IFX_CAT1_SCB_BASE_ADDRESSES[i] == reg_addr) {
-            return _IFX_CAT1_SCB_BASE_ADDRESS_INDEX[i];
-        }
-    }
-
-    return -1;
-}
-
 static int ifx_cat1_uart_init(const struct device* dev) {
     struct ifx_cat1_uart_data* const data = dev->data;
     const struct ifx_cat1_uart_config* const config = dev->config;
@@ -1328,7 +1177,7 @@ static int ifx_cat1_uart_init(const struct device* dev) {
 
     /* Dedicate SCB HW resource */
     data->hw_resource.type      = IFX_RSC_SCB;
-    data->hw_resource.block_num = ifx_cat1_uart_get_hw_block_num(config->reg_addr);
+    data->hw_resource.block_num = config->scb_num;
 
     /* Configure dt provided device signals when available */
     ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
@@ -1564,6 +1413,7 @@ static DEVICE_API(uart, ifx_cat1_uart_driver_api) = {
         .pcfg             = PINCTRL_DT_INST_DEV_CONFIG_GET(n),  \
         .reg_addr         = (CySCB_Type*)DT_INST_REG_ADDR(n),   \
         .clk_dst          = DT_INST_PROP(n, clk_dst),           \
+        .scb_num          = DT_INST_PROP(n, scb_index),         \
         IRQ_INFO(n)                                             \
     };                                                          \
                                                                 \
