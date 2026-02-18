@@ -197,7 +197,7 @@ manifest:
       groups:
         - hal
     - name: hal_microchip
-      revision: 1bf517970d408b318297804704f8c54cb2ac233c
+      revision: 14bc95d3885e6c7b2303f93a3bf6a5506bbd943a
       path: modules/hal/microchip
       groups:
         - hal
@@ -228,7 +228,7 @@ manifest:
         - hal
     - name: hal_realtek
       path: modules/hal/realtek
-      revision: eb1a4a2ad585087afcdd3a90fcb159d0de87f1f0
+      revision: f0192aa919dd5d16e68cf3a35fc73a1e51356215
       groups:
         - hal
     - name: hal_renesas
