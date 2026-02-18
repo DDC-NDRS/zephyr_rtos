@@ -428,36 +428,33 @@ static uint8_t spi_stm32_send_next_frame(SPI_TypeDef* spi, struct spi_stm32_data
     uint32_t tx_frame = data->tx_nop;
     uint8_t len;
 
-    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-    if (dfs == 4U ||
-        (dfs == 2U && data->fifo_threshold >= 2U && data->tx_len >= 2) ||
-        (dfs == 1U && data->fifo_threshold >= 4U && data->tx_len >= 4)) {
+    if (DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) &&
+        ((dfs == 4U) ||
+         (dfs == 2U && data->fifo_threshold >= 2U && data->tx_len >= 2) ||
+         (dfs == 1U && data->fifo_threshold >= 4U && data->tx_len >= 4))) {
         if (spi_context_tx_buf_on(ctx)) {
-            tx_frame = UNALIGNED_GET((uint32_t*)(ctx->tx_buf));
+            tx_frame = UNALIGNED_GET((uint32_t*)ctx->tx_buf);
         }
         LL_SPI_TransmitData32(spi, tx_frame);
         len = 4U / dfs;
     }
     else {
-    #endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) */
-        if (dfs == 2U ||
+        if ((dfs == 2U) ||
             (dfs == 1U && data->fifo_threshold >= 2U && data->tx_len >= 2)) {
             if (spi_context_tx_buf_on(ctx)) {
-                tx_frame = UNALIGNED_GET((uint16_t*)(ctx->tx_buf));
+                tx_frame = UNALIGNED_GET((uint16_t*)ctx->tx_buf);
             }
             LL_SPI_TransmitData16(spi, (uint16_t)tx_frame);
             len = 2U / dfs;
         }
         else {
             if (spi_context_tx_buf_on(ctx)) {
-                tx_frame = *((uint8_t*)(ctx->tx_buf));
+                tx_frame = *((uint8_t*)ctx->tx_buf);
             }
             LL_SPI_TransmitData8(spi, (uint8_t)tx_frame);
             len = 1U;
         }
-    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
     }
-    #endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) */
 
     spi_context_update_tx(ctx, dfs, len);
 
@@ -470,10 +467,10 @@ static uint8_t spi_stm32_read_next_frame(SPI_TypeDef* spi, struct spi_stm32_data
     uint32_t rx_frame;
     uint8_t len;
 
-    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-    if (dfs == 4U ||
-        (dfs == 2U && data->fifo_threshold >= 2U && data->rx_len >= 2) ||
-        (dfs == 1U && data->fifo_threshold >= 4U && data->rx_len >= 4)) {
+    if (DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) &&
+        ((dfs == 4U) ||
+         (dfs == 2U && data->fifo_threshold >= 2U && data->rx_len >= 2) ||
+         (dfs == 1U && data->fifo_threshold >= 4U && data->rx_len >= 4))) {
         rx_frame = LL_SPI_ReceiveData32(spi);
         if (spi_context_rx_buf_on(ctx)) {
             UNALIGNED_PUT(rx_frame, (uint32_t*)ctx->rx_buf);
@@ -481,7 +478,6 @@ static uint8_t spi_stm32_read_next_frame(SPI_TypeDef* spi, struct spi_stm32_data
         len = 4U / dfs;
     }
     else {
-    #endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) */
         if (dfs == 2U ||
             (dfs == 1U && data->fifo_threshold >= 2U && data->rx_len >= 2)) {
             rx_frame = LL_SPI_ReceiveData16(spi);
@@ -497,9 +493,7 @@ static uint8_t spi_stm32_read_next_frame(SPI_TypeDef* spi, struct spi_stm32_data
             }
             len = 1U;
         }
-    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
     }
-    #endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) */
 
     spi_context_update_rx(ctx, dfs, len);
 
