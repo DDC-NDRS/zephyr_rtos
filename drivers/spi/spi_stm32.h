@@ -32,19 +32,18 @@ struct spi_stm32_config {
     uint32_t irq_line;
     #endif
 
-    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) */
     int midi_clocks;
     int mssi_clocks;
     uint32_t fifo_max_transfer_size;
     uint8_t  fifo_size;
-    #endif
+
     bool fifo_enabled: 1;
     bool ioswp: 1;
     bool soft_nss: 1;
 
-    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_subghz)
+    /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_subghz) */
     bool use_subghzspi_nss: 1;
-    #endif
 };
 
 #ifdef CONFIG_SPI_STM32_DMA
@@ -246,5 +245,17 @@ static inline void ll_disable_spi(SPI_TypeDef* spi) {
         }
     }
 }
+
+#if !DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) /* #CUSTOM@NDRS */
+/* Provide a dummy implementation for the function that is not available on this SoC */
+static inline void LL_SPI_TransmitData32(SPI_TypeDef *SPIx, uint32_t TxData) {
+    /* pass */
+}
+
+static inline uint32_t LL_SPI_ReceiveData32(SPI_TypeDef* SPIx) {
+    return 0;
+}
+
+#endif
 
 #endif /* ZEPHYR_DRIVERS_SPI_SPI_STM32_H_ */

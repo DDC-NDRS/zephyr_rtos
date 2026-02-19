@@ -1510,6 +1510,12 @@ static int spi_stm32_configure(const struct device* dev,
     else {
         data->fifo_threshold = 1;
     }
+
+    if (config->operation & SPI_STPM3X_DRV) {                   /* #CUSTOM@NDRS */
+        /* Override to LL_SPI_FIFO_TH_04DATA: SPI_STPM3X_DRV uses 4-byte transactions */
+        data->fifo_threshold = 4;
+    }
+
     LL_SPI_SetFIFOThreshold(spi, table_fifo_threshold[data->fifo_threshold - 1]);
     #elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_fifo)
     data->fifo_threshold = 1;
