@@ -638,7 +638,7 @@ static int spi_ifx_init(const struct device* dev) {
     .dropOnParityError = false,                                 \
     .ssSetupDelay = DT_INST_PROP_OR(n, ss_setup_delay, 0),      \
     .ssHoldDelay  = DT_INST_PROP_OR(n, ss_hold_delay, 0),       \
-    .ssInterDataframeDelay = DT_INST_PROP_OR(n, ss_inter_frame_delay, 0)
+    .ssInterDataframeDelay = DT_INST_PROP_OR(n, ss_inter_frame_delay, 0),
 #else
 #define ADVANCED_SPI_FIELDS(n)
 #endif
@@ -672,6 +672,7 @@ static int spi_ifx_init(const struct device* dev) {
             .enableInputFilter        = DT_INST_PROP_OR(n, enable_input_filter, false),         \
             .enableMisoLateSample     = DT_INST_PROP_OR(n, enable_miso_late_sample, true),      \
             .EN_XFER_SEPARATION       = DT_INST_PROP_OR(n, enable_transfer_separation, false),  \
+             ADVANCED_SPI_FIELDS(n)                                                             \
             .enableWakeFromSleep      = DT_INST_PROP_OR(n, enableWakeFromSleep, false),         \
             .ssPolarity               = DT_INST_PROP_OR(n, ss_polarity, CY_SCB_SPI_ACTIVE_LOW), \
             .rxFifoTriggerLevel       = DT_INST_PROP_OR(n, rx_fifo_trigger_level, 0),           \
@@ -679,7 +680,6 @@ static int spi_ifx_init(const struct device* dev) {
              .txFifoTriggerLevel      = DT_INST_PROP_OR(n, tx_fifo_trigger_level, 1),           \
             .txFifoIntEnableMask      = DT_INST_PROP_OR(n, tx_fifo_int_enable_mask, 0),         \
             .masterSlaveIntEnableMask = DT_INST_PROP_OR(n, master_slave_int_enable_mask, 0),    \
-             ADVANCED_SPI_FIELDS(n)                             \
         },                                                      \
                                                                 \
         .clk_dst = DT_INST_PROP(n, clk_dst),                    \
