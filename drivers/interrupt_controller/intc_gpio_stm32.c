@@ -107,26 +107,24 @@ static inline gpio_pin_t ll_exti_line_to_linenum(stm32_gpio_irq_line_t line) {
 static void stm32_intc_gpio_isr(void const* exti_range) {
     struct stm32_intc_gpio_data* data = &intc_gpio_data;
     const struct stm32_exti_range* range = exti_range;
-    stm32_gpio_irq_line_t line;
-    uint32_t line_num;
+    size_t range_end = range->start + range->len;
 
     /* see which bits are set */
-    for (uint8_t i = 0; i < range->len; i++) {
-        line_num = range->start + i;
-
-        /* check if interrupt is pending */
+    for (size_t line_num = range->start; line_num < range_end; line_num++) {
+        /* Check if interrupt is pending */
         if (stm32_exti_is_pending(line_num) != 0) {
-            /* clear pending interrupt */
+            /* Clear pending interrupt */
             stm32_exti_clear_pending(line_num);
 
-            /* run callback only if one is registered */
-            if (!data->cb[line_num].cb) {
-                continue;
-            }
+            /* Get callback for this line */
+            struct __exti_cb const* line_cb = &data->cb[line_num];
 
-            /* `line` can be passed as-is because LL_EXTI_LINE_n is (1 << n) */
-            line = exti_linenum_to_ll_exti_line(line_num);
-            data->cb[line_num].cb(line, data->cb[line_num].data);
+            /* Run callback only if one is registered */
+            if (line_cb->cb != NULL) {
+                /* `line` can be passed as-is because LL_EXTI_LINE_n is (1 << n) */
+                stm32_gpio_irq_line_t line = exti_linenum_to_ll_exti_line(line_num);
+                line_cb->cb(line, line_cb->data);
+            }
         }
     }
 }
@@ -262,30 +260,30 @@ void stm32_gpio_intc_select_line_trigger(stm32_gpio_irq_line_t line, uint32_t tr
 }
 
 int stm32_gpio_intc_set_irq_callback(stm32_gpio_irq_line_t line, stm32_gpio_irq_cb_t cb, void* user) {
-    struct stm32_intc_gpio_data* data = &intc_gpio_data;
     uint32_t line_num = ll_exti_line_to_linenum(line);
+    struct __exti_cb* line_cb = &intc_gpio_data.cb[line_num];
 
-    if ((data->cb[line_num].cb == cb) && (data->cb[line_num].data == user)) {
+    if ((line_cb->cb == cb) && (line_cb->data == user)) {
         return (0);
     }
 
     /* if callback already exists/is running, return busy */
-    if (data->cb[line_num].cb != NULL) {
+    if (line_cb->cb != NULL) {
         return (-EBUSY);
     }
 
-    data->cb[line_num].cb   = cb;
-    data->cb[line_num].data = user;
+    line_cb->cb   = cb;
+    line_cb->data = user;
 
     return (0);
 }
 
 void stm32_gpio_intc_remove_irq_callback(stm32_gpio_irq_line_t line) {
-    struct stm32_intc_gpio_data* data = &intc_gpio_data;
     uint32_t line_num = ll_exti_line_to_linenum(line);
+    struct __exti_cb* line_cb = &intc_gpio_data.cb[line_num];
 
-    data->cb[line_num].cb   = NULL;
-    data->cb[line_num].data = NULL;
+    line_cb->cb   = NULL;
+    line_cb->data = NULL;
 }
 
 void stm32_exti_set_line_src_port(gpio_pin_t line, uint32_t port) {
