@@ -89,7 +89,7 @@ Removed APIs and options
 
    * ``CONFIG_BT_TBS_SUPPORTED_FEATURES``
 
-   * The deprecated ``bt_hci_cmd_create()`` functon was removed. It has been replaced by
+   * The deprecated ``bt_hci_cmd_create()`` function was removed. It has been replaced by
      :c:func:`bt_hci_cmd_alloc`.
 
 Deprecated APIs and options
