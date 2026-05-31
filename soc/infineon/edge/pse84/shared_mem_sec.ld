@@ -18,15 +18,28 @@ GROUP_START(SHARED_MEMORY)
 
 GROUP_END(SHARED_MEMORY)
 
+GROUP_START(SOCMEM_SHARED)
+
+	SECTION_PROLOGUE(.cy_shared_socmem,(NOLOAD),)
+	{
+		. = ALIGN(4);
+		__socmem_shared_start__ = .;
+		KEEP(*(.cy_shared_socmem))
+		. = ALIGN(4);
+		__socmem_shared_end__ = .;
+	} GROUP_LINK_IN(SOCMEM_SHARED)
+
+GROUP_END(SOCMEM_SHARED)
+
 GROUP_START(SHARED_MEMORY_SEC)
 
 	SECTION_PROLOGUE(.cy_sharedmem_sec,(NOLOAD),)
 	{
-        . = ALIGN(4);
-        __sec_ram_start__ = .;
-        KEEP(*(.cy_sharedmem_sec))
-        . = ALIGN(4);
-        __sec_ram_end__ = .;
+		. = ALIGN(4);
+		__sec_ram_start__ = .;
+		KEEP(*(.cy_sharedmem_sec))
+		. = ALIGN(4);
+		__sec_ram_end__ = .;
 	} GROUP_LINK_IN(SHARED_MEMORY_SEC)
 
 GROUP_END(SHARED_MEMORY_SEC)

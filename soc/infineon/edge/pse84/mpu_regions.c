@@ -35,6 +35,17 @@ static const struct arm_mpu_region mpu_regions[] = {
 			DT_REG_SIZE(DT_NODELABEL(m33_allocatable_shared)))),
 #endif
 
+#if DT_NODE_EXISTS(DT_NODELABEL(m33_m55_shared))
+	/* SoCMEM shared region: AXI-accessible to ETH DMA and all bus masters.
+	 * Must be NOCACHE — ETH DMA writes RX data directly; CPU must not cache it. */
+	MPU_REGION_ENTRY(
+		"SOCMEM_SHARED",
+		DT_REG_ADDR(DT_NODELABEL(m33_m55_shared)),
+		REGION_RAM_NOCACHE_ATTR(
+			DT_REG_ADDR(DT_NODELABEL(m33_m55_shared)),
+			DT_REG_SIZE(DT_NODELABEL(m33_m55_shared)))),
+#endif
+
 #if DT_NODE_EXISTS(DT_NODELABEL(m33s_code))
 	MPU_REGION_ENTRY(
 		"M33S_CODE",

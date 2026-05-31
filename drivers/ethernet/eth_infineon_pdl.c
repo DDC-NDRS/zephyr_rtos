@@ -16,6 +16,7 @@ LOG_MODULE_REGISTER(infineon_eth_pdl, CONFIG_ETHERNET_LOG_LEVEL);
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/phy.h>
 #include <zephyr/cache.h>
+#include <zephyr/sys/sys_io.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/clock_control/clock_control_ifx_cat1.h>
 #include <ethernet/eth_stats.h>
@@ -110,9 +111,12 @@ struct eth_infineon_pdl_data {
     /* Cycling index used by rxgetbuff to provide replacement buffers */
     atomic_t rx_getbuff_idx;
 
-    /* 32-byte aligned DMA buffers required by Cadence GEM */
-    uint8_t __aligned(32) rx_buffers[INFINEON_ETH_NUM_RX_BUFS][INFINEON_ETH_RX_BUF_SIZE];
-    uint8_t __aligned(32) tx_buffers[INFINEON_ETH_NUM_TX_BUFS][INFINEON_ETH_TX_BUF_SIZE];
+    /* Pointers into per-instance CY_SECTION_SHAREDMEM arrays (see macro below).
+     * Kept as separate globals so they land in NS NOCACHE SRAM, not Secure SRAM.
+     * Cadence GEM DMA is a Non-Secure PC2 bus master; it cannot access Secure SRAM.
+     */
+    uint8_t (*rx_buffers)[INFINEON_ETH_RX_BUF_SIZE];
+    uint8_t (*tx_buffers)[INFINEON_ETH_TX_BUF_SIZE];
 
     /* Pointer array passed to PDL as RX queue buffer pool */
     uint8_t* rx_buf_ptrs[INFINEON_ETH_NUM_RX_BUFS];
@@ -388,13 +392,20 @@ static int eth_infineon_pdl_init(const struct device* dev) {
 
     wrapper_cfg.stcInterfaceSel = k_conn_map[cfg->phy_conn_type];
     wrapper_cfg.bRefClockSource = CY_ETHIF_EXTERNAL_HSIO;
-    wrapper_cfg.u8RefClkDiv     = 0U;
+    wrapper_cfg.u8RefClkDiv     = 1U;
 
     mac_cfg = stc_enet_cfg_dfl;
     mac_cfg.pstcWrapperConfig   = &wrapper_cfg;
     mac_cfg.pRxQbuffPool[0]     = (cy_ethif_buffpool_t*)data->rx_buf_ptrs;
-    int_cfg.btx_complete         = true;
-    int_cfg.brx_complete         = true;
+
+    int_cfg.brx_overrun         = true;
+    int_cfg.btx_complete        = true;
+    int_cfg.btx_fr_corrupt      = true;
+    int_cfg.btx_retry_ex_late_coll = true;
+    int_cfg.btx_underrun        = true;
+    int_cfg.btx_used_read       = true;
+    int_cfg.brx_used_read       = true;
+    int_cfg.brx_complete        = true;
 
     ret = pinctrl_apply_state(cfg->pincfg, PINCTRL_STATE_DEFAULT);
     if (ret < 0) {
@@ -418,6 +429,21 @@ static int eth_infineon_pdl_init(const struct device* dev) {
     if (eth_status != CY_ETHIF_SUCCESS) {
         LOG_ERR("Cy_ETHIF_Init failed");
         return (-EIO);
+    }
+
+    /* Diagnostic: confirm DMA buffers landed in SHARED_MEMORY (0x240FB000, 16KB).
+     * If these addresses are NOT in 0x240FB000..0x240FEFFE the MPC fix won't help
+     * because the ETH DMA will fault on a different (unconfigured) region.
+     * Also reads TX_Q_PTR from GEMGXL hardware to confirm the descriptor address. */
+    {
+        uint32_t gem_base = (uint32_t)(uintptr_t)cfg->base + 0x1000U;
+        uint32_t tx_q_hw  = sys_read32(gem_base + 0x1cU); /* transmit_q_ptr */
+
+        LOG_INF("ETH DMA layout: tx_buf=%p rx_buf=%p tx_desc_hw=0x%08x",
+                (void *)data->tx_buffers[0],
+                (void *)data->rx_buffers[0],
+                tx_q_hw);
+        LOG_INF("  (SOCMEM_SHARED 0x26040000..0x26043FFF; RAMC 0x240xxxxx = wrong: AHB-only)");
     }
 
     /* Stack-copy cfg->pdl_cb to satisfy the non-const API signature */
@@ -502,8 +528,22 @@ static int eth_infineon_pdl_init(const struct device* dev) {
         irq_enable(DT_INST_IRQN(n));                                            \
     }                                                                           \
                                                                                 \
+    /* Frame data buffers in SoCMEM AXI-shared region (0x26040000, SOCMEM_SHARED).
+     * GEM DMA is an AXI master — RAMC (0x240xxxxx) is AHB-only and not AXI-routed,
+     * causing AMBA errors on every DMA access. SoCMEM is on the AXI interconnect and
+     * is enabled unconditionally by cy_mpc_init() via Cy_SysEnableSOCMEM(true).
+     * MPC domain m33_m55_mpc_cfg grants PC_2 (GEM DMA) NON_SECURE RW to SOCMEM_SRAM. */  \
+    CY_SECTION(".cy_shared_socmem")                                             \
+    static uint8_t __aligned(32)                                                \
+        eth_pdl_rx_bufs_##n[INFINEON_ETH_NUM_RX_BUFS][INFINEON_ETH_RX_BUF_SIZE]; \
+    CY_SECTION(".cy_shared_socmem")                                             \
+    static uint8_t __aligned(32)                                                \
+        eth_pdl_tx_bufs_##n[INFINEON_ETH_NUM_TX_BUFS][INFINEON_ETH_TX_BUF_SIZE]; \
+                                                                                \
     static struct eth_infineon_pdl_data eth_infineon_pdl_data_##n = {           \
-        .phy_dev = DEVICE_DT_GET_OR_NULL(DT_INST_PHANDLE(n, phy_handle)),       \
+        .phy_dev     = DEVICE_DT_GET_OR_NULL(DT_INST_PHANDLE(n, phy_handle)),   \
+        .rx_buffers  = eth_pdl_rx_bufs_##n,                                     \
+        .tx_buffers  = eth_pdl_tx_bufs_##n,                                     \
         ETH_PERI_CLOCK_INIT(n)                                                  \
     };                                                                          \
                                                                                 \

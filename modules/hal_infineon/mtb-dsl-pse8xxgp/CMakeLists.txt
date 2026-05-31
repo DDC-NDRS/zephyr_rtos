@@ -38,6 +38,7 @@ endif()
 
 # Peripheral drivers
 zephyr_library_sources_ifdef(CONFIG_USE_INFINEON_ETHIF ${pdl_drv_dir}/source/cy_ethif.c
+                                                       ${pdl_drv_dir}/source/cy_ms_ctl.c
                                                        ${pdl_drv_dir}/third_party/ethernet/src/edd.c
                                                        ${pdl_drv_dir}/third_party/ethernet/src/edd_rx.c
                                                        ${pdl_drv_dir}/third_party/ethernet/src/edd_tx.c)
