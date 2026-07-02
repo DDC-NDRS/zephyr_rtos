@@ -2070,6 +2070,7 @@ struct net_if_addr* net_if_ipv6_addr_add(struct net_if* iface,
     struct net_if_addr* ifaddr = NULL;
     struct net_if_ipv6* ipv6;
     bool do_dad = false;
+    bool join_mcast = false;
 
     net_if_lock(iface);
 
@@ -2106,12 +2107,25 @@ struct net_if_addr* net_if_ipv6_addr_add(struct net_if* iface,
                 net_sprint_ipv6_addr(addr),
                 net_addr_type2str(addr_type));
 
-        if (IS_ENABLED(CONFIG_NET_IPV6_DAD) &&
-            !(l2_flags_get(iface) & NET_L2_POINT_TO_POINT) &&
+        if (!(l2_flags_get(iface) & NET_L2_POINT_TO_POINT) &&
             !net_ipv6_is_addr_loopback(addr) &&
             !net_if_flag_is_set(iface, NET_IF_IPV6_NO_ND)) {
-            /* The groups are joined without locks held */
-            do_dad = true;
+            /* The solicited-node multicast group must be joined
+             * regardless of DAD (RFC 4291 ch 2.8) so that the node
+             * answers neighbor solicitations for this address. The
+             * groups are joined without locks held.
+             */
+            join_mcast = true;
+
+            if (IS_ENABLED(CONFIG_NET_IPV6_DAD)) {
+                do_dad = true;
+            }
+            else {
+                /* Without DAD the address is usable
+                 * immediately.
+                 */
+                ipv6->unicast[i].addr_state = NET_ADDR_PREFERRED;
+            }
         }
         else {
             /* If DAD is not done for point-to-point links, then
@@ -2131,20 +2145,22 @@ struct net_if_addr* net_if_ipv6_addr_add(struct net_if* iface,
 
     net_if_unlock(iface);
 
-    if (ifaddr != NULL && do_dad) {
-        /* RFC 4862 5.4.2
-         * Before sending a Neighbor Solicitation, an interface
-         * MUST join the all-nodes multicast address and the
-         * solicited-node multicast address of the tentative
-         * address.
-         */
+    if ((ifaddr != NULL) && join_mcast) {
         /* The allnodes multicast group is only joined once as
          * net_ipv6_mld_join() checks if we have already
          * joined.
          */
         join_mcast_nodes(iface, &ifaddr->address.in6_addr);
 
-        net_if_ipv6_start_dad(iface, ifaddr);
+        if (do_dad) {
+            /* RFC 4862 5.4.2
+             * Before sending a Neighbor Solicitation, an interface
+             * MUST join the all-nodes multicast address and the
+             * solicited-node multicast address of the tentative
+             * address. This is satisfied by the join above.
+             */
+            net_if_ipv6_start_dad(iface, ifaddr);
+        }
     }
 
     return ifaddr;
@@ -3574,14 +3590,11 @@ static void iface_ipv6_start(struct net_if* iface) {
     if (IS_ENABLED(CONFIG_NET_IPV6_DAD)) {
         net_if_start_dad(iface);
     }
-    else {
-        struct net_if_ipv6 const* ipv6 = iface->config.ip.ipv6;
 
-        if (ipv6 != NULL) {
-            join_mcast_nodes(iface,
-                             &ipv6->mcast[0].address.in6_addr);
-        }
-    }
+    /* The all-nodes and per-address solicited-node multicast groups are
+     * (re)joined by rejoin_ipv6_mcast_groups(), which runs just before this
+     * from notify_iface_up() regardless of DAD. No extra join is needed here.
+     */
 
     net_if_start_rs(iface);
 }
@@ -3799,7 +3812,7 @@ bool net_if_ipv4_addr_onlink(struct net_if** iface, const struct net_in_addr* ad
 
             struct net_if_addr_ipv4* unicast = &ipv4->unicast[i];
             if (!unicast->ipv4.is_used ||
-                unicast->ipv4.address.family != NET_AF_INET) {
+                (unicast->ipv4.address.family != NET_AF_INET)) {
                 continue;
             }
 
@@ -4222,7 +4235,7 @@ struct net_if_addr *net_if_ipv4_addr_get_first_by_index(int ifindex) {
         struct net_if_addr_ipv4* unicast = &ipv4->unicast[i];
 
         if (!unicast->ipv4.is_used ||
-            unicast->ipv4.address.family != NET_AF_INET) {
+            (unicast->ipv4.address.family != NET_AF_INET)) {
             continue;
         }
 

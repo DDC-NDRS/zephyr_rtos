@@ -10,7 +10,8 @@ menuconfig WIFI_NRF70
 	select NET_L2_WIFI_MGMT if NETWORKING
 	select NET_L2_ETHERNET_MGMT if NETWORKING && NET_L2_ETHERNET
 	select WIFI_USE_NATIVE_NETWORKING if NETWORKING
-	select EXPERIMENTAL if !SOC_SERIES_NRF53 && !SOC_SERIES_NRF91
+	select EXPERIMENTAL if !SOC_SERIES_NRF53 && !SOC_SERIES_NRF91 && \
+		!SOC_NRF54LM20A && !SOC_NRF54LM20B
 	select NRF70_BUSLIB
 	select NET_CHECKSUM_OFFLOAD_SUPPORTED if NET_L2_ETHERNET
 	default y
@@ -127,16 +128,13 @@ config NRF70_SYSTEM_WITH_RAW_MODES
 
 config NRF70_RAW_DATA_TX
 	bool "RAW TX data path in the driver"
-	select EXPERIMENTAL
 
 config NRF70_RAW_DATA_RX
 	bool "RAW RX sniffer operation in the driver"
-	select EXPERIMENTAL
 
 config NRF70_PROMISC_DATA_RX
 	bool "Promiscuous RX sniffer operation in the driver"
 	select WIFI_NM_WPA_SUPPLICANT
-	select EXPERIMENTAL
 	select NET_PROMISCUOUS_MODE
 
 config NRF70_DATA_TX
@@ -745,7 +743,6 @@ config NRF_WIFI_RPU_RECOVERY
 	# Relies on power-save mode, so, LPM is needed
 	depends on NRF_WIFI_LOW_POWER
 	default y
-	select EXPERIMENTAL
 	help
 		Enable the RPU recovery mechanism to recover from an RPU (nRF70) hang.
 		This feature performs an interface reset (down and up), which triggers
@@ -953,9 +950,8 @@ config NRF_WIFI_DISPLAY_SCAN_ABORT_ON_BSS_LIMIT
 
 if NETWORKING
 config NRF_WIFI_ZERO_COPY_TX
-	bool "Zero copy Transmit path [EXPERIMENTAL]"
+	bool "Zero copy Transmit path"
 	select NET_L2_ETHERNET_RESERVE_HEADER
-	select EXPERIMENTAL
 	# 54L has lower RAM
 	default y if SOC_SERIES_NRF54L
 	help

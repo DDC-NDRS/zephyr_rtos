@@ -324,6 +324,12 @@ struct net_cmsghdr {
     #endif
 };
 
+/** Linger option struct for the SO_LINGER socket option */
+struct net_linger {
+	int l_onoff;  /**< Whether the linger behaviour is enabled */
+	int l_linger; /**< Linger time in seconds */
+};
+
 /** @cond INTERNAL_HIDDEN */
 
 /* Alignment for headers and data. These are arch specific but define
