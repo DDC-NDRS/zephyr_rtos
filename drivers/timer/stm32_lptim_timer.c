@@ -302,7 +302,7 @@ static inline uint32_t z_clock_lptim_getcounter(void)
 	return lp_time;
 }
 
-void sys_clock_set_timeout(int32_t ticks, bool idle)
+void sys_clock_set_timeout(uint32_t ticks, bool idle)
 {
 	/* new LPTIM AutoReload value to set (aligned on Kernel ticks) */
 	uint32_t next_arr = 0;
@@ -369,10 +369,13 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 	}
 
 	/*
-	 * When CONFIG_SYSTEM_CLOCK_SLOPPY_IDLE = y, ticks equals to -1
-	 * is treated as a lptim off ; never waking up ; lptim not clocked anymore
+	 * The kernel has no pending timeout, which it signals with
+	 * ticks == SYS_CLOCK_MAX_WAIT. Under sloppy idle the LPTIM can be
+	 * turned off entirely (never waking up, not clocked anymore).
+	 * Without sloppy idle we fall through and schedule the (capped)
+	 * timeout so the uptime tick count stays correct.
 	 */
-	if (ticks == K_TICKS_FOREVER) {
+	if (IS_ENABLED(CONFIG_SYSTEM_CLOCK_SLOPPY_IDLE) && ticks == SYS_CLOCK_MAX_WAIT) {
 		clock_control_off(clk_ctrl, (clock_control_subsys_t) &lptim_clk[0]);
 		return;
 	}
@@ -388,11 +391,11 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 		return;
 	}
 	/* passing ticks==1 means "announce the next tick",
-	 * ticks value of zero (or even negative) is legal and
+	 * ticks value of zero is legal and
 	 * treated identically: it simply indicates the kernel would like the
 	 * next tick announcement as soon as possible.
 	 */
-	ticks = CLAMP(ticks - 1, 1, lptim_time_base);
+	ticks = CLAMP(ticks, 2, lptim_time_base) - 1;
 
 	k_spinlock_key_t key = k_spin_lock(&lock);
 

@@ -26,6 +26,9 @@ Common
 Build System
 ************
 
+* :kconfig:option:`CONFIG_LEGACY_GENERATED_INCLUDE_PATH` has been deprecated, and disabled by
+  default, includes must now be prefixed with ``zephyr/`` for zephyr files.
+
 Kernel
 ******
 
@@ -237,6 +240,39 @@ ESPI
   CONFIG_ESPI_PERIPHERAL_CUSTOM_OPCODE and single eSPI ACPI HW block instance in all eSPI drivers.
   This will be completely removed in the next Zephyr release to give time for transition.
 
+* The Microchip XEC eSPI v2 driver (:dtcompatible:`microchip,xec-espi-v2`) has been ported from
+  MEC172x to also support MEC174x, MEC175x, and MEC165xB. This required several devicetree
+  changes that affect out-of-tree boards using this binding (:github:`109519`):
+
+  * The ``pcrs`` property has been replaced by ``pcr-scr``, which is now a single integer
+    encoded with the ``MCHP_XEC_SCR_ENCODE(reg, bit)`` helper macro instead of a
+    ``<reg bit>`` cell pair. Update existing overlays from ``pcrs = <2 19>;`` to
+    ``pcr-scr = <MCHP_XEC_SCR_ENCODE(2, 19)>;``.
+
+  * On MEC174x/5x/165xB only, ``girqs`` cells are now a single integer per entry produced
+    by ``MCHP_XEC_ECIA_GIRQ_ENC(reg, bit)`` rather than a ``<reg bit>`` pair. MEC172x
+    continues to use the existing ``MCHP_XEC_ECIA(...)`` form.
+
+  * Two new optional properties are available on the eSPI controller node for hosts whose
+    address space exceeds 32 bits: ``host-memmap-addr-high`` (host address bits [47:32] for
+    memory-mapped logical devices) and ``sram-bar-addr-high`` (host address bits [47:32] for
+    both SRAM BARs).
+
+  * The ``interrupt-names`` of the eSPI controller and its host-device children have been
+    renamed for consistency. Update overlays accordingly:
+
+    * Controller: ``rst`` → ``erst``; ``vwct_0_6`` / ``vwct_7_10`` →
+      ``ht_vw_bank0`` / ``ht_vw_bank1``. Two corresponding interrupts
+      (``ht_vw_bank0`` / ``ht_vw_bank1``) must be added to the ``interrupts`` array.
+    * KBC child: ``kbc_obe`` / ``kbc_ibf`` → ``obe`` / ``ibf``.
+    * ACPI EC children: ``acpi_ibf`` / ``acpi_obe`` → ``ibf`` / ``obe``.
+
+  * In the MEC5 SoC DTSI (MEC174x/5x/165xB), every host-device child of the eSPI
+    controller (mailbox, KBC, ACPI EC, ACPI PM1, port92, glue, EMI, BIOS debug port, etc.)
+    now declares the ``ldn`` (logical device number) property required by
+    :dtcompatible:`microchip,xec-espi-host-dev`. Out-of-tree boards that override or add
+    host-device child nodes for these SoCs must set ``ldn`` on each.
+
 Ethernet
 ========
 
@@ -301,6 +337,14 @@ Fuel Gauge
   should migrate to the unit-suffixed names. For example,
   ``FUEL_GAUGE_CURRENT`` (``val.current``) is replaced by
   ``FUEL_GAUGE_CURRENT_UA`` (``val.current_ua``).
+
+* Drivers had inconsistently been reporting full charge/discharge cycles or
+  "1/100ths" of a cycle in the ``FUEL_GAUGE_CYCLE_COUNT`` property.
+  The property now consistently reports full cycles, and drivers that
+  previously reported fractions of a cycle (i.e. ADP5360 and BQ27Z746) have
+  been updated to report full cycles instead.
+  Applications that relied on the old behavior should be updated.
+  (:github:`112276`)
 
 GPIO
 ====
@@ -534,6 +578,19 @@ Syscon
   ``uint32_t`` for the register offset parameter instead of ``uint16_t``. This allows for
   larger register offsets. Code that explicitly declares ``uint16_t`` variables for the
   register parameter or implements the syscon driver API functions may need to be updated.
+
+Timer
+=====
+
+* :c:func:`sys_clock_set_timeout`, :c:func:`sys_clock_announce` and
+  :c:func:`sys_clock_announce_locked` now take their tick count as an unsigned
+  ``uint32_t`` rather than a signed ``int32_t``. Out-of-tree system timer drivers must
+  update their :c:func:`sys_clock_set_timeout` definition accordingly, otherwise the build
+  fails with a conflicting-types error. The kernel now also caps the requested timeout at
+  ``SYS_CLOCK_MAX_WAIT`` and no longer passes ``K_TICKS_FOREVER`` to the driver, so such
+  drivers no longer need to clamp the request against the :c:func:`sys_clock_announce`
+  range or special-case ``K_TICKS_FOREVER``; only their own hardware cycle-count limits
+  still need enforcing (:github:`111022`).
 
 USB
 ===
@@ -806,6 +863,15 @@ Networking
   :kconfig:option:`CONFIG_NET_L2_PTP` should be updated to use
   :kconfig:option:`CONFIG_NET_L2_PTP_TIMESTAMPING` instead.
 
+* The default WPA supplicant network selection criterion has changed from
+  throughput-based to reliability-based (SNR), switching the
+  :kconfig:option:`WIFI_NM_WPA_SUPPLICANT_NW_SEL` Kconfig default from
+  :kconfig:option:`CONFIG_WIFI_NM_WPA_SUPPLICANT_NW_SEL_THROUGHPUT` to
+  :kconfig:option:`CONFIG_WIFI_NM_WPA_SUPPLICANT_NW_SEL_RELIABILITY`.
+  Previously, SNR above 25 dBm was considered sufficient and largely excluded
+  from AP selection; SNR is now always factored in, improving connection stability
+  for embedded Wi-Fi use cases. Users who need the previous behaviour can restore it by enabling
+  :kconfig:option:`CONFIG_WIFI_NM_WPA_SUPPLICANT_NW_SEL_THROUGHPUT`.
 
 Ethernet
 ========
