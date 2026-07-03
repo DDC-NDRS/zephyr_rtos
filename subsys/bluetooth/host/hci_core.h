@@ -453,7 +453,7 @@ struct bt_hci_cmd_state_set {
 };
 
 /* Set command state related with the command buffer */
-void bt_hci_cmd_state_set_init(struct net_buf *buf,
+void bt_hci_cmd_state_set_init(const struct net_buf *buf,
 			       struct bt_hci_cmd_state_set *state,
 			       atomic_t *target, int bit, bool val);
 

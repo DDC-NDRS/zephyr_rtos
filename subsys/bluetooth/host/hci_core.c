@@ -159,6 +159,14 @@ static struct cmd_data cmd_data[BT_BUF_CMD_TX_COUNT];
 #define cmd(buf) (&cmd_data[net_buf_id(buf)])
 #define acl(buf) ((struct bt_conn_rx *)net_buf_user_data(buf))
 
+#if !defined(CONFIG_BT_USER_CONN_PARAM_REJECTED) && defined(_MSC_VER) /* #CUSTOM@NDRS */
+void bt_conn_notify_le_param_rejected(struct bt_conn *conn, uint8_t hci_err)
+{
+	ARG_UNUSED(conn);
+	ARG_UNUSED(hci_err);
+}
+#endif
+
 static bool drv_quirk_no_reset(void)
 {
 	return ((BT_HCI_QUIRKS & BT_HCI_QUIRK_NO_RESET) != 0);
@@ -169,7 +177,7 @@ bool bt_drv_quirk_no_auto_dle(void)
 	return ((BT_HCI_QUIRKS & BT_HCI_QUIRK_NO_AUTO_DLE) != 0);
 }
 
-void bt_hci_cmd_state_set_init(struct net_buf *buf,
+void bt_hci_cmd_state_set_init(const struct net_buf *buf,
 			       struct bt_hci_cmd_state_set *state,
 			       atomic_t *target, int bit, bool val)
 {
@@ -208,9 +216,7 @@ struct event_handler {
 static int handle_event_common(uint8_t event, struct net_buf *buf,
 			       const struct event_handler *handlers, size_t num_handlers)
 {
-	size_t i;
-
-	for (i = 0; i < num_handlers; i++) {
+	for (size_t i = 0; i < num_handlers; i++) {
 		const struct event_handler *handler = &handlers[i];
 
 		if (handler->event != event) {
@@ -2046,7 +2052,12 @@ static void le_conn_update_complete(struct net_buf *buf)
 
 		bt_l2cap_update_conn_param(conn, &param);
 	} else {
-		if (!evt->status) {
+		/* Only application-initiated updates that finally failed (i.e. not
+		 * superseded by a host-initiated retry) are reported as rejected.
+		 */
+		bool notify_rejected = false;
+
+		if (evt->status == BT_HCI_ERR_SUCCESS) {
 			conn->le.interval_us =
 				sys_le16_to_cpu(evt->interval) * BT_HCI_LE_INTERVAL_UNIT_US;
 			conn->le.latency = sys_le16_to_cpu(evt->latency);
@@ -2080,13 +2091,35 @@ static void le_conn_update_complete(struct net_buf *buf)
 			k_work_schedule(&conn->deferred_work,
 					K_MSEC(CONFIG_BT_CONN_PARAM_RETRY_TIMEOUT));
 		} else {
+			if (IS_ENABLED(CONFIG_BT_USER_CONN_PARAM_REJECTED)) {
+				/* A host-initiated (auto) update is only reported as a
+				 * rejection while the AUTO_UPDATE flag is still set. It
+				 * is cleared right after, so capture the decision now.
+				 */
+				notify_rejected = !atomic_test_bit(conn->flags,
+					BT_CONN_PERIPHERAL_PARAM_AUTO_UPDATE);
+			}
 			atomic_clear_bit(conn->flags,
 					 BT_CONN_PERIPHERAL_PARAM_AUTO_UPDATE);
 #endif /* CONFIG_BT_GAP_AUTO_UPDATE_CONN_PARAMS */
 
 		}
 
-		bt_conn_notify_le_param_updated(conn);
+		if (IS_ENABLED(CONFIG_BT_USER_CONN_PARAM_REJECTED) &&
+		    !IS_ENABLED(CONFIG_BT_GAP_AUTO_UPDATE_CONN_PARAMS) &&
+		    evt->status != BT_HCI_ERR_SUCCESS) {
+			notify_rejected = true;
+		}
+
+		if (evt->status == BT_HCI_ERR_SUCCESS) {
+			bt_conn_notify_le_param_updated(conn);
+		} else if (IS_ENABLED(CONFIG_BT_USER_CONN_PARAM_REJECTED) && notify_rejected) {
+			LOG_DBG("LE conn param update handle %u status 0x%02x %s", handle,
+				evt->status, bt_hci_err_to_str(evt->status));
+			bt_conn_notify_le_param_rejected(conn, evt->status);
+		} else {
+			/* No action required for failed update. */
+		}
 	}
 
 	bt_conn_unref(conn);
