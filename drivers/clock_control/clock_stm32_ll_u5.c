@@ -146,6 +146,7 @@ int enabled_clock(uint32_t src_clk) {
         ((src_clk == STM32_SRC_LSI   ) && IS_ENABLED(STM32_LSI_ENABLED   )) ||
         ((src_clk == STM32_SRC_MSIS  ) && IS_ENABLED(STM32_MSIS_ENABLED  )) ||
         ((src_clk == STM32_SRC_MSIK  ) && IS_ENABLED(STM32_MSIK_ENABLED  )) ||
+        ((src_clk == STM32_SRC_SHSI  ) && IS_ENABLED(STM32_SHSI_ENABLED  )) ||
         ((src_clk == STM32_SRC_PLL1_P) && IS_ENABLED(STM32_PLL_P_ENABLED )) ||
         ((src_clk == STM32_SRC_PLL1_Q) && IS_ENABLED(STM32_PLL_Q_ENABLED )) ||
         ((src_clk == STM32_SRC_PLL1_R) && IS_ENABLED(STM32_PLL_R_ENABLED )) ||
@@ -317,6 +318,12 @@ static int stm32_clock_control_get_subsys_rate(const struct device* dev,
             *rate = STM32_HSI48_FREQ;
             break;
         #endif /* STM32_HSI48_ENABLED */
+
+        #if defined(STM32_SHSI_ENABLED)
+        case STM32_SRC_SHSI :
+            *rate = STM32_SHSI_FREQ;
+            break;
+        #endif /* STM32_SHSI_ENABLED */
 
         #if defined(STM32_PLL_ENABLED)
         case STM32_SRC_PLL1_P :
@@ -967,6 +974,16 @@ static void set_up_fixed_clock_sources(void) {
         LL_RCC_HSI48_Enable();
         while (LL_RCC_HSI48_IsReady() != 1) {
             /* Wait till HSI48 is ready */
+            if (IS_ENABLED(__GTEST)) {
+                break;
+            }
+        }
+    }
+
+    if (IS_ENABLED(STM32_SHSI_ENABLED)) {
+        LL_RCC_SHSI_Enable();
+        while (LL_RCC_SHSI_IsReady() != 1) {
+            /* Wait till SHSI is ready */
             if (IS_ENABLED(__GTEST)) {
                 break;
             }

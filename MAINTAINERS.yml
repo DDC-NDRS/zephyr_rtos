@@ -659,8 +659,8 @@ Bluetooth HCI:
   status: maintained
   maintainers:
     - jhedberg
-    - alwa-nordic
   collaborators:
+    - alwa-nordic
     - hermabe
     - Thalley
     - sjanc
@@ -685,8 +685,8 @@ Bluetooth Host:
   status: maintained
   maintainers:
     - jhedberg
-    - alwa-nordic
   collaborators:
+    - alwa-nordic
     - hermabe
     - rugeGerritsen
     - sjanc
@@ -3965,6 +3965,23 @@ Microchip SAM Platforms:
     - include/zephyr/*/*/*atmel*
   labels:
     - "platform: Microchip SAM"
+
+Microchip SmartFusion2 platform:
+  status: maintained
+  maintainers:
+    - akBavMat
+    - con-pax
+  collaborators:
+    - AntonVynohradov
+  files:
+    - boards/microchip/m2s010_mkr_kit/
+    - drivers/clock_control/*smartfusion2*
+    - dts/arm/microchip/smartfusion2*/
+    - dts/bindings/*/microchip,smartfusion2*
+    - include/zephyr/dt-bindings/*/*smartfusion2*
+    - soc/microchip/smartfusion2*/
+  labels:
+    - "platform: Microchip SmartFusion2"
 
 Microchip Standalone Devices:
   status: maintained
