@@ -1527,7 +1527,7 @@ int shell_prompt_change(struct shell const* sh, char const* prompt);
 void shell_help(const struct shell* sh);
 #else
 static inline void shell_help(const struct shell* sh) {
-    /* pass */
+    ARG_UNUSED(sh);
 }
 #endif /* CONFIG_SHELL_HELP */
 
