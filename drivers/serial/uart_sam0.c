@@ -653,11 +653,11 @@ static int uart_sam0_err_check(const struct device* dev) {
     }
 
     if ((regs->STATUS.reg & SERCOM_USART_STATUS_FERR) != 0U) {
-        err |= UART_ERROR_PARITY;
+        err |= UART_ERROR_FRAMING;
     }
 
     if ((regs->STATUS.reg & SERCOM_USART_STATUS_PERR) != 0U) {
-        err |= UART_ERROR_FRAMING;
+        err |= UART_ERROR_PARITY;
     }
 
     #if (SAM0_SERCOM_HAS_ERROR_FLAGS)

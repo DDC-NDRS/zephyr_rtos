@@ -8,8 +8,8 @@
  * SD card specification
  */
 
-#ifndef ZEPHYR_SUBSYS_SD_SPEC_H_
-#define ZEPHYR_SUBSYS_SD_SPEC_H_
+#ifndef ZEPHYR_INCLUDE_SD_SD_SPEC_H_
+#define ZEPHYR_INCLUDE_SD_SD_SPEC_H_
 
 #include <stdint.h>
 #include <zephyr/sys/util.h>
@@ -674,6 +674,8 @@ struct mmc_ext_csd {
 	uint32_t sec_count;
 	/** Bus Width Mode [183] */
 	uint8_t bus_width;
+	/** Enhanced strobe support [184] */
+	bool enhanced_strobe_support;
 	/** High Speed Timing Mode [185] */
 	enum mmc_timing_mode hs_timing;
 	/** Device Type [196] */
@@ -932,4 +934,4 @@ struct sdio_cis {
 }
 #endif
 
-#endif /* ZEPHYR_SUBSYS_SD_SPEC_H_ */
+#endif /* ZEPHYR_INCLUDE_SD_SD_SPEC_H_ */

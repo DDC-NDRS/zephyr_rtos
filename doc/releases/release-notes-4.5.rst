@@ -166,6 +166,7 @@ New APIs and options
 * Audio
 
   * :c:member:`pcm_stream_cfg.gain_db`
+  * :c:struct:`audio_codec_eq_cfg`
 
 * Bluetooth
 
@@ -181,6 +182,8 @@ New APIs and options
     * :c:func:`bt_conn_take`
     * :c:func:`bt_conn_drop`
     * :c:func:`bt_le_per_adv_update_did`
+    * :c:member:`bt_le_adv_param.tx_power` and :c:enumerator:`BT_LE_ADV_OPT_TX_POWER`
+      to request a specific TX power level per extended advertising set.
     * :c:member:`bt_conn_cb.le_param_update_rejected`
 
   * Mesh
@@ -284,6 +287,13 @@ New Drivers
     back-end for the new :ref:`clock_monitor_api` subsystem.
   * :dtcompatible:`nxp,cmu-fm` — NXP Clock Monitoring Unit (Frequency Meter)
     back-end for the new :ref:`clock_monitor_api` subsystem.
+
+* USB
+
+  * :dtcompatible:`espressif,esp32-usb-otg-fs` - Espressif USB-OTG full-speed
+    controller with internal FS/LS PHY.
+  * :dtcompatible:`espressif,esp32-usb-otg-hs` - Espressif USB-OTG high-speed
+    controller with internal UTMI PHY.
 
 New Samples
 ***********
