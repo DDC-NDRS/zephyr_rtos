@@ -1750,19 +1750,56 @@ static int modem_cellular_on_init_power_off_state_enter(struct modem_cellular_da
     return (0);
 }
 
+static void modem_cellular_cmux_cleanup(struct modem_cellular_data* data) {
+    modem_cellular_notify_user_pipes_disconnected(data);
+    modem_chat_release(&data->chat);
+    modem_ppp_release(data->ppp);
+}
+
 static void modem_cellular_init_power_off_event_handler(struct modem_cellular_data* data,
                                                         enum modem_cellular_event evt) {
     struct modem_cellular_config const* config = data->dev->config;
+    uint16_t disconnect_timeout_ms;
 
     switch (evt) {
         case MODEM_CELLULAR_EVENT_CMUX_DISCONNECTED :
             modem_cellular_stop_timer(data);
             data->cmd_pipe = data->uart_pipe;
-            /* Assume the same time as reset pulse is enough to return from CMUX to AT mode */
-            modem_cellular_start_timer(data, K_MSEC(config->vendor->reset_pulse_duration_ms));
+
+            /* CMUX disconnected, notify users */
+            modem_cellular_cmux_cleanup(data);
+
+            /* Switch the chat instance back to the UART pipe to handle unsolicited events */
+            modem_chat_attach(&data->chat, data->cmd_pipe);
+
+            /* Fallback to `reset_pulse_duration_ms` if `cmux_disconnect_timeout_ms` not
+             * specified as this was the behaviour before Zephyr v4.5.
+             */
+            disconnect_timeout_ms = config->vendor->cmux_disconnect_timeout_ms > 0U
+                                    ? config->vendor->cmux_disconnect_timeout_ms
+                                    : config->vendor->reset_pulse_duration_ms;
+
+            /* Unless signalled, wait for the modem to return from CMUX to AT mode */
+            modem_cellular_start_timer(data, K_MSEC(disconnect_timeout_ms));
             break;
 
+        case MODEM_CELLULAR_EVENT_MODEM_READY :
+            /* Modem driver indicated it is ready to handle commands after disconnecting CMUX.
+             * Cancel the timer and proceed as if it has expired.
+             */
+            modem_cellular_stop_timer(data);
+            __fallthrough;
+
         case MODEM_CELLULAR_EVENT_TIMEOUT :
+            if (data->cmd_pipe != data->uart_pipe) {
+                /* No CMUX_DISCONNECTED event occurred, notify users here */
+                modem_cellular_cmux_cleanup(data);
+            }
+            else {
+                /* Release the chat instance attached in CMUX_DISCONNECTED */
+                modem_chat_release(&data->chat);
+            }
+
             /* Shutdown script can only be used if cmd_pipe is available, i.e. we are not in
              * some intermediary state without a pipe for commands available
              */
@@ -1777,14 +1814,6 @@ static void modem_cellular_init_power_off_event_handler(struct modem_cellular_da
         default :
             break;
     }
-}
-
-static int modem_cellular_on_init_power_off_state_leave(struct modem_cellular_data* data) {
-    modem_cellular_notify_user_pipes_disconnected(data);
-    modem_chat_release(&data->chat);
-    modem_ppp_release(data->ppp);
-
-    return (0);
 }
 
 static int modem_cellular_on_run_shutdown_script_state_enter(struct modem_cellular_data* data) {
@@ -2010,10 +2039,6 @@ static int modem_cellular_on_state_leave(struct modem_cellular_data* data) {
 
         case MODEM_CELLULAR_STATE_AWAIT_PPP_DEAD :
             ret = modem_cellular_on_await_ppp_dead_state_leave(data);
-            break;
-
-        case MODEM_CELLULAR_STATE_INIT_POWER_OFF :
-            ret = modem_cellular_on_init_power_off_state_leave(data);
             break;
 
         case MODEM_CELLULAR_STATE_RUN_SHUTDOWN_SCRIPT :

@@ -83,9 +83,6 @@
 				compatible = "soc-nv-flash";
 				reg = <0 0x40000>;
 				write-block-size = <4>;
-				#address-cells = <1>;
-				#size-cells = <1>;
-				/* reg and ranges are specified in samx2xx1x dtsi */
 			};
 		};
 
