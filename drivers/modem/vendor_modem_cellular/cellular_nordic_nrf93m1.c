@@ -28,6 +28,7 @@ MODEM_CHAT_SCRIPT_CMDS_DEFINE(
 	MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGMM", cgmm_match), MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
 	MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGMI", cgmi_match), MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
 	MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGMR", cgmr_match), MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
+	MODEM_CHAT_SCRIPT_CMD_RESP("AT+CFUN=4", ok_match),
 	MODEM_CHAT_SCRIPT_CMD_RESP("AT+CMUX=0,0,5,127", ok_match));
 
 MODEM_CHAT_SCRIPT_DEFINE(nordic_nrf93m1_init_chat_script, nordic_nrf93m1_init_chat_script_cmds,
@@ -122,7 +123,7 @@ static const struct modem_cellular_vendor_config nrf93m1_vendor = {
 };
 
 #define MODEM_CELLULAR_DEVICE_NORDIC_NRF93M1(inst)                                                 \
-	MODEM_DT_INST_PPP_DEFINE(inst, MODEM_CELLULAR_INST_NAME(ppp, inst), NULL, 98, 1500, 1500); \
+	MODEM_DT_INST_PPP_DEFINE(inst, MODEM_CELLULAR_INST_NAME(ppp, inst), NULL, 1500, 1500);     \
                                                                                                    \
 	static struct modem_cellular_data MODEM_CELLULAR_INST_NAME(data, inst) = {                 \
 		.chat_delimiter = "\r\n",                                                          \

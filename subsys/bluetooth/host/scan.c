@@ -1402,6 +1402,11 @@ int bt_le_per_adv_sync_subevent(struct bt_le_per_adv_sync *per_adv_sync,
 	struct bt_hci_cp_le_set_pawr_sync_subevent *cp;
 	struct net_buf *buf;
 
+	if (!IS_ARRAY_ELEMENT(per_adv_sync_pool, per_adv_sync)) {
+		LOG_DBG("Invalid per_adv_sync pointer %p", per_adv_sync);
+		return -EINVAL;
+	}
+
 	if (params->num_subevents > BT_HCI_PAWR_SUBEVENT_MAX) {
 		return -EINVAL;
 	}
@@ -1427,6 +1432,11 @@ int bt_le_per_adv_set_response_data(struct bt_le_per_adv_sync *per_adv_sync,
 {
 	struct bt_hci_cp_le_set_pawr_response_data *cp;
 	struct net_buf *buf;
+
+	if (!IS_ARRAY_ELEMENT(per_adv_sync_pool, per_adv_sync)) {
+		LOG_DBG("Invalid per_adv_sync pointer %p", per_adv_sync);
+		return -EINVAL;
+	}
 
 	if (per_adv_sync->num_subevents == 0) {
 		return -EINVAL;
@@ -1905,7 +1915,18 @@ struct bt_le_per_adv_sync *bt_le_per_adv_sync_lookup_index(uint8_t index)
 int bt_le_per_adv_sync_get_info(struct bt_le_per_adv_sync *per_adv_sync,
 				struct bt_le_per_adv_sync_info *info)
 {
-	if (per_adv_sync == NULL || info == NULL) {
+	if (!IS_ARRAY_ELEMENT(per_adv_sync_pool, per_adv_sync)) {
+		LOG_DBG("Invalid per_adv_sync pointer %p", per_adv_sync);
+		return -EINVAL;
+	}
+
+	if (info == NULL) {
+		LOG_DBG("info is NULL");
+		return -EINVAL;
+	}
+
+	if (!atomic_test_bit(per_adv_sync->flags, BT_PER_ADV_SYNC_CREATED)) {
+		LOG_DBG("per_adv_sync %p is not created", per_adv_sync);
 		return -EINVAL;
 	}
 
@@ -2082,6 +2103,11 @@ static int bt_le_per_adv_sync_terminate(struct bt_le_per_adv_sync *per_adv_sync)
 {
 	int err;
 
+	if (!IS_ARRAY_ELEMENT(per_adv_sync_pool, per_adv_sync)) {
+		LOG_DBG("Invalid per_adv_sync pointer %p", per_adv_sync);
+		return -EINVAL;
+	}
+
 	if (!atomic_test_bit(per_adv_sync->flags, BT_PER_ADV_SYNC_SYNCED)) {
 		return -EINVAL;
 	}
@@ -2101,6 +2127,11 @@ int bt_le_per_adv_sync_delete(struct bt_le_per_adv_sync *per_adv_sync)
 
 	if (!BT_FEAT_LE_EXT_PER_ADV(bt_dev.le.features)) {
 		return -ENOTSUP;
+	}
+
+	if (!IS_ARRAY_ELEMENT(per_adv_sync_pool, per_adv_sync)) {
+		LOG_DBG("Invalid per_adv_sync pointer %p", per_adv_sync);
+		return -EINVAL;
 	}
 
 	if (atomic_test_bit(per_adv_sync->flags, BT_PER_ADV_SYNC_SYNCED)) {
@@ -2158,6 +2189,11 @@ static int bt_le_set_per_adv_recv_enable(struct bt_le_per_adv_sync *per_adv_sync
 
 	if (!BT_FEAT_LE_EXT_PER_ADV(bt_dev.le.features)) {
 		return -ENOTSUP;
+	}
+
+	if (!IS_ARRAY_ELEMENT(per_adv_sync_pool, per_adv_sync)) {
+		LOG_DBG("Invalid per_adv_sync pointer %p", per_adv_sync);
+		return -EINVAL;
 	}
 
 	if (!atomic_test_bit(per_adv_sync->flags, BT_PER_ADV_SYNC_SYNCED)) {
@@ -2221,6 +2257,11 @@ int bt_le_per_adv_sync_transfer(const struct bt_le_per_adv_sync *per_adv_sync,
 		return -ENOTSUP;
 	} else if (!BT_FEAT_LE_PAST_SEND(bt_dev.le.features)) {
 		return -ENOTSUP;
+	}
+
+	if (!IS_ARRAY_ELEMENT(per_adv_sync_pool, per_adv_sync)) {
+		LOG_DBG("Invalid per_adv_sync pointer %p", per_adv_sync);
+		return -EINVAL;
 	}
 
 	buf = bt_hci_cmd_alloc(K_FOREVER);

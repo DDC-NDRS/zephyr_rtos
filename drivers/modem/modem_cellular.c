@@ -32,7 +32,6 @@ LOG_MODULE_REGISTER(modem_cellular, CONFIG_MODEM_LOG_LEVEL);
     K_MSEC(CONFIG_MODEM_CELLULAR_PERIODIC_SCRIPT_MS)
 
 /* Magic constants */
-#define MODEM_CELLULAR_MAX_SCRIPT_FAILURES   (3)
 #define CSQ_RSSI_UNKNOWN                     (99)
 #define CESQ_RSRP_UNKNOWN                    (255)
 #define CESQ_RSRQ_UNKNOWN                    (255)
@@ -60,6 +59,9 @@ static const char* modem_cellular_state_str(enum modem_cellular_state state) {
     switch (state) {
         case MODEM_CELLULAR_STATE_IDLE :
             return "idle";
+
+        case MODEM_CELLULAR_STATE_RECOVERY :
+            return "recovery";
 
         case MODEM_CELLULAR_STATE_RESET_PULSE :
             return "reset pulse";
@@ -1076,25 +1078,80 @@ static int modem_cellular_on_run_init_script_state_enter(struct modem_cellular_d
     return modem_pipe_open_async(data->uart_pipe);
 }
 
-static void modem_cellular_enter_recovery_state(struct modem_cellular_data* data) {
-    struct modem_cellular_config const* config = data->dev->config;
+static int modem_cellular_on_recovery_state_enter(struct modem_cellular_data* data) {
+    /* Back off before resetting. Growing the delay with the attempt count keeps a
+     * persistent fault from resetting the modem back-to-back, and gives a modem
+     * that is merely slow to respond some time to settle. Clamp it so a large
+     * attempt budget cannot produce an unbounded delay.
+     */
+    uint32_t backoff_ms = MIN(CONFIG_MODEM_CELLULAR_RECOVERY_BACKOFF_MS * data->recovery_count,
+                              CONFIG_MODEM_CELLULAR_RECOVERY_BACKOFF_MAX_MS);
 
+    LOG_DBG("recovery attempt %u, backoff %u ms", data->recovery_count, backoff_ms);
+    modem_cellular_start_timer(data, K_MSEC(backoff_ms));
+
+    return (0);
+}
+
+static void modem_cellular_recovery_event_handler(struct modem_cellular_data* data,
+                                                  enum modem_cellular_event evt) {
+    const struct modem_cellular_config* config = data->dev->config;
+
+    switch (evt) {
+        case MODEM_CELLULAR_EVENT_TIMEOUT :
+            /* Release CMUX if attached so the UART pipe reattaches cleanly on the
+             * next connect attempt. No-op when CMUX is not attached.
+             */
+            modem_cmux_release(&data->cmux);
+
+            if (modem_cellular_gpio_is_enabled(&config->reset_gpio) &&
+                config->reset_on_recovery) {
+                modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_RESET_PULSE);
+            }
+            else if (modem_cellular_gpio_is_enabled(&config->power_gpio)) {
+                modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_POWER_ON_PULSE);
+            }
+            else {
+                modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_IDLE);
+            }
+            break;
+
+        case MODEM_CELLULAR_EVENT_SUSPEND :
+            modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_IDLE);
+            break;
+
+        default :
+            break;
+    }
+}
+
+static int modem_cellular_on_recovery_state_leave(struct modem_cellular_data* data) {
+    modem_cellular_stop_timer(data);
+
+    return (0);
+}
+
+static void modem_cellular_enter_recovery_state(struct modem_cellular_data* data) {
     IF_ENABLED(CONFIG_MODEM_CELLULAR_STATS, (data->stats.recoveries += 1));
 
-    /* Release CMUX if it was attached, so the UART pipe can be reattached
-     * cleanly on the next connect attempt. No-op when CMUX is not attached.
+    /* Bound the recovery loop: a persistent fault parks in IDLE once the
+     * attempt budget is spent, instead of resetting forever. A zero budget
+     * disables the cap.
      */
-    modem_cmux_release(&data->cmux);
+    if ((CONFIG_MODEM_CELLULAR_MAX_RECOVERIES != 0) &&
+        (data->recovery_count >= CONFIG_MODEM_CELLULAR_MAX_RECOVERIES)) {
+        LOG_WRN("Recovery attempts exhausted (%u), suspending", data->recovery_count);
+        data->recovery_count = 0;
+        modem_cellular_delegate_event(data, MODEM_CELLULAR_EVENT_SUSPEND);
+        return;
+    }
 
-    if (modem_cellular_gpio_is_enabled(&config->reset_gpio) && config->reset_on_recovery) {
-        modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_RESET_PULSE);
+    /* Saturate rather than wrap so the backoff stays monotonic in unlimited mode. */
+    if (data->recovery_count < UINT8_MAX) {
+        data->recovery_count++;
     }
-    else if (modem_cellular_gpio_is_enabled(&config->power_gpio)) {
-        modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_POWER_ON_PULSE);
-    }
-    else {
-        modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_IDLE);
-    }
+
+    modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_RECOVERY);
 }
 
 static void modem_cellular_run_init_script_event_handler(struct modem_cellular_data* data,
@@ -1169,6 +1226,11 @@ static void modem_cellular_connect_cmux_event_handler(struct modem_cellular_data
             break;
 
         case MODEM_CELLULAR_EVENT_CMUX_CONNECTED :
+            /* CMUX connected: the init/CMUX-connect fault that drives recovery has
+             * cleared, so reset the attempt count. A sustained connect/drop flap is
+             * not bounded by this alone; that would need a stability timer.
+             */
+            data->recovery_count = 0;
             modem_cellular_notify_user_pipes_connected(data);
             modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_OPEN_DLCI1);
             break;
@@ -1298,7 +1360,7 @@ static void modem_cellular_script_success(struct modem_cellular_data* data) {
 }
 
 static bool modem_cellular_is_script_retry_exceeded(struct modem_cellular_data* data) {
-    if (data->script_failure_counter >= MODEM_CELLULAR_MAX_SCRIPT_FAILURES) {
+    if (data->script_failure_counter >= CONFIG_MODEM_CELLULAR_MAX_SCRIPT_FAILURES) {
         data->script_failure_counter = 0;
         return (true);
     }
@@ -1715,6 +1777,7 @@ static void modem_cellular_await_ppp_dead_event_handler(struct modem_cellular_da
             LOG_DBG("RING received!");
             modem_pipe_open_async(data->uart_pipe);
             __fallthrough;
+
         case MODEM_CELLULAR_EVENT_PPP_DEAD :
             /* Wait for the channel to return to AT mode after PPP termination */
             modem_cellular_start_timer(data, K_MSEC(config->vendor->reset_pulse_duration_ms));
@@ -1917,6 +1980,10 @@ static int modem_cellular_on_state_enter(struct modem_cellular_data* data) {
             ret = modem_cellular_on_await_reset_state_enter(data);
             break;
 
+        case MODEM_CELLULAR_STATE_RECOVERY :
+            ret = modem_cellular_on_recovery_state_enter(data);
+            break;
+
         case MODEM_CELLULAR_STATE_POWER_ON_PULSE :
             ret = modem_cellular_on_power_on_pulse_state_enter(data);
             break;
@@ -2013,6 +2080,10 @@ static int modem_cellular_on_state_leave(struct modem_cellular_data* data) {
             ret = modem_cellular_on_await_reset_state_leave(data);
             break;
 
+        case MODEM_CELLULAR_STATE_RECOVERY :
+            ret = modem_cellular_on_recovery_state_leave(data);
+            break;
+
         case MODEM_CELLULAR_STATE_POWER_ON_PULSE :
             ret = modem_cellular_on_power_on_pulse_state_leave(data);
             break;
@@ -2093,6 +2164,10 @@ static void modem_cellular_event_handler(struct modem_cellular_data* data,
 
         case MODEM_CELLULAR_STATE_AWAIT_RESET :
             modem_cellular_await_reset_event_handler(data, evt);
+            break;
+
+        case MODEM_CELLULAR_STATE_RECOVERY :
+            modem_cellular_recovery_event_handler(data, evt);
             break;
 
         case MODEM_CELLULAR_STATE_POWER_ON_PULSE :

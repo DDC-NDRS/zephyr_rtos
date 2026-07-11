@@ -1289,6 +1289,7 @@ Device Driver Model:
   collaborators:
     - dcpleung
     - nashif
+    - edersondisouza
   files:
     - include/zephyr/device.h
     - kernel/device.c
@@ -1307,6 +1308,7 @@ Devicetree:
   collaborators:
     - mbolivar
     - rruuaanng
+    - kylebonnici
   files-regex:
     - ^dts/bindings/.*zephyr.*
     - ^dts/bindings/[^,]+$
@@ -2363,7 +2365,7 @@ Documentation Infrastructure:
     - tests/drivers/mspi/
     - doc/hardware/peripherals/mspi.rst
     - dts/bindings/mspi/
-    - dts/bindings/mtd/mspi*
+    - dts/bindings/mtd/*mspi*
   labels:
     - "area: MSPI"
   tests:
@@ -3610,6 +3612,7 @@ Key-Value Storage Systems:
     - lyakh
     - pillo79
     - laurenmurphyx64
+    - edersondisouza
   files:
     - cmake/llext-edk.cmake
     - samples/subsys/llext/
@@ -3651,6 +3654,7 @@ Linters and Static Analyzers:
     - nashif
     - kartben
     - pdgendt
+    - kylebonnici
   files:
     - .codechecker.yml
     - .codecov.yml
@@ -4981,10 +4985,10 @@ PMCI:
   status: maintained
   maintainers:
     - teburd
+    - edersondisouza
   collaborators:
     - nashif
     - kehintel
-    - edersondisouza
   files:
     - subsys/pmci/
     - samples/subsys/pmci/
@@ -5087,10 +5091,10 @@ RISCV arch:
   status: maintained
   maintainers:
     - fkokosinski
+  collaborators:
     - kgugala
     - tgorochowik
-  collaborators:
-    - edersondisouza
+    - dcpleung
     - katsuster
     - mgielda
     - npitre
@@ -5752,6 +5756,12 @@ Silabs Platforms:
     - drivers/*/*/*siwx91x*
     - tests/boards/silabs/
     - snippets/*silabs*/
+  file-groups:
+    - name: Silabs IEEE 802.15.4
+      collaborators:
+        - db00lean
+      files:
+        - drivers/ieee802154/
   labels:
     - "platform: Silabs"
   tests:
@@ -6988,10 +6998,10 @@ West:
   status: maintained
   maintainers:
     - teburd
+    - edersondisouza
   collaborators:
     - nashif
     - dkalowsk
-    - edersondisouza
   files: []
   labels:
     - "area: MCTP"
