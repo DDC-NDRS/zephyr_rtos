@@ -12,7 +12,6 @@ on-bus: mdio
 
 properties:
   led0-function-select:
-    required: true
     type: string
     default: "link-activity"
     description: LED0 Function Select
@@ -24,7 +23,6 @@ properties:
       - "link-activity"
 
   led1-function-select:
-    required: true
     type: string
     default: "link-speed"
     description: LED1 Function Select
