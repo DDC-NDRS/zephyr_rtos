@@ -27,15 +27,58 @@ LOG_MODULE_REGISTER(adc_nxp_s32_adc_sar, CONFIG_ADC_LOG_LEVEL);
 #define ADC_NXP_S32_GROUPCHAN_2_PHYCHAN(group, channel) \
     ((ADC_SAR_IP_HW_REG_SIZE * group) + channel)
 
-#if !defined(FEATURE_ADC_MAX_CHN_COUNT)
-#define FEATURE_ADC_MAX_CHN_COUNT ADC_SAR_IP_MAX_CHN_COUNT
-#endif
+/* Bitmask of channel_ids (== each channel@N node's `reg`) that have a DT node */
+#define ADC_NXP_S32_CHAN_BIT_ENTRY(node_id) | BIT(DT_REG_ADDR(node_id))
+#define ADC_NXP_S32_CHAN_MASK(n) \
+    (0 DT_INST_FOREACH_CHILD_STATUS_OKAY(n, ADC_NXP_S32_CHAN_BIT_ENTRY))
+
+/* Resolved physical ADC channel number for a channel@N node: its own
+ * `channel-number` if given, else <parent's group-channel index> * 32 + reg
+ * (today's single-group behavior, where reg already doubles as the
+ * group-local index). */
+#define ADC_NXP_S32_RESOLVE_PHYCHAN(node_id, n) \
+    DT_PROP_OR(node_id, channel_number, \
+              ADC_NXP_S32_GROUPCHAN_2_PHYCHAN(DT_INST_ENUM_IDX(n, group_channel), \
+                                              DT_REG_ADDR(node_id)))
+
+/* channel_id (reg) -> resolved physical channel number */
+#define ADC_NXP_S32_CHAN_PHY_ENTRY(node_id, n) \
+    [DT_REG_ADDR(node_id)] = ADC_NXP_S32_RESOLVE_PHYCHAN(node_id, n),
+#define ADC_NXP_S32_CHAN_PHY_TABLE(n) \
+    { DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(n, ADC_NXP_S32_CHAN_PHY_ENTRY, n) }
+
+/* Zephyr's adc_sequence.channels is a 32-bit bitmask, so each channel@N's
+ * reg (channel_id) must stay within 0-31. */
+#define ADC_NXP_S32_CHAN_REG_CHECK(node_id) \
+    BUILD_ASSERT(DT_REG_ADDR(node_id) < ADC_SAR_IP_HW_REG_SIZE, \
+                 "ADC channel reg (channel_id) must be < 32");
+
+/* channel-number (physical) must stay within this instance's channel space,
+ * i.e. group count * channels-per-group. */
+#define ADC_NXP_S32_CHAN_NUM_CHECK(node_id, n) \
+    BUILD_ASSERT(ADC_NXP_S32_RESOLVE_PHYCHAN(node_id, n) < \
+                (ADC_SAR_IP_HW_REG_SIZE * ADC_SAR_IP_NUM_GROUP_CHAN), \
+                "ADC channel-number is out of range for this instance");
+
+/* The per-channel end-of-conversion callback only receives the physical
+ * channel id from the HAL and relies on channel_id == PhysicalChanId % 32
+ * plus ascending-physical == ascending-channel_id completion order. Both
+ * only hold when no channel decouples channel-number from the node-level
+ * group mapping, so such channels require "normal-end-chain", which drains
+ * results by channel_id and needs no reverse translation. */
+#define ADC_NXP_S32_CHAN_EOC_CHECK(node_id, n) \
+    BUILD_ASSERT((DT_INST_ENUM_IDX(n, callback_select) == 1) || \
+                 (ADC_NXP_S32_RESOLVE_PHYCHAN(node_id, n) == \
+                  ADC_NXP_S32_GROUPCHAN_2_PHYCHAN(DT_INST_ENUM_IDX(n, group_channel), \
+                                                  DT_REG_ADDR(node_id))), \
+                 "channel-number override requires callback-select \"normal-end-chain\"");
 
 struct adc_nxp_s32_config {
     ADC_Type* base;
     uint8_t instance;
-    uint8_t group_channel;
     uint8_t callback_select;
+    uint32_t chan_defined_mask;
+    const uint8_t* chan_phy_map;
     Adc_Sar_Ip_ConfigType* adc_cfg;
     void (*irq_config_func)(const struct device* dev);
     const struct pinctrl_dev_config* pin_cfg;
@@ -48,19 +91,12 @@ struct adc_nxp_s32_data {
     uint16_t* buf_end;
     uint16_t* repeat_buffer;
     uint32_t mask_channels;
-    uint8_t  num_channels;
 };
 
 static int adc_nxp_s32_init(const struct device* dev) {
     const struct adc_nxp_s32_config* config = dev->config;
     struct adc_nxp_s32_data* data = dev->data;
     Adc_Sar_Ip_StatusType status;
-
-    /* This array shows max number of channels of each group */
-    uint8_t map_chan_group[ADC_SAR_IP_INSTANCE_COUNT][ADC_SAR_IP_NUM_GROUP_CHAN] =
-        FEATURE_ADC_MAX_CHN_COUNT;
-
-    data->num_channels = map_chan_group[config->instance][config->group_channel];
 
     if (config->pin_cfg) {
         if (pinctrl_apply_state(config->pin_cfg, PINCTRL_STATE_DEFAULT)) {
@@ -94,9 +130,11 @@ static int adc_nxp_s32_init(const struct device* dev) {
 
 static int adc_nxp_s32_channel_setup(const struct device* dev,
                                      const struct adc_channel_cfg* channel_cfg) {
-    struct adc_nxp_s32_data* data = dev->data;
+    const struct adc_nxp_s32_config* config = dev->config;
+    uint32_t defined;
 
-    if (channel_cfg->channel_id >= data->num_channels) {
+    defined = config->chan_defined_mask & BIT(channel_cfg->channel_id);
+    if (defined == 0U) {
         LOG_ERR("Channel %d is not valid", channel_cfg->channel_id);
         return (-EINVAL);
     }
@@ -218,9 +256,12 @@ static int adc_nxp_s32_start_read_async(const struct device* dev,
     struct adc_nxp_s32_data* data = dev->data;
     int error;
     uint32_t mask;
+    uint32_t defined;
+    uint8_t chan_id;
     uint8_t channel;
 
-    if (find_msb_set(sequence->channels) > data->num_channels) {
+    mask = sequence->channels & ~config->chan_defined_mask;
+    if (mask != 0U) {
         LOG_ERR("Channels out of bit map");
         return (-EINVAL);
     }
@@ -268,9 +309,13 @@ static int adc_nxp_s32_start_read_async(const struct device* dev,
         #endif
     }
 
-    for (int i = 0; i < data->num_channels; i++) {
-        mask = (sequence->channels >> i) & 0x1;
-        channel = ADC_NXP_S32_GROUPCHAN_2_PHYCHAN(config->group_channel, i);
+    defined = config->chan_defined_mask;
+    while (defined != 0U) {
+        chan_id  = find_lsb_set(defined) - 1;
+        defined &= ~BIT(chan_id);
+        channel  = config->chan_phy_map[chan_id];
+
+        mask = sequence->channels & BIT(chan_id);
         if (mask) {
             Adc_Sar_Ip_EnableChannelNotifications(config->instance,
                                                   channel, ADC_SAR_IP_CHAN_NOTIF_EOC);
@@ -360,14 +405,13 @@ static void adc_nxp_s32_isr(const struct device* dev) {
 #define ADC_NXP_S32_CALLBACK_DEFINE(n)                          \
     void adc_nxp_s32_normal_end_conversion_callback##n(const uint16 PhysicalChanId) { \
         const struct device* dev = DEVICE_DT_INST_GET(n);       \
-        const struct adc_nxp_s32_config* config = dev->config;  \
         struct adc_nxp_s32_data* data = dev->data;              \
         uint16_t result;                                        \
                                                                 \
         result = Adc_Sar_Ip_GetConvData(n, PhysicalChanId);     \
         LOG_DBG("End conversion, channel %d, group %d, result = %d", \
                 ADC_SAR_IP_CHAN_2_BIT(PhysicalChanId),          \
-                config->group_channel, result);                 \
+                PhysicalChanId / ADC_SAR_IP_HW_REG_SIZE, result); \
                                                                 \
         *data->buffer++ = result;                               \
         data->mask_channels &= ~BIT(ADC_SAR_IP_CHAN_2_BIT(PhysicalChanId)); \
@@ -386,16 +430,16 @@ static void adc_nxp_s32_isr(const struct device* dev) {
         uint8_t channel;                                        \
                                                                 \
         while (data->mask_channels) {                           \
-            channel = ADC_NXP_S32_GROUPCHAN_2_PHYCHAN(config->group_channel, \
-                                                      (find_lsb_set(data->mask_channels) - 1)); \
+            uint8_t chan_id = find_lsb_set(data->mask_channels) - 1; \
+            channel = config->chan_phy_map[chan_id];            \
             result  = Adc_Sar_Ip_GetConvData(n, channel);       \
             LOG_DBG("End chain, channel %d, group %d, result = %d", \
-                    ADC_SAR_IP_CHAN_2_BIT(channel),             \
-                    config->group_channel, result);             \
+                    chan_id,                                    \
+                    channel / ADC_SAR_IP_HW_REG_SIZE, result);  \
             if (data->buffer < data->buf_end) {                 \
                 *data->buffer++ = result;                       \
             }                                                   \
-            data->mask_channels &= ~BIT(ADC_SAR_IP_CHAN_2_BIT(channel)); \
+            data->mask_channels &= ~BIT(chan_id);               \
         }                                                       \
                                                                 \
         adc_context_on_sampling_done(&data->ctx, (struct device*)dev); \
@@ -426,6 +470,13 @@ static void adc_nxp_s32_isr(const struct device* dev) {
     COND_CODE_1(DT_INST_NUM_PINCTRL_STATES(n),                                  \
                 (PINCTRL_DT_INST_DEFINE(n);), (EMPTY))                          \
                                                                                 \
+    DT_INST_FOREACH_CHILD_STATUS_OKAY(n, ADC_NXP_S32_CHAN_REG_CHECK)            \
+    DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(n, ADC_NXP_S32_CHAN_NUM_CHECK, n)   \
+    DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(n, ADC_NXP_S32_CHAN_EOC_CHECK, n)   \
+                                                                                \
+    static const uint8_t adc_nxp_s32_chan_phy_map_##n[ADC_SAR_IP_HW_REG_SIZE] = \
+        ADC_NXP_S32_CHAN_PHY_TABLE(n);                                        \
+                                                                                \
     static Adc_Sar_Ip_ConfigType const adc_nxp_s32_default_config##n = {        \
         .ConvMode = ADC_SAR_IP_CONV_MODE_ONESHOT,                               \
         ADC_NXP_S32_RESOLUTION_CFG(n)                                           \
@@ -443,13 +494,14 @@ static void adc_nxp_s32_isr(const struct device* dev) {
     };                                                                          \
                                                                                 \
     static struct adc_nxp_s32_config DT_CONST adc_nxp_s32_config_##n = {        \
-        .base            = (ADC_Type*)DT_INST_REG_ADDR(n),                      \
-        .instance        = ADC_NXP_S32_GET_INSTANCE(n),                         \
-        .group_channel   = DT_INST_ENUM_IDX(n, group_channel),                  \
-        .callback_select = DT_INST_ENUM_IDX(n, callback_select),                \
-        .adc_cfg         = (Adc_Sar_Ip_ConfigType*)&adc_nxp_s32_default_config##n, \
-        .irq_config_func = adc_nxp_s32_adc_sar_config_func_##n,                 \
-        .pin_cfg         = COND_CODE_1(DT_INST_NUM_PINCTRL_STATES(n),           \
+        .base              = (ADC_Type*)DT_INST_REG_ADDR(n),                    \
+        .instance          = ADC_NXP_S32_GET_INSTANCE(n),                       \
+        .chan_defined_mask = ADC_NXP_S32_CHAN_MASK(n),                          \
+        .chan_phy_map      = adc_nxp_s32_chan_phy_map_##n,                      \
+        .callback_select   = DT_INST_ENUM_IDX(n, callback_select),              \
+        .adc_cfg           = (Adc_Sar_Ip_ConfigType*)&adc_nxp_s32_default_config##n, \
+        .irq_config_func   = adc_nxp_s32_adc_sar_config_func_##n,               \
+        .pin_cfg           = COND_CODE_1(DT_INST_NUM_PINCTRL_STATES(n),         \
                                        (PINCTRL_DT_INST_DEV_CONFIG_GET(n)), (NULL)), \
     };                                                                          \
     DEVICE_DT_INST_DEFINE(n,                                                    \
