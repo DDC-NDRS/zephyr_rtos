@@ -333,7 +333,7 @@ static int adc_nxp_s32_start_read_async(const struct device* dev,
     /* Save ADC sequence sampling buffer and its end pointer address */
     data->buffer = sequence->buffer;
     if (config->callback_select) {
-        data->buf_end = data->buffer + sequence->buffer_size / sizeof(uint16_t);
+        data->buf_end = data->buffer + (sequence->buffer_size / sizeof(uint16_t));
     }
 
     adc_context_start_read(&data->ctx, sequence);
@@ -485,6 +485,8 @@ static void adc_nxp_s32_isr(const struct device* dev) {
             adc_nxp_s32_normal_endchain_callback##n,                            \
         .EndOfConvNotification =                                                \
             adc_nxp_s32_normal_end_conversion_callback##n,                      \
+        .ClkSelect = ADC_SAR_IP_CLK_HALF_BUS,                                   \
+        .CalibrationClkSelect = ADC_SAR_IP_CLK_QUARTER_BUS,                     \
     };                                                                          \
                                                                                 \
     static struct adc_nxp_s32_data adc_nxp_s32_data_##n = {                     \
