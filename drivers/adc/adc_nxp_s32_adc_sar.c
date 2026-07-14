@@ -448,8 +448,12 @@ static void adc_nxp_s32_isr(const struct device* dev) {
 #define ADC_NXP_S32_INSTANCE_CHECK(indx, n) \
     ((DT_INST_REG_ADDR(n) == IP_ADC_##indx##_BASE) ? indx : 0)
 
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define ADC_NXP_S32_GET_INSTANCE(n) (n)
+#else
 #define ADC_NXP_S32_GET_INSTANCE(n) \
     LISTIFY(__DEBRACKET ADC_INSTANCE_COUNT, ADC_NXP_S32_INSTANCE_CHECK, (|), n)
+#endif
 
 #if (FEATURE_ADC_HAS_HIGH_SPEED_ENABLE == 1U)
 #define ADC_NXP_S32_HIGH_SPEED_CFG(n) .HighSpeedConvEn = DT_INST_PROP(n, high_speed),
@@ -516,3 +520,48 @@ static void adc_nxp_s32_isr(const struct device* dev) {
                           &adc_nxp_s32_driver_api_##n);
 
 DT_INST_FOREACH_STATUS_OKAY(ADC_NXP_S32_INIT_DEVICE)
+
+#if (__GTEST == 1) /* #CUSTOM@NDRS */
+#include "mcu_reg_stub.h"
+
+#define S32_ADC_CFG_REG_INIT(n)                                                 \
+	zephyr_gtest_adc_s32k3_reg_init(DEVICE_DT_GET(DT_DRV_INST(n)), &adc_nxp_s32_data_##n,\
+					                &adc_nxp_s32_config_##n);
+
+static void zephyr_gtest_adc_s32k3_reg_init(const struct device* dev, struct adc_nxp_s32_data* data,
+                                            struct adc_nxp_s32_config* cfg) {
+	ARG_UNUSED(data);
+	uintptr_t base_addr = (uintptr_t)cfg->base;
+	int rc;
+
+	switch (base_addr) {
+	    case 0x400A0000UL : /* IP_ADC_0_BASE */ {
+		    cfg->base = (ADC_Type*)ut_mcu_adc_0_area;
+		    cfg->instance = 0U;
+		    break;
+	    }
+
+	    case 0x400A4000UL : /* IP_ADC_1_BASE */ {
+		    cfg->base = (ADC_Type*)ut_mcu_adc_1_area;
+		    cfg->instance = 1U;
+		    break;
+	    }
+
+	    default: { /* IP_ADC_2_BASE */
+		    cfg->base = (ADC_Type *)ut_mcu_adc_2_area;
+		    cfg->instance = 2U;
+		    break;
+	    }
+	}
+
+	rc = dev->ops.init(dev);
+	if (rc == 0) {
+		dev->state->initialized = true;
+		dev->state->init_res = 0U;
+	}
+}
+
+void zephyr_gtest_adc_s32k3(void) {
+	DT_INST_FOREACH_STATUS_OKAY(S32_ADC_CFG_REG_INIT)
+}
+#endif

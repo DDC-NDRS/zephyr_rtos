@@ -117,6 +117,10 @@ Boards
 * All Kconfigs under modules/hal_silabs/gecko were renamed from ``SOC_GECKO_*``
   to ``SILABS_GECKO_*``. Adapt your board accordingly.
 
+* The clock configuration for all Silabs Series 0 and Series 1 boards needs to be specified in the
+  device tree now. The Kconfigs ``CONFIG_SOC_GECKO_HAS_HFRCO_FREQRANGE`` and ``CONFIG_CMU_*`` have
+  been removed. See :github:`111754` for examples of how to adapt your board.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -322,6 +326,10 @@ Ethernet
   (:dtcompatible:`ethernet-phy`) driver. The QEMU targets which emulate the Xilinx GEM have
   been updated accordingly, as have been the device trees of the Zynq-7000 and ZynqMP /
   UltraScale+ SoC families. (:github:`87313`)
+
+* Ethernet and Wi-Fi drivers that use :c:enumerator:`ETHERNET_CONFIG_TYPE_EXTRA_TX_PKT_HEADROOM` to request
+  extra headroom for transmit packets must now select
+  :kconfig:option:`CONFIG_NET_L2_ETHERNET_EXTRA_TX_PKT_HEADROOM`. (:github:`112924`)
 
 Flash
 =====
@@ -630,6 +638,12 @@ USB
   :c:struct:`usbd_vreq_node` are now called with NULL ``buf`` before data stage is received.
   This allows the stack to return STALL during data stage. Out-of-tree class and vendor handlers
   need to be updated. (:github:`108840`)
+* USB control transfer callbacks ``control_to_host`` in :c:struct:`usbd_class_api` and
+  ``to_host`` in :c:struct:`usbd_vreq_node` are now expected to allocate the data stage buffer
+  themselves. This allows allocating only as much memory as is actually needed which makes
+  the worst case memory usage dependent on the handlers implementation and not on tainted wLength
+  value coming from host. Out-of-tree class and vendor handlers need to be updated.
+  (:github:`102491`)
 * The Espressif USB-OTG full-speed controller compatible ``espressif,esp32-usb-otg`` has been
   renamed to :dtcompatible:`espressif,esp32-usb-otg-fs`. The internal PHY D+/D- pad numbers are
   now provided through the ``phy-dp-pin`` and ``phy-dm-pin`` properties. Out-of-tree devicetrees
@@ -787,6 +801,12 @@ Bluetooth Audio
     :zephyr:code-sample:`ble_peripheral_tmap_central` and
     :zephyr:code-sample:`ble_peripheral_tmap_peripheral` have been moved from
     ``samples/bluetooth/`` to ``samples/bluetooth/audio``.
+
+* VOCS
+
+  * The VOCS client now requires automatic CCC (Client Characteristic Configuration) discovery.
+    :kconfig:option:`BT_VOCS_CLIENT` now depends on :kconfig:option:`BT_GATT_AUTO_DISCOVER_CCC`.
+    Applications using VOCS client must ensure that CCC auto-discovery support is enabled. (:github:`110607`)
 
 .. zephyr-keep-sorted-stop
 
@@ -1112,3 +1132,11 @@ Architectures
 
 * ``CONFIG_XTENSA_BACKTRACE_EXCEPTION_DUMP_HOOK`` is removed, since backtrace is now always
   using :c:macro:`EXCEPTION_DUMP` for output.
+
+Video
+=====
+
+* :c:func:`video_import_buffer` no longer returns the imported buffer index via a
+  ``uint16_t *idx`` output parameter but instead returns a pointer to the imported
+  :c:struct:`video_buffer`, or ``NULL`` on failure. This helps to make the index transparent
+  to the application and also makes the buffer accessible from the application.

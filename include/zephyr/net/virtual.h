@@ -98,6 +98,8 @@ struct virtual_interface_config {
 
 #if defined(CONFIG_NET_L2_VIRTUAL)
 #define VIRTUAL_MAX_NAME_LEN CONFIG_NET_L2_VIRTUAL_MAX_NAME_LEN
+#elif defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define VIRTUAL_MAX_NAME_LEN 8
 #else
 #define VIRTUAL_MAX_NAME_LEN 0
 #endif

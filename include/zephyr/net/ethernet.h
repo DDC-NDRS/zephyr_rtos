@@ -26,6 +26,7 @@
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/ethernet_vlan.h>
 #include <zephyr/net/ptp_time.h>
+#include <zephyr/net/virtual.h>
 #include <zephyr/random/random.h>
 
 #if defined(CONFIG_NVMEM)
@@ -996,13 +997,15 @@ static inline uint16_t net_eth_get_vlan_tag(struct net_if* iface) {
  * @return Network interface related to this tag or NULL if no such interface
  * exists.
  */
-#if defined(CONFIG_NET_VLAN)
+#if defined(CONFIG_NET_VLAN) && (NET_VLAN_MAX_COUNT > 0)
 struct net_if* net_eth_get_vlan_iface(struct net_if* iface, uint16_t tag);
 #else
 static inline
 struct net_if* net_eth_get_vlan_iface(struct net_if* iface, uint16_t tag) {
-    ARG_UNUSED(iface);
-    ARG_UNUSED(tag);
+    /* Special case for priority tagged frames, without vlan ifaces being present */
+    if (IS_ENABLED(CONFIG_NET_VLAN) && (tag == NET_VLAN_TAG_PRIORITY)) {
+        return (iface);
+    }
 
     return (NULL);
 }
@@ -1017,20 +1020,14 @@ struct net_if* net_eth_get_vlan_iface(struct net_if* iface, uint16_t tag) {
  * @return Network interface related to this tag or NULL if no such interface
  * exists.
  */
-#if defined(CONFIG_NET_VLAN) && (NET_VLAN_MAX_COUNT > 0)
-struct net_if* net_eth_get_vlan_main(struct net_if* iface);
-#else
-static inline
-struct net_if* net_eth_get_vlan_main(struct net_if* iface) {
-    ARG_UNUSED(iface);
-
-    return (NULL);
+static inline struct net_if* net_eth_get_vlan_main(struct net_if* iface) {
+    return net_virtual_get_iface(iface);
 }
-#endif
 
 /**
  * @brief Check if there are any VLAN interfaces enabled to this specific
- *        Ethernet network interface.
+ *        Ethernet network interface or if priority tagged frames (tag 0)
+ *        are supported.
  *
  * Note that the iface must be the actual Ethernet interface and not the
  * virtual VLAN interface.
@@ -1041,7 +1038,7 @@ struct net_if* net_eth_get_vlan_main(struct net_if* iface) {
  * @return True if there are enabled VLANs for this network interface,
  *         false if not.
  */
-#if defined(CONFIG_NET_VLAN)
+#if defined(CONFIG_NET_VLAN) && (NET_VLAN_MAX_COUNT > 0)
 bool net_eth_is_vlan_enabled(struct ethernet_context* ctx,
                              struct net_if* iface);
 #else
@@ -1050,7 +1047,7 @@ static inline bool net_eth_is_vlan_enabled(struct ethernet_context* ctx,
     ARG_UNUSED(ctx);
     ARG_UNUSED(iface);
 
-    return (false);
+    return IS_ENABLED(CONFIG_NET_VLAN);
 }
 #endif
 
