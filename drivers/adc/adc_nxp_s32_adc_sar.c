@@ -131,10 +131,10 @@ static int adc_nxp_s32_init(const struct device* dev) {
 static int adc_nxp_s32_channel_setup(const struct device* dev,
                                      const struct adc_channel_cfg* channel_cfg) {
     const struct adc_nxp_s32_config* config = dev->config;
-    uint32_t defined;
+    uint32_t chan_mask_bit;
 
-    defined = config->chan_defined_mask & BIT(channel_cfg->channel_id);
-    if (defined == 0U) {
+    chan_mask_bit = config->chan_defined_mask & BIT(channel_cfg->channel_id);
+    if (chan_mask_bit == 0U) {
         LOG_ERR("Channel %d is not valid", channel_cfg->channel_id);
         return (-EINVAL);
     }
@@ -164,11 +164,10 @@ static int adc_nxp_s32_channel_setup(const struct device* dev,
 
 static int adc_nxp_s32_validate_buffer_size(const struct device* dev,
                                             const struct adc_sequence* sequence) {
-    uint8_t active_channels = 0;
-    size_t  needed_size;
+    size_t active_channels;
+    size_t needed_size;
 
     active_channels = POPCOUNT(sequence->channels);
-
     needed_size = active_channels * sizeof(uint16_t);
     if (sequence->options) {
         needed_size *= (1 + sequence->options->extra_samplings);
@@ -254,11 +253,8 @@ static int adc_nxp_s32_start_read_async(const struct device* dev,
                                         const struct adc_sequence* sequence) {
     const struct adc_nxp_s32_config* config = dev->config;
     struct adc_nxp_s32_data* data = dev->data;
-    int error;
+    int ret;
     uint32_t mask;
-    uint32_t defined;
-    uint8_t chan_id;
-    uint8_t channel;
 
     mask = sequence->channels & ~config->chan_defined_mask;
     if (mask != 0U) {
@@ -266,15 +262,15 @@ static int adc_nxp_s32_start_read_async(const struct device* dev,
         return (-EINVAL);
     }
 
-    error = adc_nxp_s32_validate_buffer_size(dev, sequence);
-    if (error) {
+    ret = adc_nxp_s32_validate_buffer_size(dev, sequence);
+    if (ret) {
         LOG_ERR("Buffer size isn't enough");
         return (-EINVAL);
     }
 
     #if FEATURE_ADC_HAS_AVERAGING
-    error = adc_nxp_s32_set_averaging(dev, sequence->oversampling);
-    if (error) {
+    ret = adc_nxp_s32_set_averaging(dev, sequence->oversampling);
+    if (ret) {
         return (-ENOTSUP);
     }
     #else
@@ -285,8 +281,8 @@ static int adc_nxp_s32_start_read_async(const struct device* dev,
     #endif
 
     #if (ADC_SAR_IP_SET_RESOLUTION == STD_ON)
-    error = adc_nxp_s32_set_resolution(dev, sequence->resolution);
-    if (error) {
+    ret = adc_nxp_s32_set_resolution(dev, sequence->resolution);
+    if (ret) {
         return (-ENOTSUP);
     }
     #else
@@ -298,8 +294,8 @@ static int adc_nxp_s32_start_read_async(const struct device* dev,
 
     if (sequence->calibrate) {
         #if FEATURE_ADC_HAS_CALIBRATION
-        error = Adc_Sar_Ip_DoCalibration(config->instance);
-        if (error) {
+        ret = Adc_Sar_Ip_DoCalibration(config->instance);
+        if (ret) {
             LOG_ERR("Error during calibration");
             return (-EIO);
         }
@@ -309,14 +305,13 @@ static int adc_nxp_s32_start_read_async(const struct device* dev,
         #endif
     }
 
-    defined = config->chan_defined_mask;
-    while (defined != 0U) {
-        chan_id  = find_lsb_set(defined) - 1;
-        defined &= ~BIT(chan_id);
-        channel  = config->chan_phy_map[chan_id];
+    uint32_t chan_mask_bit = config->chan_defined_mask;
+    while (chan_mask_bit != 0U) {
+        size_t chan_id = find_lsb_set(chan_mask_bit) - 1;
+        size_t channel = config->chan_phy_map[chan_id];
 
-        mask = sequence->channels & BIT(chan_id);
-        if (mask) {
+        chan_mask_bit &= ~BIT(chan_id);
+        if (sequence->channels & BIT(chan_id)) {
             Adc_Sar_Ip_EnableChannelNotifications(config->instance,
                                                   channel, ADC_SAR_IP_CHAN_NOTIF_EOC);
             Adc_Sar_Ip_EnableChannel(config->instance,
@@ -337,9 +332,9 @@ static int adc_nxp_s32_start_read_async(const struct device* dev,
     }
 
     adc_context_start_read(&data->ctx, sequence);
-    error = adc_context_wait_for_completion(&data->ctx);
+    ret = adc_context_wait_for_completion(&data->ctx);
 
-    return (error);
+    return (ret);
 }
 
 static void adc_context_start_sampling(struct adc_context* ctx) {
@@ -366,13 +361,13 @@ static int adc_nxp_s32_read_async(const struct device* dev,
                                   const struct adc_sequence* sequence,
                                   struct k_poll_signal* async) {
     struct adc_nxp_s32_data* data = dev->data;
-    int error = 0;
+    int ret;
 
     adc_context_lock(&data->ctx, async ? true : false, async);
-    error = adc_nxp_s32_start_read_async(dev, sequence);
-    adc_context_release(&data->ctx, error);
+    ret = adc_nxp_s32_start_read_async(dev, sequence);
+    adc_context_release(&data->ctx, ret);
 
-    return (error);
+    return (ret);
 }
 
 static int adc_nxp_s32_read(const struct device* dev,
@@ -417,8 +412,7 @@ static void adc_nxp_s32_isr(const struct device* dev) {
         data->mask_channels &= ~BIT(ADC_SAR_IP_CHAN_2_BIT(PhysicalChanId)); \
                                                                 \
         if (!data->mask_channels) {                             \
-            adc_context_on_sampling_done(&data->ctx,            \
-                                         (struct device*)dev);  \
+            adc_context_on_sampling_done(&data->ctx, dev);      \
         }                                                       \
     };                                                          \
                                                                 \
@@ -426,23 +420,22 @@ static void adc_nxp_s32_isr(const struct device* dev) {
         const struct device* dev = DEVICE_DT_INST_GET(n);       \
         const struct adc_nxp_s32_config* config = dev->config;  \
         struct adc_nxp_s32_data* data = dev->data;              \
-        uint16_t result;                                        \
-        uint8_t channel;                                        \
                                                                 \
         while (data->mask_channels) {                           \
-            uint8_t chan_id = find_lsb_set(data->mask_channels) - 1; \
-            channel = config->chan_phy_map[chan_id];            \
-            result  = Adc_Sar_Ip_GetConvData(n, channel);       \
-            LOG_DBG("End chain, channel %d, group %d, result = %d", \
-                    chan_id,                                    \
-                    channel / ADC_SAR_IP_HW_REG_SIZE, result);  \
+            size_t chan_id = (find_lsb_set(data->mask_channels) - 1); \
+            size_t channel = config->chan_phy_map[chan_id];     \
+            uint16_t result = Adc_Sar_Ip_GetConvData(n, channel); \
+                                                                \
+            LOG_DBG("End chain, channel %zu, group %zu, result = %d", \
+                    chan_id, (channel / ADC_SAR_IP_HW_REG_SIZE), result); \
+                                                                \
             if (data->buffer < data->buf_end) {                 \
                 *data->buffer++ = result;                       \
             }                                                   \
             data->mask_channels &= ~BIT(chan_id);               \
         }                                                       \
                                                                 \
-        adc_context_on_sampling_done(&data->ctx, (struct device*)dev); \
+        adc_context_on_sampling_done(&data->ctx, dev);          \
     };
 
 #define ADC_NXP_S32_INSTANCE_CHECK(indx, n) \
@@ -479,7 +472,7 @@ static void adc_nxp_s32_isr(const struct device* dev) {
     DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(n, ADC_NXP_S32_CHAN_EOC_CHECK, n)   \
                                                                                 \
     static const uint8_t adc_nxp_s32_chan_phy_map_##n[ADC_SAR_IP_HW_REG_SIZE] = \
-        ADC_NXP_S32_CHAN_PHY_TABLE(n);                                        \
+        ADC_NXP_S32_CHAN_PHY_TABLE(n);                                          \
                                                                                 \
     static Adc_Sar_Ip_ConfigType const adc_nxp_s32_default_config##n = {        \
         .ConvMode = ADC_SAR_IP_CONV_MODE_ONESHOT,                               \
