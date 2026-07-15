@@ -510,7 +510,7 @@ static int wdt_nxp_fs26_install_timeout(const struct device* dev,
             break;
         }
     }
-    data->window_period = i;
+    data->window_period = (uint8_t)i;
     LOG_DBG("window.max requested %d ms, using %d ms",
             cfg->window.max, fs26_period_values[data->window_period]);
 
@@ -531,7 +531,7 @@ static int wdt_nxp_fs26_install_timeout(const struct device* dev,
         LOG_ERR("Watchdog opened window too small");
         return -EINVAL;
     }
-    data->window_duty_cycle = i;
+    data->window_duty_cycle = (uint8_t)i;
 
     LOG_DBG("window.min requested %d ms, using %d ms (%d.%02d%%)",
             cfg->window.min, window_min,

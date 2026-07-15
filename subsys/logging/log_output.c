@@ -34,7 +34,7 @@
 /* Timestamp format strings - evaluated at compile-time */
 /* Simple timestamp format (no formatting) */
 #define LOG_TS_SIMPLE_FMT \
-	COND_CODE_1(CONFIG_LOG_TIMESTAMP_64BIT, ("[%016llu] "), ("[%08lu] "))
+	COND_CODE_1(CONFIG_LOG_TIMESTAMP_64BIT, ("[%020llu] "), ("[%010lu] "))
 
 /* Linux timestamp format - base format depends on 64-bit and HIDE_US */
 #define LOG_TS_LINUX_FMT \

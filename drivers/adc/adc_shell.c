@@ -133,6 +133,7 @@ static struct adc_hdl adc_list[] = {
                        ti_ads1115,
                        ti_ads1119,
                        ti_ads114s08,
+                       ti_ads1220,
                        ti_ads7052,
                        ti_ads7950,
                        ti_ads7951,
