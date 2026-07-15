@@ -491,7 +491,7 @@ static int wdt_nxp_fs26_install_timeout(const struct device* dev,
                                         const struct wdt_timeout_cfg* cfg) {
     struct wdt_nxp_fs26_data* data = dev->data;
     uint32_t window_min;
-    uint8_t i;
+    size_t i;
 
     if (data->timeout_installed) {
         LOG_ERR("No more timeouts can be installed");

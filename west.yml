@@ -174,7 +174,7 @@ manifest:
       groups:
         - hal
     - name: hal_espressif
-      revision: 563219d8db677b70e92f1493e4e46b018bf41120
+      revision: 06d3c9fe735047f5ce390b86888f3b511be2b32d
       path: modules/hal/espressif
       west-commands: west/west-commands.yml
       groups:
@@ -215,7 +215,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: 717cf61029c1b52b8a7254ffff36eabdc140a74c
+      revision: 20f343917b97525e1cc7acb19769f980e8abc456
       path: modules/hal/nxp
       groups:
         - hal
@@ -315,7 +315,7 @@ manifest:
       path: modules/fs/littlefs
       groups:
         - fs
-      revision: 32fa5540b5dacb1622664713acefcb46445f01e6
+      revision: 2568c7cf6197f30691c94e02924213bcca471c2a
     - name: lora-basics-modem
       revision: a8ddc544043e72807cf7db532478e1dda734ae7c
       path: modules/lib/lora-basics-modem
@@ -326,7 +326,7 @@ manifest:
       revision: bbedf2656086a93a8468a1c98168a6b36631ce9a
       path: modules/lib/gui/lvgl
     - name: mbedtls
-      revision: 554163f6f7b2ec71fed9b423e81f2217a8615d29
+      revision: c53cc657cedbd17c009cb676a17bffb28b6650a3
       path: modules/crypto/mbedtls
       groups:
         - crypto
