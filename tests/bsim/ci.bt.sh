@@ -17,7 +17,13 @@ ${ZEPHYR_BASE}/scripts/twister ${TWISTER_OPTIONS} -T tests/bsim/bluetooth/audio/
 
 ${ZEPHYR_BASE}/scripts/twister ${TWISTER_OPTIONS} -T tests/bsim/bluetooth/audio_samples/
 
+${ZEPHYR_BASE}/scripts/twister ${TWISTER_OPTIONS} -T tests/bsim/bluetooth/hci_uart/
+
 ${ZEPHYR_BASE}/scripts/twister ${TWISTER_OPTIONS} -T tests/bsim/bluetooth/host/
+
+${ZEPHYR_BASE}/scripts/twister ${TWISTER_OPTIONS} -T tests/bsim/bluetooth/samples/
+
+${ZEPHYR_BASE}/scripts/twister ${TWISTER_OPTIONS} -T tests/bsim/bluetooth/tester/
 
 # nrf52_bsim set:
 nice tests/bsim/bluetooth/compile.sh

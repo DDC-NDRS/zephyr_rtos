@@ -1941,6 +1941,7 @@ Documentation Infrastructure:
     - lmajewski
     - pdgendt
     - ClaCodes
+    - tpambor
   files:
     - drivers/ethernet/
     - include/zephyr/dt-bindings/ethernet/
@@ -1960,6 +1961,7 @@ Documentation Infrastructure:
   tests:
     - net.ethernet
     - sample.drivers.ethernet
+    - net.ethernet.build
 
 "Drivers: FPGA":
   status: maintained
@@ -5215,6 +5217,7 @@ Raspberry Pi Pico Platforms:
   collaborators:
     - threeeights
     - ajf58
+    - dsseng
   files:
     - boards/raspberrypi/rpi_pico*/
     - boards/adafruit/kb2040/
@@ -6345,6 +6348,7 @@ Utilities:
     - tests/lib/ringbuffer/
     - tests/lib/notify/
     - tests/lib/linear_range/
+    - tests/lib/cobs/
   file-groups:
     - name: COBS
       collaborators:
@@ -6868,6 +6872,7 @@ West:
   collaborators:
     - threeeights
     - ajf58
+    - dsseng
   files:
     - modules/hal_rpi_pico/
   labels:

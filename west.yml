@@ -149,7 +149,7 @@ manifest:
       groups:
         - fs
     - name: hal_adi
-      revision: 35d874ccfb8fb062ca8bdf096764b8d34c6d608e
+      revision: a554a31806bc308d954fdb43143d260902da9b1e
       path: modules/hal/adi
       groups:
         - hal
@@ -331,7 +331,7 @@ manifest:
       groups:
         - crypto
     - name: mcuboot
-      revision: b60292a0ee403dc0571e89cc7552c2d4189cdd6a
+      revision: e287134512c2b74156144d613c63cf28545a33ab
       path: bootloader/mcuboot
       groups:
         - bootloader
