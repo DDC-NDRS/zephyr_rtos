@@ -5955,20 +5955,22 @@ TI K3 Platforms:
   labels:
     - "platform: TI K3"
 
-TI MSPM0 Platforms:
+TI MSPM Platforms:
   status: maintained
   maintainers:
     - ssekar15
+    - glneo
+  collaborators:
     - d-philpot
   files:
-    - soc/ti/mspm0/
-    - boards/ti/*mspm0*/
-    - dts/arm/ti/mspm0/
+    - soc/ti/mspm/
+    - boards/ti/*mspm*/
+    - dts/arm/ti/mspm*/
     - dts/bindings/*/*mspm0*
     - drivers/*/*_mspm0*
     - modules/Kconfig.mspm0
   labels:
-    - "platform: Texas Instruments MSPM0"
+    - "platform: TI MSPM"
 
 TI SimpleLink Platforms:
   status: maintained
@@ -6799,8 +6801,8 @@ West:
 "West project: hal_nxp":
   status: maintained
   maintainers:
-    - ZhaoxiangJin
     - mmahadevan108
+    - zejiang0jason
   collaborators:
     - manuargue
     - PetervdPerk-NXP
@@ -6808,7 +6810,6 @@ West:
     - JiafeiPan
     - MaochenWang1
     - axelnxp
-    - zejiang0jason
     - Holt-Sun
     - lucien-nxp
   files:

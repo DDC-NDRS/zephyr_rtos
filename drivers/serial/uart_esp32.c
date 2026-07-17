@@ -160,7 +160,7 @@ struct uart_esp32_data {
     #endif
 
     #ifdef CONFIG_PM
-    uint8_t tx_ongoing;
+    uint8_t pm_lock_bits;
     bool pm_policy_state_on;
     #endif
 };
@@ -169,6 +169,7 @@ struct uart_esp32_data {
 #define TX_POLL       BIT(0)
 #define TX_INT_STREAM BIT(1)
 #define TX_ASYNC      BIT(2)
+#define RX_INT        BIT(3)
 #endif
 
 #define UART_FIFO_LIMIT     (UART_LL_FIFO_DEF_LEN)
@@ -180,11 +181,11 @@ static void uart_esp32_isr(void* arg);
 #endif
 
 #if CONFIG_PM
-static void uart_esp32_pm_policy_state_lock_get(const struct device* dev, uint8_t tx_method) {
+static void uart_esp32_pm_policy_state_lock_get(const struct device* dev, uint8_t lock_bit) {
     struct uart_esp32_data* data = dev->data;
     unsigned int key = irq_lock();
 
-    data->tx_ongoing |= tx_method;
+    data->pm_lock_bits |= lock_bit;
 
     if (!data->pm_policy_state_on) {
         data->pm_policy_state_on = true;
@@ -194,13 +195,13 @@ static void uart_esp32_pm_policy_state_lock_get(const struct device* dev, uint8_
     irq_unlock(key);
 }
 
-static void uart_esp32_pm_policy_state_lock_put(const struct device* dev, uint8_t tx_method) {
+static void uart_esp32_pm_policy_state_lock_put(const struct device* dev, uint8_t lock_bit) {
     struct uart_esp32_data* data = dev->data;
     unsigned int key = irq_lock();
 
-    data->tx_ongoing &= ~tx_method;
+    data->pm_lock_bits &= ~lock_bit;
 
-    if (data->pm_policy_state_on && !data->tx_ongoing) {
+    if (data->pm_policy_state_on && !data->pm_lock_bits) {
         data->pm_policy_state_on = false;
         pm_policy_state_all_lock_put();
     }
@@ -232,7 +233,7 @@ static void uart_esp32_poll_out(const struct device* dev, unsigned char c) {
     }
 
     #if CONFIG_PM
-    if (!(data->tx_ongoing & TX_POLL)) {
+    if (!(data->pm_lock_bits & TX_POLL)) {
         uart_esp32_pm_policy_state_lock_get(dev, TX_POLL);
 
         /* Enable ISR to aid controlling power lock */
@@ -592,6 +593,10 @@ static void uart_esp32_irq_rx_disable(const struct device* dev) {
 
     uart_hal_disable_intr_mask(&data->hal, UART_INTR_RXFIFO_FULL);
     uart_hal_disable_intr_mask(&data->hal, UART_INTR_RXFIFO_TOUT);
+
+    #ifdef CONFIG_PM
+    uart_esp32_pm_policy_state_lock_put(dev, RX_INT);
+    #endif
 }
 
 static int uart_esp32_irq_tx_complete(const struct device* dev) {
@@ -663,6 +668,10 @@ static inline void uart_esp32_async_timer_start(struct k_work_delayable* work, s
 static void uart_esp32_irq_rx_enable(const struct device* dev) {
     struct uart_esp32_data* data = dev->data;
 
+    #ifdef CONFIG_PM
+    uart_esp32_pm_policy_state_lock_get(dev, RX_INT);
+    #endif
+
     uart_hal_clr_intsts_mask(&data->hal, UART_INTR_RXFIFO_FULL);
     uart_hal_clr_intsts_mask(&data->hal, UART_INTR_RXFIFO_TOUT);
     uart_hal_ena_intr_mask(&data->hal, UART_INTR_RXFIFO_FULL);
@@ -690,15 +699,9 @@ static void IRAM_ATTR uart_esp32_isr(void* arg) {
 
     #if CONFIG_PM
     if (uart_intr_status & UART_INTR_TX_DONE) {
-        if (data->tx_ongoing & TX_POLL) {
+        if (data->pm_lock_bits & TX_POLL) {
             uart_hal_disable_intr_mask(&data->hal, UART_INTR_TX_DONE);
             uart_esp32_pm_policy_state_lock_put(dev, TX_POLL);
-        }
-    }
-
-    if (uart_intr_status & UART_INTR_TXFIFO_EMPTY) {
-        if (data->tx_ongoing & TX_INT_STREAM) {
-            uart_esp32_pm_policy_state_lock_put(dev, TX_INT_STREAM);
         }
     }
     #endif
@@ -803,6 +806,10 @@ static void IRAM_ATTR uart_esp32_dma_rx_done(const struct device* dma_dev, void*
 
     /* Notify RX_DISABLED when there is no buffer */
     if (!data->async.rx_buf) {
+        #ifdef CONFIG_PM
+        uart_esp32_pm_policy_state_lock_put(uart_dev, RX_INT);
+        #endif
+
         evt.type = UART_RX_DISABLED;
         if (data->async.cb) {
             data->async.cb(uart_dev, &evt, data->async.user_data);
@@ -1086,6 +1093,10 @@ static int uart_esp32_async_rx_enable(const struct device* dev, uint8_t* buf, si
     err = dma_start(config->dma_dev, config->rx_dma_channel);
     if (err) {
         LOG_ERR("Error starting Rx DMA (%d)", err);
+        #ifdef CONFIG_PM
+        uart_esp32_pm_policy_state_lock_put(dev, RX_INT);
+        #endif
+
         goto unlock;
     }
 
@@ -1148,6 +1159,10 @@ static int uart_esp32_async_rx_disable(const struct device* dev) {
     err = dma_stop(config->dma_dev, config->rx_dma_channel);
     if (err) {
         LOG_ERR("Error stopping Rx DMA (%d)", err);
+        #ifdef CONFIG_PM
+        uart_esp32_pm_policy_state_lock_put(dev, RX_INT);
+        #endif
+
         goto unlock;
     }
 
@@ -1186,6 +1201,10 @@ static int uart_esp32_async_rx_disable(const struct device* dev) {
         data->async.rx_next_len = 0;
         data->async.rx_next_buf = NULL;
     }
+
+    #ifdef CONFIG_PM
+    uart_esp32_pm_policy_state_lock_put(dev, RX_INT);
+    #endif
 
     /*Notify UART_RX_DISABLED*/
     evt.type = UART_RX_DISABLED;
@@ -1239,12 +1258,45 @@ static void uart_esp32_sleep_retention_init(int port) {
 }
 #endif
 
+#if CONFIG_UART_ASYNC_API
+static void uart_esp32_uhci_hw_init(const struct device* dev) {
+    struct uart_esp32_data* data = dev->data;
+    const struct uart_esp32_config* config = dev->config;
+
+    uhci_ll_init(data->uhci_dev);
+    uhci_ll_rx_set_eof_mode(data->uhci_dev, (UHCI_RX_IDLE_EOF | UHCI_RX_LEN_EOF));
+
+    /*
+     * Clear the escape_conf reset defaults (all bits 1) first, then
+     * enable the C0 and DB escape pairs together as SLIP requires.
+     */
+    data->uhci_dev->escape_conf.val = 0;
+    data->uhci_dev->escape_conf.tx_c0_esc_en = config->uhci_slip_tx ? 1 : 0;
+    data->uhci_dev->escape_conf.tx_db_esc_en = config->uhci_slip_tx ? 1 : 0;
+    data->uhci_dev->escape_conf.rx_c0_esc_en = config->uhci_slip_rx ? 1 : 0;
+    data->uhci_dev->escape_conf.rx_db_esc_en = config->uhci_slip_rx ? 1 : 0;
+
+    uhci_ll_attach_uart_port(data->uhci_dev, uart_hal_get_port_num(&data->hal));
+}
+#endif
+
 static int uart_esp32_pm_action(const struct device* dev, enum pm_device_action action) {
     const struct uart_esp32_config* config = dev->config;
     int ret;
 
     switch (action) {
         case PM_DEVICE_ACTION_RESUME :
+            #if CONFIG_UART_ASYNC_API && CONFIG_ESP32_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+            /*
+             * UHCI has no sleep-retention link and is reset when the peripheral
+             * power domain is powered down. Re-apply configuration on wake.
+             */
+            if (config->dma_dev != NULL) {
+                uart_esp32_uhci_hw_init(dev);
+            }
+            #endif
+            break;
+
         case PM_DEVICE_ACTION_SUSPEND :
             break;
 
@@ -1316,20 +1368,7 @@ static int uart_esp32_init(const struct device* dev) {
         }
 
         clock_control_on(config->clock_dev, (clock_control_subsys_t)ESP32_UHCI0_MODULE);
-        uhci_ll_init(data->uhci_dev);
-        uhci_ll_rx_set_eof_mode(data->uhci_dev, UHCI_RX_IDLE_EOF | UHCI_RX_LEN_EOF);
-
-        /*
-         * Clear the escape_conf reset defaults (all bits 1) first, then
-         * enable the C0 and DB escape pairs together as SLIP requires.
-         */
-        data->uhci_dev->escape_conf.val = 0;
-        data->uhci_dev->escape_conf.tx_c0_esc_en = config->uhci_slip_tx ? 1 : 0;
-        data->uhci_dev->escape_conf.tx_db_esc_en = config->uhci_slip_tx ? 1 : 0;
-        data->uhci_dev->escape_conf.rx_c0_esc_en = config->uhci_slip_rx ? 1 : 0;
-        data->uhci_dev->escape_conf.rx_db_esc_en = config->uhci_slip_rx ? 1 : 0;
-
-        uhci_ll_attach_uart_port(data->uhci_dev, uart_hal_get_port_num(&data->hal));
+        uart_esp32_uhci_hw_init(dev);
         data->uart_dev = dev;
 
         k_work_init_delayable(&data->async.tx_timeout_work, uart_esp32_async_tx_timeout);
