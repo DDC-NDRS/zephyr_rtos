@@ -188,6 +188,7 @@ static int create_socket(enum smp_udp_proto_type proto, int* sock) {
         addr4->sin_family = NET_AF_INET;
         addr4->sin_port = net_htons(CONFIG_MCUMGR_TRANSPORT_UDP_PORT);
         addr4->sin_addr.s_addr_be = net_htonl(NET_INADDR_ANY);
+        addr_len = sizeof(*addr4);
     }
     else if (IS_ENABLED(CONFIG_MCUMGR_TRANSPORT_UDP_IPV6) &&
              proto == PROTOCOL_IPV6) {
@@ -198,6 +199,7 @@ static int create_socket(enum smp_udp_proto_type proto, int* sock) {
         addr6->sin6_port = net_htons(CONFIG_MCUMGR_TRANSPORT_UDP_PORT);
         addr6->sin6_addr = net_in6addr_any;
         addr6->sin6_scope_id = 0;
+        addr_len = sizeof(*addr6);
     }
 
     #if defined(CONFIG_MCUMGR_TRANSPORT_UDP_DTLS)
