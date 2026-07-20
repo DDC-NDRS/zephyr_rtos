@@ -21,6 +21,10 @@ permissions:
 env:
   PYTHONIOENCODING: utf-8
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   twister-tests:
     name: Twister Black Box Tests
@@ -29,10 +33,12 @@ jobs:
         python-version: ['3.12', '3.13']
       fail-fast: false
     runs-on: ubuntu-24.04
+    timeout-minutes: 120
     steps:
     - name: Checkout
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
+        persist-credentials: false
         path: zephyr
         fetch-depth: 0
 

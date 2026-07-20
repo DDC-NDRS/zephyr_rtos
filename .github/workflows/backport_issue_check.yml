@@ -20,6 +20,7 @@ jobs:
       group: backport-issue-check-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     if: github.repository == 'zephyrproject-rtos/zephyr'
     permissions:
       issues: read # to check if associated issue exists for backport and post comments
@@ -29,6 +30,7 @@ jobs:
       - name: Check out source code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          persist-credentials: false
           fetch-depth: 1
           sparse-checkout: |
             scripts/release/list_backports.py

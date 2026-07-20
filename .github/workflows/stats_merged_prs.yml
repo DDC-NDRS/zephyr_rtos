@@ -14,10 +14,12 @@ jobs:
   record_merged:
     if: github.event.pull_request.merged == true && github.repository == 'zephyrproject-rtos/zephyr'
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - name: checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          persist-credentials: false
           ref: ${{ github.event.pull_request.base.sha }}
           sparse-checkout: |
             scripts/ci/stats/merged_prs.py

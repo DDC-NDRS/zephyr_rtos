@@ -16,6 +16,7 @@ permissions:
 jobs:
   get_version:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     if: github.repository == 'zephyrproject-rtos/zephyr'
 
     steps:
@@ -29,6 +30,7 @@ jobs:
     - name: checkout
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
+        persist-credentials: false
         fetch-depth: 0
 
     - name: Set up Python

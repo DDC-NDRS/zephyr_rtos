@@ -2882,13 +2882,10 @@ Documentation Infrastructure:
     - drivers/video/
     - include/zephyr/drivers/video.h
     - include/zephyr/drivers/video/
-    - include/zephyr/drivers/video-controls.h
     - include/zephyr/dt-bindings/video/
     - doc/hardware/peripherals/video.rst
     - tests/drivers/*/video/
     - dts/bindings/video/
-    - samples/drivers/video/
-    - tests/drivers/video/
   labels:
     - "area: Video"
   tests:
@@ -6378,6 +6375,24 @@ VFS:
     - "area: File System"
   tests:
     - filesystem
+
+Video Subsystem:
+  status: maintained
+  maintainers:
+    - josuah
+    - ngphibang
+  collaborators:
+    - loicpoulain
+    - avolmat-st
+  files:
+    - include/zephyr/video/
+    - samples/subsys/video/
+    - subsys/video/
+    - tests/subsys/video/
+  labels:
+    - "area: Video"
+  tests:
+    - video
 
 WCH Platforms:
   status: maintained
