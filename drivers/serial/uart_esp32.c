@@ -1240,16 +1240,21 @@ static void uart_esp32_sleep_retention_init(int port) {
         .cbs = {
             .create = {
                 .handle = uart_create_sleep_retention_cb,
-                .arg = (void*)(uintptr_t)port
+                .arg    = (void*)(uintptr_t)port
             }
         },
-        .depends = RETENTION_MODULE_BITMAP_INIT(CLOCK_SYSTEM)
+        .attribute = SLEEP_RETENTION_MODULE_ATTR_ATTACH,
+        .depends   = RETENTION_MODULE_BITMAP_INIT(CLOCK_SYSTEM)
     };
 
     esp_err_t err = sleep_retention_module_init(module, &init_param);
 
     if (err == ESP_OK) {
         err = sleep_retention_module_allocate(module);
+    }
+
+    if (err == ESP_OK) {
+        err = sleep_retention_module_attach(module);
     }
 
     if (err != ESP_OK) {

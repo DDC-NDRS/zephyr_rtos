@@ -48,7 +48,7 @@ def test_warnings(caplog):
 
     enums_hpath = hpath('test-bindings/enums.yaml')
     expected_warnings = [
-        f"'oldprop' is marked as deprecated in 'properties:' in '{hpath('test-bindings/deprecated.yaml')}' for node /test-deprecated.",
+        f"'oldprop' is marked as deprecated in 'properties:' in '{hpath('test-bindings/deprecated.yaml')}' for node /test-deprecated (set in /test-deprecated).",
         "unit address and first address in 'reg' (0x1) don't match for /reg-zero-size-cells/node",
         "unit address and first address in 'reg' (0x5) don't match for /reg-ranges/parent/node",
         "unit address and first address in 'reg' (0x30000000200000001) don't match for /reg-nested-ranges/grandparent/parent/node",
@@ -767,6 +767,19 @@ def test_props():
     verify_phandle_array_prop(props_node,
                               'bar-io-channels',
                               [(ctrl_2, {'io-channel-one': 2})])
+
+def test_cpu_props_fallback_from_cpus_node():
+    """CPU property lookup falls back to parent /cpus when missing on cpu@N."""
+    with from_here():
+        edt = edtlib.EDT("test.dts", ["test-bindings"])
+
+    cpu0 = edt.get_node("/cpus/cpu@0")
+    cpu1 = edt.get_node("/cpus/cpu@1")
+
+    # Inherited from /cpus.
+    assert cpu0.props["clock-frequency"].val == 1000
+    # CPU-local value takes precedence.
+    assert cpu1.props["clock-frequency"].val == 2000
 
 def test_nexus():
     '''Test <prefix>-map via gpio-map (the most common case).'''
