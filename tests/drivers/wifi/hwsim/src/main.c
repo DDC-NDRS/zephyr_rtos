@@ -21,7 +21,7 @@ static struct net_if *iface_ap;
 static struct net_if *iface_sta;
 
 static struct wifi_connect_req_params default_ap_params = {
-	.ssid = (uint8_t *)"ZephyrHwsim",
+	.ssid = "ZephyrHwsim",
 	.ssid_length = 10,
 	.channel = 6,
 	.security = WIFI_SECURITY_TYPE_NONE,
@@ -35,9 +35,9 @@ static struct wifi_connect_req_params default_ap_params = {
  * associate" a secured connect against a stale scan entry left by the other
  * test on the same (reused) AP BSSID.
  */
-static uint8_t psk_ssid[] = "ZephyrPsk";
-static uint8_t sae_ssid[] = "ZephyrSae";
-static uint8_t secured_psk[] = "ZephyrPass123";
+static const uint8_t psk_ssid[] = "ZephyrPsk";
+static const uint8_t sae_ssid[] = "ZephyrSae";
+static const uint8_t secured_psk[] = "ZephyrPass123";
 
 static struct wifi_connect_req_params wpa2_psk_params = {
 	.ssid = psk_ssid,
@@ -172,7 +172,7 @@ static bool scan_found_ssid;
 static void scan_result_cb(struct net_mgmt_event_callback *cb, uint64_t event,
 			   struct net_if *iface)
 {
-	struct wifi_scan_result *res = (struct wifi_scan_result *)cb->info;
+	const struct wifi_scan_result *res = cb->info;
 
 	ARG_UNUSED(iface);
 	if (event == NET_EVENT_WIFI_SCAN_RESULT && res != NULL &&
