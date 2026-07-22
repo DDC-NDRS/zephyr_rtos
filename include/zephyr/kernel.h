@@ -50,20 +50,65 @@ BUILD_ASSERT(sizeof(intptr_t) == sizeof(long)     , "sizeof error");
  * @}
  */
 
+/**
+ * @brief Wildcard used to match any thread.
+ *
+ * Can be used wherever a thread identifier is expected but any thread is
+ * acceptable, such as the source or target thread of a mailbox message.
+ *
+ * @ingroup kernel_apis
+ */
 #define K_ANY NULL
 
 #if (CONFIG_NUM_COOP_PRIORITIES + CONFIG_NUM_PREEMPT_PRIORITIES) == 0
 #error Zero available thread priorities defined!
 #endif
 
+/**
+ * @addtogroup thread_apis
+ * @{
+ */
+
+/**
+ * @brief Compute a cooperative thread priority.
+ *
+ * Cooperative priorities are negative thread priority values; the lower the
+ * value, the higher the priority.
+ *
+ * @param x Priority level within the cooperative range, from 0 (highest) to
+ *          @kconfig{CONFIG_NUM_COOP_PRIORITIES} - 1 (lowest).
+ * @return Thread priority value usable with thread creation APIs.
+ */
 #define K_PRIO_COOP(x)    (-(CONFIG_NUM_COOP_PRIORITIES - (x)))
+
+/**
+ * @brief Compute a preemptible thread priority.
+ *
+ * Preemptible priorities are non-negative thread priority values; the lower
+ * the value, the higher the priority.
+ *
+ * @param x Priority level within the preemptible range, from 0 (highest) to
+ *          @kconfig{CONFIG_NUM_PREEMPT_PRIORITIES} - 1 (lowest).
+ * @return Thread priority value usable with thread creation APIs.
+ */
 #define K_PRIO_PREEMPT(x) (x)
 
+/** Highest (most urgent) thread priority value. */
 #define K_HIGHEST_THREAD_PRIO             (-CONFIG_NUM_COOP_PRIORITIES)
+
+/** Lowest (least urgent) thread priority value, used by the idle thread. */
 #define K_LOWEST_THREAD_PRIO              CONFIG_NUM_PREEMPT_PRIORITIES
+
+/** Priority of the idle thread. */
 #define K_IDLE_PRIO                       K_LOWEST_THREAD_PRIO
+
+/** Highest priority usable by application threads. */
 #define K_HIGHEST_APPLICATION_THREAD_PRIO (K_HIGHEST_THREAD_PRIO)
+
+/** Lowest priority usable by application threads. */
 #define K_LOWEST_APPLICATION_THREAD_PRIO  (K_LOWEST_THREAD_PRIO - 1)
+
+/** @} */
 
 #ifdef CONFIG_POLL
 #define Z_POLL_EVENT_OBJ_INIT(obj) \
@@ -93,10 +138,15 @@ struct k_mem_partition;
 struct k_futex;
 struct k_event;
 
+/**
+ * @brief Types of execution contexts.
+ *
+ * @ingroup kernel_apis
+ */
 enum execution_context_types {
-    K_ISR = 0,
-    K_COOP_THREAD,
-    K_PREEMPT_THREAD
+    K_ISR = 0,                  /**< Executing in an interrupt service routine. */
+    K_COOP_THREAD,              /**< Executing in a cooperative thread. */
+    K_PREEMPT_THREAD,           /**< Executing in a preemptible thread. */
 };
 
 /* private, used by k_poll and k_work_poll */
@@ -128,6 +178,12 @@ k_thread_runtime_stats_longest_frame_reset(__maybe_unused struct k_thread* threa
     #endif
 }
 
+/**
+ * @brief Callback type used by thread iteration functions.
+ *
+ * @param thread Thread currently being visited by the iteration.
+ * @param user_data User data passed to the iteration function.
+ */
 typedef void (*k_thread_user_cb_t)(const struct k_thread* thread,
                                    void* user_data);
 
@@ -273,7 +329,13 @@ void k_thread_foreach_unlocked_filter_by_cpu(unsigned int cpu,
  * */
 #define K_ESSENTIAL (BIT(0))
 
+/**
+ * @cond INTERNAL_HIDDEN
+ */
 #define K_FP_IDX 1
+/**
+ * INTERNAL_HIDDEN @endcond
+ */
 /**
  * @brief FPU registers are managed by context switch
  *
@@ -315,6 +377,13 @@ void k_thread_foreach_unlocked_filter_by_cpu(unsigned int cpu,
 #define K_CALLBACK_STATE (BIT(4))
 
 /**
+ * @cond INTERNAL_HIDDEN
+ */
+#define K_DSP_IDX 13
+/**
+ * INTERNAL_HIDDEN @endcond
+ */
+/**
  * @brief DSP registers are managed by context switch
  *
  * @details
@@ -323,9 +392,16 @@ void k_thread_foreach_unlocked_filter_by_cpu(unsigned int cpu,
  * restore the contents of these registers when scheduling the thread.
  * No effect if @kconfig{CONFIG_DSP_SHARING} is not enabled.
  */
-#define K_DSP_IDX   13
 #define K_DSP_REGS  (BIT(K_DSP_IDX))
 
+/**
+ * @cond INTERNAL_HIDDEN
+ */
+#define K_AGU_IDX 14
+
+/**
+ * INTERNAL_HIDDEN @endcond
+ */
 /**
  * @brief AGU registers are managed by context switch
  *
@@ -334,7 +410,6 @@ void k_thread_foreach_unlocked_filter_by_cpu(unsigned int cpu,
  * memory and DSP feature. Often used with @kconfig{CONFIG_ARC_AGU_SHARING}.
  * No effect if @kconfig{CONFIG_ARC_AGU_SHARING} is not enabled.
  */
-#define K_AGU_IDX   14
 #define K_AGU_REGS  (BIT(K_AGU_IDX))
 
 /**
@@ -528,7 +603,7 @@ static inline void k_thread_heap_assign(struct k_thread* thread,
  * @return -EPERM No permissions on thread object (user mode only)
  * @return -ENOTSUP Forbidden by hardware policy
  * @return -EINVAL Thread is uninitialized or exited (user mode only), or the
- *	stack is not mapped when @kconfig{CONFIG_THREAD_STACK_MEM_MAPPED} is set
+ *    stack is not mapped when @kconfig{CONFIG_THREAD_STACK_MEM_MAPPED} is set
  * @return -EFAULT Bad memory address for unused_ptr (user mode only)
  */
 __syscall int k_thread_stack_space_get(const struct k_thread* thread,
@@ -2327,7 +2402,7 @@ struct k_queue {
 #define Z_QUEUE_INITIALIZER(obj)    \
     {                               \
         .data_q = SYS_SFLIST_STATIC_INIT(&obj.data_q), \
-        .lock = {},                 \
+        .lock   = {},               \
         .wait_q = Z_WAIT_Q_INIT(&obj.wait_q),   \
         Z_POLL_EVENT_OBJ_INIT(obj)  \
     }
@@ -2335,7 +2410,7 @@ struct k_queue {
 #define Z_QUEUE_INITIALIZER(obj)    \
     {                               \
         .data_q = SYS_SFLIST_STATIC_INIT(&obj.data_q), \
-        .lock = {0},                \
+        .lock   = {0},              \
         .wait_q = Z_WAIT_Q_INIT(&obj.wait_q),   \
         Z_POLL_EVENT_OBJ_INIT(obj)  \
     }
@@ -2611,6 +2686,11 @@ __syscall void* k_queue_peek_tail(struct k_queue* queue);
  * bypasses the kernel object permission management mechanism.
  */
 struct k_futex {
+    /**
+     * Futex value. User mode threads operate on this value directly
+     * using atomic operations, and pass its expected content to
+     * k_futex_wait().
+     */
     atomic_t val;
 };
 
@@ -3945,6 +4025,13 @@ static inline unsigned int z_impl_k_sem_count_get(struct k_sem* sem) {
 struct k_ipi_work;
 
 
+/**
+ * @brief IPI work item handler function type.
+ *
+ * Invoked at ISR level on each CPU targeted by k_ipi_work_add().
+ *
+ * @param work IPI work item being processed.
+ */
 typedef void (*k_ipi_func_t)(struct k_ipi_work *work);
 
 /**
@@ -4615,6 +4702,7 @@ int k_work_cancel_delayable(struct k_work_delayable* dwork);
 bool k_work_cancel_delayable_sync(struct k_work_delayable* dwork,
                                   struct k_work_sync* sync);
 
+/** @brief Work item and work queue state flag values. */
 enum {
     /**
      * @cond INTERNAL_HIDDEN
@@ -5375,11 +5463,11 @@ struct /**/k_msgq {
     Z_POLL_EVENT_OBJ_INIT(obj) \
     .flags = 0 \
     }
+
+#define K_MSGQ_FLAG_ALLOC    BIT(0)
 /**
  * INTERNAL_HIDDEN @endcond
  */
-
-#define K_MSGQ_FLAG_ALLOC   BIT(0)
 
 /**
  * @brief Message Queue Attributes
@@ -5826,10 +5914,16 @@ void k_mbox_data_get(struct k_mbox_msg* rx_msg, void* buffer);
  */
 __syscall void k_pipe_init(struct k_pipe* pipe, uint8_t* buffer, size_t buffer_size);
 
+/**
+ * @cond INTERNAL_HIDDEN
+ */
 enum pipe_flags {
     PIPE_FLAG_OPEN  = BIT(0),
     PIPE_FLAG_RESET = BIT(1),
 };
+/**
+ * INTERNAL_HIDDEN @endcond
+ */
 
 /**
  * @brief Kernel pipe structure
@@ -5983,7 +6077,7 @@ struct k_mem_slab {
                                _slab_num_blocks)                \
     {                                                           \
         .wait_q = Z_WAIT_Q_INIT(&(_slab).wait_q),               \
-        .lock = {},                                             \
+        .lock   = {},                                           \
         .buffer = _slab_buffer,                                 \
         .free_list = NULL,                                      \
         .info = {_slab_num_blocks, _slab_block_size, 0}         \
@@ -5993,7 +6087,7 @@ struct k_mem_slab {
                                _slab_num_blocks)                \
     {                                                           \
         .wait_q = Z_WAIT_Q_INIT(&(_slab).wait_q),               \
-        .lock = {0},                                            \
+        .lock   = {0},                                          \
         .buffer = _slab_buffer,                                 \
         .free_list = NULL,                                      \
         .info = {_slab_num_blocks, _slab_block_size, 0}         \
@@ -6095,7 +6189,7 @@ struct k_mem_slab {
  * @param slab_num_blocks Number of memory blocks.
  */
 #define K_MEM_SLAB_DEFINE_TYPE(name, type, slab_num_blocks)                                        \
-	K_MEM_SLAB_DEFINE(name, sizeof(type), slab_num_blocks, __alignof(type))
+    K_MEM_SLAB_DEFINE(name, sizeof(type), slab_num_blocks, __alignof(type))
 
 /**
  * @brief Statically define and initialize a memory slab in a user-provided memory section with
@@ -6156,7 +6250,7 @@ struct k_mem_slab {
  * @param slab_num_blocks Number of memory blocks.
  */
 #define K_MEM_SLAB_DEFINE_STATIC_TYPE(name, type, slab_num_blocks)                                 \
-	K_MEM_SLAB_DEFINE_STATIC(name, sizeof(type), slab_num_blocks, __alignof(type))
+    K_MEM_SLAB_DEFINE_STATIC(name, sizeof(type), slab_num_blocks, __alignof(type))
 
 /**
  * @brief Initialize a memory slab.
@@ -6761,34 +6855,84 @@ enum _poll_states_bits {
 
 /* Public polling API */
 
-/* public - values for k_poll_event.type bitfield */
+/**
+ * @name Poll event types
+ * Values for the k_poll_event.type bitfield.
+ * @{
+ */
+
+/** Event is ignored by k_poll(). */
 #define K_POLL_TYPE_IGNORE              0
+
+/** Poll for a raised poll signal. */
 #define K_POLL_TYPE_SIGNAL              Z_POLL_TYPE_BIT(_POLL_TYPE_SIGNAL)
+
+/** Poll for a semaphore becoming available. */
 #define K_POLL_TYPE_SEM_AVAILABLE       Z_POLL_TYPE_BIT(_POLL_TYPE_SEM_AVAILABLE)
+
+/** Poll for data becoming available in a queue. */
 #define K_POLL_TYPE_DATA_AVAILABLE      Z_POLL_TYPE_BIT(_POLL_TYPE_DATA_AVAILABLE)
+
+/** Poll for data becoming available in a FIFO. */
 #define K_POLL_TYPE_FIFO_DATA_AVAILABLE K_POLL_TYPE_DATA_AVAILABLE
+
+/** Poll for data becoming available in a message queue. */
 #define K_POLL_TYPE_MSGQ_DATA_AVAILABLE Z_POLL_TYPE_BIT(_POLL_TYPE_MSGQ_DATA_AVAILABLE)
+
+/** Poll for data becoming available in a pipe. */
 #define K_POLL_TYPE_PIPE_DATA_AVAILABLE Z_POLL_TYPE_BIT(_POLL_TYPE_PIPE_DATA_AVAILABLE)
 
-/* public - polling modes */
+/** @} */
+
+/** @brief Modes of operation of a poll event. */
 enum k_poll_modes {
-    /* polling thread does not take ownership of objects when available */
+    /** Polling thread is notified of object availability, but does not
+     * take ownership of the object.
+     */
     K_POLL_MODE_NOTIFY_ONLY = 0,
 
-    K_POLL_NUM_MODES
+    K_POLL_NUM_MODES /**< Number of poll modes. */
 };
 
-/* public - values for k_poll_event.state bitfield */
+/**
+ * @name Poll event states
+ * Values for the k_poll_event.state bitfield.
+ * @{
+ */
+
+/** Condition being polled for has not occurred yet. */
 #define K_POLL_STATE_NOT_READY           0
+
+/** Poll signal was raised. */
 #define K_POLL_STATE_SIGNALED            Z_POLL_STATE_BIT(_POLL_STATE_SIGNALED)
+
+/** Semaphore became available. */
 #define K_POLL_STATE_SEM_AVAILABLE       Z_POLL_STATE_BIT(_POLL_STATE_SEM_AVAILABLE)
+
+/** Data became available in a queue. */
 #define K_POLL_STATE_DATA_AVAILABLE      Z_POLL_STATE_BIT(_POLL_STATE_DATA_AVAILABLE)
+
+/** Data became available in a FIFO. */
 #define K_POLL_STATE_FIFO_DATA_AVAILABLE K_POLL_STATE_DATA_AVAILABLE
+
+/** Data became available in a message queue. */
 #define K_POLL_STATE_MSGQ_DATA_AVAILABLE Z_POLL_STATE_BIT(_POLL_STATE_MSGQ_DATA_AVAILABLE)
+
+/** Data became available in a pipe. */
 #define K_POLL_STATE_PIPE_DATA_AVAILABLE Z_POLL_STATE_BIT(_POLL_STATE_PIPE_DATA_AVAILABLE)
+
+/** Wait on the polled object was cancelled, e.g. by k_queue_cancel_wait(). */
 #define K_POLL_STATE_CANCELLED           Z_POLL_STATE_BIT(_POLL_STATE_CANCELLED)
 
-/* public - poll signal object */
+/** @} */
+
+/**
+ * @brief Poll signal object
+ *
+ * A poll signal is a kernel object that can be raised from threads or ISRs
+ * with k_poll_signal_raise(), and polled on with k_poll() using
+ * @ref K_POLL_TYPE_SIGNAL.
+ */
 struct k_poll_signal {
 /**
  * @cond INTERNAL_HIDDEN
@@ -6809,6 +6953,11 @@ struct k_poll_signal {
     int result;
 };
 
+/**
+ * @brief Statically initialize a poll signal.
+ *
+ * @param obj Name of the struct k_poll_signal instance being initialized.
+ */
 #define K_POLL_SIGNAL_INITIALIZER(obj) \
     { \
     .poll_events = SYS_DLIST_STATIC_INIT(&obj.poll_events), \
@@ -6820,7 +6969,7 @@ struct k_poll_signal {
  * @brief Poll Event
  *
  */
-struct k_poll_event {
+struct /**/k_poll_event {
 /**
  * @cond INTERNAL_HIDDEN
  */
@@ -6850,19 +6999,47 @@ struct k_poll_event {
 
     /** per-type data */
     union {
-        /* The typed_* fields below are used by K_POLL_EVENT_*INITIALIZER() macros to ensure
-         * type safety of polled objects.
+        /* The _typed_* aliases below are used by the K_POLL_EVENT_*INITIALIZER() macros to
+         * ensure type safety of polled objects.
          */
-        void *obj, *typed_K_POLL_TYPE_IGNORE;
-        struct k_poll_signal *signal, *typed_K_POLL_TYPE_SIGNAL;
-        struct k_sem *sem, *typed_K_POLL_TYPE_SEM_AVAILABLE;
-        struct k_fifo *fifo, *typed_K_POLL_TYPE_FIFO_DATA_AVAILABLE;
-        struct k_queue *queue, *typed_K_POLL_TYPE_DATA_AVAILABLE;
-        struct k_msgq *msgq, *typed_K_POLL_TYPE_MSGQ_DATA_AVAILABLE;
-        struct k_pipe *pipe, *typed_K_POLL_TYPE_PIPE_DATA_AVAILABLE;
+        /** Generic object pointer. */
+        void* obj;
+        void* _typed_K_POLL_TYPE_IGNORE;
+
+        /** Poll signal being polled. */
+        struct k_poll_signal* signal;
+        struct k_poll_signal* _typed_K_POLL_TYPE_SIGNAL;
+
+        /** Semaphore being polled. */
+        struct k_sem* sem;
+        struct k_sem* _typed_K_POLL_TYPE_SEM_AVAILABLE;
+
+        /** FIFO being polled. */
+        struct k_fifo* fifo;
+        struct k_fifo* _typed_K_POLL_TYPE_FIFO_DATA_AVAILABLE;
+
+        /** Queue being polled. */
+        struct k_queue* queue;
+        struct k_queue* _typed_K_POLL_TYPE_DATA_AVAILABLE;
+
+        /** Message queue being polled. */
+        struct k_msgq* msgq;
+        struct k_msgq* _typed_K_POLL_TYPE_MSGQ_DATA_AVAILABLE;
+
+        /** Pipe being polled. */
+        struct k_pipe* pipe;
+        struct k_pipe* _typed_K_POLL_TYPE_PIPE_DATA_AVAILABLE;
     };
 };
 
+/**
+ * @brief Statically initialize a poll event.
+ *
+ * @param _event_type Type of the event; one of the K_POLL_TYPE_xxx values.
+ * @param _event_mode Mode of operation; one of the enum k_poll_modes values.
+ * @param _event_obj Address of the kernel object or poll signal being polled,
+ *                   matching the event type.
+ */
 #define K_POLL_EVENT_INITIALIZER(_event_type, _event_mode, _event_obj) \
     {                                                           \
     .poller = NULL,                                             \
@@ -6871,10 +7048,19 @@ struct k_poll_event {
     .mode = _event_mode,                                        \
     .unused = 0,                                                \
     {                                                           \
-        .typed_##_event_type = _event_obj,                      \
+        ._typed_##_event_type = _event_obj,                     \
     },                                                          \
     }
 
+/**
+ * @brief Statically initialize a poll event, with a user tag.
+ *
+ * @param _event_type Type of the event; one of the K_POLL_TYPE_xxx values.
+ * @param _event_mode Mode of operation; one of the enum k_poll_modes values.
+ * @param _event_obj Address of the kernel object or poll signal being polled,
+ *                   matching the event type.
+ * @param event_tag Opaque user-specified tag.
+ */
 #define K_POLL_EVENT_STATIC_INITIALIZER(_event_type, _event_mode, _event_obj, \
                                         event_tag)              \
     {                                                           \
@@ -6884,7 +7070,7 @@ struct k_poll_event {
     .mode   = _event_mode,                                      \
     .unused = 0,                                                \
     {                                                           \
-        .typed_##_event_type = _event_obj,                      \
+        ._typed_##_event_type = _event_obj,                     \
     },                                                          \
     }
 

@@ -273,7 +273,7 @@ struct modem_chat {
     uint16_t delimiter_match_len;
 
     /* Array of bytes which are discarded out by parser */
-    uint8_t* filter;
+    uint8_t const* filter;
     uint16_t filter_size;
 
     /* Parsed arguments */
@@ -342,7 +342,7 @@ struct modem_chat_config {
     uint8_t const* delimiter;
 
     /** Bytes which are discarded by parser */
-    uint8_t* filter;
+    uint8_t const* filter;
 
     /** Array of pointers used to point to parsed arguments */
     uint8_t** argv;

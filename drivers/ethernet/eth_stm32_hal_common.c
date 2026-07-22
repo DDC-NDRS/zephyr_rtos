@@ -286,7 +286,7 @@ static void eth_stm32_iface_init(struct net_if *iface)
 	/* Start interruption-poll thread */
 	k_thread_create(&ctx->rx_thread, ctx->rx_thread_stack,
 			K_KERNEL_STACK_SIZEOF(ctx->rx_thread_stack),
-			eth_stm32_rx_thread, (void *) dev, NULL, NULL,
+			eth_stm32_rx_thread, (void*)dev, NULL, NULL,
 			IS_ENABLED(CONFIG_ETH_STM32_HAL_RX_THREAD_PREEMPTIVE)
 				? K_PRIO_PREEMPT(CONFIG_ETH_STM32_HAL_RX_THREAD_PRIO)
 				: K_PRIO_COOP(CONFIG_ETH_STM32_HAL_RX_THREAD_PRIO),
@@ -304,9 +304,6 @@ static enum ethernet_hw_caps eth_stm32_hal_get_capabilities(const struct device 
 #endif
 #if defined(CONFIG_NET_PROMISCUOUS_MODE)
 		| ETHERNET_PROMISC_MODE
-#endif
-#if defined(CONFIG_PTP_CLOCK_STM32_HAL)
-		| ETHERNET_PTP
 #endif
 #if defined(CONFIG_NET_LLDP)
 		| ETHERNET_LLDP

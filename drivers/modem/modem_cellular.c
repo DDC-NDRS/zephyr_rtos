@@ -222,6 +222,62 @@ void modem_cellular_emit_event(struct modem_cellular_data* data,
     }
 }
 
+/*
+ * Compares the fields that constitute a network-status change. Signal quality
+ * (rsrp/rsrq) is deliberately excluded: it fluctuates on nearly every poll and
+ * would otherwise re-fire the event continuously.
+ */
+static bool modem_cellular_network_status_equal(const struct cellular_evt_network_status* a,
+                                                const struct cellular_evt_network_status* b) {
+    if ((a->status != b->status) || (a->access_tech != b->access_tech)) {
+        return (false);
+    }
+
+    /* Cell identity */
+    if ((a->cell.lte.mcc != b->cell.lte.mcc) || (a->cell.lte.mnc != b->cell.lte.mnc) ||
+        (a->cell.lte.tac != b->cell.lte.tac) || (a->cell.lte.gci != b->cell.lte.gci)) {
+        return (false);
+    }
+
+    /* Radio channel */
+    if ((a->cell.lte.earfcn != b->cell.lte.earfcn) || (a->cell.lte.band != b->cell.lte.band) ||
+        (a->cell.lte.phys_cell_id != b->cell.lte.phys_cell_id)) {
+        return (false);
+    }
+
+    return (true);
+}
+
+void modem_cellular_emit_network_status(struct modem_cellular_data* data,
+                                        const struct cellular_evt_network_status* status) {
+    bool changed;
+
+    /* api_lock serialises the cache against get_network_status(); emitters run
+     * on the modem work queue and must not already hold it. The cache always
+     * takes the latest value (so the getter reports current signal), but the
+     * change test ignores signal quality.
+     */
+    k_mutex_lock(&data->api_lock, K_FOREVER);
+    changed = !data->network_status_valid ||
+              !modem_cellular_network_status_equal(&data->network_status, status);
+    data->network_status = *status;
+    data->network_status_valid = true;
+    k_mutex_unlock(&data->api_lock);
+
+    /* Emit outside the lock, and only on a real change so periodic pollers do
+     * not re-fire the event every cycle.
+     */
+    if (changed) {
+        modem_cellular_emit_event(data, CELLULAR_EVENT_NETWORK_STATUS_CHANGED, status);
+    }
+}
+
+static void modem_cellular_invalidate_network_status(struct modem_cellular_data* data) {
+    k_mutex_lock(&data->api_lock, K_FOREVER);
+    data->network_status_valid = false;
+    k_mutex_unlock(&data->api_lock);
+}
+
 static void modem_cellular_emit_modem_info(struct modem_cellular_data* data,
                                            enum cellular_modem_info_type field) {
     struct cellular_evt_modem_info evt = {
@@ -548,12 +604,21 @@ void modem_cellular_chat_on_cxreg(struct modem_chat* chat, char** argv, uint16_t
                                                        modem_cellular_is_registered(data))));
 
     if (modem_cellular_is_registered(data)) {
+        /* Drop any cached serving cell on a registration change; it is stale
+         * until the next periodic poll, so get_network_status() reports no
+         * data rather than the previous (deregistered) snapshot.
+         */
+        if (registration_prev != registration_status) {
+            modem_cellular_invalidate_network_status(data);
+        }
+
         modem_cellular_delegate_event(data, MODEM_CELLULAR_EVENT_REGISTERED);
     }
     else {
         modem_cellular_delegate_event(data, MODEM_CELLULAR_EVENT_DEREGISTERED);
-        /* If we transitioned into a deregistered state, issue a NETWORK_STATUS event,
-         * as we cannot guarantee periodic network status AT commands will respond normally.
+
+        /* On deregistration report the status, as periodic network status AT
+         * commands are not guaranteed to respond normally.
          */
         if (registration_prev != registration_status) {
             struct cellular_evt_network_status evt = {
@@ -561,8 +626,7 @@ void modem_cellular_chat_on_cxreg(struct modem_chat* chat, char** argv, uint16_t
                 .access_tech = data->access_tech,
             };
 
-            modem_cellular_emit_event(data, CELLULAR_EVENT_NETWORK_STATUS_CHANGED,
-                                      &evt);
+            modem_cellular_emit_network_status(data, &evt);
         }
     }
 
@@ -770,7 +834,7 @@ static int modem_cellular_on_idle_state_enter(struct modem_cellular_data* data) 
     modem_cellular_clear_registration_status(data);
     modem_cellular_notify_user_pipes_disconnected(data);
     modem_chat_release(&data->chat);
-    modem_ppp_release(data->ppp);
+    modem_ppp_release(config->ppp);
     modem_cmux_release(&data->cmux);
     modem_pipe_close_async(data->uart_pipe);
     k_sem_give(&data->suspended_sem);
@@ -1179,7 +1243,7 @@ static void modem_cellular_run_init_script_event_handler(struct modem_cellular_d
             link_addr_len = MIN(NET_LINK_ADDR_MAX_LENGTH, imei_len);
             link_addr_ptr = data->imei + (imei_len - link_addr_len);
 
-            err = net_if_set_link_addr(modem_ppp_get_iface(data->ppp), link_addr_ptr,
+            err = net_if_set_link_addr(modem_ppp_get_iface(config->ppp), link_addr_ptr,
                                        link_addr_len, NET_LINK_UNKNOWN);
             if (err) {
                 LOG_WRN("Failed to set link address on PPP interface (%d)", err);
@@ -1540,9 +1604,9 @@ static void modem_cellular_run_dial_script_event_handler(struct modem_cellular_d
             modem_chat_attach(&data->chat, data->dlci1_pipe);
 
             /* PHY is now up and searching for network */
-            net_if_carrier_on(modem_ppp_get_iface(data->ppp));
+            net_if_carrier_on(modem_ppp_get_iface(config->ppp));
 
-            if (modem_ppp_attach(data->ppp, data->dlci2_pipe) < 0) {
+            if (modem_ppp_attach(config->ppp, data->dlci2_pipe) < 0) {
                 LOG_ERR("Failed to attach PPP to DLCI2");
                 modem_cellular_delegate_event(data, MODEM_CELLULAR_EVENT_SUSPEND);
                 break;
@@ -1651,7 +1715,7 @@ static void modem_cellular_await_registered_event_handler(struct modem_cellular_
             break;
 
         case MODEM_CELLULAR_EVENT_SUSPEND :
-            net_if_carrier_off(modem_ppp_get_iface(data->ppp));
+            net_if_carrier_off(modem_ppp_get_iface(config->ppp));
             modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_INIT_POWER_OFF);
             break;
 
@@ -1672,7 +1736,9 @@ static int modem_cellular_on_await_registered_state_leave(struct modem_cellular_
 }
 
 static int modem_cellular_on_registered_state_enter(struct modem_cellular_data* data) {
-    net_if_dormant_off(modem_ppp_get_iface(data->ppp));
+    const struct modem_cellular_config* config = data->dev->config;
+
+    net_if_dormant_off(modem_ppp_get_iface(config->ppp));
     modem_cellular_start_timer(data, MODEM_CELLULAR_PERIODIC_SCRIPT_TIMEOUT);
 
     return (0);
@@ -1694,7 +1760,7 @@ static void modem_cellular_registered_event_handler(struct modem_cellular_data* 
         case MODEM_CELLULAR_EVENT_SCRIPT_FAILED :
             modem_cellular_script_failed(data);
             if (modem_cellular_is_script_retry_exceeded(data)) {
-                net_if_carrier_off(modem_ppp_get_iface(data->ppp));
+                net_if_carrier_off(modem_ppp_get_iface(config->ppp));
                 modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_IDLE);
                 modem_cellular_delegate_event(data, MODEM_CELLULAR_EVENT_RESUME);
                 LOG_WRN("Maximum script failures reached, restarting modem");
@@ -1737,16 +1803,16 @@ static void modem_cellular_registered_event_handler(struct modem_cellular_data* 
             break;
 
         case MODEM_CELLULAR_EVENT_PPP_DEAD :
-            if (net_if_is_admin_up(modem_ppp_get_iface(data->ppp))) {
+            if (net_if_is_admin_up(modem_ppp_get_iface(config->ppp))) {
                 modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_AWAIT_PPP_DEAD);
                 modem_cellular_start_timer(data, MODEM_CELLULAR_PERIODIC_SCRIPT_TIMEOUT);
             }
             break;
 
         case MODEM_CELLULAR_EVENT_SUSPEND :
-            net_if_carrier_off(modem_ppp_get_iface(data->ppp));
+            net_if_carrier_off(modem_ppp_get_iface(config->ppp));
             modem_chat_release(&data->chat);
-            modem_ppp_release(data->ppp);
+            modem_ppp_release(config->ppp);
             modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_INIT_POWER_OFF);
             break;
 
@@ -1767,7 +1833,9 @@ static int modem_cellular_on_registered_state_leave(struct modem_cellular_data* 
 }
 
 static int modem_cellular_on_await_ppp_dead_state_enter(struct modem_cellular_data* data) {
-    net_if_dormant_on(modem_ppp_get_iface(data->ppp));
+    const struct modem_cellular_config* config = data->dev->config;
+
+    net_if_dormant_on(modem_ppp_get_iface(config->ppp));
     IF_ENABLED(CONFIG_MODEM_CELLULAR_STATS, (data->stats.link_drops += 1));
 
     return (0);
@@ -1804,9 +1872,11 @@ static void modem_cellular_await_ppp_dead_event_handler(struct modem_cellular_da
 }
 
 static int modem_cellular_on_await_ppp_dead_state_leave(struct modem_cellular_data* data) {
-    net_if_carrier_off(modem_ppp_get_iface(data->ppp));
+    const struct modem_cellular_config* config = data->dev->config;
+
+    net_if_carrier_off(modem_ppp_get_iface(config->ppp));
     modem_chat_release(&data->chat);
-    modem_ppp_release(data->ppp);
+    modem_ppp_release(config->ppp);
 
     return (0);
 }
@@ -1819,9 +1889,11 @@ static int modem_cellular_on_init_power_off_state_enter(struct modem_cellular_da
 }
 
 static void modem_cellular_cmux_cleanup(struct modem_cellular_data* data) {
+    const struct modem_cellular_config* config = data->dev->config;
+
     modem_cellular_notify_user_pipes_disconnected(data);
     modem_chat_release(&data->chat);
-    modem_ppp_release(data->ppp);
+    modem_ppp_release(config->ppp);
 }
 
 static void modem_cellular_init_power_off_event_handler(struct modem_cellular_data* data,
@@ -2464,6 +2536,25 @@ static int modem_cellular_get_registration_status(const struct device* dev,
     return (ret);
 }
 
+static int modem_cellular_get_network_status(const struct device* dev,
+                                             struct cellular_evt_network_status* status) {
+    struct modem_cellular_data* data = dev->data;
+    int ret = 0;
+
+    k_mutex_lock(&data->api_lock, K_FOREVER);
+
+    if (data->network_status_valid) {
+        *status = data->network_status;
+    }
+    else {
+        ret = -ENODATA;
+    }
+
+    k_mutex_unlock(&data->api_lock);
+
+    return (ret);
+}
+
 static int modem_cellular_set_apn(const struct device* dev, const char* apn) {
     struct modem_cellular_data* data = dev->data;
     int ret = 0;
@@ -2565,6 +2656,7 @@ DEVICE_API(cellular, modem_cellular_api) = {
     .get_signal = modem_cellular_get_signal,
     .get_modem_info = modem_cellular_get_modem_info,
     .get_registration_status = modem_cellular_get_registration_status,
+    .get_network_status = modem_cellular_get_network_status,
     .set_apn = modem_cellular_set_apn,
     .set_callback = modem_cellular_set_callback,
     IF_ENABLED(CONFIG_MODEM_CELLULAR_STATS, (.get_stats = modem_cellular_get_stats,))
@@ -2770,16 +2862,18 @@ int modem_cellular_init(const struct device* dev) {
 
     {
         const struct modem_chat_config chat_config = {
-            .user_data          = data,
-            .receive_buf        = data->chat_receive_buf,
-            .receive_buf_size   = ARRAY_SIZE(data->chat_receive_buf),
-            .delimiter          = data->chat_delimiter,
-            .delimiter_size     = (uint8_t)strlen(data->chat_delimiter),
-            .filter             = data->chat_filter,
-            .filter_size        = data->chat_filter ? (uint8_t)strlen(data->chat_filter) : 0,
-            .argv               = data->chat_argv,
-            .argv_size          = ARRAY_SIZE(data->chat_argv),
-            .unsol_matches      = config->vendor->unsol_matches.matches,
+            .user_data        = data,
+            .receive_buf      = data->chat_receive_buf,
+            .receive_buf_size = ARRAY_SIZE(data->chat_receive_buf),
+            .delimiter        = (const uint8_t*)config->vendor->chat_delimiter,
+            .delimiter_size   = (uint8_t)strlen(config->vendor->chat_delimiter),
+            .filter           = (const uint8_t*)config->vendor->chat_filter,
+            .filter_size      = config->vendor->chat_filter
+                                ? strlen(config->vendor->chat_filter)
+                                : 0,
+            .argv             = data->chat_argv,
+            .argv_size        = ARRAY_SIZE(data->chat_argv),
+            .unsol_matches    = config->vendor->unsol_matches.matches,
             .unsol_matches_size = config->vendor->unsol_matches.size,
         };
 

@@ -281,8 +281,7 @@ int k_thread_runtime_stats_disable(k_tid_t thread) {
     return (0);
 }
 
-bool k_thread_runtime_stats_is_enabled(k_tid_t thread)
-{
+bool k_thread_runtime_stats_is_enabled(k_tid_t thread) {
     return thread->base.usage.track_usage;
 }
 #endif /* CONFIG_SCHED_THREAD_USAGE_ANALYSIS */
@@ -309,7 +308,7 @@ void k_sys_runtime_stats_enable(void) {
 
     unsigned int num_cpus = arch_num_cpus();
 
-    for (uint_fast8_t i = 0; i < num_cpus; i++) {
+    for (unsigned int i = 0; i < num_cpus; i++) {
         _kernel.cpus[i].usage->track_usage = true;
         #ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
         _kernel.cpus[i].usage->num_windows++;
@@ -340,7 +339,7 @@ void k_sys_runtime_stats_disable(void) {
     uint32_t now = usage_now();
 
     unsigned int num_cpus = arch_num_cpus();
-    for (uint8_t i = 0; i < num_cpus; i++) {
+    for (unsigned int i = 0; i < num_cpus; i++) {
         cpu = &_kernel.cpus[i];
         if (cpu->usage0 != 0) {
             sched_cpu_update_usage(cpu, now - cpu->usage0);

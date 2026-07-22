@@ -207,14 +207,9 @@ static int sys_clock_driver_init(void)
 	return 0;
 }
 
-void sys_clock_set_timeout(uint32_t ticks, bool idle)
+void sys_clock_set_timeout(uint32_t ticks)
 {
 	if (!IS_ENABLED(CONFIG_TICKLESS_KERNEL)) {
-		return;
-	}
-
-	/* Nothing to do when the kernel has no near deadline to schedule. */
-	if (ticks == SYS_CLOCK_MAX_WAIT) {
 		return;
 	}
 

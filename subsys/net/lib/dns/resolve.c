@@ -489,6 +489,7 @@ static int register_dispatcher(struct dns_resolve_context *ctx,
 	server->dispatcher.sock = server->sock;
 	server->dispatcher.svc = svc;
 	server->dispatcher.resolve_ctx = ctx;
+	server->dispatcher.ifindex = server->if_index;
 
 	if (IS_ENABLED(CONFIG_NET_IPV6) &&
 	    server->dns_server.sa_family == NET_AF_INET6) {
@@ -2382,9 +2383,19 @@ static int dns_server_close(struct dns_resolve_context *ctx,
 			    int server_idx)
 {
 	struct net_if *iface;
+	int closed_sock;
 
 	if (ctx->servers[server_idx].sock < 0) {
 		return -ENOENT;
+	}
+
+	closed_sock = ctx->servers[server_idx].sock;
+
+	ARRAY_FOR_EACH(ctx->fds, j) {
+		if (ctx->fds[j].fd == closed_sock) {
+			ctx->fds[j].fd = -1;
+			break;
+		}
 	}
 
 	(void)dns_dispatcher_unregister(&ctx->servers[server_idx].dispatcher);
@@ -2407,14 +2418,10 @@ static int dns_server_close(struct dns_resolve_context *ctx,
 		net_mgmt_event_notify(NET_EVENT_DNS_SERVER_DEL, iface);
 	}
 
-	zsock_close(ctx->servers[server_idx].sock);
+	zsock_close(closed_sock);
 
 	ctx->servers[server_idx].sock = -1;
 	ctx->servers[server_idx].dns_server.sa_family = 0;
-
-	ARRAY_FOR_EACH(ctx->fds, j) {
-		ctx->fds[j].fd = -1;
-	}
 
 	return 0;
 }

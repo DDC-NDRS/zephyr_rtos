@@ -215,7 +215,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: 20f343917b97525e1cc7acb19769f980e8abc456
+      revision: 634cf5133ea15e8bde5c9c22622005c8767a1bfc
       path: modules/hal/nxp
       groups:
         - hal
@@ -231,7 +231,7 @@ manifest:
         - hal
     - name: hal_realtek
       path: modules/hal/realtek
-      revision: b106aa7cbbb78cee74c0d8063f19eecc575a80b2
+      revision: 9a4caf9846d6f0ceb6b38f971a771b1325c1e4b9
       groups:
         - hal
     - name: hal_renesas
@@ -401,7 +401,7 @@ manifest:
       groups:
         - tee
     - name: trusted-firmware-m
-      revision: f6ee0e2b3c049b0f054dbbcb76e827dc61a4f7d6
+      revision: 52c7593c1f361a9d7cebc0fa83e5bcfb1e415032
       path: modules/tee/tf-m/trusted-firmware-m
       groups:
         - tee

@@ -351,6 +351,11 @@ Ethernet
   extra headroom for transmit packets must now select
   :kconfig:option:`CONFIG_NET_L2_ETHERNET_EXTRA_TX_PKT_HEADROOM`. (:github:`112924`)
 
+* ``ETHERNET_PTP`` flag has been removed from :c:enum:`ethernet_hw_caps`.
+  Use :c:func:`net_eth_get_ptp_clock` to check if the ethernet interface has a PTP clock.
+  Out-of-tree drivers must remove any references to these flags from their
+  :c:struct:`ethernet_api` ``get_capabilities`` implementation. (:github:`112788`)
+
 Flash
 =====
 * :dtcompatible:`jedec,spi-nand` now requires a ``plane-bytes`` property, which indicates the size
@@ -661,15 +666,45 @@ Syscon
 Timer
 =====
 
+* Tickless system-timer drivers should no longer carry their own tick handling.
+  The implementation header :file:`drivers/timer/system_timer_generic.h` now
+  owns the accounting that each driver used to reimplement by hand, and got
+  subtly wrong: the cycle-to-tick conversion, the announce baseline, the
+  tick-aligned deadline computation and the counter range clamp (including the
+  wrap handling of a narrow counter). A driver reduces to a few cycle-domain
+  primitives (a cycle-counter read plus an absolute-compare or relative-reload
+  arm) and includes the header once, which emits
+  :c:func:`sys_clock_set_timeout`, :c:func:`sys_clock_elapsed` and
+  :c:func:`sys_clock_cycle_get_32` / :c:func:`sys_clock_cycle_get_64`. Many
+  in-tree tickless drivers have been converted to it, with more to follow;
+  out-of-tree drivers, new or existing, are strongly encouraged to do the same
+  rather than track the kernel interface by hand. A driver built on the core
+  needs no action for the interface changes below, as it no longer defines
+  those entry points itself; those notes apply only to the residual cases
+  where the hardware genuinely cannot be expressed through the core.
+
 * :c:func:`sys_clock_set_timeout`, :c:func:`sys_clock_announce` and
   :c:func:`sys_clock_announce_locked` now take their tick count as an unsigned
-  ``uint32_t`` rather than a signed ``int32_t``. Out-of-tree system timer drivers must
-  update their :c:func:`sys_clock_set_timeout` definition accordingly, otherwise the build
-  fails with a conflicting-types error. The kernel now also caps the requested timeout at
-  ``SYS_CLOCK_MAX_WAIT`` and no longer passes ``K_TICKS_FOREVER`` to the driver, so such
-  drivers no longer need to clamp the request against the :c:func:`sys_clock_announce`
-  range or special-case ``K_TICKS_FOREVER``; only their own hardware cycle-count limits
-  still need enforcing (:github:`111022`).
+  ``uint32_t`` rather than a signed ``int32_t``. An out-of-tree system timer driver
+  that keeps its own :c:func:`sys_clock_set_timeout` must update the definition
+  accordingly, otherwise the build fails with a conflicting-types error. The kernel
+  now also caps the requested timeout at ``SYS_CLOCK_MAX_WAIT`` and no longer passes
+  ``K_TICKS_FOREVER`` to the driver, so such drivers no longer need to clamp the
+  request against the :c:func:`sys_clock_announce` range or special-case
+  ``K_TICKS_FOREVER``; only their own hardware cycle-count limits still need
+  enforcing (:github:`111022`).
+
+* Under ``CONFIG_SYSTEM_CLOCK_SLOPPY_IDLE``, the kernel now calls the new weak
+  :c:func:`sys_clock_unused` hook when no timeout is pending, rather than passing
+  ``SYS_CLOCK_MAX_WAIT`` to :c:func:`sys_clock_set_timeout`. An out-of-tree timer driver
+  with its own implementation that stopped its counter on ``ticks == SYS_CLOCK_MAX_WAIT``
+  must do so in a :c:func:`sys_clock_unused` implementation instead (:github:`112750`).
+
+* :c:func:`sys_clock_set_timeout` no longer takes a ``bool idle`` argument; the low-power
+  idle hint moved to the new weak :c:func:`sys_clock_idle_enter` hook. An out-of-tree timer
+  driver with its own implementation must drop the parameter from its
+  :c:func:`sys_clock_set_timeout` definition and move any ``idle``-specific handling to
+  :c:func:`sys_clock_idle_enter` (:github:`112750`).
 
 USB
 ===
@@ -1022,6 +1057,14 @@ Ethernet
   ``SO_TIMESTAMPING`` control data is valid. Out-of-tree drivers that only populate
   ``pkt->timestamp`` must be updated or their RX timestamps will not be passed to
   socket applications. (:github:`110582`)
+
+Modem
+=====
+
+* Cellular modem chat delimiters and filters are now specified in
+  :c:struct:`modem_cellular_vendor_config`, not :c:struct:`modem_cellular_data`.
+* Cellular modem instance PPP pointer is now automatically populated in
+  :c:struct:`modem_cellular_config`. Assignment to :c:struct:`modem_cellular_data` must be removed.
 
 PTP
 ===

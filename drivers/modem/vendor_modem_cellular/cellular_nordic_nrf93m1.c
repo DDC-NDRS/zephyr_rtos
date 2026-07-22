@@ -98,7 +98,7 @@ static void nrf93m1_on_bcinfosc(struct modem_chat *chat, char **argv, uint16_t a
 		evt.cell.lte.band = 0;
 	}
 
-	modem_cellular_emit_event(data, CELLULAR_EVENT_NETWORK_STATUS_CHANGED, &evt);
+	modem_cellular_emit_network_status(data, &evt);
 }
 
 static const struct modem_cellular_vendor_config nrf93m1_vendor = {
@@ -115,6 +115,7 @@ static const struct modem_cellular_vendor_config nrf93m1_vendor = {
 		.size = ARRAY_SIZE(nordic_nrf93m1_unsol),
 	},
 	/* clang-format on */
+	.chat_delimiter = "\r\n",
 	.power_pulse_duration_ms = 100,
 	.reset_pulse_duration_ms = 500,
 	/* In practice RDY event short circuits this timeout */
@@ -126,10 +127,7 @@ static const struct modem_cellular_vendor_config nrf93m1_vendor = {
 #define MODEM_CELLULAR_DEVICE_NORDIC_NRF93M1(inst)                                                 \
 	MODEM_DT_INST_PPP_DEFINE(inst, MODEM_CELLULAR_INST_NAME(ppp, inst), NULL, 1500, 1500);     \
                                                                                                    \
-	static struct modem_cellular_data MODEM_CELLULAR_INST_NAME(data, inst) = {                 \
-		.chat_delimiter = "\r\n",                                                          \
-		.ppp = &MODEM_CELLULAR_INST_NAME(ppp, inst),                                       \
-	};                                                                                         \
+	static struct modem_cellular_data MODEM_CELLULAR_INST_NAME(data, inst);                    \
                                                                                                    \
 	MODEM_CELLULAR_DEFINE_AND_INIT_USER_PIPES(inst, (user_pipe_0, 3), (user_pipe_1, 4))        \
                                                                                                    \
