@@ -966,15 +966,16 @@ struct wifi_connect_req_params {
      * 1: Enable
      */
     uint8_t ssid_protection;
-	/**
-	 * WPA3 Transition Disable bitmap (WPA3 Spec v3.0, Table 5).
-	 * Sent in EAPOL Message 3 as Transition Disable KDE.
-	 *   Bit 0: WPA3-Personal
-	 *   Bit 1: WPA3-Personal SAE-PK
-	 *   Bit 2: WPA3-Enterprise
-	 *   Bit 3: OWE
-	 */
-	uint8_t transition_disable;
+
+    /**
+     * WPA3 Transition Disable bitmap (WPA3 Spec v3.0, Table 5).
+     * Sent in EAPOL Message 3 as Transition Disable KDE.
+     *   Bit 0: WPA3-Personal
+     *   Bit 1: WPA3-Personal SAE-PK
+     *   Bit 2: WPA3-Enterprise
+     *   Bit 3: OWE
+     */
+    uint8_t transition_disable;
 };
 
 /** @brief Wi-Fi disconnect reason codes. To be overlaid on top of \ref wifi_status
@@ -2032,10 +2033,12 @@ enum wifi_p2p_op {
 
     /** P2P power save */
     WIFI_P2P_POWER_SAVE,
-	/** P2P list stored persistent networks */
-	WIFI_P2P_LIST_NETWORKS,
-	/** P2P remove persistent network(s) */
-	WIFI_P2P_PERSISTENT_REMOVE,
+
+    /** P2P list stored persistent networks */
+    WIFI_P2P_LIST_NETWORKS,
+
+    /** P2P remove persistent network(s) */
+    WIFI_P2P_PERSISTENT_REMOVE,
 };
 
 /** Wi-Fi P2P discovery type */
@@ -2111,8 +2114,9 @@ struct wifi_p2p_params {
 
         /** Join an existing group (as a client) instead of starting GO negotiation */
         bool join;
-		/** Add persistent group */
-		bool persistent_set;
+
+        /** Add persistent group */
+        bool persistent_set;
     } connect;
 
     /** Group add specific parameters */
@@ -2122,8 +2126,10 @@ struct wifi_p2p_params {
 
         /** Persistent group ID (-1 = not persistent) */
         int persistent;
-		/** Add persistent group */
-		bool persistent_set;
+
+        /** Add persistent group */
+        bool persistent_set;
+
         /** Enable HT40 */
         bool ht40;
 
@@ -2175,21 +2181,24 @@ struct wifi_p2p_params {
         /** GO device address length */
         uint8_t go_dev_addr_length;
     } invite;
-	/** List networks specific parameters */
-	struct {
-		/** Buffer to hold the LIST_NETWORKS response. */
-		char *buf;
-		/** Size of the allocated buffer in bytes */
-		size_t buf_size;
-	} list_networks;
-	/** Persistent network remove specific parameters */
-	struct {
-		/** Network ID to remove.
-		 *  >= 0 : remove the specific network with this ID.
-		 *  -1   : remove ALL saved networks.
-		 */
-		int id;
-	} persistent_remove;
+
+    /** List networks specific parameters */
+    struct {
+        /** Buffer to hold the LIST_NETWORKS response. */
+        char* buf;
+
+        /** Size of the allocated buffer in bytes */
+        size_t buf_size;
+    } list_networks;
+
+    /** Persistent network remove specific parameters */
+    struct {
+        /** Network ID to remove.
+         *  >= 0 : remove the specific network with this ID.
+         *  -1   : remove ALL saved networks.
+         */
+        int id;
+    } persistent_remove;
 };
 #endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_P2P */
 
@@ -2463,7 +2472,7 @@ struct wifi_mgmt_ops {
      *
      * @param dev Pointer to the device structure for the driver instance.
      * @param iface Network interface to use for the filter operation
-     * @param packet filter settings
+     * @param filter Filter settings
      *
      * @return 0 if ok, < 0 if error
      */
@@ -2563,7 +2572,7 @@ struct wifi_mgmt_ops {
      *
      * @param dev Pointer to the device structure for the driver instance.
      * @param iface Network interface to use for the RTS threshold operation
-     * @param RTS threshold value
+     * @param rts_threshold RTS threshold value
      *
      * @return 0 if ok, < 0 if error
      */
@@ -2871,7 +2880,7 @@ void wifi_mgmt_raise_ap_sta_disconnected_event(struct net_if* iface,
  * @brief Raise P2P device found event
  *
  * @param iface Network interface
- * @param device_info P2P device information
+ * @param peer_info P2P device information
  */
 void wifi_mgmt_raise_p2p_device_found_event(struct net_if* iface,
                                             struct wifi_p2p_device_info* peer_info);

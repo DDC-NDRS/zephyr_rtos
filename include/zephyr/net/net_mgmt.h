@@ -245,6 +245,7 @@ struct net_mgmt_event_static_handler {
  * @param _user_data User data passed to the handler being called on network events.
  */
 #define NET_MGMT_REGISTER_EVENT_HANDLER(_name, _event_mask, _func, _user_data)  \
+    MSC_DECLARE_SECTION("._net_mgmt_event_static_handler.static")               \
     const STRUCT_SECTION_ITERABLE(net_mgmt_event_static_handler, _name) = {     \
         .event_mask = _event_mask,          \
         .handler    = _func,                \
@@ -330,7 +331,7 @@ static inline void net_mgmt_event_notify(uint64_t mgmt_event,
 /**
  * @brief Used to wait synchronously on an event mask
  * @param mgmt_event_mask A mask of relevant events to wait on.
- * @param raised_event a pointer on a uint32_t to get which event from
+ * @param raised_event a pointer on a uint64_t to get which event from
  *        the mask generated the event. Can be NULL if the caller is not
  *        interested in that information.
  * @param iface a pointer on a place holder for the iface on which the
@@ -378,7 +379,7 @@ static inline int net_mgmt_event_wait(uint64_t mgmt_event_mask,
  * @param mgmt_event_mask A mask of relevant events to wait on. Listened
  *        to events should be relevant to iface events and thus have the bit
  *        NET_MGMT_IFACE_BIT set.
- * @param raised_event a pointer on a uint32_t to get which event from
+ * @param raised_event a pointer on a uint64_t to get which event from
  *        the mask generated the event. Can be NULL if the caller is not
  *        interested in that information.
  * @param info a valid pointer if user wants to get the information the

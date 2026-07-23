@@ -1501,9 +1501,13 @@ static void dhcpv4_handle_msg_ack(struct net_if *iface)
 static void dhcpv4_handle_msg_nak(struct net_if *iface)
 {
 	switch (iface->config.dhcpv4.state) {
+	case NET_DHCPV4_INIT_REBOOT:
+		LOG_DBG("NAK during INIT-REBOOT, restart config");
+		dhcpv4_enter_selecting(iface);
+		dhcpv4_immediate_timeout(&iface->config.dhcpv4);
+		break;
 	case NET_DHCPV4_DISABLED:
 	case NET_DHCPV4_INIT:
-	case NET_DHCPV4_INIT_REBOOT:
 	case NET_DHCPV4_SELECTING:
 	case NET_DHCPV4_REQUESTING:
 		if (memcmp(&iface->config.dhcpv4.request_server_addr,
@@ -2024,6 +2028,28 @@ void net_dhcpv4_restart(struct net_if *iface)
 {
 	net_dhcpv4_stop(iface);
 	dhcpv4_start_internal(iface, false);
+}
+
+int net_dhcpv4_set_reboot_hint(struct net_if *iface,
+			       const struct net_in_addr *requested_ip)
+{
+	int ret = 0;
+
+	if (!IS_ENABLED(CONFIG_NET_DHCPV4_INIT_REBOOT)) {
+		return -ENOTSUP;
+	}
+
+	k_mutex_lock(&lock, K_FOREVER);
+
+	if (iface->config.dhcpv4.state != NET_DHCPV4_DISABLED) {
+		ret = -EBUSY;
+	} else {
+		iface->config.dhcpv4.requested_ip = *requested_ip;
+	}
+
+	k_mutex_unlock(&lock);
+
+	return ret;
 }
 
 int net_dhcpv4_init(void)

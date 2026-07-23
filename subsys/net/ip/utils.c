@@ -630,7 +630,54 @@ uint16_t calc_chksum(uint16_t sum_in, uint8_t const* data, size_t len) {
         sum = sum + *((uint16_t const*)data);
         data += sizeof(uint16_t);
     }
-    p = (uint32_t const*)data;
+
+    #if defined(CONFIG_64BIT) && defined(__SIZEOF_INT128__)
+    /* On 64-bit targets, process the bulk of the data 8 bytes at a
+     * time, accumulating into two independent 128-bit accumulators
+     * so that the additions can run in parallel and no carry
+     * handling is needed in the loop.
+     */
+    if ((((uintptr_t)data & 0x04) != 0) && (pending >= sizeof(uint32_t))) {
+        pending -= sizeof(uint32_t);
+        sum = sum + *((uint32_t*)data);
+        data += sizeof(uint32_t);
+    }
+
+    if (pending >= sizeof(uint64_t)) {
+        unsigned __int128 acc_a = 0;
+        unsigned __int128 acc_b = 0;
+        const uint64_t* p64 = (const uint64_t*)data;
+        uint64_t lo;
+        uint64_t hi;
+
+        while (pending >= sizeof(uint64_t) * 4) {
+            acc_a += p64[0];
+            acc_b += p64[1];
+            acc_a += p64[2];
+            acc_b += p64[3];
+            pending -= sizeof(uint64_t) * 4;
+            p64 += 4;
+        }
+
+        while (pending >= sizeof(uint64_t)) {
+            acc_a += *p64++;
+            pending -= sizeof(uint64_t);
+        }
+
+        acc_a += acc_b;
+        lo = (uint64_t)acc_a;
+        hi = (uint64_t)(acc_a >> 64);
+
+        sum += ( lo & 0xffffffffULL) + (lo  >> 32) + hi;
+        sum  = (sum & 0xffffffffULL) + (sum >> 32);
+
+        data = (const uint8_t*)p64;
+    }
+
+    p = (uint32_t*)data;
+    i = 0;
+    #else
+    p = (uint32_t*)data;
 
     /* Do loop unrolling for the very large data sets */
     while (pending >= sizeof(uint32_t) * 4) {
@@ -643,6 +690,7 @@ uint16_t calc_chksum(uint16_t sum_in, uint8_t const* data, size_t len) {
         i += 4;
         sum += sum_a + sum_b;
     }
+    #endif /* CONFIG_64BIT && __SIZEOF_INT128__ */
 
     while (pending >= sizeof(uint32_t)) {
         pending -= sizeof(uint32_t);
@@ -738,19 +786,19 @@ int net_calc_chksum(struct net_pkt* pkt, uint8_t proto, uint16_t* out_chksum) {
 
     if (IS_ENABLED(CONFIG_NET_IPV4) &&
         net_pkt_family(pkt) == NET_AF_INET) {
-        if (proto != NET_IPPROTO_ICMP && proto != NET_IPPROTO_IGMP) {
+        if ((proto != NET_IPPROTO_ICMP) && (proto != NET_IPPROTO_IGMP)) {
             len = (2U * sizeof(struct net_in_addr));
             sum = (uint16_t)(net_pkt_get_len(pkt) -
                              net_pkt_ip_hdr_len(pkt) -
-                             net_pkt_ipv4_opts_len(pkt) + proto);
+                             (net_pkt_ipv4_opts_len(pkt) + proto));
         }
     }
     else if (IS_ENABLED(CONFIG_NET_IPV6) &&
-             net_pkt_family(pkt) == NET_AF_INET6) {
+             (net_pkt_family(pkt) == NET_AF_INET6)) {
         len = (2U * sizeof(struct net_in6_addr));
         sum = (uint16_t)(net_pkt_get_len(pkt) -
                          net_pkt_ip_hdr_len(pkt) -
-                         net_pkt_ipv6_ext_len(pkt) + proto);
+                         (net_pkt_ipv6_ext_len(pkt) + proto));
     }
     else {
         NET_DBG("Unknown protocol family %d", net_pkt_family(pkt));

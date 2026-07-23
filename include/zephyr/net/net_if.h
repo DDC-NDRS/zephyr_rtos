@@ -435,6 +435,17 @@ struct net_if_dhcpv6 {
     /** Retransmit timeout for the current message, milliseconds. */
     uint32_t retransmit_timeout;
 
+    /** Maximum Solicit retransmit timeout, milliseconds. */
+    uint32_t sol_max_rt;
+
+    /** Maximum Information-request retransmit timeout, milliseconds. */
+    uint32_t inf_max_rt;
+
+    /** Information-request refresh interval, milliseconds; 0 means never
+     *  refresh (infinity).
+     */
+    uint32_t info_refresh_time;
+
     /** Current best server preference received. */
     int16_t server_preference;
 
@@ -1009,7 +1020,7 @@ enum net_verdict net_if_try_send_data(struct net_if* iface,
 /**
  * @brief Send a packet through a net iface
  *
- * This is equivalent to net_if_try_queue_tx with an infinite timeout
+ * This is equivalent to net_if_try_send_data with an infinite timeout
  * @param iface Pointer to a network interface structure
  * @param pkt Pointer to a net packet to send
  *
@@ -2758,7 +2769,7 @@ static inline struct net_if* net_if_ipv4_select_src_iface_addr(
     ARG_UNUSED(dst);
     ARG_UNUSED(src_addr);
 
-    return NULL;
+    return (NULL);
 }
 #endif /* CONFIG_NET_IPV4 */
 
@@ -3545,6 +3556,7 @@ extern int net_stats_prometheus_scrape(struct prometheus_collector* collector,
  * Enables to use of `NET_IF_GET` above the instantiation macro.
  *
  * @param dev_id Device ID provided to `NET_IF_INIT` or `NET_IF_OFFLOAD_INIT`
+ * @param inst Instance identifier
  */
 #define NET_IF_DECLARE(dev_id, inst) \
     static struct net_if NET_IF_GET_NAME(dev_id, inst)

@@ -399,6 +399,14 @@ Haptics
   and :dtcompatible:`cirrus,cs40l53`. Applications using the old compatible must update their
   devicetree nodes accordingly.
 
+I2C
+===
+
+* The ITE I2C controllers :dtcompatible:`ite,enhance-i2c`
+  :dtcompatible:`ite,it51xxx-i2c` :dtcompatible:`ite,it8xxx2-i2c` transfer
+  timeout is now using the generic ``zephyr,transfer-timeout-ms`` property
+  instead of ``transfer-timeout-ms``, default to 500ms.
+
 Input
 =====
 
@@ -1060,6 +1068,9 @@ gPTP
   New :c:func:`gptp_get_port_number` and :c:func:`gptp_set_port_number`
   can be used instead.
 
+* Removed ``CONFIG_NET_GPTP_CLOCK_ACCURACY_*``, users need to make sure right gPTP clock
+  accuracy value configured in :kconfig:option:`CONFIG_NET_GPTP_CLOCK_ACCURACY`.
+
 Modem
 *****
 
@@ -1190,6 +1201,12 @@ Mbed TLS
 * Interface CMake library ``mbedTLS`` has been renamed to ``mbedtls_iface``. The former is kept
   as an alias to the latter for backward compatibility, but it will be removed in future
   releases.
+
+* Mbed TLS was updated to version 4.1.1. Release notes can be found
+  `here <https://github.com/Mbed-TLS/mbedtls/releases/tag/mbedtls-4.1.1>`_.
+
+* TF-PSA-Crypto was updated to version 1.1.1. Release notes can be found
+  `here <https://github.com/Mbed-TLS/TF-PSA-Crypto/releases/tag/tf-psa-crypto-1.1.1>`_.
 
 Trusted Firmware-M
 ==================

@@ -86,8 +86,8 @@ extern "C" {
  *
  * A value of 0 means no timeout (infinite wait).
  */
-#define I2C_DT_INST_TRANSFER_TIMEOUT_MS(inst)                                                      \
-	DT_INST_PROP_OR(inst, zephyr_transfer_timeout_ms, CONFIG_I2C_TRANSFER_TIMEOUT_MS)
+#define I2C_DT_INST_TRANSFER_TIMEOUT_MS(inst) \
+    DT_INST_PROP_OR(inst, zephyr_transfer_timeout_ms, CONFIG_I2C_TRANSFER_TIMEOUT_MS)
 
 /**
  * @brief Per-instance transfer timeout as a k_timeout_t struct initializer.
@@ -101,26 +101,26 @@ extern "C" {
  * Drivers that store the per-bus timeout in a static config struct can use
  * this macro to initialize the target k_timeout_t value at build time.
  */
-#define I2C_DT_INST_TRANSFER_TIMEOUT(inst)                                                         \
-	SYS_TIMEOUT_MS_INIT(((I2C_DT_INST_TRANSFER_TIMEOUT_MS(inst) != 0)                          \
-				     ? I2C_DT_INST_TRANSFER_TIMEOUT_MS(inst)                       \
-				     : SYS_FOREVER_MS))
+#define I2C_DT_INST_TRANSFER_TIMEOUT(inst)                              \
+    SYS_TIMEOUT_MS_INIT(((I2C_DT_INST_TRANSFER_TIMEOUT_MS(inst) != 0)   \
+                        ? I2C_DT_INST_TRANSFER_TIMEOUT_MS(inst)         \
+                        : SYS_FOREVER_MS))
 
 /** Helper macro drivers that do not support infinite timeout */
-#define BUILD_ASSERT_INVALID_I2C_TRANSFER_TIMEOUT() \
-	BUILD_ASSERT(CONFIG_I2C_TRANSFER_TIMEOUT_MS != 0, \
-		     "infinite i2c transfer timeout not unsupported")
+#define BUILD_ASSERT_INVALID_I2C_TRANSFER_TIMEOUT()     \
+    BUILD_ASSERT(CONFIG_I2C_TRANSFER_TIMEOUT_MS != 0,   \
+                 "infinite i2c transfer timeout not unsupported")
 
 #endif /* CONFIG_I2C_TRANSFER_TIMEOUT_SUPPORTED */
 
 /**
  * @brief Complete I2C DT information
- *
- * @param bus is the I2C bus
- * @param addr is the target address
  */
 struct i2c_dt_spec {
-    const struct device *bus;
+    /** I2C bus */
+    const struct device* bus;
+
+    /** Target address */
     uint16_t addr;
 };
 
@@ -577,7 +577,7 @@ static inline bool i2c_is_read_op(const struct i2c_msg* msg) {
  *
  * @param msg The message to check
  * @retval true The I2C message includes a stop.
- * @retval false The I2C message includes a stop.
+ * @retval false The I2C message does not include a stop.
  */
 static inline bool i2c_is_stop_op(const struct i2c_msg* msg) {
     return ((msg->flags & I2C_MSG_STOP) == I2C_MSG_STOP);
@@ -588,11 +588,10 @@ static inline bool i2c_is_stop_op(const struct i2c_msg* msg) {
  *
  * @param msg The message to check
  * @return true if the I2C message includes a restart
- * @return false if the I2C message includes a restart
+ * @return false if the I2C message does not include a restart
  */
-static inline bool i2c_is_restart_op(const struct i2c_msg *msg)
-{
-	return (msg->flags & I2C_MSG_RESTART) == I2C_MSG_RESTART;
+static inline bool i2c_is_restart_op(const struct i2c_msg* msg) {
+    return ((msg->flags & I2C_MSG_RESTART) == I2C_MSG_RESTART);
 }
 
 /**
@@ -670,7 +669,7 @@ STATS_NAME_END(i2c);
  */
 struct i2c_device_state {
     struct device_state devstate;
-    struct stats_i2c    stats;
+    struct stats_i2c stats;
 };
 
 /**

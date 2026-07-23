@@ -2869,7 +2869,7 @@ int modem_cellular_init(const struct device* dev) {
             .delimiter_size   = (uint8_t)strlen(config->vendor->chat_delimiter),
             .filter           = (const uint8_t*)config->vendor->chat_filter,
             .filter_size      = config->vendor->chat_filter
-                                ? strlen(config->vendor->chat_filter)
+                                ? (uint8_t)strlen(config->vendor->chat_filter)
                                 : 0,
             .argv             = data->chat_argv,
             .argv_size        = ARRAY_SIZE(data->chat_argv),
