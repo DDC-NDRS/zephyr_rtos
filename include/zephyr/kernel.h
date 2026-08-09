@@ -2146,9 +2146,9 @@ __syscall uint32_t k_timer_status_sync(struct k_timer* timer);
  * @param timer The timer object
  * @return Uptime of expiration, in ticks
  */
-__syscall k_ticks_t k_timer_expires_ticks(const struct k_timer* timer);
+__syscall k_ticks_t k_timer_expires_ticks(struct k_timer const* timer);
 
-static inline k_ticks_t z_impl_k_timer_expires_ticks(const struct k_timer* timer) {
+static inline k_ticks_t z_impl_k_timer_expires_ticks(struct k_timer const* timer) {
     return z_timeout_expires(&timer->timeout);
 }
 
@@ -2162,9 +2162,9 @@ static inline k_ticks_t z_impl_k_timer_expires_ticks(const struct k_timer* timer
  * @param timer The timer object
  * @return Remaining time until expiration, in ticks
  */
-__syscall k_ticks_t k_timer_remaining_ticks(const struct k_timer* timer);
+__syscall k_ticks_t k_timer_remaining_ticks(struct k_timer const* timer);
 
-static inline k_ticks_t z_impl_k_timer_remaining_ticks(const struct k_timer* timer) {
+static inline k_ticks_t z_impl_k_timer_remaining_ticks(struct k_timer const* timer) {
     return z_timeout_remaining(&timer->timeout);
 }
 
@@ -2213,9 +2213,9 @@ static inline void z_impl_k_timer_user_data_set(struct k_timer* timer,
  *
  * @return The user data.
  */
-__syscall void* k_timer_user_data_get(const struct k_timer* timer);
+__syscall void* k_timer_user_data_get(struct k_timer const* timer);
 
-static inline void* z_impl_k_timer_user_data_get(const struct k_timer* timer) {
+static inline void* z_impl_k_timer_user_data_get(struct k_timer const* timer) {
     return timer->user_data;
 }
 
@@ -5505,12 +5505,12 @@ struct k_msgq_attrs {
  * @param q_align Alignment of the message queue's ring buffer (power of 2).
  *
  */
-#define K_MSGQ_DEFINE(q_name, q_msg_size, q_max_msgs, q_align)      \
-    static char __noinit __aligned(q_align)             \
-        _k_fifo_buf_##q_name[(q_max_msgs) * (q_msg_size)];  \
-    MSC_DECLARE_SECTION("._k_msgq.static")              \
-    STRUCT_SECTION_ITERABLE(k_msgq, q_name) =           \
-        Z_MSGQ_INITIALIZER(q_name, _k_fifo_buf_##q_name,\
+#define K_MSGQ_DEFINE(q_name, q_msg_size, q_max_msgs, q_align)  \
+    static char __noinit __aligned(q_align)                     \
+        _k_fifo_buf_##q_name[(q_max_msgs) * (q_msg_size)];      \
+    MSC_DECLARE_SECTION("._k_msgq.static")                      \
+    STRUCT_SECTION_ITERABLE(k_msgq, q_name) =                   \
+        Z_MSGQ_INITIALIZER(q_name, _k_fifo_buf_##q_name,        \
                            (q_msg_size), (q_max_msgs))
 
 /**
@@ -5526,13 +5526,13 @@ struct k_msgq_attrs {
  * @param q_align Alignment of the message queue's ring buffer (power of 2).
  *
  */
-#define K_MSGQ_DEFINE_STATIC(q_name, q_msg_size, q_max_msgs, q_align)	\
-	static char __noinit __aligned(q_align)				    \
-		_k_fifo_buf_##q_name[(q_max_msgs) * (q_msg_size)];	\
-    MSC_DECLARE_SECTION("._k_msgq.static")                  \
-	static STRUCT_SECTION_ITERABLE(k_msgq, q_name) =		\
-		Z_MSGQ_INITIALIZER(q_name, _k_fifo_buf_##q_name,	\
-				  (q_msg_size), (q_max_msgs))
+#define K_MSGQ_DEFINE_STATIC(q_name, q_msg_size, q_max_msgs, q_align) \
+    static char __noinit __aligned(q_align)                     \
+        _k_fifo_buf_##q_name[(q_max_msgs) * (q_msg_size)];      \
+    MSC_DECLARE_SECTION("._k_msgq.static")                      \
+    static STRUCT_SECTION_ITERABLE(k_msgq, q_name) =            \
+        Z_MSGQ_INITIALIZER(q_name, _k_fifo_buf_##q_name,        \
+                           (q_msg_size), (q_max_msgs))
 
 /**
  * @brief Statically define and initialize a message queue for messages of a given type.
@@ -5554,7 +5554,7 @@ struct k_msgq_attrs {
  * @param q_max_msgs Maximum number of messages that can be queued.
  */
 #define K_MSGQ_DEFINE_TYPE(q_name, q_msg_type, q_max_msgs) \
-	K_MSGQ_DEFINE(q_name, sizeof(q_msg_type), q_max_msgs, __alignof(q_msg_type))
+    K_MSGQ_DEFINE(q_name, sizeof(q_msg_type), q_max_msgs, __alignof(q_msg_type))
 
 /**
  * @brief Statically define and initialize a message queue for messages of a given type in a
@@ -5568,7 +5568,7 @@ struct k_msgq_attrs {
  * @param q_max_msgs Maximum number of messages that can be queued.
  */
 #define K_MSGQ_DEFINE_STATIC_TYPE(q_name, q_msg_type, q_max_msgs) \
-	K_MSGQ_DEFINE_STATIC(q_name, sizeof(q_msg_type), q_max_msgs, __alignof(q_msg_type))
+    K_MSGQ_DEFINE_STATIC(q_name, sizeof(q_msg_type), q_max_msgs, __alignof(q_msg_type))
 
 /**
  * @brief Initialize a message queue.
@@ -6937,6 +6937,9 @@ enum _poll_states_bits {
 /** Poll for data becoming available in a FIFO. */
 #define K_POLL_TYPE_FIFO_DATA_AVAILABLE K_POLL_TYPE_DATA_AVAILABLE
 
+/** Poll for data becoming available in a LIFO. */
+#define K_POLL_TYPE_LIFO_DATA_AVAILABLE K_POLL_TYPE_DATA_AVAILABLE
+
 /** Poll for data becoming available in a message queue. */
 #define K_POLL_TYPE_MSGQ_DATA_AVAILABLE Z_POLL_TYPE_BIT(_POLL_TYPE_MSGQ_DATA_AVAILABLE)
 
@@ -6975,6 +6978,9 @@ enum k_poll_modes {
 
 /** Data became available in a FIFO. */
 #define K_POLL_STATE_FIFO_DATA_AVAILABLE K_POLL_STATE_DATA_AVAILABLE
+
+/** Data became available in a LIFO. */
+#define K_POLL_STATE_LIFO_DATA_AVAILABLE K_POLL_STATE_DATA_AVAILABLE
 
 /** Data became available in a message queue. */
 #define K_POLL_STATE_MSGQ_DATA_AVAILABLE Z_POLL_STATE_BIT(_POLL_STATE_MSGQ_DATA_AVAILABLE)
@@ -7078,6 +7084,10 @@ struct /**/k_poll_event {
         /** FIFO being polled. */
         struct k_fifo* fifo;
         struct k_fifo* _typed_K_POLL_TYPE_FIFO_DATA_AVAILABLE;
+
+        /** LIFO being polled. */
+        struct k_lifo* lifo;
+        struct k_lifo* _typed_K_POLL_TYPE_LIFO_DATA_AVAILABLE;
 
         /** Queue being polled. */
         struct k_queue* queue;

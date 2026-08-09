@@ -613,7 +613,7 @@ static int pwm_nxp_s32_pulse_gen_init(const struct device* dev) {
 
     data->start_pwm_ch = logic_ch;
 
-    for (uint8_t ch_id = 0; ch_id < config->pulse_info->pwm_pulse_channels; ch_id++) {
+    for (size_t ch_id = 0; ch_id < config->pulse_info->pwm_pulse_channels; ch_id++) {
         memcpy(&pwm_info, &config->pulse_info->pwm_info[ch_id],
                sizeof(Emios_Pwm_Ip_ChannelConfigType));
 
@@ -642,10 +642,9 @@ static int pwm_nxp_s32_pulse_capture_init(const struct device* dev) {
     struct pwm_nxp_s32_channel_data* ch_data;
     eMios_Icu_Ip_ChannelConfigType const* icu_info;
 
-    uint8_t ch_id;
     static uint8_t logic_ch;
 
-    for (ch_id = 0; ch_id < config->icu_cfg->nNumChannels; ch_id++) {
+    for (size_t ch_id = 0; ch_id < config->icu_cfg->nNumChannels; ch_id++) {
         icu_info = &(*config->icu_cfg->pChannelsConfig)[ch_id];
         ch_data  = &data->ch_data[icu_info->hwChannel];
 
@@ -871,6 +870,7 @@ static DEVICE_API(pwm, pwm_nxp_s32_driver_api) = {
          .DutyCycle           = 0,                              \
      }, ))
 
+#if !defined(_MSC_VER) /* #CUSTOM@NDRS */
 #define EMIOS_PWM_PULSE_GEN_CONFIG(n)                                       \
     const Emios_Pwm_Ip_ChannelConfigType emios_pwm_##n##_init[] = {         \
         DT_INST_FOREACH_CHILD_STATUS_OKAY(n, _EMIOS_PWM_PULSE_GEN_CONFIG)   \
@@ -879,6 +879,18 @@ static DEVICE_API(pwm, pwm_nxp_s32_driver_api) = {
         .pwm_pulse_channels = ARRAY_SIZE(emios_pwm_##n##_init),             \
         .pwm_info = (Emios_Pwm_Ip_ChannelConfigType*)emios_pwm_##n##_init,  \
     };
+#else
+#define EMIOS_PWM_PULSE_GEN_CONFIG(n)                                       \
+    const Emios_Pwm_Ip_ChannelConfigType emios_pwm_##n##_init[] = {         \
+        DT_INST_FOREACH_CHILD_STATUS_OKAY(n, _EMIOS_PWM_PULSE_GEN_CONFIG)   \
+        /* fallback dummy if empty: */                                      \
+        {0}                                                                  \
+    };                                                                      \
+    const struct pwm_nxp_s32_pulse_info emios_pwm_##n##_info = {            \
+        .pwm_pulse_channels = ARRAY_SIZE(emios_pwm_##n##_init),             \
+        .pwm_info = (Emios_Pwm_Ip_ChannelConfigType*)emios_pwm_##n##_init,  \
+    };
+#endif
 
 #define EMIOS_PWM_PULSE_GEN_GET_CONFIG(n) \
     .pulse_info = (struct pwm_nxp_s32_pulse_info*)&emios_pwm_##n##_info,

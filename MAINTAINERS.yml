@@ -837,6 +837,7 @@ Bluetooth Mesh:
     - HaavardRei
     - omkar3141
     - KyraLengfeld
+    - ludvigsj
   files:
     - doc/services/connectivity/bluetooth/api/mesh/
     - include/zephyr/bluetooth/mesh/
@@ -6078,6 +6079,7 @@ TI MSPM Platforms:
   collaborators:
     - d-philpot
     - Aman-Lachhiramka-ti
+    - Alex9360
   files:
     - soc/ti/mspm/
     - boards/ti/*mspm*/
@@ -7575,10 +7577,10 @@ Xilinx Platforms:
   status: maintained
   maintainers:
     - michalsimek
+    - kedareswararao
   collaborators:
     - henrikbrixandersen
     - ibirnbaum
-    - kedareswararao
     - neeliajay
     - venodela
   files:

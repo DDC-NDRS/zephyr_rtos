@@ -84,7 +84,7 @@ extern enum net_verdict net_icmp_call_ipv6_handlers(struct net_pkt* pkt,
 extern struct net_if *net_ipip_get_virtual_interface(struct net_if *input_iface);
 
 #if defined(CONFIG_NET_STATISTICS_VIA_PROMETHEUS)
-extern void net_stats_prometheus_init(struct net_if *iface);
+extern void net_stats_prometheus_init(struct net_if* iface);
 #else
 static inline void net_stats_prometheus_init(struct net_if* iface) {
     ARG_UNUSED(iface);
@@ -287,7 +287,7 @@ struct sock_obj {
 
 #if defined(CONFIG_NET_IPV6_PE)
 /* This is needed by ipv6_pe.c when privacy extension support is enabled */
-void net_if_ipv6_start_dad(struct net_if *iface,
+void net_if_ipv6_start_dad(struct net_if* iface,
                            struct net_if_addr *ifaddr);
 #endif
 
@@ -452,14 +452,14 @@ void net_pkt_tx_init(struct net_pkt *pkt);
 
 /** Rejoin IGMP mcast group w/o registering address, for internal use only. */
 #if defined(CONFIG_NET_IPV4_IGMP)
-int net_ipv4_igmp_rejoin(struct net_if *iface, const struct net_in_addr *addr);
+int net_ipv4_igmp_rejoin(struct net_if* iface, struct net_if_mcast_addr* addr);
 #else
 #define net_ipv4_igmp_rejoin(...) -ENOSYS
 #endif
 
 /** Rejoin MLD mcast group w/o registering address, for internal use only. */
 #if defined(CONFIG_NET_IPV6_MLD)
-int net_ipv6_mld_rejoin(struct net_if *iface, const struct net_in6_addr *addr);
+int net_ipv6_mld_rejoin(struct net_if* iface, struct net_if_mcast_addr* addr);
 #else
 #define net_ipv6_mld_rejoin(...) -ENOSYS
 #endif
@@ -472,3 +472,21 @@ int net_ipv6_mld_rejoin(struct net_if *iface, const struct net_in6_addr *addr);
 #define do_popcount32(x) __builtin_popcount((unsigned)(x))
 #define do_popcount64(x) __builtin_popcountll((unsigned long long)(x))
 #endif
+
+#if defined(CONFIG_NET_IPV4_IGMP)
+void net_ipv4_igmp_send_leave(struct net_if* iface, struct net_if_mcast_addr const* addr);
+#else
+static inline void net_ipv4_igmp_send_leave(struct net_if* iface __unused,
+                                            struct net_if_mcast_addr const* addr __unused) {
+    /* pass */
+}
+#endif
+
+#if defined(CONFIG_NET_IPV6_MLD)
+void net_ipv6_mld_send_leave(struct net_if* iface, struct net_if_mcast_addr const* addr);
+#else
+static inline void net_ipv6_mld_send_leave(struct net_if* iface __unused,
+                       struct net_if_mcast_addr const* addr __unused) {
+    /* pass */
+}
+#endif /* CONFIG_NET_IPV6_MLD */

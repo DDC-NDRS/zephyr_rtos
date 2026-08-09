@@ -37,6 +37,11 @@ Build System
 * :kconfig:option:`CONFIG_LEGACY_GENERATED_INCLUDE_PATH` has been deprecated, and disabled by
   default, includes must now be prefixed with ``zephyr/`` for zephyr files.
 
+* CMake variables ``SOC_NAME``, ``SOC_SERIES``, ``SOC_FAMILY`` and ``SOC_V2_DIR`` have been
+  deprecated as they duplicate variables already, the replacement variables are as follows:
+  :kconfig:option:`CONFIG_SOC`, :kconfig:option:`CONFIG_SOC_SERIES`,
+  :kconfig:option:`CONFIG_SOC_FAMILY` and ``SOC_FULL_DIR``.
+
 Kernel
 ******
 
@@ -1140,6 +1145,12 @@ Networking
   * :c:member:`mqtt_sn_transport.recvfrom`
   * :c:member:`mqtt_sn_transport.poll`
   * :c:member:`mqtt_sn_transport.sendto`
+
+* On :c:func:`net_if_down`, the multicast addresses are no longer cleared from the interface.
+  A leave message is still sent, but the addresses are retained in the interface's multicast list
+  and will be rejoined when the interface is brought back up.
+  This allows applications to bring the interface down and up without losing the multicast
+  addresses. (:github:`115307`)
 
 Ethernet
 ========

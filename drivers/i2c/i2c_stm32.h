@@ -143,7 +143,7 @@ struct i2c_stm32_data {
     struct dma_config dma_tx_cfg;
     struct dma_config dma_rx_cfg;
     struct dma_block_config dma_blk_cfg;
-
+    bool use_dma;
     #ifdef CONFIG_I2C_RTIO
     uint8_t* dma_buf;           /* Base address of the Rx buffer fed by DMA */
     size_t dma_len;             /* Byte size of the Rx buffer fed by DMA */
@@ -162,41 +162,48 @@ struct i2c_stm32_data {
 
 extern struct i2c_driver_api DT_CONST i2c_stm32_driver_api;
 
-int i2c_stm32_init(const struct device *dev);
+int i2c_stm32_init(struct device const* dev);
+
+#ifdef CONFIG_I2C_STM32_V2_DMA
+/* Return true if transfer shall use DMA. If so, also flush buffer on I2C write message */
+bool i2c_stm32_xfer_will_use_dma(struct i2c_stm32_config const* cfg, void* buf, size_t len,
+                                 bool tx);
+#endif /* CONFIG_I2C_STM32_V2_DMA */
 
 #ifdef CONFIG_I2C_RTIO
-int i2c_stm32_msg_start(const struct device* dev, uint8_t flags, uint8_t* buf, size_t buf_len,
+int i2c_stm32_msg_start(struct device const* dev, uint8_t flags, uint8_t* buf, size_t buf_len,
                         uint16_t i2c_addr);
-void i2c_stm32_rtio_complete(const struct device* dev, int status);
+void i2c_stm32_rtio_complete(struct device const* dev, int status);
 #else /* CONFIG_I2C_RTIO */
-int i2c_stm32_transaction(const struct device* dev,
+int i2c_stm32_transaction(struct device const* dev,
                           struct i2c_msg msg, uint8_t* next_msg_flags,
                           uint16_t periph);
 #endif /* CONFIG_I2C_RTIO */
-int i2c_stm32_runtime_configure(const struct device* dev, uint32_t config);
+
+int i2c_stm32_runtime_configure(struct device const* dev, uint32_t config);
 
 #ifdef CONFIG_I2C_TARGET
-int i2c_stm32_target_register(const struct device* dev, struct i2c_target_config* config);
-int i2c_stm32_target_unregister(const struct device* dev, struct i2c_target_config* config);
+int i2c_stm32_target_register(struct device const* dev, struct i2c_target_config* config);
+int i2c_stm32_target_unregister(struct device const* dev, struct i2c_target_config* config);
 #endif /* CONFIG_I2C_TARGET */
 
-int i2c_stm32_activate(const struct device* dev);
-int i2c_stm32_configure_timing(const struct device* dev, uint32_t clock);
+int i2c_stm32_activate(struct device const* dev);
+int i2c_stm32_configure_timing(struct device const* dev, uint32_t clock);
 
 #ifdef CONFIG_PM_DEVICE
-int i2c_stm32_pm_action(const struct device* dev, enum pm_device_action action);
-int i2c_stm32_suspend(const struct device* dev);
+int i2c_stm32_pm_action(struct device const* dev, enum pm_device_action action);
+int i2c_stm32_suspend(struct device const* dev);
 #endif /* CONFIG_PM_DEVICE */
 
-int i2c_stm32_pm_get(const struct device* dev);
-void i2c_stm32_pm_put(const struct device* dev);
+int i2c_stm32_pm_get(struct device const* dev);
+void i2c_stm32_pm_put(struct device const* dev);
 
 #if CONFIG_I2C_STM32_BUS_RECOVERY
-int i2c_stm32_recover_bus(const struct device *dev);
+int i2c_stm32_recover_bus(struct device const* dev);
 #endif
 
-int  i2c_stm32_error(const struct device* dev);
-void i2c_stm32_event(const struct device* dev);
+int  i2c_stm32_error(struct device const* dev);
+void i2c_stm32_event(struct device const* dev);
 
 #ifdef CONFIG_I2C_STM32_INTERRUPT
 #ifdef CONFIG_I2C_STM32_COMBINED_INTERRUPT
@@ -229,11 +236,11 @@ void i2c_stm32_error_isr(void* arg);
 #endif /* CONFIG_I2C_STM32_COMBINED_INTERRUPT */
 
 #define I2C_STM32_IRQ_HANDLER_DECL(index)           \
-    static void i2c_stm32_irq_config_func_##index(const struct device* dev)
+    static void i2c_stm32_irq_config_func_##index(struct device const* dev)
 #define I2C_STM32_IRQ_HANDLER_FUNCTION(index)       \
     .irq_config_func = i2c_stm32_irq_config_func_##index,
 #define I2C_STM32_IRQ_HANDLER(index)                \
-    static void i2c_stm32_irq_config_func_##index(const struct device* dev) { \
+    static void i2c_stm32_irq_config_func_##index(struct device const* dev) { \
         I2C_STM32_IRQ_CONNECT_AND_ENABLE(index);    \
     }
 

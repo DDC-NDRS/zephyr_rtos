@@ -186,7 +186,7 @@ static void uart_stm32_pm_enable_wakeup_line(uint32_t wakeup_line) {
 }
 #endif /* CONFIG_PM && IS_UART_WAKEUP_FROMSTOP_INSTANCE */
 
-static void uart_stm32_pm_policy_state_lock_get(const struct device* dev) {
+static void uart_stm32_pm_policy_state_lock_get(struct device const* dev) {
     struct uart_stm32_data* data = dev->data;
 
     if (!data->pm_policy_state_on) {
@@ -202,7 +202,7 @@ static void uart_stm32_pm_policy_state_lock_put_unconditional(void) {
     }
 }
 
-static void uart_stm32_pm_policy_state_lock_put(const struct device* dev) {
+static void uart_stm32_pm_policy_state_lock_put(struct device const* dev) {
     struct uart_stm32_data* data = dev->data;
 
     if (data->pm_policy_state_on) {
@@ -212,7 +212,7 @@ static void uart_stm32_pm_policy_state_lock_put(const struct device* dev) {
 }
 #endif /* CONFIG_PM */
 
-static inline int uart_stm32_set_baudrate(const struct device* dev, uint32_t baud_rate) {
+static inline int uart_stm32_set_baudrate(struct device const* dev, uint32_t baud_rate) {
     const struct uart_stm32_config* config = dev->config;
     USART_TypeDef* usart = config->usart;
 
@@ -268,7 +268,7 @@ static inline int uart_stm32_set_baudrate(const struct device* dev, uint32_t bau
         LL_LPUART_SetPrescaler(usart, presc_val);
         #else
         lpuartdiv = lpuartdiv_calc(clock_rate, baud_rate);
-        if (lpuartdiv < STM32_LPUART_BRR_MIN_VALUE || lpuartdiv > STM32_LPUART_BRR_MASK) {
+        if ((lpuartdiv < STM32_LPUART_BRR_MIN_VALUE) || (lpuartdiv > STM32_LPUART_BRR_MASK)) {
             LOG_ERR("Unable to set %s to %d", dev->name, baud_rate);
             return (-EINVAL);
         }
@@ -297,7 +297,7 @@ static inline int uart_stm32_set_baudrate(const struct device* dev, uint32_t bau
                                                        LL_USART_PRESCALER_DIV1,
                                                        baud_rate);
         #else
-        uint32_t usartdiv = STM32_USART_DIV_SAMPLING16(clock_rate, 
+        uint32_t usartdiv = STM32_USART_DIV_SAMPLING16(clock_rate,
                                                        baud_rate);
         #endif /* USART_PRESC_PRESCALER */
 
@@ -325,63 +325,45 @@ static inline int uart_stm32_set_baudrate(const struct device* dev, uint32_t bau
     return (0);
 }
 
-static inline void uart_stm32_set_parity(const struct device* dev,
+static inline void uart_stm32_set_parity(USART_TypeDef* usart,
                                          uint32_t parity) {
-    USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
-
     LL_USART_SetParity(usart, parity);
 }
 
-static inline uint32_t uart_stm32_get_parity(const struct device* dev) {
-    USART_TypeDef const* usart = DEVICE_STM32_GET_USART(dev);
-
+static inline uint32_t uart_stm32_get_parity(USART_TypeDef const* usart) {
     return LL_USART_GetParity(usart);
 }
 
-static inline void uart_stm32_set_stopbits(const struct device* dev,
+static inline void uart_stm32_set_stopbits(USART_TypeDef* usart,
                                            uint32_t stopbits) {
-    USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
-
     LL_USART_SetStopBitsLength(usart, stopbits);
 }
 
-static inline uint32_t uart_stm32_get_stopbits(const struct device* dev) {
-    USART_TypeDef const* usart = DEVICE_STM32_GET_USART(dev);
-
+static inline uint32_t uart_stm32_get_stopbits(USART_TypeDef const* usart) {
     return LL_USART_GetStopBitsLength(usart);
 }
 
-static inline void uart_stm32_set_databits(const struct device* dev,
+static inline void uart_stm32_set_databits(USART_TypeDef* usart,
                                            uint32_t databits) {
-    USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
-
     LL_USART_SetDataWidth(usart, databits);
 }
 
-static inline uint32_t uart_stm32_get_databits(const struct device* dev) {
-    USART_TypeDef const* usart = DEVICE_STM32_GET_USART(dev);
-
+static inline uint32_t uart_stm32_get_databits(USART_TypeDef const* usart) {
     return LL_USART_GetDataWidth(usart);
 }
 
-static inline void uart_stm32_set_hwctrl(const struct device* dev,
+static inline void uart_stm32_set_hwctrl(USART_TypeDef* usart,
                                          uint32_t hwctrl) {
-    USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
-
     LL_USART_SetHWFlowCtrl(usart, hwctrl);
 }
 
-static inline uint32_t uart_stm32_get_hwctrl(const struct device* dev) {
-    USART_TypeDef const* usart = DEVICE_STM32_GET_USART(dev);
-
+static inline uint32_t uart_stm32_get_hwctrl(USART_TypeDef const* usart) {
     return LL_USART_GetHWFlowCtrl(usart);
 }
 
 #if HAS_DRIVER_ENABLE
-static inline void uart_stm32_set_driver_enable(const struct device* dev,
+static inline void uart_stm32_set_driver_enable(USART_TypeDef* usart,
                                                 bool driver_enable) {
-    USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
-
     if (driver_enable) {
         LL_USART_EnableDEMode(usart);
     }
@@ -390,9 +372,7 @@ static inline void uart_stm32_set_driver_enable(const struct device* dev,
     }
 }
 
-static inline bool uart_stm32_get_driver_enable(const struct device* dev) {
-    USART_TypeDef const* usart = DEVICE_STM32_GET_USART(dev);
-
+static inline bool uart_stm32_get_driver_enable(USART_TypeDef const* usart) {
     return LL_USART_IsEnabledDEMode(usart);
 }
 #endif
@@ -574,8 +554,8 @@ static inline enum uart_config_flow_control uart_stm32_ll2cfg_hwctrl(uint32_t fc
     return (UART_CFG_FLOW_CTRL_NONE);
 }
 
-static int uart_stm32_parameters_set(const struct device* dev,
-                                      const struct uart_config* cfg) {
+static int uart_stm32_parameters_set(struct device const* dev,
+                                     struct uart_config const* cfg) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     struct uart_stm32_data* data = dev->data;
     struct uart_config* uart_cfg = data->uart_cfg;
@@ -585,7 +565,7 @@ static int uart_stm32_parameters_set(const struct device* dev,
                                                          cfg->parity);
     const uint32_t flowctrl = uart_stm32_cfg2ll_hwctrl(cfg->flow_ctrl);
     #if HAS_DRIVER_ENABLE
-    bool driver_enable = cfg->flow_ctrl == UART_CFG_FLOW_CTRL_RS485;
+    bool driver_enable = (cfg->flow_ctrl == UART_CFG_FLOW_CTRL_RS485);
     #endif
     int ret;
 
@@ -598,7 +578,7 @@ static int uart_stm32_parameters_set(const struct device* dev,
                                  databits,
                                  parity,
                                  stopbits);
-        uart_stm32_set_hwctrl(dev, flowctrl);
+        uart_stm32_set_hwctrl(usart, flowctrl);
         ret = uart_stm32_set_baudrate(dev, cfg->baudrate);
         if (ret < 0) {
             return (ret);
@@ -606,25 +586,25 @@ static int uart_stm32_parameters_set(const struct device* dev,
     }
     else {
         /* Called from application/subsys via uart_configure syscall */
-        if (parity != uart_stm32_get_parity(dev)) {
-            uart_stm32_set_parity(dev, parity);
+        if (parity != uart_stm32_get_parity(usart)) {
+            uart_stm32_set_parity(usart, parity);
         }
 
-        if (stopbits != uart_stm32_get_stopbits(dev)) {
-            uart_stm32_set_stopbits(dev, stopbits);
+        if (stopbits != uart_stm32_get_stopbits(usart)) {
+            uart_stm32_set_stopbits(usart, stopbits);
         }
 
-        if (databits != uart_stm32_get_databits(dev)) {
-            uart_stm32_set_databits(dev, databits);
+        if (databits != uart_stm32_get_databits(usart)) {
+            uart_stm32_set_databits(usart, databits);
         }
 
-        if (flowctrl != uart_stm32_get_hwctrl(dev)) {
-            uart_stm32_set_hwctrl(dev, flowctrl);
+        if (flowctrl != uart_stm32_get_hwctrl(usart)) {
+            uart_stm32_set_hwctrl(usart, flowctrl);
         }
 
         #if HAS_DRIVER_ENABLE
-        if (driver_enable != uart_stm32_get_driver_enable(dev)) {
-            uart_stm32_set_driver_enable(dev, driver_enable);
+        if (driver_enable != uart_stm32_get_driver_enable(usart)) {
+            uart_stm32_set_driver_enable(usart, driver_enable);
         }
         #endif
 
@@ -641,8 +621,8 @@ static int uart_stm32_parameters_set(const struct device* dev,
 }
 
 #ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
-static int uart_stm32_configure(const struct device* dev,
-                                const struct uart_config* cfg) {
+static int uart_stm32_configure(struct device const* dev,
+                                struct uart_config const* cfg) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     struct uart_stm32_data* data = dev->data;
     struct uart_config* uart_cfg = data->uart_cfg;
@@ -708,19 +688,20 @@ static int uart_stm32_configure(const struct device* dev,
     return (0);
 };
 
-static int uart_stm32_config_get(const struct device* dev,
+static int uart_stm32_config_get(struct device const* dev,
                                  struct uart_config* cfg) {
+    USART_TypeDef const* usart = DEVICE_STM32_GET_USART(dev);
     struct uart_stm32_data const* data = dev->data;
     struct uart_config const* uart_cfg = data->uart_cfg;
 
     cfg->baudrate  = uart_cfg->baudrate;
-    cfg->parity    = (uint8_t)uart_stm32_ll2cfg_parity(uart_stm32_get_parity(dev));
-    cfg->stop_bits = (uint8_t)uart_stm32_ll2cfg_stopbits(uart_stm32_get_stopbits(dev));
-    cfg->data_bits = (uint8_t)uart_stm32_ll2cfg_databits(uart_stm32_get_databits(dev),
-                                                         uart_stm32_get_parity(dev));
-    cfg->flow_ctrl = (uint8_t)uart_stm32_ll2cfg_hwctrl(uart_stm32_get_hwctrl(dev));
+    cfg->parity    = (uint8_t)uart_stm32_ll2cfg_parity(uart_stm32_get_parity(usart));
+    cfg->stop_bits = (uint8_t)uart_stm32_ll2cfg_stopbits(uart_stm32_get_stopbits(usart));
+    cfg->data_bits = (uint8_t)uart_stm32_ll2cfg_databits(uart_stm32_get_databits(usart),
+                                                         uart_stm32_get_parity(usart));
+    cfg->flow_ctrl = (uint8_t)uart_stm32_ll2cfg_hwctrl(uart_stm32_get_hwctrl(usart));
     #if HAS_DRIVER_ENABLE
-    if (uart_stm32_get_driver_enable(dev)) {
+    if (uart_stm32_get_driver_enable(usart)) {
         cfg->flow_ctrl = UART_CFG_FLOW_CTRL_RS485;
     }
     #endif
@@ -731,7 +712,7 @@ static int uart_stm32_config_get(const struct device* dev,
 
 typedef void (*poll_in_fn)(USART_TypeDef const* usart, void* in);
 
-static int uart_stm32_poll_in_visitor(const struct device* dev, void* in, poll_in_fn get_fn) {
+static int uart_stm32_poll_in_visitor(struct device const* dev, void* in, poll_in_fn get_fn) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
 
     /* Clear overrun error flag */
@@ -754,7 +735,7 @@ static int uart_stm32_poll_in_visitor(const struct device* dev, void* in, poll_i
 
 typedef void (*poll_out_fn)(USART_TypeDef* usart, uint16_t out);
 
-static void uart_stm32_poll_out_visitor(const struct device* dev, uint16_t out, poll_out_fn set_fn) {
+static void uart_stm32_poll_out_visitor(struct device const* dev, uint16_t out, poll_out_fn set_fn) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     #ifdef CONFIG_PM
     struct uart_stm32_data* data = dev->data;
@@ -807,11 +788,11 @@ static void poll_out_u8(USART_TypeDef* usart, uint16_t out) {
     LL_USART_TransmitData8(usart, (uint8_t)out);
 }
 
-static int uart_stm32_poll_in(const struct device* dev, unsigned char* c) {
+static int uart_stm32_poll_in(struct device const* dev, unsigned char* c) {
     return uart_stm32_poll_in_visitor(dev, (void*)c, poll_in_u8);
 }
 
-static void uart_stm32_poll_out(const struct device* dev, unsigned char c) {
+static void uart_stm32_poll_out(struct device const* dev, unsigned char c) {
     uart_stm32_poll_out_visitor(dev, c, poll_out_u8);
 }
 
@@ -825,17 +806,17 @@ static void poll_in_u9(USART_TypeDef const* usart, void* in) {
     *((uint16_t*)in) = LL_USART_ReceiveData9(usart);
 }
 
-static int uart_stm32_poll_in_u16(const struct device* dev, uint16_t* in_u16) {
+static int uart_stm32_poll_in_u16(struct device const* dev, uint16_t* in_u16) {
     return uart_stm32_poll_in_visitor(dev, (void*)in_u16, poll_in_u9);
 }
 
-static void uart_stm32_poll_out_u16(const struct device* dev, uint16_t out_u16) {
+static void uart_stm32_poll_out_u16(struct device const* dev, uint16_t out_u16) {
     uart_stm32_poll_out_visitor(dev, out_u16, poll_out_u9);
 }
 
 #endif
 
-static int uart_stm32_err_check(const struct device* dev) {
+static int uart_stm32_err_check(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     uint32_t err = 0U;
 
@@ -899,9 +880,8 @@ static int uart_stm32_err_check(const struct device* dev) {
 typedef void (*fifo_fill_fn)(USART_TypeDef* usart, void const* tx_data,
                              const int offset);
 
-static int uart_stm32_fifo_fill_visitor(const struct device* dev, void const* tx_data, int size,
+static int uart_stm32_fifo_fill_visitor(USART_TypeDef* usart, void const* tx_data, int size,
                                         fifo_fill_fn fill_fn) {
-    USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     int num_tx = 0;
     unsigned int key;
 
@@ -932,27 +912,29 @@ static void fifo_fill_with_u8(USART_TypeDef* usart,
     LL_USART_TransmitData8(usart, data[offset]);
 }
 
-static int uart_stm32_fifo_fill(const struct device* dev, uint8_t const* tx_data, int size) {
-    if (uart_stm32_ll2cfg_databits(uart_stm32_get_databits(dev), uart_stm32_get_parity(dev)) ==
-        UART_CFG_DATA_BITS_9) {
+static int uart_stm32_fifo_fill(struct device const* dev, uint8_t const* tx_data, int size) {
+    USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
+    enum uart_config_data_bits data_bits;
+
+    data_bits = uart_stm32_ll2cfg_databits(uart_stm32_get_databits(usart),
+                                           uart_stm32_get_parity(usart));
+    if (data_bits == UART_CFG_DATA_BITS_9) {
         return (-ENOTSUP);
     }
 
-    return uart_stm32_fifo_fill_visitor(dev, (void const*)tx_data, size,
+    return uart_stm32_fifo_fill_visitor(usart, (void const*)tx_data, size,
                                         fifo_fill_with_u8);
 }
 
 typedef void (*fifo_read_fn)(USART_TypeDef const* usart, void* rx_data,
                              const int offset);
 
-static int uart_stm32_fifo_read_visitor(const struct device* dev, void* rx_data, int const size,
+static int uart_stm32_fifo_read_visitor(USART_TypeDef* usart, void* rx_data, int const size,
                                         fifo_read_fn read_fn) {
-    USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     int num_rx = 0;
 
     while ((size - num_rx > 0) && ll_usart_is_active_rxne(usart)) {
         /* RXNE flag will be cleared upon read from DR|RDR register */
-
         read_fn(usart, rx_data, num_rx);
         num_rx++;
 
@@ -976,13 +958,17 @@ static void fifo_read_with_u8(USART_TypeDef const* usart, void* rx_data,
     data[offset] = LL_USART_ReceiveData8(usart);
 }
 
-static int uart_stm32_fifo_read(const struct device* dev, uint8_t* rx_data, int const size) {
-    if (uart_stm32_ll2cfg_databits(uart_stm32_get_databits(dev), uart_stm32_get_parity(dev)) ==
-        UART_CFG_DATA_BITS_9) {
+static int uart_stm32_fifo_read(struct device const* dev, uint8_t* rx_data, int const size) {
+    USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
+    enum uart_config_data_bits data_bits;
+
+    data_bits = uart_stm32_ll2cfg_databits(uart_stm32_get_databits(usart),
+                                           uart_stm32_get_parity(usart));
+    if (data_bits == UART_CFG_DATA_BITS_9) {
         return (-ENOTSUP);
     }
 
-    return uart_stm32_fifo_read_visitor(dev, (void*)rx_data, size,
+    return uart_stm32_fifo_read_visitor(usart, (void*)rx_data, size,
                                         fifo_read_with_u8);
 }
 
@@ -996,13 +982,17 @@ static void fifo_fill_with_u16(USART_TypeDef* usart,
     LL_USART_TransmitData9(usart, data[offset]);
 }
 
-static int uart_stm32_fifo_fill_u16(const struct device* dev, uint16_t const* tx_data, int size) {
-    if (uart_stm32_ll2cfg_databits(uart_stm32_get_databits(dev), uart_stm32_get_parity(dev)) !=
-        UART_CFG_DATA_BITS_9) {
+static int uart_stm32_fifo_fill_u16(struct device const* dev, uint16_t const* tx_data, int size) {
+    USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
+    enum uart_config_data_bits data_bits;
+
+    data_bits = uart_stm32_ll2cfg_databits(uart_stm32_get_databits(usart),
+                                           uart_stm32_get_parity(usart));
+    if (data_bits != UART_CFG_DATA_BITS_9) {
         return (-ENOTSUP);
     }
 
-    return uart_stm32_fifo_fill_visitor(dev, (void const*)tx_data, size,
+    return uart_stm32_fifo_fill_visitor(usart, (void const*)tx_data, size,
                                         fifo_fill_with_u16);
 }
 
@@ -1013,19 +1003,23 @@ static void fifo_read_with_u16(USART_TypeDef const* usart, void* rx_data,
     data[offset] = LL_USART_ReceiveData9(usart);
 }
 
-static int uart_stm32_fifo_read_u16(const struct device* dev, uint16_t* rx_data, int const size) {
-    if (uart_stm32_ll2cfg_databits(uart_stm32_get_databits(dev), uart_stm32_get_parity(dev)) !=
-        UART_CFG_DATA_BITS_9) {
+static int uart_stm32_fifo_read_u16(struct device const* dev, uint16_t* rx_data, int const size) {
+    USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
+    enum uart_config_data_bits data_bits;
+
+    data_bits = uart_stm32_ll2cfg_databits(uart_stm32_get_databits(usart),
+                                           uart_stm32_get_parity(usart));
+    if (data_bits != UART_CFG_DATA_BITS_9) {
         return (-ENOTSUP);
     }
 
-    return uart_stm32_fifo_read_visitor(dev, (void*)rx_data, size,
+    return uart_stm32_fifo_read_visitor(usart, (void*)rx_data, size,
                                         fifo_read_with_u16);
 }
 
 #endif
 
-static void uart_stm32_irq_tx_enable(const struct device* dev) {
+static void uart_stm32_irq_tx_enable(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     #ifdef CONFIG_PM
     struct uart_stm32_data* data = dev->data;
@@ -1045,7 +1039,7 @@ static void uart_stm32_irq_tx_enable(const struct device* dev) {
     #endif
 }
 
-static void uart_stm32_irq_tx_disable(const struct device* dev) {
+static void uart_stm32_irq_tx_disable(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     #ifdef CONFIG_PM
     struct uart_stm32_data* data = dev->data;
@@ -1066,32 +1060,32 @@ static void uart_stm32_irq_tx_disable(const struct device* dev) {
     #endif
 }
 
-static int uart_stm32_irq_tx_ready(const struct device* dev) {
+static int uart_stm32_irq_tx_ready(struct device const* dev) {
     USART_TypeDef const* usart = DEVICE_STM32_GET_USART(dev);
 
     return (ll_usart_is_active_txe(usart) &&
             LL_USART_IsEnabledIT_TC(usart));
 }
 
-static int uart_stm32_irq_tx_complete(const struct device* dev) {
+static int uart_stm32_irq_tx_complete(struct device const* dev) {
     USART_TypeDef const* usart = DEVICE_STM32_GET_USART(dev);
 
     return LL_USART_IsActiveFlag_TC(usart);
 }
 
-static void uart_stm32_irq_rx_enable(const struct device* dev) {
+static void uart_stm32_irq_rx_enable(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
 
     ll_usart_irq_rx_enable(usart);
 }
 
-static void uart_stm32_irq_rx_disable(const struct device* dev) {
+static void uart_stm32_irq_rx_disable(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
 
     ll_usart_irq_rx_disable(usart);
 }
 
-static int uart_stm32_irq_rx_ready(const struct device* dev) {
+static int uart_stm32_irq_rx_ready(struct device const* dev) {
     USART_TypeDef const* usart = DEVICE_STM32_GET_USART(dev);
     /*
      * On stm32 F4X, F1X, and F2X, the RXNE flag is affected (cleared) by
@@ -1100,37 +1094,41 @@ static int uart_stm32_irq_rx_ready(const struct device* dev) {
     return ll_usart_is_active_rxne(usart);
 }
 
-static void uart_stm32_irq_err_enable(const struct device* dev) {
+static void uart_stm32_irq_err_enable(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
 
     /* Enable FE, ORE interruptions */
     LL_USART_EnableIT_ERROR(usart);
+
     #if !defined(CONFIG_SOC_SERIES_STM32F0X) || defined(USART_LIN_SUPPORT)
     /* Enable Line break detection */
     if (IS_UART_LIN_INSTANCE(usart)) {
         LL_USART_EnableIT_LBD(usart);
     }
     #endif
+
     /* Enable parity error interruption */
     LL_USART_EnableIT_PE(usart);
 }
 
-static void uart_stm32_irq_err_disable(const struct device* dev) {
+static void uart_stm32_irq_err_disable(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
 
     /* Disable FE, ORE interruptions */
     LL_USART_DisableIT_ERROR(usart);
+
     #if !defined(CONFIG_SOC_SERIES_STM32F0X) || defined(USART_LIN_SUPPORT)
     /* Disable Line break detection */
     if (IS_UART_LIN_INSTANCE(usart)) {
         LL_USART_DisableIT_LBD(usart);
     }
     #endif
+
     /* Disable parity error interruption */
     LL_USART_DisableIT_PE(usart);
 }
 
-static int uart_stm32_irq_is_pending(const struct device* dev) {
+static int uart_stm32_irq_is_pending(struct device const* dev) {
     USART_TypeDef const* usart = DEVICE_STM32_GET_USART(dev);
 
     return ((ll_usart_is_active_rxne(usart) &&
@@ -1139,7 +1137,7 @@ static int uart_stm32_irq_is_pending(const struct device* dev) {
              LL_USART_IsEnabledIT_TC(usart)));
 }
 
-static void uart_stm32_irq_callback_set(const struct device* dev,
+static void uart_stm32_irq_callback_set(struct device const* dev,
                                         uart_irq_callback_user_data_t cb,
                                         void* cb_data) {
     struct uart_stm32_data* data = dev->data;
@@ -1275,7 +1273,7 @@ static inline void async_timer_start(struct k_work_delayable* work,
     }
 }
 
-static void uart_stm32_dma_rx_flush(const struct device *dev, int status) {
+static void uart_stm32_dma_rx_flush(struct device const* dev, int status) {
     struct dma_status stat;
     struct uart_stm32_data* data = dev->data;
     struct uart_dma_stream* dma_rx = &data->dma_rx;
@@ -1356,7 +1354,7 @@ static void uart_stm32_dma_rx_flush(const struct device *dev, int status) {
      defined(CONFIG_UART_ASYNC_API)        || \
      defined(CONFIG_PM))
 
-static void uart_stm32_isr(const struct device* dev) {
+static void uart_stm32_isr(struct device const* dev) {
     struct uart_stm32_data* data = dev->data;
     #if defined(CONFIG_PM) || defined(CONFIG_UART_ASYNC_API)
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
@@ -1430,7 +1428,8 @@ static void uart_stm32_isr(const struct device* dev) {
         return;
     }
     #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
-    if (LL_USART_IsEnabledIT_IDLE(usart) && LL_USART_IsActiveFlag_IDLE(usart)) {
+    if (LL_USART_IsEnabledIT_IDLE(usart) &&
+        LL_USART_IsActiveFlag_IDLE(usart)) {
 
         LL_USART_ClearFlag_IDLE(usart);
         LOG_DBG("idle interrupt occurred");
@@ -1461,7 +1460,8 @@ static void uart_stm32_isr(const struct device* dev) {
         uart_stm32_pm_policy_state_lock_put_unconditional();
         #endif
     }
-    else if (ll_usart_is_enabled_rxne(usart) && ll_usart_is_active_rxne(usart)) {
+    else if (ll_usart_is_enabled_rxne(usart) &&
+             ll_usart_is_active_rxne(usart)) {
         #ifdef USART_SR_RXNE
         /* clear the RXNE flag, because Rx data was not read */
         LL_USART_ClearFlag_RXNE(usart);
@@ -1471,8 +1471,8 @@ static void uart_stm32_isr(const struct device* dev) {
         #endif /* USART_SR_RXNE */
     #if HAS_RTO
     }
-    else if (LL_USART_IsEnabledIT_RTO(usart) && LL_USART_IsActiveFlag_RTO(usart)) {
-
+    else if (LL_USART_IsEnabledIT_RTO(usart) &&
+             LL_USART_IsActiveFlag_RTO(usart)) {
         LOG_DBG("rx timeout interrupt occurred");
 
         LL_USART_ClearFlag_RTO(usart);
@@ -1489,7 +1489,7 @@ static void uart_stm32_isr(const struct device* dev) {
 
 #ifdef CONFIG_UART_ASYNC_API
 
-static int uart_stm32_async_callback_set(const struct device* dev,
+static int uart_stm32_async_callback_set(struct device const* dev,
                                          uart_callback_t callback,
                                          void* user_data) {
     struct uart_stm32_data* data = dev->data;
@@ -1505,13 +1505,13 @@ static int uart_stm32_async_callback_set(const struct device* dev,
     return (0);
 }
 
-static inline void uart_stm32_dma_tx_enable(const struct device* dev) {
+static inline void uart_stm32_dma_tx_enable(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
 
     LL_USART_EnableDMAReq_TX(usart);
 }
 
-static inline void uart_stm32_dma_tx_disable(const struct device* dev) {
+static inline void uart_stm32_dma_tx_disable(struct device const* dev) {
     #ifdef CONFIG_UART_STM32U5_ERRATA_DMAT_NOCLEAR
     ARG_UNUSED(dev);
 
@@ -1527,7 +1527,7 @@ static inline void uart_stm32_dma_tx_disable(const struct device* dev) {
     #endif
 }
 
-static inline void uart_stm32_dma_rx_enable(const struct device* dev) {
+static inline void uart_stm32_dma_rx_enable(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     struct uart_stm32_data* data = dev->data;
 
@@ -1552,8 +1552,8 @@ static inline void uart_stm32_dma_rx_enable(const struct device* dev) {
     data->dma_rx.enabled = true;
 }
 
-static inline void uart_stm32_dma_rx_disable(const struct device* dev) {
-    const struct uart_stm32_config *config = dev->config;
+static inline void uart_stm32_dma_rx_disable(struct device const* dev) {
+    struct uart_stm32_config const* config = dev->config;
     struct uart_stm32_data* data = dev->data;
 
     LL_USART_DisableDMAReq_RX(config->usart);
@@ -1561,7 +1561,7 @@ static inline void uart_stm32_dma_rx_disable(const struct device* dev) {
     data->dma_rx.enabled = false;
 }
 
-static int uart_stm32_async_rx_disable(const struct device* dev) {
+static int uart_stm32_async_rx_disable(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     struct uart_stm32_data* data = dev->data;
     struct uart_dma_stream* dma_rx = &data->dma_rx;
@@ -1585,6 +1585,9 @@ static int uart_stm32_async_rx_disable(const struct device* dev) {
     LL_USART_DisableIT_IDLE(usart);
     #endif /* HAS_RTO */
 
+    /* Disable error interrupt to prevent spurious ISRs when async RX is disabled */
+    LL_USART_DisableIT_ERROR(usart);
+
     uart_stm32_dma_rx_flush(dev, STM32_ASYNC_STATUS_TIMEOUT);
 
     async_evt_rx_buf_release(data);
@@ -1606,8 +1609,12 @@ static int uart_stm32_async_rx_disable(const struct device* dev) {
     data->rx_next_buffer     = NULL;
     data->rx_next_buffer_len = 0;
 
-    /* When async rx is disabled, enable interruptible instance of uart to function normally */
-    ll_usart_irq_rx_enable(usart);
+    /* Leave the RXNE interrupt disabled. Async RX turned it off when it took
+     * over the receiver, and re-arming interrupt-driven RX is the caller's
+     * responsibility (via uart_irq_rx_enable()), not the async teardown's.
+     * This keeps the receiver quiet for pure async users (no spurious
+     * per-byte ISRs).
+     */
 
     LOG_DBG("rx: disabled");
 
@@ -1636,7 +1643,7 @@ void uart_stm32_dma_tx_cb(const struct device* dma_dev, void* user_data,
     irq_unlock(key);
 }
 
-static void uart_stm32_dma_replace_buffer(const struct device* dev) {
+static void uart_stm32_dma_replace_buffer(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     struct uart_stm32_data* data = dev->data;
     struct uart_dma_stream* dma_rx = &data->dma_rx;
@@ -1711,7 +1718,7 @@ void uart_stm32_dma_rx_cb(const struct device* dma_dev, void* user_data,
     }
 }
 
-static int uart_stm32_async_tx(const struct device* dev,
+static int uart_stm32_async_tx(struct device const* dev,
                                uint8_t const* tx_data, size_t buf_size, int32_t timeout) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     struct uart_stm32_data* data = dev->data;
@@ -1895,7 +1902,7 @@ enable_idle_itr :
     LL_USART_EnableIT_IDLE(usart);
 }
 
-static int uart_stm32_async_rx_enable(const struct device* dev,
+static int uart_stm32_async_rx_enable(struct device const* dev,
                                       uint8_t* rx_buf, size_t buf_size, int32_t timeout) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
     struct uart_stm32_data* data = dev->data;
@@ -1934,7 +1941,8 @@ static int uart_stm32_async_rx_enable(const struct device* dev,
         return (-EINVAL);
     }
 
-    if (dma_start(dma_rx->dma_dev, dma_rx->dma_channel)) {
+    ret = dma_start(dma_rx->dma_dev, dma_rx->dma_channel);
+    if (ret != 0) {
         LOG_ERR("UART ERR: RX DMA start failed!");
         return (-EFAULT);
     }
@@ -1961,7 +1969,7 @@ static int uart_stm32_async_rx_enable(const struct device* dev,
     return (ret);
 }
 
-static int uart_stm32_async_tx_abort(const struct device* dev) {
+static int uart_stm32_async_tx_abort(struct device const* dev) {
     struct uart_stm32_data* data = dev->data;
     struct uart_dma_stream* dma_tx = &data->dma_tx;
     size_t tx_buffer_length = dma_tx->buffer_length;
@@ -1992,7 +2000,7 @@ static void uart_stm32_async_rx_timeout(struct k_work* work) {
                                                      struct uart_dma_stream, timeout_work);
     struct uart_stm32_data const* data = CONTAINER_OF(rx_stream,
                                                       struct uart_stm32_data, dma_rx);
-    const struct device* dev = data->uart_dev;
+    struct device const* dev = data->uart_dev;
 
     LOG_DBG("rx timeout");
 
@@ -2022,14 +2030,14 @@ static void uart_stm32_async_tx_timeout(struct k_work* work) {
                                                      struct uart_dma_stream, timeout_work);
     struct uart_stm32_data const* data = CONTAINER_OF(tx_stream,
                                                       struct uart_stm32_data, dma_tx);
-    const struct device* dev = data->uart_dev;
+    struct device const* dev = data->uart_dev;
 
     uart_stm32_async_tx_abort(dev);
 
     LOG_DBG("tx: async timeout");
 }
 
-static int uart_stm32_async_rx_buf_rsp(const struct device* dev, uint8_t* buf,
+static int uart_stm32_async_rx_buf_rsp(struct device const* dev, uint8_t* buf,
                                        size_t len) {
     struct uart_stm32_data* data = dev->data;
     int ret;
@@ -2060,7 +2068,7 @@ static int uart_stm32_async_rx_buf_rsp(const struct device* dev, uint8_t* buf,
     return (ret);
 }
 
-static int uart_stm32_async_init(const struct device* dev) {
+static int uart_stm32_async_init(struct device const* dev) {
     USART_TypeDef const* usart = DEVICE_STM32_GET_USART(dev);
     struct uart_stm32_data* data = dev->data;
     struct uart_dma_stream* dma_tx = &data->dma_tx;
@@ -2175,17 +2183,17 @@ static int uart_stm32_async_init(const struct device* dev) {
 
 #ifdef CONFIG_UART_WIDE_DATA
 
-static int uart_stm32_async_tx_u16(const struct device* dev, uint16_t const* tx_data,
+static int uart_stm32_async_tx_u16(struct device const* dev, uint16_t const* tx_data,
                                    size_t buf_size, int32_t timeout) {
     return uart_stm32_async_tx(dev, (uint8_t const*)tx_data, (buf_size * 2), timeout);
 }
 
-static int uart_stm32_async_rx_enable_u16(const struct device* dev, uint16_t* buf, size_t len,
+static int uart_stm32_async_rx_enable_u16(struct device const* dev, uint16_t* buf, size_t len,
                                           int32_t timeout) {
     return uart_stm32_async_rx_enable(dev, (uint8_t*)buf, (len * 2), timeout);
 }
 
-static int uart_stm32_async_rx_buf_rsp_u16(const struct device* dev, uint16_t* buf, size_t len) {
+static int uart_stm32_async_rx_buf_rsp_u16(struct device const* dev, uint16_t* buf, size_t len) {
     return uart_stm32_async_rx_buf_rsp(dev, (uint8_t*)buf, len * 2);
 }
 
@@ -2241,7 +2249,7 @@ static DEVICE_API(uart, uart_stm32_driver_api) = {
     #endif /* CONFIG_UART_ASYNC_API */
 };
 
-static int uart_stm32_clocks_enable(const struct device* dev) {
+static int uart_stm32_clocks_enable(struct device const* dev) {
     const struct uart_stm32_config* config = dev->config;
     int err;
 
@@ -2265,7 +2273,7 @@ static int uart_stm32_clocks_enable(const struct device* dev) {
     return (0);
 }
 
-static int uart_stm32_registers_configure(const struct device* dev) {
+static int uart_stm32_registers_configure(struct device const* dev) {
     const struct uart_stm32_config* config = dev->config;
     USART_TypeDef* usart = config->usart;
     struct uart_stm32_data const* data = dev->data;
@@ -2319,7 +2327,7 @@ static int uart_stm32_registers_configure(const struct device* dev) {
             return -EINVAL;
         }
 
-        uart_stm32_set_driver_enable(dev, true);
+        uart_stm32_set_driver_enable(usart, true);
         LL_USART_SetDEAssertionTime(usart, config->de_assert_time);
         LL_USART_SetDEDeassertionTime(usart, config->de_deassert_time);
 
@@ -2398,24 +2406,24 @@ static int uart_stm32_registers_configure(const struct device* dev) {
  *
  * @return 0
  */
-static int uart_stm32_init(const struct device* dev) {
+static int uart_stm32_init(struct device const* dev) {
     const struct uart_stm32_config* config = dev->config;
-    int err;
+    int ret;
 
-    err = uart_stm32_clocks_enable(dev);
-    if (err < 0) {
-        return (err);
+    ret = uart_stm32_clocks_enable(dev);
+    if (ret < 0) {
+        return (ret);
     }
 
     /* Configure dt provided device signals when available */
-    err = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
-    if (err < 0) {
-        return (err);
+    ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
+    if (ret < 0) {
+        return (ret);
     }
 
-    err = uart_stm32_registers_configure(dev);
-    if (err < 0) {
-        return (err);
+    ret = uart_stm32_registers_configure(dev);
+    if (ret < 0) {
+        return (ret);
     }
 
     #if defined(CONFIG_PM) || \
@@ -2432,7 +2440,7 @@ static int uart_stm32_init(const struct device* dev) {
 }
 
 #ifdef CONFIG_PM_DEVICE
-static void uart_stm32_suspend_setup(const struct device* dev) {
+static void uart_stm32_suspend_setup(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
 
     #ifdef USART_ISR_BUSY
@@ -2457,24 +2465,24 @@ static void uart_stm32_suspend_setup(const struct device* dev) {
     LL_USART_ClearFlag_ORE(usart);
 }
 
-static int uart_stm32_pm_action(const struct device* dev,
+static int uart_stm32_pm_action(struct device const* dev,
                                 enum pm_device_action action) {
     const struct uart_stm32_config* config = dev->config;
-    int err;
+    int ret;
 
     switch (action) {
         case PM_DEVICE_ACTION_RESUME:
             /* Set pins to active state */
-            err = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
-            if (err < 0) {
-                return (err);
+            ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
+            if (ret < 0) {
+                return (ret);
             }
 
             /* Enable bus clock */
-            err = clock_control_on(config->clock, (clock_control_subsys_t)&config->pclken[0]);
-            if (err < 0) {
+            ret = clock_control_on(config->clock, (clock_control_subsys_t)&config->pclken[0]);
+            if (ret < 0) {
                 LOG_ERR("Could not enable (LP)UART clock");
-                return (err);
+                return (ret);
             }
 
             if (!LL_USART_IsEnabled(config->usart)) {
@@ -2490,30 +2498,31 @@ static int uart_stm32_pm_action(const struct device* dev,
                  * STOP2 on STM32WLE5 is an example of such low-power mode.
                  */
                 if (IS_ENABLED(CONFIG_PM_S2RAM)) {
-                    err = uart_stm32_init(dev);
+                    ret = uart_stm32_init(dev);
                 }
                 else {
-                    err = uart_stm32_registers_configure(dev);
+                    ret = uart_stm32_registers_configure(dev);
                 }
 
-                if (err < 0) {
-                    return err;
+                if (ret < 0) {
+                    return ret;
                 }
             }
             break;
 
         case PM_DEVICE_ACTION_SUSPEND :
             uart_stm32_suspend_setup(dev);
+
             /* Stop device clock. Note: fixed clocks are not handled yet. */
-            err = clock_control_off(config->clock, (clock_control_subsys_t)&config->pclken[0]);
-            if (err < 0) {
+            ret = clock_control_off(config->clock, (clock_control_subsys_t)&config->pclken[0]);
+            if (ret < 0) {
                 LOG_ERR("Could not disable (LP)UART clock");
-                return (err);
+                return (ret);
             }
 
             /* Move pins to sleep state */
-            err = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_SLEEP);
-            if ((err < 0) && (err != -ENOENT)) {
+            ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_SLEEP);
+            if ((ret < 0) && (ret != -ENOENT)) {
                 /*
                  * If returning -ENOENT, no pins where defined for sleep mode :
                  * Do not output on console (might sleep already) when going to sleep,
@@ -2521,7 +2530,7 @@ static int uart_stm32_pm_action(const struct device* dev,
                  * and don't block PM suspend.
                  * Else return the error.
                  */
-                return (err);
+                return (ret);
             }
             break;
 
@@ -2568,7 +2577,7 @@ static int uart_stm32_pm_action(const struct device* dev,
 
 #if defined(CONFIG_UART_INTERRUPT_DRIVEN) || defined(CONFIG_UART_ASYNC_API) || defined(CONFIG_PM)
 #define STM32_UART_IRQ_HANDLER_DEFINE(index)                    \
-    static void uart_stm32_irq_config_func_##index(const struct device* dev) { \
+    static void uart_stm32_irq_config_func_##index(struct device const* dev) { \
         IRQ_CONNECT(DT_INST_IRQN(index), DT_INST_IRQ(index, priority),  \
                     uart_stm32_isr, DEVICE_DT_INST_GET(index), 0);      \
         irq_enable(DT_INST_IRQN(index));                                \
@@ -2772,7 +2781,7 @@ DT_INST_FOREACH_STATUS_OKAY(STM32_UART_INIT)
     zephyr_gtest_uart_stm32_reg_init(DEVICE_DT_GET(DT_DRV_INST(id)), \
                                      &uart_stm32_data_##id, &uart_stm32_cfg_##id);
 
-static void zephyr_gtest_uart_stm32_reg_init(const struct device* dev,
+static void zephyr_gtest_uart_stm32_reg_init(struct device const* dev,
                                              struct uart_stm32_data* data,
                                              struct uart_stm32_config* cfg) {
     uintptr_t base_addr = (uintptr_t)cfg->usart;
