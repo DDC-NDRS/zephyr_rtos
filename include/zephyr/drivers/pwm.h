@@ -112,7 +112,6 @@ extern "C" {
  *
  * @see @ref PWM_CAPTURE_FLAGS.
  */
-
 typedef uint16_t pwm_flags_t;
 
 /**
@@ -120,7 +119,6 @@ typedef uint16_t pwm_flags_t;
  *
  * @see @ref PWM_EVENT_TYPES.
  */
-
 typedef uint16_t pwm_events_t;
 
 /**
@@ -140,11 +138,14 @@ typedef uint16_t pwm_events_t;
  */
 struct pwm_dt_spec {
     /** PWM device instance. */
-    const struct device* dev;
+    struct device const* dev;
+
     /** Channel number. */
     uint32_t channel;
+
     /** Period in nanoseconds. */
     uint32_t period;
+
     /** Flags. */
     pwm_flags_t flags;
 };
@@ -431,7 +432,7 @@ struct pwm_dt_spec {
  *               descriptions for details).
  * @param user_data User data passed to pwm_configure_capture()
  */
-typedef void (*pwm_capture_callback_handler_t)(const struct device* dev,
+typedef void (*pwm_capture_callback_handler_t)(struct device const* dev,
                                                uint32_t channel,
                                                uint32_t period_cycles,
                                                uint32_t pulse_cycles,
@@ -453,7 +454,7 @@ struct pwm_event_callback;
  * @param events Event mask. See @ref PWM_EVENT_TYPES.
  *
  */
-typedef void (*pwm_event_callback_handler_t)(const struct device* dev,
+typedef void (*pwm_event_callback_handler_t)(struct device const* dev,
                                              struct pwm_event_callback* callback, uint32_t channel,
                                              pwm_events_t events);
 
@@ -492,7 +493,7 @@ struct pwm_event_callback {
  * @brief Callback API to configure PWM pin period and pulse width.
  * See @a pwm_set_cycles() for argument description.
  */
-typedef int (*pwm_set_cycles_t)(const struct device* dev, uint32_t channel,
+typedef int (*pwm_set_cycles_t)(struct device const* dev, uint32_t channel,
                                 uint32_t period_cycles, uint32_t pulse_cycles,
                                 pwm_flags_t flags);
 
@@ -500,7 +501,7 @@ typedef int (*pwm_set_cycles_t)(const struct device* dev, uint32_t channel,
  * @brief Callback API to obtain PWM cycles per second (frequency).
  * See @a pwm_get_cycles_per_sec() for argument description.
  */
-typedef int (*pwm_get_cycles_per_sec_t)(const struct device* dev,
+typedef int (*pwm_get_cycles_per_sec_t)(struct device const* dev,
                                         uint32_t channel, uint64_t* cycles);
 
 #if defined(CONFIG_PWM_CAPTURE) || defined(__DOXYGEN__)
@@ -508,7 +509,7 @@ typedef int (*pwm_get_cycles_per_sec_t)(const struct device* dev,
  * @brief Callback API to configure PWM capture.
  * See @a pwm_configure_capture() for argument description.
  */
-typedef int (*pwm_configure_capture_t)(const struct device* dev,
+typedef int (*pwm_configure_capture_t)(struct device const* dev,
                                        uint32_t channel, pwm_flags_t flags,
                                        pwm_capture_callback_handler_t cb,
                                        void* user_data);
@@ -517,13 +518,13 @@ typedef int (*pwm_configure_capture_t)(const struct device* dev,
  * @brief Callback API to enable PWM capture.
  * See @a pwm_enable_capture() for argument description.
  */
-typedef int (*pwm_enable_capture_t)(const struct device* dev, uint32_t channel);
+typedef int (*pwm_enable_capture_t)(struct device const* dev, uint32_t channel);
 
 /**
  * @brief Callback API to disable PWM capture.
  * See @a pwm_disable_capture() for argument description.
  */
-typedef int (*pwm_disable_capture_t)(const struct device* dev,
+typedef int (*pwm_disable_capture_t)(struct device const* dev,
                                      uint32_t channel);
 #endif /* CONFIG_PWM_CAPTURE */
 
@@ -532,7 +533,7 @@ typedef int (*pwm_disable_capture_t)(const struct device* dev,
  * @brief Callback API to manage event callbacks.
  * See @a pwm_add_event_callback() and @a pwm_remove_event_callback() for argument description.
  */
-typedef int (*pwm_manage_event_callback_t)(const struct device* dev,
+typedef int (*pwm_manage_event_callback_t)(struct device const* dev,
                                            struct pwm_event_callback* callback, bool set);
 #endif /* CONFIG_PWM_EVENT */
 
@@ -612,11 +613,11 @@ __subsystem struct pwm_driver_api {
  * @return 0 on success, negative errno value on failure.
  * @retval -EINVAL Pulse width exceeds period.
  */
-__syscall int pwm_set_cycles(const struct device* dev, uint32_t channel,
+__syscall int pwm_set_cycles(struct device const* dev, uint32_t channel,
                              uint32_t period, uint32_t pulse,
                              pwm_flags_t flags);
 
-static inline int z_impl_pwm_set_cycles(const struct device* dev,
+static inline int z_impl_pwm_set_cycles(struct device const* dev,
                                         uint32_t channel, uint32_t period,
                                         uint32_t pulse, pwm_flags_t flags) {
     if (pulse > period) {
@@ -636,10 +637,10 @@ static inline int z_impl_pwm_set_cycles(const struct device* dev,
  *
  * @return 0 on success, negative errno value on failure.
  */
-__syscall int pwm_get_cycles_per_sec(const struct device* dev, uint32_t channel,
+__syscall int pwm_get_cycles_per_sec(struct device const* dev, uint32_t channel,
                                      uint64_t* cycles);
 
-static inline int z_impl_pwm_get_cycles_per_sec(const struct device* dev,
+static inline int z_impl_pwm_get_cycles_per_sec(struct device const* dev,
                                                 uint32_t channel,
                                                 uint64_t* cycles) {
     return DEVICE_API_GET(pwm, dev)->get_cycles_per_sec(dev, channel, cycles);
@@ -660,30 +661,32 @@ static inline int z_impl_pwm_get_cycles_per_sec(const struct device* dev,
  * @return 0 on success, negative errno value on failure.
  * @retval -ENOTSUP Requested period or pulse cycles are not supported.
  */
-static inline int pwm_set(const struct device* dev, uint32_t channel,
+static inline int pwm_set(struct device const* dev, uint32_t channel,
                           uint32_t period, uint32_t pulse, pwm_flags_t flags) {
-    int      err;
+    int ret;
     uint64_t pulse_cycles;
     uint64_t period_cycles;
     uint64_t cycles_per_sec;
 
-    err = pwm_get_cycles_per_sec(dev, channel, &cycles_per_sec);
-    if (err < 0) {
-        return (err);
+    ret = pwm_get_cycles_per_sec(dev, channel, &cycles_per_sec);
+    if (ret < 0) {
+        return (ret);
     }
 
-    period_cycles = (period * cycles_per_sec) / NSEC_PER_SEC;
+    period_cycles = ((period * cycles_per_sec) / NSEC_PER_SEC);
     if (period_cycles > UINT32_MAX) {
         return (-ENOTSUP);
     }
 
-    pulse_cycles = (pulse * cycles_per_sec) / NSEC_PER_SEC;
+    pulse_cycles = ((pulse * cycles_per_sec) / NSEC_PER_SEC);
     if (pulse_cycles > UINT32_MAX) {
         return (-ENOTSUP);
     }
 
-    return (pwm_set_cycles(dev, channel, (uint32_t)period_cycles,
-                           (uint32_t)pulse_cycles, flags));
+    ret = pwm_set_cycles(dev, channel, (uint32_t)period_cycles,
+                         (uint32_t)pulse_cycles, flags);
+
+    return (ret);
 }
 
 /**
@@ -742,22 +745,22 @@ static inline int pwm_set_pulse_dt(const struct pwm_dt_spec* spec,
  * @return 0 on success, negative errno value on failure.
  * @retval -ERANGE Result is too large.
  */
-static inline int pwm_cycles_to_usec(const struct device* dev, uint32_t channel,
+static inline int pwm_cycles_to_usec(struct device const* dev, uint32_t channel,
                                      uint32_t cycles, uint64_t* usec) {
     uint64_t temp;
     uint64_t cycles_per_sec;
-    int err;
+    int ret;
 
-    err = pwm_get_cycles_per_sec(dev, channel, &cycles_per_sec);
-    if (err < 0) {
-        return (err);
+    ret = pwm_get_cycles_per_sec(dev, channel, &cycles_per_sec);
+    if (ret < 0) {
+        return (ret);
     }
 
     if (u64_mul_overflow(cycles, (uint64_t)USEC_PER_SEC, &temp)) {
         return (-ERANGE);
     }
 
-    *usec = temp / cycles_per_sec;
+    *usec = (temp / cycles_per_sec);
 
     return (0);
 }
@@ -773,22 +776,22 @@ static inline int pwm_cycles_to_usec(const struct device* dev, uint32_t channel,
  * @return 0 on success, negative errno value on failure.
  * @retval -ERANGE Result is too large.
  */
-static inline int pwm_cycles_to_nsec(const struct device* dev, uint32_t channel,
+static inline int pwm_cycles_to_nsec(struct device const* dev, uint32_t channel,
                                      uint32_t cycles, uint64_t* nsec) {
     uint64_t temp;
     uint64_t cycles_per_sec;
-    int err;
+    int ret;
 
-    err = pwm_get_cycles_per_sec(dev, channel, &cycles_per_sec);
-    if (err < 0) {
-        return (err);
+    ret = pwm_get_cycles_per_sec(dev, channel, &cycles_per_sec);
+    if (ret < 0) {
+        return (ret);
     }
 
     if (u64_mul_overflow(cycles, (uint64_t)NSEC_PER_SEC, &temp)) {
         return (-ERANGE);
     }
 
-    *nsec = temp / cycles_per_sec;
+    *nsec = (temp / cycles_per_sec);
 
     return (0);
 }
@@ -822,7 +825,7 @@ static inline int pwm_cycles_to_nsec(const struct device* dev, uint32_t channel,
  * @retval -EIO IO error occurred while configuring.
  * @retval -EBUSY PWM capture is already in progress.
  */
-static inline int pwm_configure_capture(const struct device* dev,
+static inline int pwm_configure_capture(struct device const* dev,
                                         uint32_t channel, pwm_flags_t flags,
                                         pwm_capture_callback_handler_t cb,
                                         void* user_data) {
@@ -854,10 +857,10 @@ static inline int pwm_configure_capture(const struct device* dev,
  * @retval -EIO IO error occurred while enabling PWM capture.
  * @retval -EBUSY PWM capture is already in progress.
  */
-__syscall int pwm_enable_capture(const struct device* dev, uint32_t channel);
+__syscall int pwm_enable_capture(struct device const* dev, uint32_t channel);
 
 #ifdef CONFIG_PWM_CAPTURE
-static inline int z_impl_pwm_enable_capture(const struct device* dev,
+static inline int z_impl_pwm_enable_capture(struct device const* dev,
                                             uint32_t channel) {
     const struct pwm_driver_api* api = DEVICE_API_GET(pwm, dev);
 
@@ -882,10 +885,10 @@ static inline int z_impl_pwm_enable_capture(const struct device* dev,
  * @retval -ENOSYS PWM capture is not supported.
  * @retval -EIO IO error occurred while disabling PWM capture.
  */
-__syscall int pwm_disable_capture(const struct device* dev, uint32_t channel);
+__syscall int pwm_disable_capture(struct device const* dev, uint32_t channel);
 
 #ifdef CONFIG_PWM_CAPTURE
-static inline int z_impl_pwm_disable_capture(const struct device* dev,
+static inline int z_impl_pwm_disable_capture(struct device const* dev,
                                              uint32_t channel) {
     const struct pwm_driver_api* api = DEVICE_API_GET(pwm, dev);
 
@@ -923,7 +926,7 @@ static inline int z_impl_pwm_disable_capture(const struct device* dev,
  * @retval -EIO IO error while capturing.
  * @retval -ERANGE Result is too large.
  */
-__syscall int pwm_capture_cycles(const struct device* dev, uint32_t channel,
+__syscall int pwm_capture_cycles(struct device const* dev, uint32_t channel,
                                  pwm_flags_t flags, uint32_t* period,
                                  uint32_t* pulse, k_timeout_t timeout);
 
@@ -953,27 +956,27 @@ __syscall int pwm_capture_cycles(const struct device* dev, uint32_t channel,
  * @retval -EIO IO error while capturing.
  * @retval -ERANGE Result is too large.
  */
-static inline int pwm_capture_usec(const struct device* dev, uint32_t channel,
+static inline int pwm_capture_usec(struct device const* dev, uint32_t channel,
                                    pwm_flags_t flags, uint64_t* period,
                                    uint64_t* pulse, k_timeout_t timeout) {
     uint32_t pulse_cycles;
     uint32_t period_cycles;
-    int err;
+    int ret;
 
-    err = pwm_capture_cycles(dev, channel, flags, &period_cycles,
+    ret = pwm_capture_cycles(dev, channel, flags, &period_cycles,
                              &pulse_cycles, timeout);
-    if (err < 0) {
-        return (err);
+    if (ret < 0) {
+        return (ret);
     }
 
-    err = pwm_cycles_to_usec(dev, channel, period_cycles, period);
-    if (err < 0) {
-        return (err);
+    ret = pwm_cycles_to_usec(dev, channel, period_cycles, period);
+    if (ret < 0) {
+        return (ret);
     }
 
-    err = pwm_cycles_to_usec(dev, channel, pulse_cycles, pulse);
-    if (err < 0) {
-        return (err);
+    ret = pwm_cycles_to_usec(dev, channel, pulse_cycles, pulse);
+    if (ret < 0) {
+        return (ret);
     }
 
     return (0);
@@ -1005,27 +1008,27 @@ static inline int pwm_capture_usec(const struct device* dev, uint32_t channel,
  * @retval -EIO IO error while capturing.
  * @retval -ERANGE Result is too large.
  */
-static inline int pwm_capture_nsec(const struct device* dev, uint32_t channel,
+static inline int pwm_capture_nsec(struct device const* dev, uint32_t channel,
                                    pwm_flags_t flags, uint64_t* period,
                                    uint64_t* pulse, k_timeout_t timeout) {
     uint32_t pulse_cycles;
     uint32_t period_cycles;
-    int err;
+    int ret;
 
-    err = pwm_capture_cycles(dev, channel, flags, &period_cycles,
+    ret = pwm_capture_cycles(dev, channel, flags, &period_cycles,
                              &pulse_cycles, timeout);
-    if (err < 0) {
-        return (err);
+    if (ret < 0) {
+        return (ret);
     }
 
-    err = pwm_cycles_to_nsec(dev, channel, period_cycles, period);
-    if (err < 0) {
-        return (err);
+    ret = pwm_cycles_to_nsec(dev, channel, period_cycles, period);
+    if (ret < 0) {
+        return (ret);
     }
 
-    err = pwm_cycles_to_nsec(dev, channel, pulse_cycles, pulse);
-    if (err < 0) {
-        return (err);
+    ret = pwm_cycles_to_nsec(dev, channel, pulse_cycles, pulse);
+    if (ret < 0) {
+        return (ret);
     }
 
     return (0);
@@ -1066,7 +1069,7 @@ static inline void pwm_init_event_callback(struct pwm_event_callback* callback,
  * @return 0 on success, negative errno value on failure.
  * @retval -ENOSYS Driver does not manage event callbacks.
  */
-static inline int pwm_add_event_callback(const struct device* dev,
+static inline int pwm_add_event_callback(struct device const* dev,
                                          struct pwm_event_callback* callback) {
     const struct pwm_driver_api* api = DEVICE_API_GET(pwm, dev);
 
@@ -1088,7 +1091,7 @@ static inline int pwm_add_event_callback(const struct device* dev,
  * @return 0 on success, negative errno value on failure.
  * @retval -ENOSYS Driver does not manage event callbacks.
  */
-static inline int pwm_remove_event_callback(const struct device* dev,
+static inline int pwm_remove_event_callback(struct device const* dev,
                                             struct pwm_event_callback* callback) {
     const struct pwm_driver_api* api = DEVICE_API_GET(pwm, dev);
 
