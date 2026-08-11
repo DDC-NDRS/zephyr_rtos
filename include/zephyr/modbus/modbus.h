@@ -21,6 +21,12 @@
  */
 
 /**
+ * @file
+ * @brief Header file for the MODBUS transport protocol API.
+ * @ingroup modbus
+ */
+
+/**
  * @brief MODBUS transport protocol API
  * @defgroup modbus MODBUS
  * @ingroup connectivity
@@ -508,8 +514,14 @@ struct modbus_server_param {
     uint8_t unit_id;
 };
 
+/**
+ * @brief Raw ADU callback parameter
+ */
 struct modbus_raw_cb {
+    /** Callback function used to send a raw ADU */
     modbus_raw_cb_t raw_tx_cb;
+
+    /** Pointer to the user data passed to the callback function */
     void* user_data;
 };
 
@@ -521,7 +533,9 @@ struct modbus_iface_param {
     /** Mode of the interface */
     enum modbus_mode mode;
 
+    /** Role specific parameter of the interface */
     union {
+        /** Server parameter of the interface */
         struct modbus_server_param server;
 
         /** Amount of time client will wait for
@@ -530,6 +544,7 @@ struct modbus_iface_param {
         uint32_t rx_timeout;
     };
 
+    /** Transport specific parameter of the interface */
     union {
         /** Serial support parameter of the interface */
         struct modbus_serial_param serial;

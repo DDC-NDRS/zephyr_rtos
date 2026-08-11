@@ -156,6 +156,9 @@ Boards
   used by the other NXP board options and by frdm_imxrt1186. Configurations setting
   ``CONFIG_NXP_BOARD_SPECIFIC_MPU_SETTINGS`` must be updated to the new name.
 
+* Boards must now select :kconfig:option:`CONFIG_TFM_PARTITION_FIRMWARE_UPDATE_SUPPORTED` if they
+  support firmware update via TF-M.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -453,6 +456,10 @@ HWSPINLOCK
 
 I2C
 ===
+
+* On controller based on :kconfig:option:`CONFIG_I2C_DW` the
+  ``CONFIG_I2C_DW_RW_TIMEOUT_MS`` option has been replaced with
+  :kconfig:option:`CONFIG_I2C_TRANSFER_TIMEOUT_MS`, with a default of 500ms.
 
 * The ITE I2C controllers :dtcompatible:`ite,enhance-i2c`
   :dtcompatible:`ite,it51xxx-i2c` :dtcompatible:`ite,it8xxx2-i2c` transfer
@@ -932,6 +939,11 @@ Bluetooth Audio
     called are unchanged, so applications only need to do a search-and-replace from ``configured``
     to ``codec_configured`` and from ``qos_set`` to ``qos_configured`` where the callbacks are
     assigned. (:github:`114835`)
+
+  * :c:func:`bt_bap_scan_delegator_mod_src` no longer treats ``metadata_len = 0`` as "keep existing"
+    and will now set the metadata length to 0 for the subgroup. To keep existing data, the
+    ``metadata_len`` field needs to be set to the existing length and the existing metadata
+    shall be copied.
 
 * CAP
 

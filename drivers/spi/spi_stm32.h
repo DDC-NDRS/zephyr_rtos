@@ -43,7 +43,7 @@ struct spi_stm32_config {
     bool soft_nss: 1;
 
     /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_subghz) */
-    bool use_subghzspi_nss: 1;
+    bool is_subghzspi: 1;
 };
 
 #ifdef CONFIG_SPI_STM32_DMA

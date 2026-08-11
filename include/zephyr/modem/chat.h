@@ -31,6 +31,16 @@ extern "C" {
 struct modem_chat;
 
 /**
+ * @brief Callback called to determine if a chat command should be run
+ *
+ * @param user_data Free to use user data set during modem_chat_init()
+ *
+ * @retval true Chat command should be run
+ * @retval false Chat command should be skipped
+ */
+typedef bool (*modem_chat_run_check)(void* user_data);
+
+/**
  * @brief Callback called when matching chat is received
  *
  * @param chat Pointer to chat instance instance
@@ -136,8 +146,19 @@ struct modem_chat_script_chat {
 
     /** Timeout before chat script may continue to next step in milliseconds */
     uint16_t timeout;
+
+    #if defined(CONFIG_MODEM_CHAT_COMMANDS_CONDITIONAL) || defined(__DOXYGEN__)
+    /** Callback that returns whether @a request should be run or skipped */
+    modem_chat_run_check run_check;
+    #endif
 };
 
+/**
+ * @brief Command that expects a single response
+ *
+ * @param _request Command string to send
+ * @param _response_match Expected response, as created by @ref MODEM_CHAT_MATCH or variant
+ */
 #define MODEM_CHAT_SCRIPT_CMD_RESP(_request, _response_match)           \
     {                                                                   \
         .request = (uint8_t*)(_request),                                \
@@ -147,6 +168,12 @@ struct modem_chat_script_chat {
         .timeout = 0                                                    \
     }
 
+/**
+ * @brief Command that can handle multiple responses
+ *
+ * @param _request Command string to send
+ * @param _response_matches Accepted responses, as created by @ref MODEM_CHAT_MATCHES_DEFINE
+ */
 #define MODEM_CHAT_SCRIPT_CMD_RESP_MULT(_request, _response_matches)    \
     {                                                                   \
         .request = (uint8_t*)(_request),                                \
@@ -156,6 +183,12 @@ struct modem_chat_script_chat {
         .timeout = 0                                                    \
     }
 
+/**
+ * @brief Command that does not expect any response
+ *
+ * @param _request Command string to send
+ * @param _timeout_ms Duration to wait in milliseconds before continuing the script
+ */
 #define MODEM_CHAT_SCRIPT_CMD_RESP_NONE(_request, _timeout_ms)          \
     {                                                                   \
         .request = (uint8_t*)(_request),                                \
@@ -165,6 +198,63 @@ struct modem_chat_script_chat {
         .timeout = (_timeout_ms)                                        \
     }
 
+/**
+ * @brief Command that expects a single response, conditionally run
+ *
+ * @param _request Command string to send
+ * @param _response_match Expected response, as created by @ref MODEM_CHAT_MATCH or variant
+ * @param _run_check Callback that controls whether the command is run or not
+ */
+#define MODEM_CHAT_SCRIPT_CMD_RESP_COND(_request, _response_match, _run_check) \
+    {                                                                   \
+        .request = (uint8_t*)(_request),                                \
+        .request_size = (uint16_t)(sizeof(_request) - 1),               \
+        .response_matches = &_response_match,                           \
+        .response_matches_size = 1,                                     \
+        .timeout = 0,                                                   \
+        .run_check = _run_check                                         \
+    }
+
+/**
+ * @brief Command that can handle multiple responses, conditionally run
+ *
+ * @param _request Command string to send
+ * @param _response_matches Accepted responses, as created by @ref MODEM_CHAT_MATCHES_DEFINE
+ * @param _run_check Callback that controls whether the command is run or not
+ */
+#define MODEM_CHAT_SCRIPT_CMD_RESP_MULT_COND(_request, _response_matches, _run_check) \
+    {                                                                   \
+        .request = (uint8_t*)(_request),                                \
+        .request_size = (uint16_t)(sizeof(_request) - 1),               \
+        .response_matches = _response_matches,                          \
+        .response_matches_size = ARRAY_SIZE(_response_matches),         \
+        .timeout = 0,                                                   \
+        .run_check = _run_check                                         \
+    }
+
+/**
+ * @brief Command that does not expect any response, conditionally run
+ *
+ * @param _request Command string to send
+ * @param _timeout_ms Duration to wait in milliseconds before continuing the script
+ * @param _run_check Callback that controls whether the command is run or not
+ */
+#define MODEM_CHAT_SCRIPT_CMD_RESP_NONE_COND(_request, _timeout_ms, _run_check) \
+    {                                                                   \
+        .request = (uint8_t*)(_request),                                \
+        .request_size = (uint16_t)(sizeof(_request) - 1),               \
+        .response_matches = NULL,                                       \
+        .response_matches_size = 0,                                     \
+        .timeout = _timeout_ms,                                         \
+        .run_check = _run_check                                         \
+    }
+
+/**
+ * @brief Define a static const @ref modem_chat_script_chat array
+ *
+ * @param _sym Name of the created array
+ * @param ... Arbitrary number of @ref MODEM_CHAT_SCRIPT_CMD_RESP and variant macros
+ */
 #define MODEM_CHAT_SCRIPT_CMDS_DEFINE(_sym, ...)                \
     const static struct modem_chat_script_chat _sym[] = {__VA_ARGS__}
 
@@ -381,7 +471,7 @@ struct modem_chat_config {
  */
 static inline uint16_t modem_chat_callback_script_chat_index(const struct modem_chat *chat)
 {
-	return chat->script_chat_it;
+    return chat->script_chat_it;
 }
 
 /**
@@ -409,13 +499,13 @@ static inline uint16_t modem_chat_callback_script_chat_index(const struct modem_
 static inline const struct modem_chat_script_chat *
 modem_chat_callback_script_chat(const struct modem_chat *chat)
 {
-	const struct modem_chat_script *script = chat->script;
+    const struct modem_chat_script *script = chat->script;
 
-	if ((script == NULL) || (chat->script_chat_it >= script->script_chats_size)) {
-		return NULL;
-	}
+    if ((script == NULL) || (chat->script_chat_it >= script->script_chats_size)) {
+        return NULL;
+    }
 
-	return &script->script_chats[chat->script_chat_it];
+    return &script->script_chats[chat->script_chat_it];
 }
 
 /**
