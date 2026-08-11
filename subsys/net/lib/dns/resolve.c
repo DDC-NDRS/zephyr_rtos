@@ -704,14 +704,15 @@ static bool is_server_name_found(struct dns_resolve_context *ctx,
 				 const char *iface_str)
 {
 	ARRAY_FOR_EACH(ctx->servers, i) {
-		if (ctx->servers[i].u.dns_server_addr.ss_family == NET_AF_INET ||
-		    ctx->servers[i].u.dns_server_addr.ss_family == NET_AF_INET6) {
+		struct net_sockaddr_storage *addr_storage = &ctx->servers[i].u.dns_server_addr;
+
+		if (addr_storage->ss_family == NET_AF_INET ||
+		    addr_storage->ss_family == NET_AF_INET6) {
 			char addr_str[NET_INET6_ADDRSTRLEN];
 			size_t addr_len;
 
-			if (net_addr_ntop(ctx->servers[i].u.dns_server_addr.ss_family,
-					  &net_sin(net_sad(&ctx->servers[i].u.dns_server_addr))
-											->sin_addr,
+			if (net_addr_ntop(addr_storage->ss_family,
+					  &net_sin(net_sad(addr_storage))->sin_addr,
 					  addr_str, sizeof(addr_str)) == NULL) {
 				continue;
 			}
@@ -746,9 +747,11 @@ static int idx_of_server_addr(struct dns_resolve_context *ctx,
 			      int if_index)
 {
 	ARRAY_FOR_EACH(ctx->servers, i) {
-		if (ctx->servers[i].u.dns_server_addr.ss_family == addr->sa_family &&
-		    memcmp(&ctx->servers[i].u.dns_server_addr, addr,
-			   ctx->servers[i].u.dns_server_addr.ss_family == NET_AF_INET6 ?
+		struct net_sockaddr_storage *addr_storage = &ctx->servers[i].u.dns_server_addr;
+
+		if (addr_storage->ss_family == addr->sa_family &&
+		    memcmp(addr_storage, addr,
+			   addr_storage->ss_family == NET_AF_INET6 ?
 			   sizeof(struct net_sockaddr_in6) :
 			   sizeof(struct net_sockaddr_in)) == 0) {
 			if (if_index == 0 ||
@@ -1006,8 +1009,9 @@ static int dns_resolve_init_locked(struct dns_resolve_context *ctx,
 
 	for (i = 0, count = 0;
 	     i < SERVER_COUNT && ctx->servers[i].u.dns_server_addr.ss_family != 0; i++) {
+		struct net_sockaddr_storage *addr_storage = &ctx->servers[i].u.dns_server_addr;
 
-		if (ctx->servers[i].u.dns_server_addr.ss_family == NET_AF_INET6) {
+		if (addr_storage->ss_family == NET_AF_INET6) {
 #if defined(CONFIG_NET_IPV6)
 			local_addr = (struct net_sockaddr *)&local_addr6;
 			addr_len = sizeof(struct net_sockaddr_in6);
@@ -1021,7 +1025,7 @@ static int dns_resolve_init_locked(struct dns_resolve_context *ctx,
 #endif
 		}
 
-		if (ctx->servers[i].u.dns_server_addr.ss_family == NET_AF_INET) {
+		if (addr_storage->ss_family == NET_AF_INET) {
 #if defined(CONFIG_NET_IPV4)
 			local_addr = (struct net_sockaddr *)&local_addr4;
 			addr_len = sizeof(struct net_sockaddr_in);
@@ -1045,14 +1049,13 @@ static int dns_resolve_init_locked(struct dns_resolve_context *ctx,
 			/* Socket already exists, so skip it */
 			NET_DBG("Socket %d already exists for %s",
 				ctx->servers[i].sock,
-				net_sprint_addr(ctx->servers[i].u.dns_server_addr.ss_family,
-						&net_sin(net_sad(&ctx->servers[i].u.dns_server_addr))
-										      ->sin_addr));
+				net_sprint_addr(addr_storage->ss_family,
+						&net_sin(net_sad(addr_storage))->sin_addr));
 			count++;
 			continue;
 		}
 
-		ret = zsock_socket(ctx->servers[i].u.dns_server_addr.ss_family,
+		ret = zsock_socket(addr_storage->ss_family,
 				   NET_SOCK_DGRAM, NET_IPPROTO_UDP);
 		if (ret < 0) {
 			ret = -errno;
@@ -1065,42 +1068,40 @@ static int dns_resolve_init_locked(struct dns_resolve_context *ctx,
 		/* Try to bind to the interface if it is set */
 		if (ctx->servers[i].if_index > 0) {
 			ret = bind_to_iface(ctx->servers[i].sock,
-					    net_sad(&ctx->servers[i].u.dns_server_addr),
+					    net_sad(addr_storage),
 					    ctx->servers[i].if_index);
 			if (ret < 0) {
 				zsock_close(ctx->servers[i].sock);
 				ctx->servers[i].sock = -1;
-				ctx->servers[i].u.dns_server_addr.ss_family = 0;
+				addr_storage->ss_family = 0;
 				continue;
 			}
 
 			iface = net_if_get_by_index(ctx->servers[i].if_index);
 			NET_DBG("Binding %s to %d",
-				net_sprint_addr(ctx->servers[i].u.dns_server_addr.ss_family,
-						&net_sin(net_sad(&ctx->servers[i].u.dns_server_addr))
-										       ->sin_addr),
+				net_sprint_addr(addr_storage->ss_family,
+						&net_sin(net_sad(addr_storage))->sin_addr),
 				ctx->servers[i].if_index);
 		} else {
 			iface = NULL;
 		}
 
-		if (ctx->servers[i].u.dns_server_addr.ss_family == NET_AF_INET6) {
+		if (addr_storage->ss_family == NET_AF_INET6) {
 			if (iface == NULL) {
 				iface = net_if_ipv6_select_src_iface(
-					&net_sin6(net_sad(&ctx->servers[i].u.dns_server_addr))
-										->sin6_addr);
+					&net_sin6(net_sad(addr_storage))->sin6_addr);
 			}
 
 			addr6 = net_if_ipv6_select_src_addr(iface,
-				&net_sin6(net_sad(&ctx->servers[i].u.dns_server_addr))->sin6_addr);
+				&net_sin6(net_sad(addr_storage))->sin6_addr);
 		} else {
 			if (iface == NULL) {
 				iface = net_if_ipv4_select_src_iface(
-				    &net_sin(net_sad(&ctx->servers[i].u.dns_server_addr))->sin_addr);
+				    &net_sin(net_sad(addr_storage))->sin_addr);
 			}
 
 			addr4 = net_if_ipv4_select_src_addr(iface,
-				&net_sin(net_sad(&ctx->servers[i].u.dns_server_addr))->sin_addr);
+				&net_sin(net_sad(addr_storage))->sin_addr);
 		}
 
 		ARRAY_FOR_EACH(ctx->fds, j) {
@@ -1122,7 +1123,7 @@ static int dns_resolve_init_locked(struct dns_resolve_context *ctx,
 			NET_DBG("Cannot set %s to socket (%d)", "polling", ret);
 			zsock_close(ctx->servers[i].sock);
 			ctx->servers[i].sock = -1;
-			ctx->servers[i].u.dns_server_addr.ss_family = 0;
+			addr_storage->ss_family = 0;
 			continue;
 		}
 
@@ -1153,8 +1154,8 @@ static int dns_resolve_init_locked(struct dns_resolve_context *ctx,
 		if (IS_ENABLED(CONFIG_NET_MGMT_EVENT_INFO)) {
 			net_mgmt_event_notify_with_info(
 				NET_EVENT_DNS_SERVER_ADD,
-				iface, (void *)&ctx->servers[i].u.dns_server_addr,
-				sizeof(ctx->servers[i].u.dns_server_addr));
+				iface, (void *)addr_storage,
+				sizeof(*addr_storage));
 		} else {
 			net_mgmt_event_notify(NET_EVENT_DNS_SERVER_ADD, iface);
 		}
@@ -2711,22 +2712,23 @@ static int dns_server_close(struct dns_resolve_context *ctx,
 		}
 	}
 
-	(void)dns_dispatcher_unregister(&ctx->servers[server_idx].dispatcher);
+	(void) dns_dispatcher_unregister(&ctx->servers[server_idx].dispatcher);
 
-	if (ctx->servers[server_idx].u.dns_server_addr.ss_family == NET_AF_INET6) {
+	struct net_sockaddr_storage *addr_storage = &ctx->servers[server_idx].u.dns_server_addr;
+	if (addr_storage->ss_family == NET_AF_INET6) {
 		iface = net_if_ipv6_select_src_iface(
-			&net_sin6(net_sad(&ctx->servers[server_idx].u.dns_server_addr))->sin6_addr);
+			&net_sin6(net_sad(addr_storage))->sin6_addr);
 	} else {
 		iface = net_if_ipv4_select_src_iface(
-			&net_sin(net_sad(&ctx->servers[server_idx].u.dns_server_addr))->sin_addr);
+			&net_sin(net_sad(addr_storage))->sin_addr);
 	}
 
 	if (IS_ENABLED(CONFIG_NET_MGMT_EVENT_INFO)) {
 		net_mgmt_event_notify_with_info(
 			NET_EVENT_DNS_SERVER_DEL,
 			iface,
-			(void *)&ctx->servers[server_idx].u.dns_server_addr,
-			sizeof(ctx->servers[server_idx].u.dns_server_addr));
+			(void *)addr_storage,
+			sizeof(*addr_storage));
 	} else {
 		net_mgmt_event_notify(NET_EVENT_DNS_SERVER_DEL, iface);
 	}
@@ -2794,20 +2796,20 @@ static bool dns_server_exists(struct dns_resolve_context *ctx,
 			      const struct net_sockaddr *addr)
 {
 	for (int i = 0; i < SERVER_COUNT; i++) {
+		struct net_sockaddr_storage *addr_storage = &ctx->servers[i].u.dns_server_addr;
+
 		if (IS_ENABLED(CONFIG_NET_IPV4) && (addr->sa_family == NET_AF_INET) &&
-		    (ctx->servers[i].u.dns_server_addr.ss_family == NET_AF_INET)) {
+		    (addr_storage->ss_family == NET_AF_INET)) {
 			if (net_ipv4_addr_cmp(&net_sin(addr)->sin_addr,
-					      &net_sin(net_sad(&ctx->servers[i].u.dns_server_addr))
-										->sin_addr)) {
+					      &net_sin(net_sad(addr_storage))->sin_addr)) {
 				return true;
 			}
 		}
 
 		if (IS_ENABLED(CONFIG_NET_IPV6) && (addr->sa_family == NET_AF_INET6) &&
-		    (ctx->servers[i].u.dns_server_addr.ss_family == NET_AF_INET6)) {
+		    (addr_storage->ss_family == NET_AF_INET6)) {
 			if (net_ipv6_addr_cmp(&net_sin6(addr)->sin6_addr,
-					      &net_sin6(net_sad(&ctx->servers[i].u.dns_server_addr))
-										->sin6_addr)) {
+					      &net_sin6(net_sad(addr_storage))->sin6_addr)) {
 				return true;
 			}
 		}

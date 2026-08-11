@@ -524,7 +524,7 @@ struct dns_resolve_context {
 	/** List of configured DNS servers */
 	struct dns_server {
 		/** DNS server address storage */
-		union {
+		union dns_server_address {
 			/** DNS server information */
 			struct net_sockaddr_storage dns_server_addr;
 /** @cond INTERNAL_HIDDEN */
