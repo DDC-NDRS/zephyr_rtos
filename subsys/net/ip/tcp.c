@@ -2594,7 +2594,8 @@ static struct tcp* tcp_conn_new(struct net_pkt* pkt) {
     struct tcp* conn = NULL;
     struct net_context* context = NULL;
     net_sa_family_t af = net_pkt_family(pkt);
-    struct net_sockaddr local_addr = {0};
+    struct net_sockaddr_storage local_addr_storage = {0};
+    struct net_sockaddr* local_addr = net_sad(&local_addr_storage);
     int ret;
 
     ret = net_context_get(af, NET_SOCK_STREAM, NET_IPPROTO_TCP, &context);
@@ -2632,20 +2633,23 @@ static struct tcp* tcp_conn_new(struct net_pkt* pkt) {
 
     net_sin(&context->local)->sin_family = af;
 
-    local_addr.sa_family = net_context_get_family(context);
+    local_addr->sa_family = net_context_get_family(context);
 
     if (IS_ENABLED(CONFIG_NET_IPV6) &&
         (net_context_get_family(context) == NET_AF_INET6)) {
-        net_ipaddr_copy(&net_sin6(&local_addr)->sin6_addr,
+        net_ipaddr_copy(&net_sin6(local_addr)->sin6_addr,
                         &conn->src.sin6.sin6_addr);
     }
     else if (IS_ENABLED(CONFIG_NET_IPV4) &&
              (net_context_get_family(context) == NET_AF_INET)) {
-        net_ipaddr_copy(&net_sin(&local_addr)->sin_addr,
+        net_ipaddr_copy(&net_sin(local_addr)->sin_addr,
                         &conn->src.sin.sin_addr);
     }
 
-    ret = net_context_bind(context, &local_addr, sizeof(local_addr));
+    ret = net_context_bind(context, local_addr,
+                           (local_addr->sa_family == NET_AF_INET6) ?
+                           sizeof(struct net_sockaddr_in6) :
+                           sizeof(struct net_sockaddr_in));
     if (ret < 0) {
         NET_DBG("[%p] Cannot bind accepted context, connection reset", conn);
         net_context_put(context);
@@ -2676,19 +2680,19 @@ static struct tcp* tcp_conn_new(struct net_pkt* pkt) {
 
     if (!(IS_ENABLED(CONFIG_NET_TEST_PROTOCOL) ||
           IS_ENABLED(CONFIG_NET_TEST))) {
-        conn->seq = tcp_init_isn(&local_addr, &context->remote);
+        conn->seq = tcp_init_isn(local_addr, &context->remote);
     }
 
     conn->isn = conn->seq;
 
     NET_DBG("[%p] local: %s, remote: %s", conn,
-            net_sprint_addr(local_addr.sa_family,
-                            (void const*)&net_sin(&local_addr)->sin_addr),
+            net_sprint_addr(local_addr->sa_family,
+                            (void const*)&net_sin(local_addr)->sin_addr),
             net_sprint_addr(context->remote.sa_family,
                             (void const*)&net_sin(&context->remote)->sin_addr));
 
     ret = net_conn_register(NET_IPPROTO_TCP, NET_SOCK_STREAM, (uint8_t)af,
-                            &context->remote, &local_addr,
+                            &context->remote, local_addr,
                             net_ntohs(conn->dst.sin.sin_port), /* local port */
                             net_ntohs(conn->src.sin.sin_port), /* remote port */
                             context, tcp_recv, context,
@@ -4322,11 +4326,8 @@ out :
 int net_tcp_accept(struct net_context* context, net_tcp_accept_cb_t cb,
                    void* user_data) {
     struct tcp* conn = context->tcp;
-    #if defined(_MSC_VER) /* #CUSTOM@NDRS */
-    struct net_sockaddr local_addr = {0};
-    #else
-    struct net_sockaddr local_addr = {};
-    #endif
+    struct net_sockaddr_storage local_addr_storage = {0};
+    struct net_sockaddr* local_addr = net_sad(&local_addr_storage);
     uint16_t local_port;
     uint16_t remote_port;
 
@@ -4341,9 +4342,9 @@ int net_tcp_accept(struct net_context* context, net_tcp_accept_cb_t cb,
     }
 
     conn->accept_cb = cb;
-    local_addr.sa_family = net_context_get_family(context);
+    local_addr->sa_family = net_context_get_family(context);
 
-    switch (local_addr.sa_family) {
+    switch (local_addr->sa_family) {
         struct net_sockaddr_in*  in;
         struct net_sockaddr_in6* in6;
 
@@ -4352,7 +4353,7 @@ int net_tcp_accept(struct net_context* context, net_tcp_accept_cb_t cb,
                 return (-EINVAL);
             }
 
-            in = (struct net_sockaddr_in*)&local_addr;
+            in = (struct net_sockaddr_in*)local_addr;
 
             if (net_context_is_local_addr_set(context)) {
                 net_ipaddr_copy(&in->sin_addr,
@@ -4361,8 +4362,8 @@ int net_tcp_accept(struct net_context* context, net_tcp_accept_cb_t cb,
 
             in->sin_port =
             net_sin(&context->local)->sin_port;
-            local_port   = net_ntohs(in->sin_port);
-            remote_port  = net_ntohs(net_sin(&context->remote)->sin_port);
+            local_port  = net_ntohs(in->sin_port);
+            remote_port = net_ntohs(net_sin(&context->remote)->sin_port);
             break;
 
         case NET_AF_INET6 :
@@ -4370,7 +4371,7 @@ int net_tcp_accept(struct net_context* context, net_tcp_accept_cb_t cb,
                 return (-EINVAL);
             }
 
-            in6 = (struct net_sockaddr_in6*)&local_addr;
+            in6 = (struct net_sockaddr_in6*)local_addr;
 
             if (net_context_is_local_addr_set(context)) {
                 net_ipaddr_copy(&in6->sin6_addr,
@@ -4379,8 +4380,8 @@ int net_tcp_accept(struct net_context* context, net_tcp_accept_cb_t cb,
 
             in6->sin6_port =
             net_sin6(&context->local)->sin6_port;
-            local_port     = net_ntohs(in6->sin6_port);
-            remote_port    = net_ntohs(net_sin6(&context->remote)->sin6_port);
+            local_port  = net_ntohs(in6->sin6_port);
+            remote_port = net_ntohs(net_sin6(&context->remote)->sin6_port);
             break;
 
         default :
@@ -4396,10 +4397,10 @@ int net_tcp_accept(struct net_context* context, net_tcp_accept_cb_t cb,
 
     return net_conn_register(net_context_get_proto(context),
                              net_context_get_type(context),
-                             (uint8_t)local_addr.sa_family,
+                             (uint8_t)local_addr->sa_family,
                              context->flags & NET_CONTEXT_REMOTE_ADDR_SET ?
                              &context->remote : NULL,
-                             &local_addr,
+                             local_addr,
                              remote_port, local_port,
                              context, tcp_recv, context,
                              &context->conn_handler);
@@ -4724,19 +4725,23 @@ static void test_cb_register(net_sa_family_t family, enum net_sock_type type,
                              uint8_t proto, uint16_t remote_port,
                              uint16_t local_port, net_conn_cb_t cb) {
     struct net_conn_handle* conn_handle = NULL;
-    const struct net_sockaddr addr = {.sa_family = family, };
+    struct net_sockaddr_storage addr_storage = {0};
+    struct net_sockaddr* addr = net_sad(&addr_storage);
+    int ret;
 
-    int ret = net_conn_register(proto,
-                                type,
-                                family,
-                                &addr,      /* remote address */
-                                &addr,      /* local address */
-                                local_port,
-                                remote_port,
-                                NULL,
-                                cb,
-                                NULL,       /* user_data */
-                                &conn_handle);
+    addr->sa_family = family;
+
+    ret = net_conn_register(proto,
+                            type,
+                            family,
+                            addr,   /* remote address */
+                            addr,   /* local address */
+                            local_port,
+                            remote_port,
+                            NULL,
+                            cb,
+                            NULL,   /* user_data */
+                            &conn_handle);
     if (ret < 0) {
         NET_ERR("net_conn_register(): %d", ret);
     }

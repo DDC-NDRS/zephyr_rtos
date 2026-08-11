@@ -191,6 +191,8 @@ New APIs and options
 
   * :kconfig:option:`CONFIG_ARM_MPU_CM7_UNMAPPED_REGION` (Arm Cortex-M7 catch-all MPU region
     for unmapped addresses, erratum 1013783 workaround)
+  * :kconfig:option:`CONFIG_EXCEPTION_DUMP` (enabled by default, can be disabled to compile
+    out the fault handler output on size constrained builds)
 
 * Audio
 
@@ -270,6 +272,13 @@ New APIs and options
   * :c:func:`lora_recv_duty_cycle`
   * :c:func:`lora_recv_duty_cycle_async`
 
+* Management
+
+  * MCUmgr
+
+    * Added support for SPI MCUmgr SMP transport, which can be enabled with
+      :kconfig:option:`CONFIG_MCUMGR_TRANSPORT_SPI`.
+
 * Network
 
   * Add :c:func:`net_eth_set_if_type_wifi` to set the ethernet interface type to Wi-Fi.
@@ -284,6 +293,17 @@ New APIs and options
     :c:func:`mdns_responder_disable_iface`
     (:kconfig:option:`CONFIG_MDNS_RESPONDER_RUNTIME_IFACE_CONTROL`) to enable or
     disable the mDNS responder on a network interface at runtime.
+  * Add a DHCPv6 server with IPv6 prefix delegation support
+    (:kconfig:option:`CONFIG_NET_DHCPV6_SERVER`):
+    :c:func:`net_dhcpv6_server_start`, :c:func:`net_dhcpv6_server_stop` and
+    :c:func:`net_dhcpv6_server_foreach_lease`.
+  * Add IPv6 router role, that is, transmission of Router Advertisements
+    (:kconfig:option:`CONFIG_NET_IPV6_ND_RA_TX`):
+    :c:func:`net_if_ipv6_router_start`, :c:func:`net_if_ipv6_router_stop` and
+    :c:func:`net_if_ipv6_prefix_set_advertise`.
+  * Add requesting router support to the DHCPv6 client, a delegated prefix can
+    be sub-delegated onto downstream links via
+    :c:member:`net_dhcpv6_params.downstream_ifaces`.
 
 * Power Management
 

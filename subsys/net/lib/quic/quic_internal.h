@@ -370,12 +370,25 @@ struct quic_tls_context {
 	uint8_t server_random[32];
 	bool client_hello_prepared;
 
-	/* External PSK configuration and negotiated use */
+	/* Cipher suites actually offered in the ClientHello we sent. The
+	 * ServerHello must select one of these (RFC 8446 ch. 4.1.3); the
+	 * offer can be narrower than the configured list, e.g. an external
+	 * PSK excludes suites whose hash does not match the key.
+	 */
+	uint16_t offered_suites[3];
+	uint8_t offered_suite_count;
+
+	/* PSK configuration and negotiated use. The PSK is either externally
+	 * provisioned (TLS_CREDENTIAL_PSK) or carried over from a session
+	 * ticket; psk_is_resumption records which, as the binder label
+	 * depends on it (RFC 8446 Section 7.1).
+	 */
 	const uint8_t *psk;
 	size_t psk_len;
 	const uint8_t *psk_identity;
 	size_t psk_identity_len;
 	bool psk_configured;
+	bool psk_is_resumption;
 	bool psk_offered;
 	bool use_psk_key_schedule;
 	bool early_data_offered;
@@ -430,6 +443,12 @@ struct quic_tls_context {
 	/* Received peer certificate for verification */
 	uint8_t peer_cert[CONFIG_QUIC_TLS_MAX_CERT_SIZE];
 	size_t peer_cert_len;
+
+	/* Set once the peer's CertificateVerify has been checked against
+	 * peer_cert. Without it a certificate proves nothing, since anyone can
+	 * replay someone else's certificate.
+	 */
+	bool peer_cert_verified;
 
 	/* QUIC transport parameters */
 #define MAX_QUIC_TP_LEN 256
@@ -775,6 +794,17 @@ struct quic_endpoint {
 	} anti_amplification;
 #endif /* CONFIG_QUIC_SERVER_ANTI_AMPLIFICATION_LIMIT */
 
+	/** RETIRE_CONNECTION_ID frames that could not be sent when their CID
+	 * was dropped, because the reply budget of the payload that retired
+	 * them was used up or the send itself failed. They are sent from the
+	 * budget of later payloads, so the retirement is delayed, never lost.
+	 */
+	struct {
+		struct k_spinlock lock;
+		uint64_t seq[CONFIG_QUIC_MAX_PEER_CIDS];
+		uint8_t count;
+	} retire_backlog;
+
 	/** Stream-count limits, how many streams we allow the peer to open.
 	 * Mirrored from our own transport parameters and grown in response to
 	 * STREAMS_BLOCKED frames (RFC 9000 ch. 19.14 / 4.6).
@@ -784,6 +814,8 @@ struct quic_endpoint {
 		uint64_t max_uni;    /* Current uni stream limit advertised to peer */
 		uint64_t open_bidi;  /* peer-initiated bidi streams currently open */
 		uint64_t open_uni;   /* peer-initiated uni  streams currently open */
+		uint64_t total_bidi; /* peer-initiated bidi streams ever opened */
+		uint64_t total_uni;  /* peer-initiated uni  streams ever opened */
 	} rx_sl;
 
 	/** Peer's transport parameters */
@@ -1367,6 +1399,17 @@ int handle_crypto_frame(struct quic_endpoint *ep,
 			 size_t *consumed);
 int parse_certificate(struct quic_tls_context *ctx,
 		      const uint8_t *data, size_t len);
+int parse_client_hello(struct quic_tls_context *ctx,
+		       const uint8_t *data, size_t len,
+		       const uint8_t *full_msg, size_t full_msg_len);
+int parse_server_hello(struct quic_tls_context *ctx,
+		       const uint8_t *msg, size_t msg_len);
+int handle_crypto_level_packet(struct quic_endpoint *ep,
+			       enum quic_secret_level level,
+			       const uint8_t *payload,
+			       size_t payload_len,
+			       size_t total_packet_len,
+			       bool *ack_only);
 int process_handshake_message(struct quic_tls_context *ctx,
 			      uint8_t msg_type,
 			      const uint8_t *msg, size_t msg_len,
@@ -1388,6 +1431,13 @@ int quic_validate_address_token(const struct net_sockaddr *addr,
 				const uint8_t *token, size_t token_len,
 				struct quic_token_validation *validation);
 void quic_token_cache_clear(void);
+uint64_t quic_token_now_sec(void);
+bool quic_token_claim_nonce(const uint8_t *nonce, uint64_t expires_at_sec);
+
+/* Snapshot of the reply budget consumed by the last payload parse, so tests
+ * can observe the per-payload cap without reaching into the parser's stack.
+ */
+extern uint16_t quic_test_reply_budget_spent;
 void quic_token_cache_store(const struct net_sockaddr *remote_addr,
 			    const uint8_t *token, size_t token_len);
 size_t quic_token_cache_take(const struct net_sockaddr *remote_addr,
