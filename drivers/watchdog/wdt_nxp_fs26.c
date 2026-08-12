@@ -684,8 +684,14 @@ static int wdt_nxp_fs26_init(const struct device* dev) {
             fs26_setreg(spec, FS26_FS_STATES, val);
         }
         else {
-            LOG_ERR("In DEBUG mode, watchdog is disabled");
-            return -EIO;
+            /*
+             * Leave DEBUG mode as-is and proceed anyway: some consumers of this
+             * driver intentionally own DEBUG mode exit elsewhere (e.g. as part of
+             * their own fault-release retry path) rather than here. RSTB is not
+             * asserted while in DEBUG mode, so there is no reset risk in staying
+             * here - we just want to close INIT_FS as usual.
+             */
+            LOG_WRN("In DEBUG mode, proceeding without exiting it");
         }
     }
 
@@ -753,8 +759,16 @@ static int wdt_nxp_fs26_init(const struct device* dev) {
     fs26_setreg(spec, FS26_FS_I_NOT_WD_CFG, ~val);
 
     /* FS_WDW_DURATION */
-    /* Watchdog always disabled at boot */
-    val = WDW_PERIOD_DISABLE | WDW_RECOVERY_DISABLE;
+    /*
+     * Arm the longest window the register can express (1024 ms, loosest 31/68
+     * duty cycle) rather than disabling the watchdog outright: WD_FS_REACTION is
+     * NO_ACTION during this bootstrap pass either way, so a missed/expired
+     * window here cannot itself trigger a reset - it only increments WD_ERR_CNT.
+     * An active-but-generous window still gives real (if bounded) supervision
+     * across the gap until a later owner re-arms the real production config,
+     * instead of leaving the chip completely unsupervised for that whole gap.
+     */
+    val = WDW_PERIOD_1024MS | WDW_DC_31_68 | WDW_RECOVERY_DISABLE;
 
     fs26_setreg(spec, FS26_FS_WDW_DURATION, val);
     fs26_setreg(spec, FS26_FS_NOT_WDW_DURATION, ~val);
