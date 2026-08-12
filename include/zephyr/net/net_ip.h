@@ -957,7 +957,7 @@ static inline bool net_ipv6_is_prefix(uint8_t const* addr1,
         return false;
     }
 
-    if (memcmp(addr1, addr2, bytes)) {
+    if (memcmp(addr1, addr2, bytes) != 0) {
         return false;
     }
 

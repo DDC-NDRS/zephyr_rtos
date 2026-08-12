@@ -95,10 +95,10 @@ typedef struct {
 #define SEC_PER_MIN             60U
 
 /** number of seconds per hour */
-#define SEC_PER_HOUR 3600U
+#define SEC_PER_HOUR            3600U
 
 /** number of seconds per day */
-#define SEC_PER_DAY 86400U
+#define SEC_PER_DAY             86400U
 
 /** number of minutes per hour */
 #define MIN_PER_HOUR            60U
@@ -107,10 +107,10 @@ typedef struct {
 #define HOUR_PER_DAY            24U
 
 /** number of microseconds per second */
-#define USEC_PER_SEC ((USEC_PER_MSEC) * (MSEC_PER_SEC))
+#define USEC_PER_SEC            1000000U
 
 /** number of nanoseconds per second */
-#define NSEC_PER_SEC ((NSEC_PER_USEC) * (USEC_PER_MSEC) * (MSEC_PER_SEC))
+#define NSEC_PER_SEC            1000000000U
 
 /** @} */
 

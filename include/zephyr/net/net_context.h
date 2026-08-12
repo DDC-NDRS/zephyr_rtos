@@ -819,7 +819,7 @@ static inline void net_context_set_iface(struct net_context* context,
                                          struct net_if* iface) {
     NET_ASSERT(iface);
 
-    context->iface = (uint8_t)net_if_get_by_iface(iface);
+    context->iface = (int8_t)net_if_get_by_iface(iface);
 }
 
 /**
