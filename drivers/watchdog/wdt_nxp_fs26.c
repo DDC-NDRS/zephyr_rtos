@@ -866,7 +866,7 @@ static DEVICE_API(wdt, wdt_nxp_fs26_api) = {
         .spi = SPI_DT_SPEC_INST_GET(n, SPI_OP_MODE_MASTER | SPI_MODE_CPHA |  \
                                     SPI_WORD_SET(FS26_SPI_TRANSFER_WIDTH)),  \
         .wd_type  = Z_CONCAT(FS26_WD_, DT_INST_STRING_UPPER_TOKEN(n, type)), \
-        .int_gpio = GPIO_DT_SPEC_INST_GET(n, int_gpios),        \
+        .int_gpio = GPIO_DT_SPEC_INST_GET_OR(n, int_gpios, {0}),\
     };                                                          \
                                                                 \
     DEVICE_DT_INST_DEFINE(n,                                    \
