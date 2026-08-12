@@ -61,6 +61,9 @@ struct modem_chat_match {
     /** Separators array */
     uint8_t const* separators;
 
+    /** Callback run on a match */
+    modem_chat_match_callback callback;
+
     /** Size of match */
     uint8_t match_size;
 
@@ -72,9 +75,6 @@ struct modem_chat_match {
 
     /** Set if script shall not continue to next step in case of match */
     bool partial;
-
-    /** Type of modem chat instance */
-    modem_chat_match_callback callback;
 };
 
 #define MODEM_CHAT_MATCH(_match, _separators, _callback)        \

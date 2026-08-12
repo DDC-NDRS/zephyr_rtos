@@ -22,7 +22,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(mdio_stm32_hal, CONFIG_MDIO_LOG_LEVEL);
 
-#define DT_DRV_COMPAT st_stm32_mdio
+#define DT_DRV_COMPAT snps_dwmac_mdio
 
 struct mdio_stm32_data {
     struct k_mutex mutex;

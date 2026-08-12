@@ -99,7 +99,7 @@ static void __ztest_show_suite_summary(void);
 static void end_report(void)
 {
 	__ztest_show_suite_summary();
-	if (test_status) {
+	if (test_status != ZTEST_STATUS_OK) {
 		TC_END_REPORT(TC_FAIL);
 	} else {
 		TC_END_REPORT(TC_PASS);

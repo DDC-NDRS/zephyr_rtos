@@ -434,6 +434,9 @@ Libraries / Subsystems
   * TF-M was updated from version 2.2.2 to version 2.3.0. Release notes can be
     found `here <https://trustedfirmware-m.readthedocs.io/en/tf-mv2.3.0/releases/2.3.0.htm>`_.
 
+  * TF-M can now be compiled using LLVM by setting ``ZEPHYR_TOOLCHAIN_VARIANT``
+    to ``zephyr/llvm``.
+
 * DFU
 
   * Added :kconfig:option:`CONFIG_IMG_CUSTOM_SECTOR_SIZE` to allow MCUboot to use a different
@@ -498,6 +501,13 @@ Other notable changes
   * Removed the ``samples/net/wifi/test_certs/rsa2k`` enterprise test
     certificates (DES-encrypted private keys). Use ``rsa2k_no_des`` instead.
 
+  * The transmit power ceiling properties in ``wifi-tx-power-2g.yaml`` and
+    ``wifi-tx-power-5g.yaml`` are no longer ``required`` and now carry
+    conservative defaults, so a board that has not been characterised errs on
+    the side of transmitting too little rather than exceeding a regulatory
+    limit. Boards that have measured their own limits continue to state them
+    explicitly, so no board changes behaviour.
+
 * MCUboot
 
   * :kconfig:option:`SB_CONFIG_BOOT_SIGNATURE_KEY_FILE` now accepts a comma-separated list of
@@ -507,6 +517,14 @@ Other notable changes
     production-signed images, while production bootloaders embed only the production
     key. The first entry is the key the application is signed with and the rest are
     verification-only public keys. See :ref:`build-signing`.
+
+* NXP
+
+  * The NXP LPC DTSI files have been reorganized from the flat
+    ``dts/arm/nxp/lpc/`` directory into per-series subdirectories
+    (``lpc11u6x/``, ``lpc51u68/``, ``lpc54xxx/``, ``lpc55xxx/``, ``lpc84x/``).
+    See the :ref:`migration guide <migration_4.5>` for how to update out-of-tree
+    board includes.
 
 * Arm
 

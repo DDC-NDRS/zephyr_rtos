@@ -48,6 +48,14 @@ Kernel
 * ``_k_neg_eagain`` has been renamed to ``_errno_neg_egain`` as ``errno`` has been migrated out of
   kernel into ``lib/libc/common``.
 
+* The ``CONFIG_SMP_BOOT_DELAY`` Kconfig option has been removed. Deferring the start of secondary
+  CPUs to run time is now expressed per CPU in the devicetree: add the ``zephyr,deferred-start``
+  flag to the corresponding ``cpu`` node under ``/cpus`` (typically in a board overlay) and start
+  the CPU later with :c:func:`k_smp_cpu_start` or :c:func:`k_smp_cpu_resume`, as before. Unlike
+  the removed option, which skipped every secondary CPU, deferral can now be chosen for each CPU
+  individually. Note that the flag only takes effect on cpu nodes whose devicetree binding
+  includes ``cpu.yaml``; a node without such a binding cannot be deferred.
+
 * When :kconfig:option:`CONFIG_SCHED_CPU_MASK_PIN_ONLY` is enabled, calling
   :c:func:`k_thread_cpu_mask_clear`, :c:func:`k_thread_cpu_mask_enable_all`,
   or :c:func:`k_thread_cpu_mask_disable` now triggers an assertion instead of
@@ -388,6 +396,17 @@ Ethernet
 * Ethernet drivers that support LLDP, no longer need to call :c:func:`net_lldp_set_lldpdu` in their
   initialization. It is now done by :c:func:`ethernet_init`. (:github:`114087`)
 
+* :dtcompatible:`infineon,xmc4xxx-ethernet` and :dtcompatible:`wch,ethernet` nodes have been merged
+  with their parent node. The sibling MDIO nodes are not moved and become children of these
+  ``ethernet`` nodes as a result. (:github:`114899`)
+
+* The property ``mdi-port-ctrl`` of ``infineon,xmc4xxx-mdio`` has been moved to the parent node
+  (:dtcompatible:`infineon,xmc4xxx-ethernet`). (:github:`114899`)
+
+* The compatibles ``espressif,esp32-mdio``, ``infineon,xmc4xxx-mdio``, ``nxp,enet-qos-mdio``,
+  ``nxp,s32-gmac-mdio``, ``st,stm32-mdio`` and ``wch,mdio`` have been replaced by
+  :dtcompatible:`snps,dwmac-mdio`. (:github:`114899`)
+
 Flash
 =====
 * :dtcompatible:`jedec,spi-nand` now requires a ``plane-bytes`` property, which indicates the size
@@ -568,10 +587,11 @@ MSPI
 NXP
 ===
 
-* :kconfig:option:`CONFIG_MCUX_LPTMR_TIMER` now defaults to ``y`` when the
-  ``/chosen/zephyr,system-timer`` chosen node is enabled and compatible with
-  :dtcompatible:`nxp,lptmr`. Boards that do not use LPTMR as the system timer
-  must not select an LPTMR node in ``/chosen/zephyr,system-timer``.
+* :kconfig:option:`CONFIG_MCUX_LPTMR_TIMER` no longer defaults to ``y`` based on the
+  ``/chosen/zephyr,system-timer`` chosen node being compatible with
+  :dtcompatible:`nxp,lptmr`. Out-of-tree SoCs and boards that rely on the LPTMR
+  as the system timer must now explicitly default the symbol in their
+  ``Kconfig.defconfig`` (for example ``default y if PM``).
 
 * Kinetis KE1xF no longer requires a board overlay to designate the system
   timer when :kconfig:option:`CONFIG_PM` is enabled. The SoC DTSI now sets the
@@ -605,6 +625,32 @@ NXP
 
     /* After */
     #include <nxp/imxrt/rt118x/nxp_rt1189_cm33.dtsi>
+
+* The NXP LPC DTSI files were reorganized from the flat directory
+  ``dts/arm/nxp/lpc/`` into per-series subdirectories. Out-of-tree boards that
+  include these files directly must update their includes.
+
+  The new subdirectory layout is:
+
+  ========================  ========================================
+  LPC series                New location
+  ========================  ========================================
+  LPC11U6x                  ``dts/arm/nxp/lpc/lpc11u6x/``
+  LPC51U68                  ``dts/arm/nxp/lpc/lpc51u68/``
+  LPC54xxx                  ``dts/arm/nxp/lpc/lpc54xxx/``
+  LPC55xxx                  ``dts/arm/nxp/lpc/lpc55xxx/``
+  LPC84x                    ``dts/arm/nxp/lpc/lpc84x/``
+  ========================  ========================================
+
+  Example:
+
+  .. code-block:: dts
+
+    /* Before */
+    #include <nxp/lpc/nxp_lpc55S6x.dtsi>
+
+    /* After */
+    #include <nxp/lpc/lpc55xxx/nxp_lpc55S6x.dtsi>
 
 PWM
 ===
@@ -1110,6 +1156,17 @@ Networking
   been removed. TF-PSA-Crypto cannot decrypt their DES-encrypted PKCS#8 private
   keys. Use ``samples/net/wifi/test_certs/rsa2k_no_des`` instead, or set
   :envvar:`WIFI_TEST_CERTS_DIR` to another AES-encrypted certificate directory.
+
+* :kconfig:option:`CONFIG_OPENTHREAD_JOINER_PSKD` no longer defaults to the publicly
+  documented ``"J01NME"`` credential, and now has no default at all. Builds that enable
+  :kconfig:option:`CONFIG_OPENTHREAD_JOINER_AUTOSTART` fail until a PSKd of 6 to 32
+  uppercase alphanumeric characters (0-9 and A-Z excluding I, O, Q and Z) is configured.
+
+  A PSKd set through Kconfig is compiled into the image and is therefore identical on
+  every unit running that firmware, which lets any commissioner in range enrol an
+  uncommissioned device into its own network. Treat the option as a development aid:
+  product firmware should read a per-device PSKd from factory data and call
+  ``otJoinerStart()`` from the application instead.
 
 * ``net_if_config_get`` was removed as it was a duplicate of :c:func:`net_if_get_config`.
   (:github:`110930`)

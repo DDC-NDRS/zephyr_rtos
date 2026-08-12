@@ -34,6 +34,19 @@ static struct socket_dispatch_table {
 	struct dns_socket_dispatcher *ctx;
 } dispatch_table[ZVFS_OPEN_SIZE];
 
+static uint16_t dns_dispatcher_addr_port(struct net_sockaddr_storage *addr)
+{
+	if (IS_ENABLED(CONFIG_NET_IPV6) && addr->ss_family == NET_AF_INET6) {
+		return net_sin6(net_sad(addr))->sin6_port;
+	}
+
+	if (IS_ENABLED(CONFIG_NET_IPV4) && addr->ss_family == NET_AF_INET) {
+		return net_sin(net_sad(addr))->sin_port;
+	}
+
+	return 0;
+}
+
 static int dns_dispatch(struct dns_socket_dispatcher *dispatcher,
 			int sock, struct net_sockaddr *addr, size_t addrlen,
 			struct net_buf *dns_data, size_t buf_len)
@@ -228,14 +241,18 @@ int dns_dispatcher_register(struct dns_socket_dispatcher *ctx)
 	(void)k_mutex_init(&ctx->lock);
 
 	SYS_SLIST_FOR_EACH_CONTAINER_SAFE(&sockets, entry, next, node) {
+		uint16_t entry_port = dns_dispatcher_addr_port(&entry->local_addr_storage);
+		uint16_t ctx_port = dns_dispatcher_addr_port(&ctx->local_addr_storage);
+		bool ports_match = ctx_port != 0 && ctx_port == entry_port;
+
 		/* Refuse to register context if we have identical context
-		 * already registered.
+		 * already registered. Port 0 means the local port is not
+		 * known, so it cannot be used to tell two contexts apart.
 		 */
 		if (ctx->type == entry->type &&
 		    ctx->local_addr_storage.ss_family == entry->local_addr_storage.ss_family &&
 		    ctx->ifindex == entry->ifindex) {
-			if (net_sin(net_sad(&entry->local_addr_storage))->sin_port ==
-			    net_sin(net_sad(&ctx->local_addr_storage))->sin_port) {
+			if (ports_match) {
 				dup = true;
 				continue;
 			}
@@ -249,8 +266,7 @@ int dns_dispatcher_register(struct dns_socket_dispatcher *ctx)
 		 */
 		if (found == NULL && ctx->type != entry->type &&
 		    ctx->local_addr_storage.ss_family == entry->local_addr_storage.ss_family) {
-			if (net_sin(net_sad(&entry->local_addr_storage))->sin_port ==
-			    net_sin(net_sad(&ctx->local_addr_storage))->sin_port) {
+			if (ports_match) {
 				found = entry;
 				continue;
 			}
@@ -314,18 +330,24 @@ int dns_dispatcher_register(struct dns_socket_dispatcher *ctx)
 	}
 
 	/* If port 0 was requested, bind() selected an ephemeral local port.
-	 * Store the actual socket name so later dispatcher registrations do
-	 * not treat distinct resolver sockets as duplicate port-0 sockets.
+	 * Record it so that this dispatcher can be told apart from other
+	 * registrations.
 	 */
-	if (net_sin(net_sad(&ctx->local_addr_storage))->sin_port == 0) {
+	if (dns_dispatcher_addr_port(&ctx->local_addr_storage) == 0) {
+		struct net_sockaddr_storage local_addr = ctx->local_addr_storage;
 		net_socklen_t socklen = addrlen;
 
-		ret = zsock_getsockname(ctx->sock, net_sad(&ctx->local_addr_storage), &socklen);
-		if (ret < 0) {
-			ret = -errno;
-			NET_DBG("Cannot get DNS socket %d name (%d)", ctx->sock,
-				ret);
-			goto out;
+		/* The local port is only used to match dispatcher
+		 * registrations, so continue with an unknown port if the
+		 * socket implementation cannot report it. Restore the address
+		 * we bound with, as a failing call may still have written to
+		 * the buffer.
+		 */
+		if (zsock_getsockname(ctx->sock, net_sad(&ctx->local_addr_storage),
+				      &socklen) < 0) {
+			NET_DBG("Cannot get DNS socket %d name (%d), local port unknown",
+				ctx->sock, -errno);
+			ctx->local_addr_storage = local_addr;
 		}
 	}
 
