@@ -33,6 +33,33 @@ properties:
   pinctrl-names:
     required: true
 
+  capture-input:
+    type: boolean
+    description: |
+      Configure this instance as a PWM input-capture channel instead of an
+      output. The TCPWM block is initialized as a free-running up-counter
+      with independent rising-edge (CC0) and falling-edge (CC1) capture on
+      the pinctrl-selected input pin, both routed via CY_TCPWM_INPUT_TRIG_0
+      (the instance's own dedicated capture trigger). Requires
+      CONFIG_PWM_CAPTURE. set_cycles()/get_cycles_per_sec() output-mode
+      calls are rejected (-ENOTSUP) on a capture-mode instance.
+
+  trigmux-in:
+    type: int
+    description: |
+      Required alongside capture-input. Trigger-mux input selector (e.g.
+      PERI_0_TRIG_IN_MUX_x_..._TR_OUTn from the SoC's generated trigger
+      table) that the pinctrl-selected pin's HSIOM function feeds into.
+      Connected to trigmux-out via Cy_TrigMux_Connect() at init.
+
+  trigmux-out:
+    type: int
+    description: |
+      Required alongside capture-input. Trigger-mux output selector (e.g.
+      PERI_0_TRIG_OUT_MUX_x_TCPWM0_..._TR_INn) that feeds this instance's
+      CY_TCPWM_INPUT_TRIG_0 capture input. Connected to trigmux-in via
+      Cy_TrigMux_Connect() at init.
+
 pwm-cells:
   - channel
   - period
