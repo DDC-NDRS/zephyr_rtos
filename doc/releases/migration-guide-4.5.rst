@@ -233,6 +233,16 @@ Controller Area Network (CAN)
   are processed in the order received on the bus. Out-of-tree users may want to update any
   ``bosch,mram-cfg`` devicetree property overrides to allocate all FIFO elements to RX FIFO0.
 
+Counter
+=======
+
+* :dtcompatible:`nxp,lpc-ctimer` now routes its input capture signal through the generic
+  :ref:`mux <mux_api>` subsystem. The ``inputmux-connections`` property has been removed; describe
+  the routing with an INPUTMUX controller node (:dtcompatible:`nxp,inputmux`) and reference it from
+  the timer node's ``mux-states`` property instead. The cell layout is unchanged, so an existing
+  ``inputmux-connections = <&inputmux0 0 0x06000024>;`` becomes
+  ``mux-states = <&inputmux0 0 0x06000024>;`` (:github:`112088`)
+
 Devicetree
 ==========
 
@@ -829,6 +839,51 @@ STM32
   and will trigger a build error. Use the :ref:`generic chosen <devicetree-zephyr-chosen-nodes>`
   ``zephyr,system-timer`` instead. (:github:`112999`)
 
+* Properties ``wkup-pins-nb``, ``wkup-pins-srcs``, ``wkup-pins-pol``, and ``wkup-pins-pupd`` as well as
+  the child binding of :dtcompatible:`st,stm32-pwr`, which were related to wake-up pins, have been removed.
+  As a replacement, a node named ``wakeup-controller`` with new compatible :dtcompatible:`st,stm32-pwr-wkupctrl`
+  is introduced as a child node to all existing :dtcompatible:`st,stm32-pwr` nodes.
+
+  For most out-of-tree users, it is sufficient to move the ``status = "okay";`` property along with wake-up pin
+  nodes declared in board DTS (if any) from the ``&pwr`` node to its new child named ``wakeup-controller``.
+  The following Devicetree snippets show how this can be achieved by adding two lines in board DTS:
+
+  .. tabs::
+
+    .. group-tab:: Before
+
+      .. code-block:: devicetree
+
+          &pwr {
+            wkup-pin@1 {
+              /* ... */
+            };
+
+            status = "okay";
+          };
+
+    .. group-tab:: After
+
+      .. code-block:: devicetree
+        :emphasize-lines: 2, 8
+
+          &pwr {
+            wakeup-controller {
+              wkup-pin@1 {
+                /* ... */
+              };
+
+              status = "okay";
+            };
+          };
+
+  Note that wake-up pin nodes are now called :samp:`wkup@{N}` instead of :samp:`wkup-pin@{N}` in tree.
+  This change is cosmetic and has no functional impact. (:github:`114092`)
+
+* :dtcompatible:`st,stm32-pwr` nodes are now enabled by default by SoC DTSI as the ``status = "disabled";``
+  property has been removed. This should have no impact since the property was not used except for the
+  wake-up pins feature, which is now handled by :dtcompatible:`st,stm32-pwr-wkupctrl`. (:github:`114092`)
+
 Syscon
 ======
 
@@ -849,6 +904,42 @@ Timer
   drivers no longer need to clamp the request against the :c:func:`sys_clock_announce`
   range or special-case ``K_TICKS_FOREVER``; only their own hardware cycle-count limits
   still need enforcing (:github:`111022`).
+
+* The ``bool idle`` argument of :c:func:`sys_clock_set_timeout` is deprecated. The
+  kernel now calls the new :c:func:`sys_clock_idle_enter` hook instead of
+  :c:func:`sys_clock_set_timeout` with ``idle=true``. For backwards compatibility, the
+  default implementation of :c:func:`sys_clock_idle_enter` emulates the old behavior by
+  calling :c:func:`sys_clock_set_timeout` with ``idle=true``, so timer drivers that
+  still examine ``idle`` keep working unchanged. Such drivers should be updated to
+  implement :c:func:`sys_clock_idle_enter` and move their ``idle``-specific handling
+  there. The argument is removed in a future release (:github:`115844`).
+
+* When :kconfig:option:`CONFIG_SYSTEM_CLOCK_SLOPPY_IDLE` is enabled, the kernel now
+  calls the new :c:func:`sys_clock_no_timeout` hook when no timeout is pending, instead
+  of :c:func:`sys_clock_set_timeout` with ``ticks=K_TICKS_FOREVER``. For backwards
+  compatibility, the default implementation of :c:func:`sys_clock_no_timeout` calls
+  :c:func:`sys_clock_set_timeout` with ``ticks=UINT32_MAX``, numerically the same
+  value, so drivers expecting it as the "no deadline" signal keep working unchanged,
+  whether they stop their clock or program a maximal wait. Such drivers should be
+  updated to implement :c:func:`sys_clock_no_timeout` instead.
+
+  Note the split between the two new hooks. Masking the wakeups while the CPU still
+  runs belongs in :c:func:`sys_clock_no_timeout`, which must leave
+  :c:func:`sys_clock_cycle_get_32` working. Stopping the time base belongs in
+  :c:func:`sys_clock_idle_enter` when it is passed ``SYS_CLOCK_IDLE_FOREVER``.
+  Refer to the :ref:`system timer driver documentation <system_timer_drivers>`
+  for the precise semantics (:github:`115844`).
+
+* Tickless system-timer drivers should no longer carry their own tick handling.
+  The implementation header :file:`drivers/timer/system_timer_generic.h` now
+  owns the accounting that each driver used to reimplement by hand, and got
+  subtly wrong: the cycle-to-tick conversion, the announce baseline, the
+  tick-aligned deadline computation and the counter range clamp, including the
+  wrap handling of a narrow counter. A driver reduces to a few cycle-domain
+  primitives, a cycle-counter read plus an absolute-compare arm, and includes
+  the header once, which emits :c:func:`sys_clock_set_timeout`,
+  :c:func:`sys_clock_elapsed` and :c:func:`sys_clock_cycle_get_32` /
+  :c:func:`sys_clock_cycle_get_64` (:github:`115844`).
 
 USB
 ===
@@ -1109,6 +1200,28 @@ Bluetooth Host
   successful update. Applications that need to be notified about rejected, application-initiated
   parameter updates should enable :kconfig:option:`CONFIG_BT_USER_CONN_PARAM_REJECTED` and
   implement the new ``le_param_update_rejected`` callback.
+
+* The ``CONFIG_BT_RECV_CONTEXT`` Kconfig choice and its options ``CONFIG_BT_RECV_WORKQ_SYS``
+  and ``CONFIG_BT_RECV_WORKQ_BT`` have been removed. The host now unconditionally
+  processes low-priority HCI packets on the dedicated Bluetooth RX workqueue (the
+  previous ``CONFIG_BT_RECV_WORKQ_BT`` behavior).
+  Applications that selected ``CONFIG_BT_RECV_WORKQ_SYS`` to save RAM (e.g. on
+  nRF51) must drop that option; the dedicated RX thread is now always created.
+  Tune :kconfig:option:`CONFIG_BT_RX_STACK_SIZE` (the RX thread stack) for the
+  application's enabled host features. Since low-priority RX no longer runs on
+  the system workqueue, applications may be able to reduce
+  :kconfig:option:`CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE`, but both stack sizes are
+  application-specific and should be validated using stack-usage measurements.
+
+* Selected Bluetooth Host work items now run on the dedicated Bluetooth RX
+  workqueue instead of the system workqueue. Application callbacks reached from
+  those work items consequently run in the Bluetooth RX thread. This includes
+  connection teardown and deferred connection work (e.g. the ``disconnected()``
+  connection callback and SMP pairing timeouts), as well as timeout and
+  completion paths in ATT/GATT, L2CAP, AVDTP, and HFP AG.
+  Applications that relied on those callbacks running in the system workqueue
+  should review their synchronization and callback stack requirements. See
+  pull request :github:`93033` for details.
 
 Bluetooth Services
 ==================

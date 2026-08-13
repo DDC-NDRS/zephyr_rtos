@@ -217,7 +217,7 @@ int can_mcan_set_timing(const struct device* dev, const struct can_timing* timin
 int can_mcan_set_timing_data(const struct device* dev, const struct can_timing* timing_data) {
     const uint8_t tdco_max = FIELD_GET(CAN_MCAN_TDCR_TDCO, CAN_MCAN_TDCR_TDCO);
     struct can_mcan_data* data = dev->data;
-    uint32_t dbtp = 0U;
+    uint32_t dbtp;
     uint8_t tdco;
     int err;
 
@@ -227,10 +227,10 @@ int can_mcan_set_timing_data(const struct device* dev, const struct can_timing* 
 
     k_mutex_lock(&data->lock, K_FOREVER);
 
-    dbtp |= FIELD_PREP(CAN_MCAN_DBTP_DSJW  , timing_data->sjw - 1UL)        |
-            FIELD_PREP(CAN_MCAN_DBTP_DTSEG1, timing_data->phase_seg1 - 1UL) |
-            FIELD_PREP(CAN_MCAN_DBTP_DTSEG2, timing_data->phase_seg2 - 1UL) |
-            FIELD_PREP(CAN_MCAN_DBTP_DBRP  , timing_data->prescaler  - 1UL);
+    dbtp = FIELD_PREP(CAN_MCAN_DBTP_DSJW  , timing_data->sjw - 1UL)        |
+           FIELD_PREP(CAN_MCAN_DBTP_DTSEG1, timing_data->phase_seg1 - 1UL) |
+           FIELD_PREP(CAN_MCAN_DBTP_DTSEG2, timing_data->phase_seg2 - 1UL) |
+           FIELD_PREP(CAN_MCAN_DBTP_DBRP  , timing_data->prescaler  - 1UL);
 
     if ((timing_data->prescaler == 1U) || (timing_data->prescaler == 2U)) {
         /* TDC can only be enabled if DBRP = { 0, 1 } */
@@ -1367,6 +1367,7 @@ int can_mcan_configure_mram(const struct device* dev, uintptr_t mrba, uintptr_t 
         return (err);
     }
 
+    #if defined(CONFIG_CAN_FD_MODE) || defined(CONFIG_CAN_MCAN_FIXED_MRAM_LAYOUT)
     /* 64 byte Tx Buffer data fields size */
     reg = CAN_MCAN_TXESC_TBDS;
     err = can_mcan_write_reg(dev, CAN_MCAN_TXESC, reg);
@@ -1380,6 +1381,7 @@ int can_mcan_configure_mram(const struct device* dev, uintptr_t mrba, uintptr_t 
     if (err != 0) {
         return (err);
     }
+    #endif /* defined(CONFIG_CAN_FD_MODE) || defined(CONFIG_CAN_MCAN_FIXED_MRAM_LAYOUT) */
 
     return (0);
 }

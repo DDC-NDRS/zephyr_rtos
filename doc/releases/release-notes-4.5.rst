@@ -74,6 +74,20 @@ Removed APIs and options
 
       * ``CONFIG_XTENSA_BACKTRACE_EXCEPTION_DUMP_HOOK``
 
+* Bluetooth
+
+  * Host
+
+    * The ``CONFIG_BT_RECV_CONTEXT`` choice and its options ``CONFIG_BT_RECV_WORKQ_SYS``
+      and ``CONFIG_BT_RECV_WORKQ_BT`` have been removed. The host now always
+      processes low-priority HCI packets on the dedicated Bluetooth RX workqueue
+      (the former ``CONFIG_BT_RECV_WORKQ_BT`` behavior). See the migration guide.
+
+    * Selected Host work items have moved from the system workqueue to the
+      dedicated Bluetooth RX workqueue. Application callbacks reached from
+      those work items now run in the Bluetooth RX thread. See the migration
+      guide for affected callback families.
+
 * Counter
 
     * ``CONFIG_COUNTER_MAXIM_DS3231``
@@ -167,6 +181,14 @@ Deprecated APIs and options
 
   * Deprecated :kconfig:option:`CONFIG_NET_L2_PTP`.
     Used :kconfig:option:`CONFIG_NET_L2_PTP_TIMESTAMPING` instead.
+
+* Timer
+
+  * New :c:func:`sys_clock_no_timeout` hook for handling of
+    :kconfig:option:`CONFIG_SYSTEM_CLOCK_SLOPPY_IDLE`, replacing the call to
+    :c:func:`sys_clock_set_timeout` with ``ticks=K_TICKS_FOREVER``.
+  * New :c:func:`sys_clock_idle_enter` hook for handling of entry in low-power state,
+    replacing the call to :c:func:`sys_clock_set_timeout` with ``idle=true``.
 
 * Video
 
@@ -377,6 +399,8 @@ New Drivers
 
   * Diodes/Pericom PI4IOE5V6408 8-bit I2C-bus I/O expander
     (:dtcompatible:`diodes,pi4ioe5v6408`).
+  * ST Zio connector for STM32 Nucleo-144 boards
+    (:dtcompatible:`st-zio-header`).
 
 * Input
 
@@ -495,6 +519,23 @@ Other notable changes
     :c:func:`k_thread_cpu_mask_disable` in PIN_ONLY mode triggers an assertion
     failure.  Use :c:func:`k_thread_cpu_pin` to reassign a thread to a
     different CPU.
+
+* Timer
+
+  * With :kconfig:option:`CONFIG_SYSTEM_CLOCK_SLOPPY_IDLE` enabled, a driver may no
+    longer stop its time base as soon as no timeout is pending, if that breaks
+    :c:func:`sys_clock_cycle_get_32` / :c:func:`sys_clock_cycle_get_64`. Those must
+    keep counting while the CPU runs. Stopping the time base is permitted only from
+    :c:func:`sys_clock_idle_enter`, where :c:func:`sys_clock_idle_exit` is
+    guaranteed to follow.
+
+  * Tickless system-timer drivers can now be built on a shared implementation
+    header, :file:`drivers/timer/system_timer_generic.h`, which owns the tick
+    accounting each driver previously open-coded: the cycle-to-tick conversion,
+    the announce baseline, the tick-aligned deadline and the counter wrap and
+    range handling. A driver reduces to a few cycle-domain primitives, a
+    cycle-counter read plus an absolute-compare arm. See the
+    :ref:`migration guide <migration_4.5>` for how to use it (:github:`115844`).
 
 * Wi-Fi
 

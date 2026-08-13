@@ -940,8 +940,13 @@ struct can_mcan_rx_fifo {
     struct can_mcan_rx_fifo_hdr hdr;
 
     union {
+        #if defined(CONFIG_CAN_FD_MODE) || defined(CONFIG_CAN_MCAN_FIXED_MRAM_LAYOUT)
         uint8_t  data[64];
         uint32_t data_32[16];
+        #else /* defined(CONFIG_CAN_FD_MODE) || defined(CONFIG_CAN_MCAN_FIXED_MRAM_LAYOUT) */
+        uint8_t  data[8];
+        uint32_t data_32[2];
+        #endif /* !defined(CONFIG_CAN_FD_MODE) || defined(CONFIG_CAN_MCAN_FIXED_MRAM_LAYOUT) */
     };
 } __packed __aligned(4);
 
@@ -984,8 +989,13 @@ struct can_mcan_tx_buffer {
     struct can_mcan_tx_buffer_hdr hdr;
 
     union {
+        #if defined(CONFIG_CAN_FD_MODE) || defined(CONFIG_CAN_MCAN_FIXED_MRAM_LAYOUT)
         uint8_t  data[64];
         uint32_t data_32[16];
+        #else /* defined(CONFIG_CAN_FD_MODE) || defined(CONFIG_CAN_MCAN_FIXED_MRAM_LAYOUT) */
+        uint8_t  data[8];
+        uint32_t data_32[2];
+        #endif /* !defined(CONFIG_CAN_FD_MODE) || defined(CONFIG_CAN_MCAN_FIXED_MRAM_LAYOUT) */
     };
 } __packed __aligned(4);
 

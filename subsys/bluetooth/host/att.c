@@ -108,10 +108,6 @@ struct bt_att_tx_meta_data {
 	enum bt_att_chan_opt chan_opt;
 };
 
-struct bt_att_tx_meta {
-	struct bt_att_tx_meta_data *data;
-};
-
 /* ATT channel specific data */
 struct bt_att_chan {
 	/* Connection this channel is associated with */
@@ -474,15 +470,31 @@ static int /**/chan_send(struct bt_att_chan *chan, struct net_buf *buf)
 	}
 
 	if (hdr->code == BT_ATT_OP_SIGNED_WRITE_CMD) {
+		net_buf_simple_save(&buf->b, &state);
+
 		err = bt_smp_sign(chan->att->conn, buf);
-		if (err) {
+		if (err != 0) {
 			LOG_ERR("Error signing data");
-			net_buf_unref(buf);
+			/* Restore the buffer state, since the callers retain
+			 * ownership of the buffer on failure and may retry
+			 * sending it later.
+			 */
+			net_buf_simple_restore(&buf->b, &state);
 			return err;
 		}
-	}
 
-	net_buf_simple_save(&buf->b, &state);
+		/* Keep the pre-signing state saved above: bt_smp_sign()
+		 * already consumed and persisted a sign counter value, so if
+		 * the send below fails the buffer must be restored to its
+		 * unsigned form. Retrying will then sign it again (consuming
+		 * the next counter value, which is fine since the spec only
+		 * requires the counter to strictly increase). Restoring the
+		 * already-signed state instead would let a retry append a
+		 * second signature onto a buffer sized for only one.
+		 */
+	} else {
+		net_buf_simple_save(&buf->b, &state);
+	}
 
 	data->att_chan = chan;
 
@@ -694,7 +706,7 @@ static void chan_rebegin_att_timeout(struct bt_att_tx_meta_data *user_data)
 	 * in-flight.
 	 */
 	if (chan->req) {
-		k_work_reschedule(&chan->timeout_work, BT_ATT_TIMEOUT);
+		bt_work_reschedule(&chan->timeout_work, BT_ATT_TIMEOUT);
 	}
 }
 
@@ -3624,8 +3636,7 @@ static int att_schedule_eatt_connect(struct bt_conn *conn, uint8_t chans_to_conn
 
 	att->eatt.chans_to_connect = chans_to_connect;
 
-	return k_work_reschedule(&att->eatt.connection_work,
-				 credit_based_connection_delay(conn));
+	return bt_work_reschedule(&att->eatt.connection_work, credit_based_connection_delay(conn));
 }
 
 static void handle_potential_collision(struct bt_att *att)
