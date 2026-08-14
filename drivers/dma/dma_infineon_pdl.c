@@ -623,3 +623,40 @@ static DEVICE_API(dma, ifx_cat1_dma_api) = {
                           &ifx_cat1_dma_api);
 
 DT_INST_FOREACH_STATUS_OKAY(INFINEON_CAT1_DMA_INIT)
+
+#if (__GTEST == 1) /* #CUSTOM@NDRS */
+#include "mcu_reg_stub.h"
+
+#define DMA_IFX_CFG_REG_INIT(n) \
+    zephyr_gtest_dma_ifx_reg_init(DEVICE_DT_GET(DT_DRV_INST(n)), \
+                                  &ifx_cat1_dma_data_##n, &ifx_cat1_dma_config_##n);
+
+static void zephyr_gtest_dma_ifx_reg_init(const struct device* dev,
+                                          struct ifx_cat1_dma_data_t* data,
+                                          struct ifx_cat1_dma_config_t* cfg) {
+    uintptr_t base_addr = (uintptr_t)cfg->regs;
+    int rc;
+
+    switch (base_addr) {
+        case DW0_BASE : {
+            cfg->regs = (DW_Type*)ut_mcu_dw0_ptr;
+            break;
+        }
+
+        default : { // DW1_BASE
+            cfg->regs = (DW_Type*)ut_mcu_dw1_ptr;
+            break;
+        }
+    }
+
+    rc = dev->ops.init(dev);
+    if (rc == 0) {
+        dev->state->initialized = true;
+        dev->state->init_res = 0U;
+    }
+}
+
+void zephyr_gtest_dma_ifx(void) {
+    DT_INST_FOREACH_STATUS_OKAY(DMA_IFX_CFG_REG_INIT)
+}
+#endif
