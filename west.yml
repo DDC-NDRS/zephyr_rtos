@@ -200,7 +200,7 @@ manifest:
       groups:
         - hal
     - name: hal_microchip
-      revision: 1f2976a52e03c453a2d2fb86754664ba75275c61
+      revision: 550371954d33f7f5f17b3eb2f7ecc46ca3fa1b62
       path: modules/hal/microchip
       groups:
         - hal
@@ -231,7 +231,7 @@ manifest:
         - hal
     - name: hal_realtek
       path: modules/hal/realtek
-      revision: c20e7ee9744a1b9b5f05b99260930a7f196b9b12
+      revision: 29d365ccfbceb9f42ce666d75463fbe2c83b8e29
       groups:
         - hal
     - name: hal_renesas
@@ -250,7 +250,7 @@ manifest:
       groups:
         - hal
     - name: hal_silabs
-      revision: 759584f0b08f3cc99443a293a59b4a492687c67e
+      revision: 8d871343cd8f4518a69dfc96a31a2963c1f59f35
       path: modules/hal/silabs
       groups:
         - hal
@@ -260,7 +260,7 @@ manifest:
       groups:
         - hal
     - name: hal_stm32
-      revision: 443ad227154b8845f53c2e71c3b78b3c45145f95
+      revision: f8669dfdcb2d0d74249019dbfc522fc07bc3ccb7
       path: modules/hal/stm32
       groups:
         - hal

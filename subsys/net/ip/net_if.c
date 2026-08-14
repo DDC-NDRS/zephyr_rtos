@@ -449,6 +449,8 @@ static inline void init_iface(struct net_if* iface) {
     const struct device* dev = net_if_get_device(iface);
     const struct net_if_api* api;
 
+    NET_ASSERT(dev != NULL);
+
     if (!device_is_ready(dev)) {
         NET_ERR("Iface %p device not ready", iface);
         return;
@@ -718,10 +720,9 @@ struct net_if* net_if_get_first_up(void) {
 }
 
 static enum net_l2_flags l2_flags_get(struct net_if* iface) {
+    struct net_l2 const* l2 = net_if_l2(iface);
     enum net_l2_flags flags = 0;
-    struct net_l2 const* l2;
 
-    l2 = net_if_l2(iface);
     if ((l2 != NULL) && (l2->get_flags != NULL)) {
         flags = l2->get_flags(iface);
     }
@@ -3289,6 +3290,8 @@ int net_if_ipv6_router_start(struct net_if* iface) {
 
     net_if_unlock(iface);
 
+    net_ipv6_ra_update_timer();
+
     /* Join the all-routers multicast group (ff02::2) so that the interface
      * receives Router Solicitations from downstream hosts and can answer
      * them with a Router Advertisement (RFC 4861 ch. 2.2 and 6.2.6).
@@ -3298,8 +3301,6 @@ int net_if_ipv6_router_start(struct net_if* iface) {
      * joining under the lock could deadlock (ABBA). net_ipv6_mld_join() is
      * idempotent, so no explicit "already joined" check is needed.
      */
-    net_ipv6_ra_update_timer();
-
     net_ipv6_addr_create_ll_allrouters_mcast(&all_routers);
     ret = net_ipv6_mld_join(iface, &all_routers);
     if (ret == -ENOTSUP) {
@@ -6171,6 +6172,10 @@ int net_if_addr_unref(struct net_if* iface,
 }
 
 enum net_verdict net_if_recv_data(struct net_if* iface, struct net_pkt* pkt) {
+    struct net_l2 const* l2 = net_if_l2(iface);
+
+    NET_ASSERT(l2 != NULL);
+
     if (IS_ENABLED(CONFIG_NET_PROMISCUOUS_MODE) &&
         net_if_is_promisc(iface)) {
         struct net_pkt* new_pkt;
@@ -6182,7 +6187,7 @@ enum net_verdict net_if_recv_data(struct net_if* iface, struct net_pkt* pkt) {
         }
     }
 
-    return net_if_l2(iface)->recv(iface, pkt);
+    return l2->recv(iface, pkt);
 }
 
 void net_if_register_link_cb(struct net_if_link_cb* link,
@@ -6320,7 +6325,8 @@ static void notify_iface_up(struct net_if* iface) {
     }
     else {
         if (!net_if_is_offloaded(iface)) {
-            NET_ASSERT(net_if_get_link_addr(iface)->len > 0);
+            NET_ASSERT((net_if_get_link_addr(iface) != NULL) &&
+                       (net_if_get_link_addr(iface)->len > 0));
         }
     }
 
