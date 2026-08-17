@@ -180,7 +180,11 @@ int i2c_stm32_transaction(struct device const* dev,
                           uint16_t periph);
 #endif /* CONFIG_I2C_RTIO */
 
-int i2c_stm32_runtime_configure(struct device const* dev, uint32_t config);
+/* Reconfigure I2C bus according to @p config
+ * This function must be called with bus mutex locked (k_sem_take(i2c_stm32_data::bus_mutex))
+ * unless CONFIG_I2C_RTIO is enabled (in which case there is no bus_mutex to take).
+ */
+int i2c_stm32_runtime_configure(const struct device* dev, uint32_t config);
 
 #ifdef CONFIG_I2C_TARGET
 int i2c_stm32_target_register(struct device const* dev, struct i2c_target_config* config);

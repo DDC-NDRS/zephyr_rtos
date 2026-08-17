@@ -687,7 +687,7 @@ static inline void byteswp(void* a, void* b, size_t size) {
     uint8_t* bb = (uint8_t*)b;
 
     for (; size > 0; --size) {
-        t     = *aa;
+        t = *aa;
         *aa++ = *bb;
         *bb++ = t;
     }
@@ -706,8 +706,8 @@ int char2hex(char c, uint8_t* x);
 /**
  * @brief Convert a single hexadecimal nibble into a character.
  *
- * @param c The number to convert
- * @param x The address of storage for the converted character.
+ * @param x The number to convert
+ * @param c The address of storage for the converted character.
  *
  *  @return Zero on success or (negative) error code otherwise.
  */
@@ -997,11 +997,11 @@ static ALWAYS_INLINE uint32_t sys_gcd_u(uint32_t a, uint32_t b) {
     uint32_t c;
 
     if (a == 0) {
-        return b;
+        return (b);
     }
 
     if (b == 0) {
-        return a;
+        return (a);
     }
 
     c = a % b;
@@ -1011,7 +1011,7 @@ static ALWAYS_INLINE uint32_t sys_gcd_u(uint32_t a, uint32_t b) {
         c = a % b;
     }
 
-    return b;
+    return (b);
 }
 
 static ALWAYS_INLINE uint32_t sys_gcd_s(int32_t a, int32_t b) {
@@ -1046,7 +1046,7 @@ static ALWAYS_INLINE uint32_t sys_gcd_s(int32_t a, int32_t b) {
  */
 static ALWAYS_INLINE uint64_t sys_lcm_u(uint32_t a, uint32_t b) {
     if ((a == 0) || (b == 0)) {
-        return 0;
+        return (0);
     }
 
     return (uint64_t)(a / sys_gcd_u(a, b)) * (uint64_t)b;

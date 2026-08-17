@@ -882,11 +882,12 @@ void net_eth_ipv6_mcast_to_mac_addr(const struct net_in6_addr* ipv6_addr,
 static inline
 enum ethernet_hw_caps net_eth_get_hw_capabilities(struct net_if* iface) {
     struct device const* dev = net_if_get_device(iface);
-    struct ethernet_api const* api = (struct ethernet_api*)dev->api;
-    enum ethernet_hw_caps caps = ETHERNET_HW_CAPS_NONE;
-
+    struct ethernet_api const* api;
+    enum ethernet_hw_caps caps = (enum ethernet_hw_caps)0;
     #if defined(CONFIG_NET_DSA)
     struct ethernet_context *eth_ctx = net_if_l2_data(iface);
+
+    NET_ASSERT(eth_ctx != NULL);
 
     if (eth_ctx->dsa_port == DSA_CONDUIT_PORT) {
         caps = ETHERNET_DSA_CONDUIT_PORT;
@@ -895,6 +896,9 @@ enum ethernet_hw_caps net_eth_get_hw_capabilities(struct net_if* iface) {
         caps = ETHERNET_DSA_USER_PORT;
     }
     #endif
+    NET_ASSERT(dev != NULL);
+
+    api = (struct ethernet_api const*)dev->api;
     if (api == NULL || api->get_capabilities == NULL) {
         return (caps);
     }
@@ -915,7 +919,13 @@ static inline
 int net_eth_get_hw_config(struct net_if* iface, enum ethernet_config_type type,
                           struct ethernet_config* config) {
     const struct device* dev = net_if_get_device(iface);
-    const struct ethernet_api* eth = (const struct ethernet_api*)dev->api;
+    struct ethernet_api const* eth;
+
+    NET_ASSERT(dev != NULL);
+
+    eth = (const struct ethernet_api *)dev->api;
+
+    NET_ASSERT(eth != NULL);
 
     if (!eth->get_config) {
         return (-ENOTSUP);
@@ -1477,8 +1487,10 @@ __syscall const struct device* net_eth_get_ptp_clock_by_index(int index);
  * @return True if interface supports Wi-Fi, False otherwise.
  */
 static inline bool net_eth_type_is_wifi(struct net_if* iface) {
-    const struct ethernet_context* ctx = (struct ethernet_context*)
+    struct ethernet_context const* ctx = (struct ethernet_context*)
         net_if_l2_data(iface);
+
+    NET_ASSERT(ctx != NULL);
 
     return (ctx->eth_if_type == L2_ETH_IF_TYPE_WIFI);
 }
@@ -1491,8 +1503,10 @@ static inline bool net_eth_type_is_wifi(struct net_if* iface) {
  * @return True if interface is cabled ethernet, False otherwise.
  */
 static inline bool net_eth_type_is_ethernet(struct net_if* iface) {
-    const struct ethernet_context* ctx = (struct ethernet_context*)
+    struct ethernet_context const* ctx = (struct ethernet_context*)
         net_if_l2_data(iface);
+
+    NET_ASSERT(ctx != NULL);
 
     return (ctx->eth_if_type == L2_ETH_IF_TYPE_ETHERNET);
 }
@@ -1505,6 +1519,8 @@ static inline bool net_eth_type_is_ethernet(struct net_if* iface) {
 static inline void net_eth_set_if_type_wifi(struct net_if* iface) {
     struct ethernet_context* ctx = (struct ethernet_context*)
         net_if_l2_data(iface);
+
+    NET_ASSERT(ctx != NULL);
 
     ctx->eth_if_type = L2_ETH_IF_TYPE_WIFI;
 }

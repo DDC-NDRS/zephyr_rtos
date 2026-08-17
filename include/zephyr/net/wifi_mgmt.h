@@ -2330,7 +2330,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*scan)(const struct device* dev,
+    int (*scan)(struct device const* dev,
                 struct net_if* iface,
                 struct wifi_scan_params* params,
                 scan_result_cb_t cb);
@@ -2343,7 +2343,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*connect)(const struct device* dev,
+    int (*connect)(struct device const* dev,
                    struct net_if* iface,
                    struct wifi_connect_req_params* params);
 
@@ -2354,7 +2354,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*disconnect)(const struct device* dev,
+    int (*disconnect)(struct device const* dev,
                       struct net_if* iface);
 
     /** Enable AP mode
@@ -2365,7 +2365,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*ap_enable)(const struct device* dev,
+    int (*ap_enable)(struct device const* dev,
                      struct net_if* iface,
                      struct wifi_connect_req_params* params);
 
@@ -2375,7 +2375,7 @@ struct wifi_mgmt_ops {
      * @param iface Network interface to use for the AP
      * @return 0 if ok, < 0 if error
      */
-    int (*ap_disable)(const struct device* dev, struct net_if* iface);
+    int (*ap_disable)(struct device const* dev, struct net_if* iface);
 
     /** Disconnect a STA from AP
      *
@@ -2385,7 +2385,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*ap_sta_disconnect)(const struct device* dev, struct net_if* iface,
+    int (*ap_sta_disconnect)(struct device const* dev, struct net_if* iface,
                              const uint8_t* mac);
     /** Get interface status
      *
@@ -2395,7 +2395,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*iface_status)(const struct device* dev,
+    int (*iface_status)(struct device const* dev,
                         struct net_if* iface,
                         struct wifi_iface_status* status);
 
@@ -2408,7 +2408,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*get_stats)(const struct device* dev,
+    int (*get_stats)(struct device const* dev,
                      struct net_if* iface,
                      struct net_stats_wifi* stats);
 
@@ -2419,7 +2419,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*reset_stats)(const struct device* dev, struct net_if* iface);
+    int (*reset_stats)(struct device const* dev, struct net_if* iface);
     #endif /* CONFIG_NET_STATISTICS_WIFI */
 
     /** Set or get 11K status
@@ -2430,7 +2430,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*cfg_11k)(const struct device* dev,
+    int (*cfg_11k)(struct device const* dev,
                    struct net_if* iface,
                    struct wifi_11k_params* params);
 
@@ -2442,7 +2442,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*send_11k_neighbor_request)(const struct device* dev,
+    int (*send_11k_neighbor_request)(struct device const* dev,
                                      struct net_if* iface,
                                      struct wifi_11k_params* params);
 
@@ -2454,7 +2454,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*set_power_save)(const struct device* dev,
+    int (*set_power_save)(struct device const* dev,
                           struct net_if* iface,
                           struct wifi_ps_params* params);
 
@@ -2466,7 +2466,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*set_twt)(const struct device* dev,
+    int (*set_twt)(struct device const* dev,
                    struct net_if* iface,
                    struct wifi_twt_params* params);
 
@@ -2478,7 +2478,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*set_btwt)(const struct device* dev,
+    int (*set_btwt)(struct device const* dev,
                     struct net_if* iface,
                     struct wifi_twt_params* params);
 
@@ -2490,7 +2490,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*get_power_save_config)(const struct device* dev,
+    int (*get_power_save_config)(struct device const* dev,
                                  struct net_if* iface,
                                  struct wifi_ps_config* config);
 
@@ -2502,7 +2502,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*reg_domain)(const struct device* dev,
+    int (*reg_domain)(struct device const* dev,
                       struct net_if* iface,
                       struct wifi_reg_domain* reg_domain);
 
@@ -2514,7 +2514,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*filter)(const struct device* dev,
+    int (*filter)(struct device const* dev,
                   struct net_if* iface,
                   struct wifi_filter_info* filter);
 
@@ -2526,7 +2526,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*mode)(const struct device* dev, struct net_if* iface, struct wifi_mode_info *mode);
+    int (*mode)(struct device const* dev, struct net_if* iface, struct wifi_mode_info *mode);
 
     /** Set or get current channel of operation
      *
@@ -2536,7 +2536,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*channel)(const struct device* dev,
+    int (*channel)(struct device const* dev,
                    struct net_if* iface,
                    struct wifi_channel_info* channel);
 
@@ -2548,7 +2548,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*btm_query)(const struct device* dev, struct net_if* iface, uint8_t reason);
+    int (*btm_query)(struct device const* dev, struct net_if* iface, uint8_t reason);
 
     /** Check if ap support Neighbor Report or not.
      * @param dev Pointer to the device structure for the driver instance.
@@ -2556,7 +2556,7 @@ struct wifi_mgmt_ops {
      *
      * @return true if support, false if not support
      */
-    bool (*bss_support_neighbor_rep)(const struct device* dev, struct net_if* iface);
+    bool (*bss_support_neighbor_rep)(struct device const* dev, struct net_if* iface);
 
     /** Judge ap whether support the capability
      *
@@ -2566,7 +2566,7 @@ struct wifi_mgmt_ops {
      *
      * @return 1 if support, 0 if not support
      */
-    int (*bss_ext_capab)(const struct device* dev, struct net_if* iface, int capab);
+    int (*bss_ext_capab)(struct device const* dev, struct net_if* iface, int capab);
 
     /** Send legacy scan
      *
@@ -2575,7 +2575,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*legacy_roam)(const struct device* dev, struct net_if* iface);
+    int (*legacy_roam)(struct device const* dev, struct net_if* iface);
 
     /** Get Version of WiFi driver and Firmware
      *
@@ -2590,7 +2590,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*get_version)(const struct device* dev,
+    int (*get_version)(struct device const* dev,
                        struct net_if* iface,
                        struct wifi_version* params);
 
@@ -2602,7 +2602,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*get_conn_params)(const struct device* dev,
+    int (*get_conn_params)(struct device const* dev,
                            struct net_if* iface,
                            struct wifi_connect_req_params* params);
 
@@ -2614,7 +2614,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*set_rts_threshold)(const struct device* dev,
+    int (*set_rts_threshold)(struct device const* dev,
                              struct net_if* iface,
                              unsigned int rts_threshold);
 
@@ -2626,7 +2626,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*ap_config_params)(const struct device* dev,
+    int (*ap_config_params)(struct device const* dev,
                             struct net_if* iface,
                             struct wifi_ap_config_params* params);
 
@@ -2638,7 +2638,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*config_params)(const struct device* dev,
+    int (*config_params)(struct device const* dev,
                          struct net_if* iface,
                          struct wifi_config_params* params);
 
@@ -2651,7 +2651,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*dpp_dispatch)(const struct device* dev,
+    int (*dpp_dispatch)(struct device const* dev,
                         struct net_if* iface,
                         struct wifi_dpp_params* params);
     #endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_DPP */
@@ -2665,7 +2665,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*nan_cfg)(const struct device* dev,
+    int (*nan_cfg)(struct device const* dev,
                    struct net_if* iface,
                    struct wifi_nan_params* params);
     #endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_NAN */
@@ -2677,7 +2677,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*pmksa_flush)(const struct device* dev, struct net_if* iface);
+    int (*pmksa_flush)(struct device const* dev, struct net_if* iface);
 
     /** Set Wi-Fi enterprise mode CA/client Cert and key
      *
@@ -2688,7 +2688,7 @@ struct wifi_mgmt_ops {
      * @return 0 if ok, < 0 if error
      */
     #ifdef CONFIG_WIFI_CERTIFICATE_LIB
-    int (*enterprise_creds)(const struct device* dev,
+    int (*enterprise_creds)(struct device const* dev,
                             struct net_if* iface,
                             struct wifi_enterprise_creds_params* creds);
     #endif
@@ -2701,7 +2701,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*get_rts_threshold)(const struct device* dev,
+    int (*get_rts_threshold)(struct device const* dev,
                              struct net_if* iface,
                              unsigned int* rts_threshold);
 
@@ -2713,7 +2713,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*wps_config)(const struct device* dev,
+    int (*wps_config)(struct device const* dev,
                       struct net_if* iface,
                       struct wifi_wps_config_params* params);
 
@@ -2725,7 +2725,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*candidate_scan)(const struct device* dev,
+    int (*candidate_scan)(struct device const* dev,
                           struct net_if* iface,
                           struct wifi_scan_params* params);
 
@@ -2738,7 +2738,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    __deprecated int (*start_11r_roaming)(const struct device* dev, struct net_if* iface);
+    __deprecated int (*start_11r_roaming)(struct device const* dev, struct net_if* iface);
 
     /** Set BSS max idle period
      *
@@ -2748,7 +2748,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*set_bss_max_idle_period)(const struct device* dev,
+    int (*set_bss_max_idle_period)(struct device const* dev,
                                    struct net_if* iface,
                                    unsigned short bss_max_idle_period);
 
@@ -2761,7 +2761,7 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*set_bgscan)(const struct device* dev,
+    int (*set_bgscan)(struct device const* dev,
                       struct net_if* iface,
                       struct wifi_bgscan_params* params);
     #endif
@@ -2776,10 +2776,23 @@ struct wifi_mgmt_ops {
      *
      * @return 0 if ok, < 0 if error
      */
-    int (*p2p_oper)(const struct device* dev,
+    int (*p2p_oper)(struct device const* dev,
                     struct net_if* iface,
                     struct wifi_p2p_params* params);
     #endif
+
+    /** Get interface supported roles (static driver capability).
+     * Read once by the supplicant at interface-add time, and treated
+     * as a static per-interface property. A driver cannot use it to
+     * signal a role change at runtime.
+     *
+     * @param dev  Pointer to the device structure for the driver instance.
+     * @param iface Network interface to query.
+     *
+     * @return BIT(enum wifi_nm_iface_type) of supported roles.
+     * Return 0 to let the caller use the default.
+     */
+     uint32_t (*get_iface_caps)(struct device const* dev, struct net_if* iface);
 };
 
 /** Wi-Fi management offload API */

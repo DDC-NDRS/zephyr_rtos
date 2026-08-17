@@ -75,8 +75,14 @@ BUILD_ASSERT(offsetof(struct offloaded_if_api, iface_api) == 0, "offsetof shall 
  * @return True if interface supports Wi-Fi, False otherwise.
  */
 static inline bool net_off_is_wifi_offloaded(struct net_if* iface) {
-    const struct offloaded_if_api* api = (const struct offloaded_if_api*)
-        net_if_get_device(iface)->api;
+    struct device const* dev = net_if_get_device(iface);
+    struct offloaded_if_api const* api;
+
+    NET_ASSERT(dev != NULL);
+
+    api = (struct offloaded_if_api const*)dev->api;
+
+    NET_ASSERT(api != NULL);
 
     return (api->get_type && (api->get_type() == L2_OFFLOADED_NET_IF_TYPE_WIFI));
 }

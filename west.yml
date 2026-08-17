@@ -149,7 +149,7 @@ manifest:
       groups:
         - fs
     - name: hal_adi
-      revision: a554a31806bc308d954fdb43143d260902da9b1e
+      revision: ab16e67b49cfe45826e70d68b720ee5751e77664
       path: modules/hal/adi
       groups:
         - hal
@@ -190,7 +190,7 @@ manifest:
       groups:
         - hal
     - name: hal_infineon
-      revision: 7d202825b07fee320e0f9e0a71284b42190e8ed8
+      revision: 0cbb6f3723feedd0ec85d3efd1bc1c47398fc911
       path: modules/hal/infineon
       groups:
         - hal
@@ -326,7 +326,7 @@ manifest:
       revision: bbedf2656086a93a8468a1c98168a6b36631ce9a
       path: modules/lib/gui/lvgl
     - name: mbedtls
-      revision: 098e120afb51877ed814bdc04443890ae12e0642
+      revision: c43f34b93797e81fd0257c30004dcd0ae332ae51
       path: modules/crypto/mbedtls
       groups:
         - crypto
@@ -394,7 +394,7 @@ manifest:
         - testing
         - tee
     - name: tf-psa-crypto
-      revision: fa92349590a54959ee2efc21b668e5afdb144726
+      revision: 000d24cb5e411a1d68f05b5a98ffd9a5cfdc17c2
       path: modules/crypto/tf-psa-crypto
       groups:
         - crypto

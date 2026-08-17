@@ -545,6 +545,7 @@ Base OS:
     - printk
     - libraries.fdtable.fdtable
     - libraries.p4wq
+    - utilities
 
 BeagleBoard Platforms:
   status: maintained
@@ -3681,6 +3682,7 @@ Kernel:
     - libraries.p4wq
     - sample.kernel
     - linker.linker_generator
+    - utilities
 
 Key-Value Storage Systems:
   status: maintained
@@ -7441,6 +7443,7 @@ West:
     - ithinuel
     - valeriosetti
     - JordanYates
+    - tpambor
   files: []
   labels:
     - "area: TF-M"
@@ -7476,6 +7479,7 @@ West:
     - ithinuel
     - valeriosetti
     - JordanYates
+    - tpambor
   files: []
   labels:
     - "area: TF-M"
@@ -7529,6 +7533,7 @@ West:
     - ithinuel
     - valeriosetti
     - JordanYates
+    - tpambor
   files:
     - modules/trusted-firmware-m/
     - samples/tfm_integration/
