@@ -760,15 +760,10 @@ static int wdt_nxp_fs26_init(const struct device* dev) {
 
     /* FS_WDW_DURATION */
     /*
-     * Arm the longest window the register can express (1024 ms, loosest 31/68
-     * duty cycle) rather than disabling the watchdog outright: WD_FS_REACTION is
-     * NO_ACTION during this bootstrap pass either way, so a missed/expired
-     * window here cannot itself trigger a reset - it only increments WD_ERR_CNT.
-     * An active-but-generous window still gives real (if bounded) supervision
-     * across the gap until a later owner re-arms the real production config,
-     * instead of leaving the chip completely unsupervised for that whole gap.
+     * Disabling the watchdog entirely because the application
+     * can take longer than 1,024 ms to boot.
      */
-    val = WDW_PERIOD_1024MS | WDW_DC_31_68 | WDW_RECOVERY_DISABLE;
+    val = WDW_PERIOD_DISABLE | WDW_DC_31_68 | WDW_RECOVERY_DISABLE;
 
     fs26_setreg(spec, FS26_FS_WDW_DURATION, val);
     fs26_setreg(spec, FS26_FS_NOT_WDW_DURATION, ~val);
