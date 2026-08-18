@@ -66,7 +66,7 @@ extern "C" {
 #define WIFI_MGMT_SKIP_INACTIVITY_POLL IS_ENABLED(CONFIG_WIFI_MGMT_AP_STA_SKIP_INACTIVITY_POLL)
 
 #ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_NAN
-#define WIFI_NAN_MAX_SSI_LEN            128
+#define WIFI_NAN_MAX_SSI_LEN            CONFIG_WIFI_NAN_MAX_SSI_LEN
 #define WIFI_NAN_MAX_SERVICE_NAME_LEN   64
 #define WIFI_NAN_RESP_SIZE              64
 #endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_NAN */
@@ -1904,7 +1904,7 @@ struct wifi_nan_publish_params {
     uint8_t ssi[WIFI_NAN_MAX_SSI_LEN];
 
     /* Actual length of SSI data */
-    uint8_t ssi_len;
+    uint16_t ssi_len;
 
     /* Unsolicited transmission (true by default) */
     bool unsolicited;
@@ -1924,7 +1924,7 @@ struct wifi_nan_update_publish_params {
     uint8_t ssi[WIFI_NAN_MAX_SSI_LEN];
 
     /* Actual length of SSI data */
-    uint8_t ssi_len;
+    uint16_t ssi_len;
 };
 
 /** This structure is used to configure wlan nan subscribe parameters */
@@ -1948,7 +1948,7 @@ struct wifi_nan_subscribe_params {
     uint8_t ssi[WIFI_NAN_MAX_SSI_LEN];
 
     /* Actual length of SSI data */
-    uint8_t ssi_len;
+    uint16_t ssi_len;
 };
 
 /** This structure is used to configure nan transmit parameters */
@@ -1966,7 +1966,7 @@ struct wifi_nan_transmit_params {
     uint8_t ssi[WIFI_NAN_MAX_SSI_LEN];
 
     /* Actual length of SSI data */
-    uint8_t ssi_len;
+    uint16_t ssi_len;
 };
 
 /** @brief Wi-Fi NAN parameters */

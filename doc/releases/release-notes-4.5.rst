@@ -98,6 +98,10 @@ Removed APIs and options
 
     * ``CONFIG_COUNTER_MAXIM_DS3231``
 
+* LLEXT
+
+    * ``llext_get_fn_table``, replaced by ``llext_get_fn_table_entry``
+
 * Networking
 
     * ``CONFIG_NET_TC_SKIP_FOR_HIGH_PRIO``
@@ -255,12 +259,15 @@ New APIs and options
     * :c:member:`bt_le_adv_param.tx_power` and :c:enumerator:`BT_LE_ADV_OPT_TX_POWER`
       to request a specific TX power level per extended advertising set.
     * :c:member:`bt_conn_cb.le_param_update_rejected`
+    * ``BT_HCI_QUIRK_NO_FLOW_CONTROL`` HCI device quirk for controllers that
+      advertise but reject the controller to host flow control commands.
 
   * Mesh
 
     * :c:struct:`bt_mesh_lpn_timing`
     * :c:func:`bt_mesh_stat_lpn_timing_get`
     * :c:func:`bt_mesh_stat_lpn_timing_reset`
+    * :kconfig:option:`CONFIG_BT_MESH_LPN_OFFER_WAIT_TIMEOUT`
 
 * Crypto
 
@@ -622,6 +629,26 @@ Other notable changes
     (``lpc11u6x/``, ``lpc51u68/``, ``lpc54xxx/``, ``lpc55xxx/``, ``lpc84x/``).
     See the :ref:`migration guide <migration_4.5>` for how to update out-of-tree
     board includes.
+
+  * The NXP Kinetis DTSI files have been reorganized from the flat
+    ``dts/arm/nxp/kinetis/`` directory into per-series subdirectories
+    (``k2x/``, ``k32lx/``, ``k6x/``, ``k8x/``, ``ke1xf/``, ``ke1xz/``,
+    ``kl2x/``, ``kv5x/``, ``kwx/``).
+    See the :ref:`migration guide <migration_4.5>` for how to update
+    out-of-tree board includes.
+
+  * The NXP MCX DTSI files have been reorganized from the flat
+    ``dts/arm/nxp/mcx/`` directory into per-series subdirectories
+    (``mcxa/``, ``mcxc/``, ``mcxe/``, ``mcxl/``, ``mcxn/``, ``mcxw/``).
+    See the :ref:`migration guide <migration_4.5>` for how to update
+    out-of-tree board includes.
+
+  * The NXP i.MX RT DTSI files have been reorganized from the flat
+    ``dts/arm/nxp/imxrt/`` directory into per-series subdirectories
+    (``imxrt10xx/``, ``imxrt11xx/``, ``imxrt5xx/``, ``imxrt6xx/``,
+    ``imxrt7xx/``, ``imxrt118x/``).
+    See the :ref:`migration guide <migration_4.5>` for how to update
+    out-of-tree board includes.
 
 * Arm
 

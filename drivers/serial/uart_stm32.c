@@ -157,14 +157,6 @@ uint32_t lpuartdiv_calc(const uint64_t clock_rate, const uint32_t baud_rate) {
 #define STM32_ASYNC_STATUS_TIMEOUT (DMA_STATUS_BLOCK + 1)
 #endif
 
-#ifdef CONFIG_PM
-static void uart_stm32_pm_policy_state_lock_get_unconditional(void) {
-    pm_policy_state_lock_get(PM_STATE_SUSPEND_TO_IDLE, PM_ALL_SUBSTATES);
-    if (IS_ENABLED(CONFIG_PM_S2RAM)) {
-        pm_policy_state_lock_get(PM_STATE_SUSPEND_TO_RAM, PM_ALL_SUBSTATES);
-    }
-}
-
 #if defined(CONFIG_PM) && defined(IS_UART_WAKEUP_FROMSTOP_INSTANCE)
 static void uart_stm32_pm_enable_wakeup_line(uint32_t wakeup_line) {
     #if defined(CONFIG_SOC_SERIES_STM32WB0X)
@@ -185,6 +177,14 @@ static void uart_stm32_pm_enable_wakeup_line(uint32_t wakeup_line) {
     #endif /* CONFIG_SOC_SERIES_STM32WB0X */
 }
 #endif /* CONFIG_PM && IS_UART_WAKEUP_FROMSTOP_INSTANCE */
+
+#ifdef CONFIG_PM
+static void uart_stm32_pm_policy_state_lock_get_unconditional(void) {
+    pm_policy_state_lock_get(PM_STATE_SUSPEND_TO_IDLE, PM_ALL_SUBSTATES);
+    if (IS_ENABLED(CONFIG_PM_S2RAM)) {
+        pm_policy_state_lock_get(PM_STATE_SUSPEND_TO_RAM, PM_ALL_SUBSTATES);
+    }
+}
 
 static void uart_stm32_pm_policy_state_lock_get(struct device const* dev) {
     struct uart_stm32_data* data = dev->data;
@@ -210,6 +210,26 @@ static void uart_stm32_pm_policy_state_lock_put(struct device const* dev) {
         uart_stm32_pm_policy_state_lock_put_unconditional();
     }
 }
+
+#ifdef CONFIG_UART_ASYNC_API
+static void uart_stm32_rx_wakeup_lock_get(struct device const* dev) {
+    struct uart_stm32_data *data = dev->data;
+
+    if (!data->rx_woken) {
+        data->rx_woken = true;
+        uart_stm32_pm_policy_state_lock_get_unconditional();
+    }
+}
+
+static void uart_stm32_rx_wakeup_lock_put(struct device const* dev) {
+    struct uart_stm32_data *data = dev->data;
+
+    if (data->rx_woken) {
+        data->rx_woken = false;
+        uart_stm32_pm_policy_state_lock_put_unconditional();
+    }
+}
+#endif /* CONFIG_UART_ASYNC_API */
 #endif /* CONFIG_PM */
 
 static inline int uart_stm32_set_baudrate(struct device const* dev, uint32_t baud_rate) {
@@ -878,7 +898,7 @@ static int uart_stm32_err_check(struct device const* dev) {
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 
 typedef void (*fifo_fill_fn)(USART_TypeDef* usart, void const* tx_data,
-                             const int offset);
+                             int const offset);
 
 static int uart_stm32_fifo_fill_visitor(USART_TypeDef* usart, void const* tx_data, int size,
                                         fifo_fill_fn fill_fn) {
@@ -906,7 +926,7 @@ static int uart_stm32_fifo_fill_visitor(USART_TypeDef* usart, void const* tx_dat
 }
 
 static void fifo_fill_with_u8(USART_TypeDef* usart,
-                              void const* tx_data, const int offset) {
+                              void const* tx_data, int const offset) {
     uint8_t const* data = (uint8_t const*)tx_data;
     /* Send a character (8bit) */
     LL_USART_TransmitData8(usart, data[offset]);
@@ -927,7 +947,7 @@ static int uart_stm32_fifo_fill(struct device const* dev, uint8_t const* tx_data
 }
 
 typedef void (*fifo_read_fn)(USART_TypeDef const* usart, void* rx_data,
-                             const int offset);
+                             int const offset);
 
 static int uart_stm32_fifo_read_visitor(USART_TypeDef* usart, void* rx_data, int const size,
                                         fifo_read_fn read_fn) {
@@ -952,7 +972,7 @@ static int uart_stm32_fifo_read_visitor(USART_TypeDef* usart, void* rx_data, int
 }
 
 static void fifo_read_with_u8(USART_TypeDef const* usart, void* rx_data,
-                              const int offset) {
+                              int const offset) {
     uint8_t* data = (uint8_t*)rx_data;
 
     data[offset] = LL_USART_ReceiveData8(usart);
@@ -975,7 +995,7 @@ static int uart_stm32_fifo_read(struct device const* dev, uint8_t* rx_data, int 
 #ifdef CONFIG_UART_WIDE_DATA
 
 static void fifo_fill_with_u16(USART_TypeDef* usart,
-                               void const* tx_data, const int offset) {
+                               void const* tx_data, int const offset) {
     uint16_t const* data = (uint16_t const*)tx_data;
 
     /* Send a character (9bit) */
@@ -997,7 +1017,7 @@ static int uart_stm32_fifo_fill_u16(struct device const* dev, uint16_t const* tx
 }
 
 static void fifo_read_with_u16(USART_TypeDef const* usart, void* rx_data,
-                               const int offset) {
+                               int const offset) {
     uint16_t* data = (uint16_t*)rx_data;
 
     data[offset] = LL_USART_ReceiveData9(usart);
@@ -1402,11 +1422,8 @@ static void uart_stm32_isr(struct device const* dev) {
         LL_USART_ClearFlag_WKUP(usart);
 
         #ifdef CONFIG_UART_ASYNC_API
-        if (!data->rx_woken) {
-            /* Prevent SoC from entering STOP mode until RX goes IDLE */
-            uart_stm32_pm_policy_state_lock_get_unconditional();
-            data->rx_woken = true;
-        }
+        /* Prevent SoC from entering STOP mode until RX goes IDLE */
+        uart_stm32_rx_wakeup_lock_get(dev);
         #endif
 
         #ifdef USART_ISR_REACK
@@ -1435,11 +1452,8 @@ static void uart_stm32_isr(struct device const* dev) {
         LOG_DBG("idle interrupt occurred");
 
         #ifdef CONFIG_PM
-        if (data->rx_woken) {
-            /* Allow SoC to enter STOP mode now that RX is IDLE */
-            uart_stm32_pm_policy_state_lock_put_unconditional();
-            data->rx_woken = false;
-        }
+        /* Allow SoC to enter STOP mode now that RX is IDLE */
+        uart_stm32_rx_wakeup_lock_put(dev);
         #endif
 
         if (data->dma_rx.timeout == 0) {
@@ -1476,6 +1490,12 @@ static void uart_stm32_isr(struct device const* dev) {
         LOG_DBG("rx timeout interrupt occurred");
 
         LL_USART_ClearFlag_RTO(usart);
+
+        #ifdef CONFIG_PM
+        /* Allow SoC to enter STOP mode now that RX has timed out */
+        uart_stm32_rx_wakeup_lock_put(dev);
+        #endif
+
         uart_stm32_dma_rx_flush(dev, STM32_ASYNC_STATUS_TIMEOUT);
     #endif /* HAS_RTO */
     }
