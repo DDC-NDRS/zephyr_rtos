@@ -297,7 +297,7 @@ struct adc_dt_spec {
      * Pointer to the device structure for the ADC driver instance
      * used by this io-channel.
      */
-    const struct device* dev;
+    struct device const* dev;
 
     /** ADC channel identifier used by this io-channel. */
     uint8_t channel_id;
@@ -682,8 +682,8 @@ enum adc_action {
  *
  * @returns Action to be performed by the driver. See @ref adc_action.
  */
-typedef enum adc_action (*adc_sequence_callback)(const struct device* dev,
-                                                 const struct adc_sequence* sequence,
+typedef enum adc_action (*adc_sequence_callback)(struct device const* dev,
+                                                 struct adc_sequence const* sequence,
                                                  uint16_t sampling_index);
 
 /**
@@ -901,7 +901,7 @@ struct adc_chan_spec {
 struct adc_read_config {
     const struct device* adc;
     bool const is_streaming;
-    const struct adc_dt_spec* adc_spec;
+    struct adc_dt_spec const* adc_spec;
     const struct adc_stream_trigger* triggers;
     struct adc_sequence* sequence;
     uint16_t fifo_watermark_lvl;
@@ -981,20 +981,20 @@ struct adc_decoder_api {
  * @brief Type definition of ADC API function for configuring a channel.
  * See adc_channel_setup() for argument descriptions.
  */
-typedef int (*adc_api_channel_setup)(const struct device* dev,
-                                     const struct adc_channel_cfg* channel_cfg);
+typedef int (*adc_api_channel_setup)(struct device const* dev,
+                                     struct adc_channel_cfg const* channel_cfg);
 
 /**
  * @brief Type definition of ADC API function for setting a read request.
  * See adc_read() for argument descriptions.
  */
-typedef int (*adc_api_read)(const struct device* dev,
-                            const struct adc_sequence* sequence);
+typedef int (*adc_api_read)(struct device const* dev,
+                            struct adc_sequence const* sequence);
 
 /**
  * @brief Type definition of ADC API function for submitting a stream request.
  */
-typedef void (*adc_api_submit)(const struct device* dev,
+typedef void (*adc_api_submit)(struct device const* dev,
                                struct rtio_iodev_sqe* sqe);
 
 /**
@@ -1002,17 +1002,25 @@ typedef void (*adc_api_submit)(const struct device* dev,
  *
  * @see adc_get_decoder() for more details
  */
-typedef int (*adc_api_get_decoder)(const struct device* dev,
-                                   const struct adc_decoder_api** api);
+typedef int (*adc_api_get_decoder)(struct device const* dev,
+                                   struct adc_decoder_api const** api);
 
 /**
  * @brief Type definition of ADC API function for setting an asynchronous
  *        read request.
  * See adc_read_async() for argument descriptions.
  */
-typedef int (*adc_api_read_async)(const struct device* dev,
-                                  const struct adc_sequence* sequence,
+typedef int (*adc_api_read_async)(struct device const* dev,
+                                  struct adc_sequence const* sequence,
                                   struct k_poll_signal* async);
+
+/**
+ * @brief Type definition of ADC API function for getting a reference
+ *        voltage in millivolts.
+ * See adc_ref_get() for related public helper.
+ */
+typedef int (*adc_api_ref_get)(struct device const* dev, enum adc_reference ref,
+                               uint16_t* vref_mv);
 
 /**
  * @driver_ops{ADC}
@@ -1049,9 +1057,23 @@ __subsystem struct adc_driver_api {
     /**
      * @driver_ops_mandatory Internal reference voltage, in millivolts.
      *
-     * Set to 0 if internal reference is not supported.
+     * Set to 0 if internal reference is not supported. Used as the
+     * fallback for @ref ADC_REF_INTERNAL when @c ref_get is NULL.
      */
     uint16_t ref_internal;
+
+    /**
+     * @driver_ops_optional Get the current voltage for a selected
+     * reference in millivolts.
+     *
+     * When NULL, @ref adc_ref_get falls back to @c ref_internal for
+     * @ref ADC_REF_INTERNAL and returns @c -ENOTSUP for other
+     * references. When implemented, return the live/runtime value
+     * (for example a cached measurement); return @c -ENODATA when the
+     * reference is supported but no millivolt value is known yet, or
+     * @c -ENOTSUP when the reference is not supported by the device.
+     */
+    adc_api_ref_get ref_get;
 };
 
 /** @} */
@@ -1068,11 +1090,11 @@ __subsystem struct adc_driver_api {
  * @retval 0       On success.
  * @retval -EINVAL If a parameter with an invalid value has been provided.
  */
-__syscall int adc_channel_setup(const struct device* dev,
-                                const struct adc_channel_cfg* channel_cfg);
+__syscall int adc_channel_setup(struct device const* dev,
+                                struct adc_channel_cfg const* channel_cfg);
 
-static inline int z_impl_adc_channel_setup(const struct device* dev,
-                                           const struct adc_channel_cfg* channel_cfg) {
+static inline int z_impl_adc_channel_setup(struct device const* dev,
+                                           struct adc_channel_cfg const* channel_cfg) {
     return DEVICE_API_GET(adc, dev)->channel_setup(dev, channel_cfg);
 }
 
@@ -1085,7 +1107,7 @@ static inline int z_impl_adc_channel_setup(const struct device* dev,
  * Devicetree is not valid.
  * @see adc_channel_setup()
  */
-static inline int adc_channel_setup_dt(const struct adc_dt_spec* spec) {
+static inline int adc_channel_setup_dt(struct adc_dt_spec const* spec) {
     if (!spec->channel_cfg_dt_node_exists) {
         return (-ENOTSUP);
     }
@@ -1114,11 +1136,11 @@ static inline int adc_channel_setup_dt(const struct adc_dt_spec* spec) {
  *                  in the buffer, but at least some of them were taken with
  *                  an extra delay compared to what was scheduled.
  */
-__syscall int adc_read(const struct device* dev,
-                       const struct adc_sequence* sequence);
+__syscall int adc_read(struct device const* dev,
+                       struct adc_sequence const* sequence);
 
-static inline int z_impl_adc_read(const struct device* dev,
-                                  const struct adc_sequence* sequence) {
+static inline int z_impl_adc_read(struct device const* dev,
+                                  struct adc_sequence const* sequence) {
     return DEVICE_API_GET(adc, dev)->read(dev, sequence);
 }
 
@@ -1131,8 +1153,8 @@ static inline int z_impl_adc_read(const struct device* dev,
  * @return A value from adc_read().
  * @see adc_read()
  */
-static inline int adc_read_dt(const struct adc_dt_spec* spec,
-                              const struct adc_sequence* sequence) {
+static inline int adc_read_dt(struct adc_dt_spec const* spec,
+                              struct adc_sequence const* sequence) {
     return adc_read(spec->dev, sequence);
 }
 
@@ -1156,13 +1178,13 @@ static inline int adc_read_dt(const struct adc_dt_spec* spec,
  *          See adc_read() for a list of possible error codes.
  *
  */
-__syscall int adc_read_async(const struct device* dev,
-                             const struct adc_sequence* sequence,
+__syscall int adc_read_async(struct device const* dev,
+                             struct adc_sequence const* sequence,
                              struct k_poll_signal* async);
 
 #ifdef CONFIG_ADC_ASYNC
-static inline int z_impl_adc_read_async(const struct device* dev,
-                                        const struct adc_sequence* sequence,
+static inline int z_impl_adc_read_async(struct device const* dev,
+                                        struct adc_sequence const* sequence,
                                         struct k_poll_signal* async) {
     return DEVICE_API_GET(adc, dev)->read_async(dev, sequence, async);
 }
@@ -1187,8 +1209,8 @@ static inline int z_impl_adc_read_async(const struct device* dev,
  * @return A value from adc_read().
  * @see adc_read()
  */
-static inline int adc_read_async_dt(const struct adc_dt_spec* spec,
-                                    const struct adc_sequence* sequence,
+static inline int adc_read_async_dt(struct adc_dt_spec const* spec,
+                                    struct adc_sequence const* sequence,
                                     struct k_poll_signal* async) {
     return adc_read_async(spec->dev, sequence, async);
 }
@@ -1205,8 +1227,8 @@ static inline int adc_read_async_dt(const struct adc_dt_spec* spec,
  *
  *
  */
-__syscall int adc_get_decoder(const struct device* dev,
-                              const struct adc_decoder_api** api);
+__syscall int adc_get_decoder(struct device const* dev,
+                              struct adc_decoder_api const** api);
 
 #define ADC_DATA_GENERIC_HEADER_SIZE offsetof(struct adc_data_generic_header, channels)
 
@@ -1293,8 +1315,8 @@ static inline int adc_stream(struct rtio_iodev* iodev, struct rtio* ctx, void* u
 }
 
 #ifdef CONFIG_ADC_STREAM
-static inline int z_impl_adc_get_decoder(const struct device* dev,
-                                         const struct adc_decoder_api** decoder) {
+static inline int z_impl_adc_get_decoder(struct device const* dev,
+                                         struct adc_decoder_api const** decoder) {
     const struct adc_driver_api* api = DEVICE_API_GET(adc, dev);
 
     __ASSERT_NO_MSG(api != NULL);
@@ -1309,18 +1331,70 @@ static inline int z_impl_adc_get_decoder(const struct device* dev,
 #endif /* CONFIG_ADC_STREAM */
 
 /**
+ * @brief Get the voltage for a selected ADC reference.
+ *
+ * Returns the millivolt scale associated with @p ref for @p dev. When the
+ * driver provides @c ref_get, that callback is used. Otherwise,
+ * @ref ADC_REF_INTERNAL falls back to the static @c ref_internal field
+ * and other references return @c -ENOTSUP.
+ *
+ * Drivers that implement @c ref_get are responsible for any DT /
+ * @c ref_internal fallback for @ref ADC_REF_INTERNAL.
+ *
+ * @param[in]  dev      Pointer to the device structure for the driver instance.
+ * @param[in]  ref      Reference whose millivolt scale is requested.
+ * @param[out] vref_mv  Destination for the reference voltage in millivolts.
+ *
+ * @retval 0          On success; @p vref_mv holds the voltage in millivolts.
+ * @retval -EINVAL    If @p vref_mv is NULL.
+ * @retval -ENOTSUP   If the reference is not supported / no value source exists.
+ * @retval -ENODATA   If the reference is supported but no millivolt value is known.
+ */
+static inline int adc_ref_get(struct device const* dev, enum adc_reference ref,
+                              uint16_t* vref_mv) {
+    const struct adc_driver_api *api;
+
+    if (vref_mv == NULL) {
+        return (-EINVAL);
+    }
+
+    api = DEVICE_API_GET(adc, dev);
+    if (api->ref_get != NULL) {
+        return api->ref_get(dev, ref, vref_mv);
+    }
+
+    if (ref != ADC_REF_INTERNAL) {
+        return (-ENOTSUP);
+    }
+
+    *vref_mv = api->ref_internal;
+
+    return (*vref_mv == 0U) ? -ENODATA : 0;
+}
+
+/**
  * @brief Get the internal reference voltage.
  *
  * Returns the voltage corresponding to @ref ADC_REF_INTERNAL,
- * measured in millivolts.
+ * measured in millivolts. This is a convenience wrapper around
+ * @ref adc_ref_get.
+ *
+ * Drivers that implement @c ref_get may update the value over time
+ * (for example after hardware calibration); this does not change the
+ * function signature.
  *
  * @param dev Pointer to the device structure for the driver instance.
  *
- * @return a positive value is the reference voltage value.  Returns
+ * @return A positive value is the reference voltage value.  Returns
  * zero if reference voltage information is not available.
  */
-static inline uint16_t adc_ref_internal(const struct device* dev) {
-    return DEVICE_API_GET(adc, dev)->ref_internal;
+static inline uint16_t adc_ref_internal(struct device const* dev) {
+    uint16_t vref_mv;
+    int ret;
+
+    ret = adc_ref_get(dev, ADC_REF_INTERNAL, &vref_mv);
+
+    return ((ret == 0) ? vref_mv : 0U);
 }
 
 /**
@@ -1330,8 +1404,8 @@ static inline uint16_t adc_ref_internal(const struct device* dev) {
  * ADC measurement to a physical voltage.
  *
  * @param ref_mv the reference voltage used for the measurement, in
- * millivolts.  This may be from adc_ref_internal() or a known
- * external reference.
+ * millivolts.  This may be from adc_ref_get(), adc_ref_internal() or
+ * a known external reference.
  *
  * @param gain the ADC gain configuration used to sample the input
  *
@@ -1405,18 +1479,19 @@ static inline int adc_raw_to_microvolts(int32_t ref_mv, enum adc_gain gain, uint
  * @see adc_raw_to_x_fn
  */
 static inline int adc_raw_to_x_dt_chan(adc_raw_to_x_fn conv_func,
-                                       const struct adc_dt_spec* spec,
-                                       const struct adc_channel_cfg* channel_cfg,
+                                       struct adc_dt_spec const* spec,
+                                       struct adc_channel_cfg const* channel_cfg,
                                        int32_t* valp) {
     int32_t vref_mv;
+    uint16_t vref_mv_u16;
     uint8_t resolution;
 
     if (!spec->channel_cfg_dt_node_exists) {
         return (-ENOTSUP);
     }
 
-    if (channel_cfg->reference == ADC_REF_INTERNAL) {
-        vref_mv = (int32_t)adc_ref_internal(spec->dev);
+    if (adc_ref_get(spec->dev, channel_cfg->reference, &vref_mv_u16) == 0) {
+        vref_mv = (int32_t)vref_mv_u16;
     }
     else {
         vref_mv = spec->vref_mv;
@@ -1448,7 +1523,7 @@ static inline int adc_raw_to_x_dt_chan(adc_raw_to_x_fn conv_func,
  * Devicetree is not valid.
  * @see adc_raw_to_millivolts()
  */
-static inline int adc_raw_to_millivolts_dt(const struct adc_dt_spec* spec, int32_t* valp) {
+static inline int adc_raw_to_millivolts_dt(struct adc_dt_spec const* spec, int32_t* valp) {
     return adc_raw_to_x_dt_chan(adc_raw_to_millivolts, spec, &spec->channel_cfg, valp);
 }
 
@@ -1465,7 +1540,7 @@ static inline int adc_raw_to_millivolts_dt(const struct adc_dt_spec* spec, int32
  * Devicetree is not valid.
  * @see adc_raw_to_microvolts()
  */
-static inline int adc_raw_to_microvolts_dt(const struct adc_dt_spec* spec, int32_t* valp) {
+static inline int adc_raw_to_microvolts_dt(struct adc_dt_spec const* spec, int32_t* valp) {
     return adc_raw_to_x_dt_chan(adc_raw_to_microvolts, spec, &spec->channel_cfg, valp);
 }
 
@@ -1487,7 +1562,7 @@ static inline int adc_raw_to_microvolts_dt(const struct adc_dt_spec* spec, int32
  * @retval 0 On success
  * @retval -ENOTSUP If @p spec does not have valid channel configuration
  */
-static inline int adc_sequence_init_dt(const struct adc_dt_spec* spec,
+static inline int adc_sequence_init_dt(struct adc_dt_spec const* spec,
                                        struct adc_sequence* seq) {
     if (!spec->channel_cfg_dt_node_exists) {
         return (-ENOTSUP);
@@ -1507,7 +1582,7 @@ static inline int adc_sequence_init_dt(const struct adc_dt_spec* spec,
  *
  * @return true if the ADC device is ready for use and false otherwise.
  */
-static inline bool adc_is_ready_dt(const struct adc_dt_spec* spec) {
+static inline bool adc_is_ready_dt(struct adc_dt_spec const* spec) {
     return device_is_ready(spec->dev);
 }
 

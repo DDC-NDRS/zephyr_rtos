@@ -2402,6 +2402,9 @@ static int spi_stm32_ll_transceive(const struct device* dev,
     spi_context_buffers_setup(ctx, tx_bufs, rx_bufs, bits2bytes(config->operation));
 
     if (!spi_stm32_transfer_ongoing(data)) {
+        if (config->operation & SPI_HOLD_ON_CS) {
+            spi_stm32_cs_control(dev, true);
+        }
         goto end;
     }
 
