@@ -829,7 +829,7 @@ static void socket_loop(void *p1, void *p2, void *p3)
 	bool rd_client_paused;
 	struct lwm2m_engine_ctx *engine = &engine_ctx;
 
-	while (1) {
+	while (true) {
 		rd_client_paused = false;
 		/* Check is Thread Suspend Requested */
 		if (engine->suspend) {
@@ -1342,7 +1342,7 @@ int lwm2m_engine_pause(void)
 	while (engine->active) {
 		k_msleep(10);
 	}
-	LOG_INF("LWM2M engine thread paused");
+	LOG_INF("LwM2M engine thread paused");
 	return 0;
 }
 
@@ -1351,7 +1351,7 @@ int lwm2m_engine_resume(void)
 	struct lwm2m_engine_ctx *engine = &engine_ctx;
 
 	if (engine->suspend || engine->active) {
-		LOG_WRN("LWM2M engine thread state not ok for resume");
+		LOG_WRN("LwM2M engine thread state not ok for resume");
 		return -EPERM;
 	}
 
@@ -1428,7 +1428,7 @@ static int lwm2m_engine_init(void)
 			K_KERNEL_STACK_SIZEOF(engine_thread_stack), socket_loop,
 			NULL, NULL, NULL, THREAD_PRIORITY, 0, K_NO_WAIT);
 	k_thread_name_set(&engine_thread_data, "lwm2m-sock-recv");
-	LOG_DBG("LWM2M engine socket receive thread started");
+	LOG_DBG("LwM2M engine socket receive thread started");
 	engine->active = true;
 
 	return 0;

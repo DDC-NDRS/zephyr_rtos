@@ -149,7 +149,7 @@ manifest:
       groups:
         - fs
     - name: hal_adi
-      revision: ab16e67b49cfe45826e70d68b720ee5751e77664
+      revision: 1a5d9748b680adf0669739f37d05cb985f39b7b8
       path: modules/hal/adi
       groups:
         - hal
@@ -251,7 +251,7 @@ manifest:
       groups:
         - hal
     - name: hal_silabs
-      revision: 8d871343cd8f4518a69dfc96a31a2963c1f59f35
+      revision: 28eb6670caf3486321a033c7f08687867a7ef4f4
       path: modules/hal/silabs
       groups:
         - hal

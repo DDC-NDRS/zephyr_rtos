@@ -49,7 +49,7 @@
  * arming primitive rather than tracking it separately. The core does not model
  * interrupt masking.
  *
- *   - static inline uint32_t/uint64_t timer_driver_cycle_get(void): the hardware cycle
+ *   - static uint32_t/uint64_t timer_driver_cycle_get(void): the hardware cycle
  *     count. Its rate is TIMER_CORE_CYCLES_PER_SEC (see the knobs below), by default the
  *     kernel system clock rate. Return the raw counter, even a narrow one that wraps:
  *     declare its width with TIMER_CORE_COUNTER_WIDTH and the core masks every delta to
@@ -60,7 +60,7 @@
  *     spares a 32-bit target the widening.
  *
  *   - the arming primitive for the chosen backend:
- *       COMPARE: static inline void timer_driver_set_compare(uint32_t/uint64_t cycles)
+ *       COMPARE: static void timer_driver_set_compare(uint32_t/uint64_t cycles)
  *                Write the comparator so an interrupt fires when the counter
  *                reaches @p cycles, a full-width cycle count. The argument width
  *                is the driver's: a 64-bit comparator takes uint64_t; a 32-bit
@@ -69,7 +69,7 @@
  *                that is wanted here: with COMPARE_ORDERED the hardware handles a
  *                past target itself, and with COMPARE_EXACT the core wraps this
  *                in the verify loop that deals with it.
- *       RELOAD:  static inline void timer_driver_set_reload(uint32_t/uint64_t cycles)
+ *       RELOAD:  static void timer_driver_set_reload(uint32_t/uint64_t cycles)
  *                Fire an interrupt after @p cycles more cycles. The core has
  *                already clamped @p cycles to [TIMER_CORE_ALARM_MIN_CYCLES,
  *                TIMER_CORE_ALARM_MAX_CYCLES]. The argument width is the driver's:
@@ -356,6 +356,15 @@ static timer_core_ticks_t timer_core_max_span_ticks;
 #define TIMER_CORE_MAX_SPAN_TICKS timer_core_max_span_ticks
 #else
 #define TIMER_CORE_MAX_SPAN_TICKS (TIMER_CORE_MAX_UNANNOUNCED_CYCLES / TIMER_CORE_CYC_PER_TICK)
+/* A tick that does not fit leaves nothing to arm: the span clamps to zero, the
+ * reload floor fires immediately, and the announce that follows is worth no
+ * ticks, so time never advances. Catch that here rather than at run time, where
+ * it presents as a wedged system. Both terms are build constants in this branch;
+ * the runtime-rate branch is checked in timer_core_init().
+ */
+BUILD_ASSERT(TIMER_CORE_MAX_UNANNOUNCED_CYCLES >= TIMER_CORE_CYC_PER_TICK,
+	     "a tick is longer than the counter and alarm can span: raise "
+	     "CONFIG_SYS_CLOCK_TICKS_PER_SEC, or slow the counter");
 #endif
 
 #if defined(TIMER_CORE_BACKEND_RELOAD)
@@ -834,6 +843,8 @@ static inline void timer_core_init(void)
 	 * non-zero check the constant case gets at build time happens here instead.
 	 */
 	__ASSERT(TIMER_CORE_CYC_PER_TICK != 0, "timer counter rate is below the tick rate");
+	__ASSERT(TIMER_CORE_MAX_UNANNOUNCED_CYCLES >= TIMER_CORE_CYC_PER_TICK,
+		 "a tick is longer than the counter and alarm can span");
 #endif
 	/* The counter read is inside the counter's width, so the tick count it
 	 * divides down to and the cycle count that multiplies back up both are too.
