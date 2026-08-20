@@ -77,8 +77,8 @@ static inline int z_vrfy_rtio_cqe_get_mempool_buffer(const struct rtio* r, struc
                                                      uint8_t** buff, uint32_t* buff_len) {
     K_OOPS(K_SYSCALL_OBJ(r, K_OBJ_RTIO));
     K_OOPS(K_SYSCALL_MEMORY_READ(cqe, sizeof(struct rtio_cqe)));
-    K_OOPS(K_SYSCALL_MEMORY_READ(buff, sizeof(void*)));
-    K_OOPS(K_SYSCALL_MEMORY_READ(buff_len, sizeof(uint32_t)));
+    K_OOPS(K_SYSCALL_MEMORY_WRITE(buff, sizeof(void*)));
+    K_OOPS(K_SYSCALL_MEMORY_WRITE(buff_len, sizeof(uint32_t)));
     return z_impl_rtio_cqe_get_mempool_buffer(r, cqe, buff, buff_len);
 }
 
@@ -174,8 +174,7 @@ static inline int z_vrfy_rtio_submit(struct rtio* r, uint32_t wait_count) {
 #include <zephyr/syscalls/rtio_submit_mrsh.c>
 
 
-static inline struct rtio *z_vrfy_rtio_pool_acquire(struct rtio_pool *rpool)
-{
+static inline struct rtio* z_vrfy_rtio_pool_acquire(struct rtio_pool* rpool) {
     K_OOPS(K_SYSCALL_OBJ(rpool, K_OBJ_RTIO_POOL));
 
     return z_impl_rtio_pool_acquire(rpool);
@@ -183,8 +182,7 @@ static inline struct rtio *z_vrfy_rtio_pool_acquire(struct rtio_pool *rpool)
 #include <zephyr/syscalls/rtio_pool_acquire_mrsh.c>
 
 
-static inline void z_vrfy_rtio_pool_release(struct rtio_pool *rpool, struct rtio *r)
-{
+static inline void z_vrfy_rtio_pool_release(struct rtio_pool* rpool, struct rtio* r) {
     K_OOPS(K_SYSCALL_OBJ(rpool, K_OBJ_RTIO_POOL));
     K_OOPS(K_SYSCALL_OBJ(r, K_OBJ_RTIO));
 

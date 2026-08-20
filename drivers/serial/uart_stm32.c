@@ -212,7 +212,7 @@ static void uart_stm32_pm_policy_state_lock_put(struct device const* dev) {
 }
 
 #ifdef CONFIG_UART_ASYNC_API
-static void uart_stm32_rx_wakeup_lock_get(struct device const* dev) {
+static __maybe_unused void uart_stm32_rx_wakeup_lock_get(struct device const* dev) {
     struct uart_stm32_data *data = dev->data;
 
     if (!data->rx_woken) {
@@ -221,7 +221,7 @@ static void uart_stm32_rx_wakeup_lock_get(struct device const* dev) {
     }
 }
 
-static void uart_stm32_rx_wakeup_lock_put(struct device const* dev) {
+static __maybe_unused void uart_stm32_rx_wakeup_lock_put(struct device const* dev) {
     struct uart_stm32_data *data = dev->data;
 
     if (data->rx_woken) {
