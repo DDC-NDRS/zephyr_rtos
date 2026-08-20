@@ -61,7 +61,8 @@
 #define MCP251XFD_CRC_POLY 0x8005
 #define MCP251XFD_CRC_SEED 0xffff
 
-BUILD_ASSERT((MCP251XFD_TEF_FIFO_SIZE + MCP251XFD_TX_QUEUE_SIZE + MCP251XFD_RX_FIFO_SIZE) <= MCP251XFD_RAM_SIZE, \
+BUILD_ASSERT((MCP251XFD_TEF_FIFO_SIZE + MCP251XFD_TX_QUEUE_SIZE + \
+              MCP251XFD_RX_FIFO_SIZE) <= MCP251XFD_RAM_SIZE, \
              "Cannot fit FIFOs into RAM");
 
 /* Timeout for changing mode */
@@ -487,6 +488,12 @@ struct mcp251xfd_fifo {
 struct mcp251xfd_data {
     struct can_driver_data common;
 
+    /* Active SPI config; a distinct clamped copy is used until the PLL has
+     * locked, since SPI drivers detect config changes by pointer comparison.
+     */
+    struct spi_config spi_cfg_init;
+    const struct spi_config* spi_cfg;
+
     /* Interrupt Data */
     struct gpio_callback int_gpio_cb;
     struct k_thread   int_thread;
@@ -504,9 +511,9 @@ struct mcp251xfd_data {
 
     /* Filter Data */
     uint32_t filter_usage;
-	struct can_filter filter[CONFIG_CAN_MCP251XFD_MAX_FILTERS];
-	can_rx_callback_t rx_cb[CONFIG_CAN_MCP251XFD_MAX_FILTERS];
-	void *cb_arg[CONFIG_CAN_MCP251XFD_MAX_FILTERS];
+    struct can_filter filter[CONFIG_CAN_MCP251XFD_MAX_FILTERS];
+    can_rx_callback_t rx_cb[CONFIG_CAN_MCP251XFD_MAX_FILTERS];
+    void* cb_arg[CONFIG_CAN_MCP251XFD_MAX_FILTERS];
 
     const struct device* dev;
 

@@ -85,7 +85,7 @@ static void* mcp251xfd_read_reg(const struct device* dev, uint16_t addr, int len
         .count   = 1
     };
 
-    ret = spi_transceive_dt(&dev_cfg->bus, &tx, &rx);
+    ret = spi_transceive(dev_cfg->bus.bus, dev_data->spi_cfg, &tx, &rx);
     if (ret < 0) {
         return (NULL);
     }
@@ -134,7 +134,7 @@ static void* mcp251xfd_read_crc(const struct device* dev, uint16_t addr, int len
         crc_in = crc16_cms(MCP251XFD_CRC_SEED, (uint8_t*)(&spi_data->header[0]),
                            MCP251XFD_SPI_CMD_LEN + MCP251XFD_SPI_LEN_FIELD_LEN);
 
-        ret = spi_transceive_dt(&dev_cfg->bus, &tx, &rx);
+        ret = spi_transceive(dev_cfg->bus.bus, dev_data->spi_cfg, &tx, &rx);
         if (ret < 0) {
             continue;
         }
@@ -176,9 +176,7 @@ static int mcp251xfd_write(const struct device* dev, uint16_t addr, int len) {
     spi_cmd = sys_cpu_to_be16(MCP251XFD_SPI_INSTRUCTION_WRITE | addr);
     (void) memcpy(&spi_data->header[1], &spi_cmd, sizeof(spi_cmd));
 
-    ret = spi_write_dt(&dev_cfg->bus, &tx);
-
-    return (ret);
+    return spi_write(dev_cfg->bus.bus, dev_data->spi_cfg, &tx);
 }
 
 static int mcp251xfd_fifo_write(const struct device* dev, int mailbox_idx,
@@ -283,7 +281,7 @@ static int mcp251xfd_reg_check_value_wtimeout(const struct device* dev, uint16_t
                                               uint32_t value, uint32_t mask,
                                               uint32_t timeout_usec, int retries, bool allow_yield) {
     uint32_t* reg;
-    uint32_t  delay = (timeout_usec / retries);
+    uint32_t delay = (timeout_usec / retries);
 
     for (;;) {
         reg = mcp251xfd_read_crc(dev, addr, MCP251XFD_REG_SIZE);
@@ -747,7 +745,9 @@ done :
 static int mcp251xfd_get_core_clock(const struct device* dev, uint32_t* rate) {
     const struct mcp251xfd_config* dev_cfg = dev->config;
 
-    *rate = dev_cfg->osc_freq;
+    /* When the PLL is enabled, SYSCLK is the oscillator frequency times 10 */
+    *rate = dev_cfg->pll_enable ? dev_cfg->osc_freq * 10 : dev_cfg->osc_freq;
+
     return (0);
 }
 
@@ -1071,7 +1071,7 @@ static void mcp251xfd_handle_interrupts(const struct device* dev) {
     int ret;
     uint8_t consecutive_calls = 0;
 
-    while (1) {
+    while (true) {
         k_mutex_lock(&dev_data->mutex, K_FOREVER);
         reg_int_hw = mcp251xfd_read_crc(dev, MCP251XFD_REG_INT, sizeof(*reg_int_hw));
         if (reg_int_hw == NULL) {
@@ -1173,7 +1173,7 @@ static void mcp251xfd_int_thread(const struct device* dev) {
     const struct mcp251xfd_config* dev_cfg = dev->config;
     struct mcp251xfd_data* dev_data = dev->data;
 
-    while (1) {
+    while (true) {
         int ret;
 
         k_sem_take(&dev_data->int_sem, K_FOREVER);
@@ -1282,7 +1282,7 @@ static int mcp251xfd_stop(const struct device* dev) {
     }
 
     /* wait for all the messages to be aborted */
-    while (1) {
+    while (true) {
         reg_byte = mcp251xfd_read_crc(dev, MCP251XFD_REG_CON_B3, 1);
 
         if ((reg_byte == NULL) ||
@@ -1512,6 +1512,7 @@ static int mcp251xfd_init_tscon(const struct device* dev) {
 
 static int mcp251xfd_reset(const struct device* dev) {
     const struct mcp251xfd_config* dev_cfg = dev->config;
+    struct mcp251xfd_data* dev_data = dev->data;
     uint16_t cmd = sys_cpu_to_be16(MCP251XFD_SPI_INSTRUCTION_RESET);
     const struct spi_buf tx_buf = {
         .buf = &cmd,
@@ -1529,7 +1530,7 @@ static int mcp251xfd_reset(const struct device* dev) {
         return (ret);
     }
 
-    ret = spi_write_dt(&dev_cfg->bus, &tx);
+    ret = spi_write(dev_cfg->bus.bus, dev_data->spi_cfg, &tx);
     /* Adding delay after init to fix occasional init issue. Delay time found experimentally. */
     k_sleep(K_USEC(MCP251XFD_RESET_DELAY_USEC));
 
@@ -1571,8 +1572,20 @@ static int mcp251xfd_init(const struct device* dev) {
 
     k_mutex_init(&dev_data->mutex);
 
-    is_ok = spi_is_ready_dt(&dev_cfg->bus);
-    if (is_ok == false) {
+    /* Until the PLL has locked, SYSCLK is the raw oscillator and SCK is
+     * limited to 0.85 * (FSYSCLK / 2): run init on a clamped config copy.
+     */
+    if (dev_cfg->pll_enable) {
+        dev_data->spi_cfg_init = dev_cfg->bus.config;
+        dev_data->spi_cfg_init.frequency =
+            MIN(dev_cfg->bus.config.frequency, ((dev_cfg->osc_freq * 17) / 40));
+        dev_data->spi_cfg = &dev_data->spi_cfg_init;
+    }
+    else {
+        dev_data->spi_cfg = &dev_cfg->bus.config;
+    }
+
+    if (!spi_is_ready_dt(&dev_cfg->bus)) {
         LOG_ERR_DEVICE_NOT_READY(dev_cfg->bus.bus);
         return (-ENODEV);
     }
@@ -1666,6 +1679,11 @@ static int mcp251xfd_init(const struct device* dev) {
         LOG_ERR("Error initializing OSC register [%d]", ret);
         return (ret);
     }
+
+    /* PLL locked, SYSCLK at full rate: switch to the full-speed config
+     * (new pointer, so the SPI driver picks up the change).
+     */
+    dev_data->spi_cfg = &dev_cfg->bus.config;
 
     ret = mcp251xfd_init_iocon_reg(dev);
     if (ret < 0) {

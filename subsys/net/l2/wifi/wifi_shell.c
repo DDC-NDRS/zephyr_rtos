@@ -1198,7 +1198,8 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 			break;
 		case 'V':
 			params->eap_ver = (uint8_t)atoi(state->optarg);
-			if (params->eap_ver != 0U && params->eap_ver != 1U) {
+			if ((params->eap_ver != 0U) && (params->eap_ver != 1U) &&
+			    (params->eap_ver != -1)) {
 				PR_WARNING("eap_ver error %d\n", params->eap_ver);
 				return -EINVAL;
 			}
@@ -5388,7 +5389,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 				 "[-S, --wpa3-enterprise]: WPA3 enterprise mode:\n"
 				 "Default is 0: Not WPA3 enterprise mode\n"
 				 "1:Suite-b mode, 2:Suite-b-192-bit mode, 3:WPA3-enterprise-only mode\n"
-				 "[-V, --eap-version]: 0 or 1. Default 1: eap version 1\n"
+				 "[-V, --eap-version]: Forced eap-version. 0, 1 or -1.\n"
+				 "Default 1: eap version 1. -1: no forced version\n"
 				 "[-I, --eap-id1...--eap-id8]: Client Identity. Default no eap identity\n"
 				 "[-P, --eap-pwd1...--eap-pwd8]: Client Password\n"
 				 "Default no password for eap user\n"
@@ -5531,7 +5533,8 @@ SHELL_SUBCMD_ADD((wifi), connect, NULL,
 			    "EAP-TTLS-MSCHAPv2\n"
 			    "Default is 0. 0:do not use CA to verify peer, "
 			    "1:use CA to verify peer\n"
-			    "[-V, --eap-version]: 0 or 1. Default is 1: use eap version 1\n"
+			    "[-V, --eap-version]: Forced eap-version. 0, 1 or -1.\n"
+			    "Default 1: eap version 1. -1: no forced version\n"
 			    "[-I, --eap-id1]: Client Identity. Default is no eap identity\n"
 			    "[-P, --eap-pwd1]: Client Password. "
 			    "Default is no password for eap user\n"

@@ -879,6 +879,7 @@ struct wifi_connect_req_params {
      * EAP is a framework for network authentication, commonly used in enterprise Wi-Fi.
      * This field allows specifying the protocol version if required by the network.
      * Applies to Phase 1 (outer authentication).
+     * A value of -1 will result in version negotiation.
      */
     int eap_ver;
 
@@ -1843,14 +1844,19 @@ struct wifi_dpp_params {
 
         /** Params to set specific DPP configurator */
         struct wifi_dpp_configurator_set_params configurator_set;
+
         /** Bootstrap get uri id */
         int id;
+
         /** Timeout for DPP frame response rx */
         int dpp_resp_wait_time;
+
         /** network id for reconfig */
         int network_id;
+
         /** DPP QR-CODE, max for SHA512 */
         uint8_t dpp_qr_code[WIFI_DPP_QRCODE_MAX_LEN + 1];
+
         /** Request response reusing request buffer.
          * So once a request is sent, buffer will be
          * fulfilled by response
@@ -2005,8 +2011,10 @@ struct wifi_nan_params {
 enum wifi_wps_op {
     /** WPS pbc */
     WIFI_WPS_PBC = 0,
+
     /** Get WPS pin number */
     WIFI_WPS_PIN_GET = 1,
+
     /** Set WPS pin number */
     WIFI_WPS_PIN_SET = 2,
 };
@@ -2015,6 +2023,7 @@ enum wifi_wps_op {
 struct wifi_wps_config_params {
     /** wps operation */
     enum wifi_wps_op oper;
+
     /** pin value*/
     char pin[WIFI_WPS_PIN_MAX_LEN + 1];
 };
