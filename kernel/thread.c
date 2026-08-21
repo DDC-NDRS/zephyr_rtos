@@ -1613,11 +1613,11 @@ void z_impl_k_thread_suspend(k_tid_t thread) {
         return;
     }
 
-    k_spinlock_key_t key = k_spin_lock(&_sched_spinlock);
+    k_spinlock_key_t key = z_sched_spinlock_lock();
 
     if (unlikely(z_is_thread_suspended(thread))) {
         /* The target thread is already suspended. Nothing to do. */
-        k_spin_unlock(&_sched_spinlock, key);
+        z_sched_spinlock_unlock(key);
         return;
     }
 
@@ -1638,18 +1638,18 @@ static inline void z_vrfy_k_thread_suspend(k_tid_t thread) {
 void z_impl_k_thread_resume(k_tid_t thread) {
     SYS_PORT_TRACING_OBJ_FUNC_ENTER(k_thread, resume, thread);
 
-    k_spinlock_key_t key = k_spin_lock(&_sched_spinlock);
+    k_spinlock_key_t key = z_sched_spinlock_lock();
 
     /* Do not try to resume a thread that was not suspended */
     if (unlikely(!z_is_thread_suspended(thread))) {
-        k_spin_unlock(&_sched_spinlock, key);
+        z_sched_spinlock_unlock(key);
         return;
     }
 
     z_mark_thread_as_not_suspended(thread);
     z_sched_ready_locked(thread);
 
-    z_reschedule(&_sched_spinlock, key);
+    z_reschedule_locked(key);
 
     SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_thread, resume, thread);
 }
@@ -1666,16 +1666,16 @@ static inline void z_vrfy_k_thread_resume(k_tid_t thread) {
 void z_impl_k_wakeup(k_tid_t thread) {
     SYS_PORT_TRACING_OBJ_FUNC(k_thread, wakeup, thread);
 
-    k_spinlock_key_t key = k_spin_lock(&_sched_spinlock);
+    k_spinlock_key_t key = z_sched_spinlock_lock();
 
     if (z_is_thread_sleeping(thread)) {
         (void)z_try_abort_thread_timeout(thread);
         z_mark_thread_as_not_sleeping(thread);
         z_sched_ready_locked(thread);
-        z_reschedule(&_sched_spinlock, key);
+        z_reschedule_locked(key);
     }
     else {
-        k_spin_unlock(&_sched_spinlock, key);
+        z_sched_spinlock_unlock(key);
     }
 }
 
@@ -1690,10 +1690,10 @@ static inline void z_vrfy_k_wakeup(k_tid_t thread) {
 
 void z_thread_abort(struct k_thread* thread) {
     bool essential = z_is_thread_essential(thread);
-    k_spinlock_key_t key = k_spin_lock(&_sched_spinlock);
+    k_spinlock_key_t key = z_sched_spinlock_lock();
 
     if (z_is_thread_dead(thread)) {
-        k_spin_unlock(&_sched_spinlock, key);
+        z_sched_spinlock_unlock(key);
         return;
     }
 
@@ -1718,7 +1718,7 @@ void z_impl_k_thread_abort(k_tid_t thread) {
 #endif /* !CONFIG_ARCH_HAS_THREAD_ABORT */
 
 int z_impl_k_thread_join(struct k_thread* thread, k_timeout_t timeout) {
-    k_spinlock_key_t key = k_spin_lock(&_sched_spinlock);
+    k_spinlock_key_t key = z_sched_spinlock_lock();
     int ret;
 
     SYS_PORT_TRACING_OBJ_FUNC_ENTER(k_thread, join, thread, timeout);
@@ -1740,7 +1740,7 @@ int z_impl_k_thread_join(struct k_thread* thread, k_timeout_t timeout) {
         z_add_thread_timeout(_current, timeout);
 
         SYS_PORT_TRACING_OBJ_FUNC_BLOCKING(k_thread, join, thread, timeout);
-        ret = z_swap(&_sched_spinlock, key);
+        ret = z_swap_locked(key);
         SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_thread, join, thread, timeout, ret);
 
         return (ret);
@@ -1748,7 +1748,7 @@ int z_impl_k_thread_join(struct k_thread* thread, k_timeout_t timeout) {
 
     SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_thread, join, thread, timeout, ret);
 
-    k_spin_unlock(&_sched_spinlock, key);
+    z_sched_spinlock_unlock(key);
     return (ret);
 }
 

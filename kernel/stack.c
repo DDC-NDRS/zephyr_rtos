@@ -19,6 +19,7 @@
 #include <zephyr/init.h>
 #include <zephyr/internal/syscall_handler.h>
 #include <kernel_internal.h>
+#include <stdbool.h>
 
 #ifdef CONFIG_OBJ_CORE_STACK
 static struct k_obj_type obj_type_stack;
@@ -77,14 +78,21 @@ static inline int32_t z_vrfy_k_stack_alloc_init(struct k_stack *stack,
 #include <zephyr/syscalls/k_stack_alloc_init_mrsh.c>
 #endif /* CONFIG_USERSPACE */
 
-int k_stack_cleanup(struct k_stack *stack)
+int z_stack_cleanup(struct k_stack *stack, __maybe_unused bool locked)
 {
 	SYS_PORT_TRACING_OBJ_FUNC_ENTER(k_stack, cleanup, stack);
 
-	CHECKIF(z_waitq_head(&stack->wait_q) != NULL) {
-		SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_stack, cleanup, stack, -EAGAIN);
+	int ret = 0;
+	k_spinlock_key_t key = k_spin_lock(&stack->lock);
 
-		return -EAGAIN;
+	CHECKIF(locked && (z_waitq_head_locked(&stack->wait_q) != NULL)) {
+		ret = -EAGAIN;
+		goto out;
+	}
+
+	CHECKIF(!locked && (z_waitq_head(&stack->wait_q) != NULL)) {
+		ret = -EAGAIN;
+		goto out;
 	}
 
 	if ((stack->flags & K_STACK_FLAG_ALLOC) != (uint8_t)0) {
@@ -93,9 +101,16 @@ int k_stack_cleanup(struct k_stack *stack)
 		stack->flags &= ~K_STACK_FLAG_ALLOC;
 	}
 
-	SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_stack, cleanup, stack, 0);
+out:
+	k_spin_unlock(&stack->lock, key);
+	SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_stack, cleanup, stack, ret);
 
-	return 0;
+	return ret;
+}
+
+int k_stack_cleanup(struct k_stack *stack)
+{
+	return z_stack_cleanup(stack, false);
 }
 
 int z_impl_k_stack_push(struct k_stack *stack, stack_data_t data)

@@ -252,6 +252,13 @@ Clock Control
   RT11xx overlays should be updated using the mapping
   ``loop-div = clock-mult * 2`` and ``post-div = clock-div``.
 
+Comparator
+==========
+
+* The deprecated ``nxp,``-prefixed :dtcompatible:`nxp,kinetis-acmp` properties have been removed:
+  use ``enable-pin-out``, ``use-unfiltered-output``, ``enable-high-speed-mode``,
+  ``filter-enable-sample``, ``filter-count``, ``filter-period`` and ``enable-window-mode``.
+
 Controller Area Network (CAN)
 =============================
 
@@ -272,6 +279,10 @@ Counter
   the timer node's ``mux-states`` property instead. The cell layout is unchanged, so an existing
   ``inputmux-connections = <&inputmux0 0 0x06000024>;`` becomes
   ``mux-states = <&inputmux0 0 0x06000024>;`` (:github:`112088`)
+
+* The ``prescaler`` property of :dtcompatible:`nxp,lptmr` has been removed. Use
+  ``prescale-glitch-filter`` and ``prescale-glitch-filter-bypass`` instead. The new property is
+  an exponent, not a divisor: the prescaler divides by ``2^(prescale-glitch-filter + 1)``.
 
 Devicetree
 ==========
@@ -456,10 +467,8 @@ Ethernet
   flattened to match other similar controllers. The clocks, interrupts, ``pinctrl-0``,
   ``pinctrl-names``, ``phy-handle`` and MAC address properties now live directly on the parent
   ``nxp,enet-qos`` node instead of a separate child MAC node. The ``nxp,enet-qos-mac`` compatible
-  and its ``enet_mac`` node have been removed and the :dtcompatible:`nxp,enet-qos-mdio` and
-  :dtcompatible:`nxp,enet-qos-ptp-clock` nodes are now direct children of the controller node. The
-  PTP reference clock has moved onto the parent node's ``clocks`` property using the ``ptp``
-  ``clock-names`` entry. Out-of-tree boards using this controller must move the properties from the
+  and its ``enet_mac`` node have been removed.
+  Out-of-tree boards using this controller must move the properties from the
   old ``enet_mac`` node up to the ``enet`` node. (:github:`115952`)
 
 * The Kconfig option ``CONFIG_ETH_NXP_ENET_QOS_MAC_UNIQUE_MAC_ADDRESS`` has been renamed to
@@ -1615,6 +1624,26 @@ Other subsystems
   :c:func:`cpu_load_get_cpu`. Note that :c:func:`cpu_load_get_cpu` returns the load in per mille
   (0...1000) rather than percent; use :c:macro:`CPU_LOAD_PERMILLE_TO_PERCENT` to convert.
 
+Logging
+=======
+
+* The UART dictionary log parsing script ``scripts/logging/dictionary/log_parser_uart.py`` has
+  been removed. Use :zephyr_file:`scripts/logging/dictionary/live_log_parser.py` instead, which
+  takes the port and baud rate after a ``serial`` sub-command.
+
+MCUboot
+=======
+
+* ``CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_WITHOUT_SCRATCH`` has been removed. Use
+  :kconfig:option:`CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_USING_MOVE` instead.
+
+MCUmgr
+======
+
+* ``CONFIG_MCUMGR_GRP_OS_INFO_HARDWARE_INFO_SHORT_HARDWARE_PLATFORM`` has been removed. The
+  :ref:`mcumgr_os_application_info` command now always reports the board target as hardware
+  platform; the pre-4.3 board and board revision output is no longer available.
+
 Random
 ======
 
@@ -1623,8 +1652,21 @@ Random
 
 * ``CONFIG_CS_CTR_DRBG_PERSONALIZATION`` has been removed. It did not have any effect.
 
+Stream Flash
+============
+
+* ``stream_flash_erase_page()`` has been removed. Use :c:func:`flash_area_erase` or
+  :c:func:`flash_erase` instead; there is no Stream Flash API equivalent.
+
 Tools
 *****
+
+* The ``--skip-rebuild`` option of the ``west`` commands that invoke a runner (``flash``,
+  ``debug``, ``debugserver``, ``attach``, ``rtt``, ``reset``, ``robot`` and ``simulate``) has
+  been removed. Use ``--no-rebuild`` instead.
+
+* The ``PYOCD_DAPARG`` environment variable is no longer read by the ``pyocd`` runner. Pass
+  ``--daparg`` to ``west flash``/``west debug`` instead.
 
 * The ``openocd`` runner now selects a debug adapter by serial number through the
   canonical ``-i``/``--dev-id`` option, like the other runners. The previous
@@ -1739,6 +1781,16 @@ Architectures
   ``mimxrt1180_evk`` and ``frdm_imxrt1186`` cm7 targets enable it by default,
   replacing their previous hand-rolled ``UNMAPPED`` MPU region table entry with
   identical runtime behavior.
+
+* ``CONFIG_SSE`` and ``CONFIG_SSE_FP_MATH`` have been removed. Use
+  :kconfig:option:`CONFIG_X86_SSE` and :kconfig:option:`CONFIG_X86_SSE_FP_MATH`
+  instead.
+
+* ``CONFIG_PLATFORM_SPECIFIC_INIT`` and its ``z_arm_platform_init()`` hook have
+  been removed. Enable :kconfig:option:`CONFIG_SOC_RESET_HOOK` and rename the
+  hook to :c:func:`soc_reset_hook`. The new hook runs later in the reset path,
+  after the stack pointers have been set up, and is skipped on resume from
+  suspend-to-RAM.
 
 Video
 =====

@@ -70,6 +70,16 @@ Removed APIs and options
 
 * Architectures
 
+   * ARM
+
+      * ``CONFIG_PLATFORM_SPECIFIC_INIT``
+      * ``z_arm_platform_init()``
+
+   * x86
+
+      * ``CONFIG_SSE``
+      * ``CONFIG_SSE_FP_MATH``
+
    * Xtensa
 
       * ``CONFIG_XTENSA_BACKTRACE_EXCEPTION_DUMP_HOOK``
@@ -94,13 +104,29 @@ Removed APIs and options
       buffers unconditionally. Applications still setting these options can
       simply drop them.
 
+* Comparator
+
+    * ``nxp,enable-output-pin``, ``nxp,use-unfiltered-output``, ``nxp,high-speed-mode``,
+      ``nxp,enable-sample``, ``nxp,filter-count``, ``nxp,filter-period`` and ``nxp,window-mode``
+      properties of :dtcompatible:`nxp,kinetis-acmp`
+
 * Counter
 
     * ``CONFIG_COUNTER_MAXIM_DS3231``
+    * ``prescaler`` property of :dtcompatible:`nxp,lptmr`
 
 * LLEXT
 
     * ``llext_get_fn_table``, replaced by ``llext_get_fn_table_entry``
+
+* MCUboot
+
+    * ``CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_WITHOUT_SCRATCH``, replaced by
+      :kconfig:option:`CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_USING_MOVE`
+
+* MCUmgr
+
+    * ``CONFIG_MCUMGR_GRP_OS_INFO_HARDWARE_INFO_SHORT_HARDWARE_PLATFORM``
 
 * Networking
 
@@ -126,7 +152,19 @@ Removed APIs and options
     * ``CONFIG_CTR_DRBG_CSPRNG_GENERATOR``
     * ``CONFIG_CS_CTR_DRBG_PERSONALIZATION``
 
+* Stream Flash
+
+    * ``stream_flash_erase_page()``
+
 * West sign support for imgtool, which was deprecated in Zephyr 4.0, has been removed.
+
+* The ``scripts/logging/dictionary/log_parser_uart.py`` dictionary logging script, which was
+  deprecated in Zephyr 4.3, has been removed. Use
+  :zephyr_file:`scripts/logging/dictionary/live_log_parser.py` instead.
+
+* The ``--skip-rebuild`` option of ``west flash``, ``west debug`` and the other commands that
+  invoke a runner, which was deprecated in Zephyr 4.3, has been removed. Use ``--no-rebuild``
+  instead.
 
 Deprecated APIs and options
 ===========================
@@ -411,6 +449,12 @@ New APIs and options
   * :c:macro:`LOG_INST_DBG_PM_DEVICE_RUNTIME_PUT`
   * :c:macro:`LOG_INST_WRN_PM_DEVICE_RUNTIME_PUT`
   * :c:macro:`LOG_INST_ERR_PM_DEVICE_RUNTIME_PUT`
+
+* Pulse IO
+
+  * Added the :ref:`Pulse IO <pulse_io_api>` subsystem, a vendor-neutral
+    API for hardware that generates and captures timed digital edges on a
+    GPIO line.
 
 * Ring buffer
 

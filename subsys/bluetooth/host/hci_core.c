@@ -689,6 +689,7 @@ static void hci_num_completed_packets(struct net_buf *buf)
 
 		while (count--) {
 			sys_snode_t *node;
+			unsigned int key;
 
 			/* move the next TX context from the `pending` list to
 			 * the `complete` list.
@@ -703,7 +704,12 @@ static void hci_num_completed_packets(struct net_buf *buf)
 
 			k_sem_give(bt_conn_get_pkts(conn));
 
+			/* The `complete` list is consumed from another context,
+			 * which uses the same lock.
+			 */
+			key = irq_lock();
 			sys_slist_append(&conn->tx_complete, node);
+			irq_unlock(key);
 
 			/* align the `pending` value */
 			__ASSERT_NO_MSG(atomic_get(&conn->in_ll));
@@ -4241,10 +4247,17 @@ static const char *vs_fw_variant(uint8_t variant)
 {
 	static const char * const var_str[] = {
 		"Standard Bluetooth controller",
-		"Vendor specific controller",
+		"Vendor specific Bluetooth Controller",
 		"Firmware loader",
 		"Rescue image",
 	};
+
+	/* The Zephyr controller responds with the standard variant and The
+	 * Linux Foundation company identifier.
+	 */
+	if (variant == BT_HCI_VS_FW_VAR_STANDARD_CTLR && bt_dev.manufacturer == BT_COMP_ID_LF) {
+		return "Zephyr Bluetooth Controller";
+	}
 
 	if (variant < ARRAY_SIZE(var_str)) {
 		return var_str[variant];
@@ -4298,8 +4311,9 @@ static void hci_vs_init(void)
 		vs_hw_variant(sys_le16_to_cpu(rp.info->hw_platform),
 			      sys_le16_to_cpu(rp.info->hw_variant)),
 		sys_le16_to_cpu(rp.info->hw_variant));
-	LOG_INF("Firmware: %s (0x%02x) Version %u.%u Build %u", vs_fw_variant(rp.info->fw_variant),
-		rp.info->fw_variant, rp.info->fw_version, sys_le16_to_cpu(rp.info->fw_revision),
+	LOG_INF("Controller: %s (0x%02x) manufacturer 0x%04x Version %u.%u Build %u",
+		vs_fw_variant(rp.info->fw_variant), rp.info->fw_variant, bt_dev.manufacturer,
+		rp.info->fw_version, sys_le16_to_cpu(rp.info->fw_revision),
 		sys_le32_to_cpu(rp.info->fw_build));
 
 	net_buf_unref(rsp);

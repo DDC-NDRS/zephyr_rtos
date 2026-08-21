@@ -51,6 +51,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/toolchain.h>
+#include <kspinlock.h>
 #include <ksched.h>
 #include <scheduler.h>
 #include <kthread.h>
@@ -153,7 +154,7 @@ static int32_t held_mutexes_highest_waiter_prio(struct k_thread *thread,
 		SYS_SLIST_FOR_EACH_NODE(&thread->held_mutexes, node) {
 			struct k_mutex *m =
 				CONTAINER_OF(node, struct k_mutex, held_node);
-			struct k_thread *waiter = z_waitq_head(&m->wait_q);
+			struct k_thread *waiter = z_waitq_head_locked(&m->wait_q);
 
 			if (waiter != NULL) {
 				int32_t wprio = z_get_new_prio_with_ceiling(waiter->base.prio);
@@ -438,8 +439,8 @@ int z_impl_k_mutex_unlock(struct k_mutex *mutex)
 #endif
 
 	/* Pick the new owner (if any) and complete the wake atomically
-	 * under _sched_spinlock, so a racing in-flight timeout handler
-	 * cannot observe a half-initialized wake-up.
+	 * under the scheduler's spinlock, so a racing in-flight timeout
+	 * handler cannot observe a half-initialized wake-up.
 	 */
 	LOCK_SCHED_SPINLOCK {
 		new_owner = z_unpend_first_thread_locked(&mutex->wait_q);
