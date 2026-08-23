@@ -316,7 +316,7 @@ manifest:
       path: modules/fs/littlefs
       groups:
         - fs
-      revision: 2568c7cf6197f30691c94e02924213bcca471c2a
+      revision: e18401a3a6e2c3217b686295b9f35c32c7d4cf89
     - name: lora-basics-modem
       revision: a8ddc544043e72807cf7db532478e1dda734ae7c
       path: modules/lib/lora-basics-modem

@@ -475,6 +475,11 @@ Ethernet
   :kconfig:option:`CONFIG_ETH_NXP_ENET_QOS_UNIQUE_MAC_ADDRESS`. Configurations setting the old
   name must be updated to use the new one. (:github:`115952`)
 
+* The Synopsys DesignWare MAC driver now filters multicast by default
+  (:kconfig:option:`CONFIG_ETH_DWC_ETHER_MULTICAST_FILTER`), so only multicast for the addresses
+  the network stack has joined is received. Disable this option to receive all multicast, as
+  before. (:github:`113235`)
+
 Flash
 =====
 * :dtcompatible:`jedec,spi-nand` now requires a ``plane-bytes`` property, which indicates the size
@@ -552,6 +557,16 @@ I2C
   :dtcompatible:`ite,it51xxx-i2c` :dtcompatible:`ite,it8xxx2-i2c` transfer
   timeout is now using the generic ``zephyr,transfer-timeout-ms`` property
   instead of ``transfer-timeout-ms``, default to 500ms.
+
+I2S
+===
+
+* :c:func:`i2s_buf_write` now honours the ``timeout`` from the stream configuration when it
+  allocates the transmit block. It previously waited forever, so the documented ``-EAGAIN``
+  return was unreachable, as was ``-ENOMEM`` in a multithreaded build. A caller that relied
+  on the unbounded wait can set ``timeout`` to ``SYS_FOREVER_MS``, but the same field also
+  bounds the driver's enqueue wait, so no single value reproduces the old combination of an
+  unbounded allocation and a bounded enqueue.
 
 Input
 =====
@@ -651,6 +666,15 @@ MSPI
   * ``MSPI_XIP_CFG_STRUCT_DECLARE``/``MSPI_XIP_BASE_ADDR_DECLARE``/``MSPI_XIP_BASE_ADDR_INIT``
     -> ``MSPI_MEMMAP_CFG_STRUCT_DECLARE``/``MSPI_MEMMAP_BASE_ADDR_DECLARE``/``MSPI_MEMMAP_BASE_ADDR_INIT``
   * devicetree property ``xip-config`` -> ``memmap-config`` on MSPI device nodes
+
+Nordic
+======
+
+* The ``owner-id``, ``perm-read``, ``perm-write``, ``perm-execute``, ``perm-secure`` and
+  ``non-secure-callable`` properties of :dtcompatible:`nordic,owned-memory` and
+  :dtcompatible:`nordic,owned-partitions` have been removed. Use ``nordic,access`` instead, e.g.
+  ``<NRF_OWNER_ID_APPLICATION NRF_PERM_RW>``. The owner is no longer implicit: an omitted
+  ``owner-id`` used to mean the domain being compiled, so it must now be named explicitly.
 
 NXP
 ===
@@ -1687,6 +1711,20 @@ lvgl
   ``invert-y`` properties as **deprecated**. Users should instead add these properties to the
   underlying touch input controller device node, where they are now the canonical location for
   such transformations.
+
+* :kconfig:option:`CONFIG_LV_Z_FULL_REFRESH` is now part of the ``LV_Z_RENDERING_MODE`` Kconfig
+  choice, alongside :kconfig:option:`CONFIG_LV_Z_PARTIAL_REFRESH` (default) and
+  :kconfig:option:`CONFIG_LV_Z_DIRECT_RENDERING`. Setting ``CONFIG_LV_Z_FULL_REFRESH=y`` in a
+  ``.conf`` fragment still works, but ``CONFIG_LV_Z_FULL_REFRESH=n`` is silently ignored because
+  a choice member cannot be deselected that way. Out-of-tree boards or shields that used
+  ``CONFIG_LV_Z_FULL_REFRESH=n`` to opt out of a full-refresh default must instead override the
+  choice default in a ``Kconfig.defconfig`` or ``.defconfig`` file:
+
+  .. code-block:: kconfig
+
+     choice LV_Z_RENDERING_MODE
+       default LV_Z_PARTIAL_REFRESH
+     endchoice
 
 hal_nxp
 =======
