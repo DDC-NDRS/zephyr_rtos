@@ -1,0 +1,28 @@
+# NDR Solution FRAM-backed flash-API shim driver
+#
+# Copyright (c) 2026 NDR Solution (Thailand) Co., Ltd.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+config FLASH_INFINEON_FRAM_SHIM
+	bool "FRAM-backed flash-API shim driver"
+	default y
+	depends on DT_HAS_INFINEON_FRAM_FLASH_ENABLED
+	select FRAM
+	select FLASH_HAS_DRIVER_ENABLED
+	select FLASH_HAS_PAGE_LAYOUT
+	select FLASH_HAS_EXPLICIT_ERASE
+	help
+	  Wrap a FRAM device (CONFIG_FRAM) with the flash_driver_api so it can
+	  back flash-only consumers (Settings ZMS/NVS, FLASH_MAP, the flash
+	  shell). Erase is emulated by writing the erase value across the
+	  requested range, since FRAM needs no physical erase-before-write.
+
+config FLASH_INFINEON_FRAM_SHIM_INIT_PRIORITY
+	int "FRAM flash shim init priority"
+	default 60
+	depends on FLASH_INFINEON_FRAM_SHIM
+	help
+	  Must run after the backing FRAM device initializes
+	  (CONFIG_FRAM_INIT_PRIORITY, default KERNEL_INIT_PRIORITY_DEVICE = 50)
+	  so device_is_ready() on the backing device succeeds.

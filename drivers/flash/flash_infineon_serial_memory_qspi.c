@@ -7,10 +7,17 @@
 
 #define DT_DRV_COMPAT     infineon_qspi_flash
 
-#if defined(CONFIG_DT_HAS_FIXED_PARTITIONS_ENABLED)
-#define SOC_NV_FLASH_NODE DT_PARENT(DT_INST(0, fixed_partitions))
-#else
+/* Prefer zephyr,mapped-partition (this driver's own boot-flash partitioning
+ * scheme) when present; only fall back to a fixed-partitions search
+ * otherwise. CONFIG_DT_HAS_FIXED_PARTITIONS_ENABLED is a whole-devicetree
+ * flag, so without this ordering any unrelated fixed-partitions table
+ * elsewhere in the tree (e.g. on a second, independent flash_driver_api
+ * device) would hijack SOC_NV_FLASH_NODE away from this driver's actual
+ * flash chip. */
+#if defined(CONFIG_DT_HAS_ZEPHYR_MAPPED_PARTITION_ENABLED)
 #define SOC_NV_FLASH_NODE DT_MEM_FROM_MAPPED_PARTITION(DT_INST(0, zephyr_mapped_partition))
+#elif defined(CONFIG_DT_HAS_FIXED_PARTITIONS_ENABLED)
+#define SOC_NV_FLASH_NODE DT_PARENT(DT_INST(0, fixed_partitions))
 #endif
 
 #define PAGE_LEN DT_PROP(SOC_NV_FLASH_NODE, erase_block_size)
