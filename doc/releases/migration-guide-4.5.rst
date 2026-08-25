@@ -42,6 +42,21 @@ Build System
   :kconfig:option:`CONFIG_SOC`, :kconfig:option:`CONFIG_SOC_SERIES`,
   :kconfig:option:`CONFIG_SOC_FAMILY` and ``SOC_FULL_DIR``.
 
+* ``CONFIG_BUILD_NO_GAP_FILL`` has been removed. Gap filling is opt-in through
+  :kconfig:option:`CONFIG_BUILD_OUTPUT_HEX_GAP_FILL` and
+  :kconfig:option:`CONFIG_BUILD_OUTPUT_S19_GAP_FILL`, so simply drop the option.
+
+* :file:`cmake/app/boilerplate.cmake` has been removed. Applications still
+  including it directly must start their :file:`CMakeLists.txt` with
+  ``find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})`` instead.
+
+* Board revision Kconfig fragments named :file:`<board>_<revision>.conf` are no
+  longer read. Rename them to :file:`<board>_<revision>_defconfig`.
+
+* ``zephyr_code_relocate(FILES ...)`` no longer expands wildcard patterns, and
+  now fails on one. Expand the pattern with ``file(GLOB ...)`` and pass the
+  resulting file names instead.
+
 Kernel
 ******
 
@@ -939,6 +954,12 @@ SPI
   FIFO is now always used in polling and interrupt mode to enhance performance. A new property
   ``st,fifo-threshold`` can be used to configure the FIFO threshold (default = 1). (:github:`110265`)
 
+* The optional delay argument of :c:macro:`SPI_CONFIG_DT`, :c:macro:`SPI_CONFIG_DT_INST`,
+  :c:macro:`SPI_DT_SPEC_GET`, :c:macro:`SPI_DT_SPEC_INST_GET`, :c:macro:`SPI_DT_IODEV_DEFINE`,
+  :c:macro:`SPI_DT_INST_IODEV_DEFINE` and :c:macro:`SPI_CS_CONTROL_INIT` has been removed; drop
+  it from every invocation. Use the ``spi-cs-setup-delay-ns`` and ``spi-cs-hold-delay-ns``
+  devicetree properties instead (note that they are in nanoseconds rather than microseconds).
+
 Stepper
 =======
 
@@ -1736,6 +1757,20 @@ hal_nxp
 
 Mbed TLS
 ========
+
+* The following deprecated Kconfig options have been removed:
+
+  * ``CONFIG_MBEDTLS_MD`` -> :kconfig:option:`CONFIG_MBEDTLS_MD_C`
+  * ``CONFIG_MBEDTLS_LMS`` -> :kconfig:option:`CONFIG_MBEDTLS_LMS_C`
+  * ``CONFIG_MBEDTLS_TLS_VERSION_1_2`` -> :kconfig:option:`CONFIG_MBEDTLS_SSL_PROTO_TLS1_2`
+  * ``CONFIG_MBEDTLS_DTLS`` -> :kconfig:option:`CONFIG_MBEDTLS_SSL_PROTO_DTLS`
+  * ``CONFIG_MBEDTLS_TLS_VERSION_1_3`` -> :kconfig:option:`CONFIG_MBEDTLS_SSL_PROTO_TLS1_3`
+  * ``CONFIG_MBEDTLS_TLS_SESSION_TICKETS`` ->
+    :kconfig:option:`CONFIG_MBEDTLS_SSL_SESSION_TICKETS`
+  * ``CONFIG_MBEDTLS_CTR_DRBG_ENABLED`` -> :kconfig:option:`CONFIG_MBEDTLS_CTR_DRBG_C`
+  * ``CONFIG_MBEDTLS_HMAC_DRBG_ENABLED`` -> :kconfig:option:`CONFIG_MBEDTLS_HMAC_DRBG_C`
+
+  Unlike the removed options, the new ones do not enable their dependencies automatically.
 
 * :kconfig:option:`CONFIG_MBEDTLS_SSL_EARLY_DATA` is now an explicit opt-in and is no longer
   implicitly enabled by :kconfig:option:`CONFIG_MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ENABLED`.

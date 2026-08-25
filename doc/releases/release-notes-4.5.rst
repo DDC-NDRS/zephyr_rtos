@@ -104,6 +104,14 @@ Removed APIs and options
       buffers unconditionally. Applications still setting these options can
       simply drop them.
 
+* Build system
+
+    * ``CONFIG_BUILD_NO_GAP_FILL``
+    * ``cmake/app/boilerplate.cmake``
+    * Board revision Kconfig fragments named ``<board>_<revision>.conf``, replaced by
+      ``<board>_<revision>_defconfig``
+    * Pattern expansion in ``zephyr_code_relocate(FILES ...)``, replaced by ``file(GLOB ...)``
+
 * Comparator
 
     * ``nxp,enable-output-pin``, ``nxp,use-unfiltered-output``, ``nxp,high-speed-mode``,
@@ -118,6 +126,17 @@ Removed APIs and options
 * LLEXT
 
     * ``llext_get_fn_table``, replaced by ``llext_get_fn_table_entry``
+
+* Mbed TLS
+
+    * ``CONFIG_MBEDTLS_MD``
+    * ``CONFIG_MBEDTLS_LMS``
+    * ``CONFIG_MBEDTLS_TLS_VERSION_1_2``
+    * ``CONFIG_MBEDTLS_DTLS``
+    * ``CONFIG_MBEDTLS_TLS_VERSION_1_3``
+    * ``CONFIG_MBEDTLS_TLS_SESSION_TICKETS``
+    * ``CONFIG_MBEDTLS_CTR_DRBG_ENABLED``
+    * ``CONFIG_MBEDTLS_HMAC_DRBG_ENABLED``
 
 * MCUboot
 
@@ -157,6 +176,12 @@ Removed APIs and options
 
     * ``CONFIG_CTR_DRBG_CSPRNG_GENERATOR``
     * ``CONFIG_CS_CTR_DRBG_PERSONALIZATION``
+
+* SPI
+
+    * The optional delay argument of :c:macro:`SPI_CONFIG_DT`, :c:macro:`SPI_CONFIG_DT_INST`,
+      :c:macro:`SPI_DT_SPEC_GET`, :c:macro:`SPI_DT_SPEC_INST_GET`, :c:macro:`SPI_DT_IODEV_DEFINE`,
+      :c:macro:`SPI_DT_INST_IODEV_DEFINE` and :c:macro:`SPI_CS_CONTROL_INIT` has been removed.
 
 * Stream Flash
 

@@ -2529,6 +2529,13 @@ static int ipv4_multicast_group(struct net_context *ctx, const void *optval,
 		ret = net_ipv4_igmp_leave(iface, &mreqn->imr_multiaddr);
 	}
 
+	if (ret == -ENETDOWN) {
+		/* If the interface is down, we can still return success as the
+		 * join will be performed when the interface comes up.
+		 */
+		return 0;
+	}
+
 	if (ret < 0) {
 		errno  = -ret;
 		return -1;
@@ -2579,6 +2586,13 @@ static int ipv6_multicast_group(struct net_context *ctx, const void *optval,
 		ret = net_ipv6_mld_join(iface, &mreq->ipv6mr_multiaddr);
 	} else {
 		ret = net_ipv6_mld_leave(iface, &mreq->ipv6mr_multiaddr);
+	}
+
+	if (ret == -ENETDOWN) {
+		/* If the interface is down, we can still return success as the
+		 * join will be performed when the interface comes up.
+		 */
+		return 0;
 	}
 
 	if (ret < 0) {
