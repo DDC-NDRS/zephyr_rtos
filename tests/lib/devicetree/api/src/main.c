@@ -246,6 +246,30 @@ ZTEST(devicetree_api, test_inst_props)
 
 #undef DT_DRV_COMPAT
 #define DT_DRV_COMPAT vnd_reg_holder_2
+ZTEST(devicetree_api, test_any_compat_reg_names)
+{
+	zexpect_equal(DT_ANY_COMPAT_REG_HAS_NAME_STATUS_OKAY(vnd_reg_holder_2, foo), 1, "");
+	zexpect_equal(DT_ANY_COMPAT_REG_HAS_NAME_STATUS_OKAY(vnd_reg_holder_2, bar), 1, "");
+	zexpect_equal(DT_ANY_COMPAT_REG_HAS_NAME_STATUS_OKAY(vnd_reg_holder_2, baz), 0, "");
+	zexpect_equal(DT_ANY_COMPAT_REG_HAS_NAME_STATUS_OKAY(vnd_reg_holder_2, does_not_exist), 0,
+		      "");
+	zexpect_equal(COND_CODE_1(DT_ANY_COMPAT_REG_HAS_NAME_STATUS_OKAY(vnd_reg_holder_2, foo),
+				  (5), (6)), 5, "");
+	zexpect_true(IS_ENABLED(DT_ANY_COMPAT_REG_HAS_NAME_STATUS_OKAY(vnd_reg_holder_2, foo)), "");
+}
+
+ZTEST(devicetree_api, test_all_compat_reg_names)
+{
+	zexpect_equal(DT_ALL_COMPAT_REG_HAS_NAME_STATUS_OKAY(vnd_reg_holder_2, foo), 1, "");
+	zexpect_equal(DT_ALL_COMPAT_REG_HAS_NAME_STATUS_OKAY(vnd_reg_holder_2, bar), 0, "");
+	zexpect_equal(DT_ALL_COMPAT_REG_HAS_NAME_STATUS_OKAY(vnd_reg_holder_2, baz), 0, "");
+	zexpect_equal(DT_ALL_COMPAT_REG_HAS_NAME_STATUS_OKAY(vnd_reg_holder_2, does_not_exist), 0,
+		      "");
+	zexpect_equal(COND_CODE_1(DT_ALL_COMPAT_REG_HAS_NAME_STATUS_OKAY(vnd_reg_holder_2, foo),
+				  (5), (6)), 5, "");
+	zexpect_true(IS_ENABLED(DT_ALL_COMPAT_REG_HAS_NAME_STATUS_OKAY(vnd_reg_holder_2, foo)), "");
+}
+
 ZTEST(devicetree_api, test_any_inst_reg_names)
 {
 	zassert_equal(DT_ANY_INST_REG_HAS_NAME_STATUS_OKAY(foo), 1, "");
@@ -347,15 +371,62 @@ ZTEST(devicetree_api, test_all_inst_prop)
 #undef DT_DRV_COMPAT
 ZTEST(devicetree_api, test_any_compat_inst_prop)
 {
-	zassert_equal(DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, foo), 1, "");
-	zassert_equal(DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, bar), 1, "");
-	zassert_equal(DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, baz), 0, "");
-	zassert_equal(DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, does_not_exist),
+	zexpect_equal(DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, foo), 1, "");
+	zexpect_equal(DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, bar), 1, "");
+	zexpect_equal(DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, baz), 0, "");
+	zexpect_equal(DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, does_not_exist),
 		      0, "");
+	zexpect_equal(COND_CODE_1(DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, foo),
+				  (5), (6)), 5, "");
+	zexpect_true(IS_ENABLED(DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, foo)),
+		     "");
+}
+
+ZTEST(devicetree_api, test_all_compat_inst_prop)
+{
+	zexpect_equal(DT_ALL_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, foo), 1, "");
+	zexpect_equal(DT_ALL_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, bar), 0, "");
+	zexpect_equal(DT_ALL_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, baz), 0, "");
+	zexpect_equal(DT_ALL_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, does_not_exist),
+		      0, "");
+	zexpect_equal(COND_CODE_1(DT_ALL_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, foo),
+				  (5), (6)), 5, "");
+	zexpect_true(IS_ENABLED(DT_ALL_COMPAT_HAS_PROP_STATUS_OKAY(vnd_device_with_props, foo)),
+		     "");
 }
 
 #undef DT_DRV_COMPAT
 #define DT_DRV_COMPAT vnd_device_with_props
+ZTEST(devicetree_api, test_any_compat_bool)
+{
+	zexpect_equal(DT_ANY_COMPAT_HAS_BOOL_STATUS_OKAY(vnd_device_with_props, bool_foo), 1, "");
+	zexpect_equal(DT_ANY_COMPAT_HAS_BOOL_STATUS_OKAY(vnd_device_with_props, bool_bar), 1, "");
+	zexpect_equal(DT_ANY_COMPAT_HAS_BOOL_STATUS_OKAY(vnd_device_with_props, bool_baz), 0, "");
+	zexpect_equal(DT_ANY_COMPAT_HAS_BOOL_STATUS_OKAY(vnd_device_with_props, does_not_exist), 0,
+		      "");
+	zexpect_equal(
+		COND_CODE_1(DT_ANY_COMPAT_HAS_BOOL_STATUS_OKAY(vnd_device_with_props, bool_foo),
+			    (5), (6)), 5, "");
+	zexpect_true(
+		IS_ENABLED(DT_ANY_COMPAT_HAS_BOOL_STATUS_OKAY(vnd_device_with_props, bool_foo)),
+		"");
+}
+
+ZTEST(devicetree_api, test_all_compat_bool)
+{
+	zexpect_equal(DT_ALL_COMPAT_HAS_BOOL_STATUS_OKAY(vnd_device_with_props, bool_foo), 1, "");
+	zexpect_equal(DT_ALL_COMPAT_HAS_BOOL_STATUS_OKAY(vnd_device_with_props, bool_bar), 0, "");
+	zexpect_equal(DT_ALL_COMPAT_HAS_BOOL_STATUS_OKAY(vnd_device_with_props, bool_baz), 0, "");
+	zexpect_equal(DT_ALL_COMPAT_HAS_BOOL_STATUS_OKAY(vnd_device_with_props, does_not_exist), 0,
+		      "");
+	zexpect_equal(
+		COND_CODE_1(DT_ALL_COMPAT_HAS_BOOL_STATUS_OKAY(vnd_device_with_props, bool_foo),
+			    (5), (6)), 5, "");
+	zexpect_true(
+		IS_ENABLED(DT_ALL_COMPAT_HAS_BOOL_STATUS_OKAY(vnd_device_with_props, bool_foo)),
+		"");
+}
+
 ZTEST(devicetree_api, test_any_inst_bool)
 {
 	zassert_equal(DT_ANY_INST_HAS_BOOL_STATUS_OKAY(bool_foo), 1, "");
@@ -571,6 +642,39 @@ ZTEST(devicetree_api, test_has_compat)
 #undef DT_DRV_COMPAT
 #define DT_DRV_COMPAT vnd_model1
 	zassert_true(DT_INST_NODE_HAS_COMPAT(0, zephyr_model2));
+}
+
+ZTEST(devicetree_api, test_binding_compat)
+{
+	/* test_gpio_1 has compatible "vnd,gpio-device" with a matching binding */
+	const char *token = STRINGIFY(DT_BINDING_COMPAT_TOKEN(TEST_DEADBEEF));
+
+	zexpect_str_equal(token, "vnd_gpio_device");
+
+	const char *upper = STRINGIFY(DT_BINDING_COMPAT_UPPER_TOKEN(TEST_DEADBEEF));
+
+	zexpect_str_equal(upper, "VND_GPIO_DEVICE");
+
+	/* UNQUOTED contains a comma, so wrap in parentheses for STRINGIFY */
+	const char *unquoted = STRINGIFY((DT_BINDING_COMPAT_UNQUOTED(TEST_DEADBEEF)));
+
+	zexpect_str_equal(unquoted, "(vnd,gpio-device)");
+
+	/* TEST_ARRAYS has two compatibles: "vnd,array-holder" (has a binding)
+	 * and "vnd,undefined-compat" (no binding). Only the one with a
+	 * matching binding should be returned.
+	 */
+	const char *arrays_token = STRINGIFY(DT_BINDING_COMPAT_TOKEN(TEST_ARRAYS));
+
+	zexpect_str_equal(arrays_token, "vnd_array_holder");
+
+	const char *arrays_upper = STRINGIFY(DT_BINDING_COMPAT_UPPER_TOKEN(TEST_ARRAYS));
+
+	zexpect_str_equal(arrays_upper, "VND_ARRAY_HOLDER");
+
+	const char *arrays_unquoted = STRINGIFY((DT_BINDING_COMPAT_UNQUOTED(TEST_ARRAYS)));
+
+	zexpect_str_equal(arrays_unquoted, "(vnd,array-holder)");
 }
 
 ZTEST(devicetree_api, test_has_status)

@@ -80,7 +80,8 @@ K_MEM_SLAB_DEFINE_STATIC_TYPE(tcp_conns_slab, struct tcp,
 static struct k_work_q tcp_work_q;
 static K_KERNEL_STACK_DEFINE(work_q_stack, CONFIG_NET_TCP_WORKQ_STACK_SIZE);
 
-static enum net_verdict tcp_in(struct tcp* conn, struct net_pkt* pkt);
+static enum net_verdict tcp_in(struct tcp* conn, struct net_pkt* pkt,
+                               struct tcphdr* th);
 static bool is_destination_local(struct net_pkt* pkt);
 static void tcp_out(struct tcp* conn, uint8_t flags);
 static char const* tcp_state_to_str(enum tcp_state state, bool prefix);
@@ -178,6 +179,19 @@ out :
     return (ret);
 }
 
+/* Locate the TCP header inside a received packet.
+ *
+ * The returned pointer aims into pkt->buffer, at ip_hdr_len + ip_opts_len, and
+ * stays valid only while that fragment keeps its data pointer and its place in
+ * the chain. It does not survive anything that pulls, trims, splices or
+ * replaces buffers, nor handing the packet to another owner. In the receive
+ * path that means tcp_pkt_trim_data(), tcp_pkt_pull(), the k_fifo_put() in
+ * tcp_data_get() and the final net_pkt_unref(); re-derive after those rather
+ * than carrying the old pointer across.
+ *
+ * Note the packet is left in overwrite mode with the cursor parked on the TCP
+ * header, and neither is restored.
+ */
 static struct tcphdr* th_get(struct net_pkt* pkt) {
     size_t ip_len = net_pkt_ip_hdr_len(pkt) + net_pkt_ip_opts_len(pkt);
     struct tcphdr* th = NULL;
@@ -210,19 +224,17 @@ static size_t tcp_endpoint_len(net_sa_family_t af) {
 }
 
 static int tcp_endpoint_set(union tcp_endpoint* ep, struct net_pkt* pkt,
-                            enum pkt_addr src) {
+                            struct tcphdr* th, enum pkt_addr src) {
     int ret = 0;
+
+    if (th == NULL) {
+        return (-ENOBUFS);
+    }
 
     switch (net_pkt_family(pkt)) {
         case NET_AF_INET :
             if (IS_ENABLED(CONFIG_NET_IPV4)) {
                 struct net_ipv4_hdr* ip = NET_IPV4_HDR(pkt);
-                struct tcphdr* th;
-
-                th = th_get(pkt);
-                if (!th) {
-                    return (-ENOBUFS);
-                }
 
                 memset(ep, 0, sizeof(*ep));
 
@@ -242,12 +254,6 @@ static int tcp_endpoint_set(union tcp_endpoint* ep, struct net_pkt* pkt,
         case NET_AF_INET6 :
             if (IS_ENABLED(CONFIG_NET_IPV6)) {
                 struct net_ipv6_hdr* ip = NET_IPV6_HDR(pkt);
-                struct tcphdr* th;
-
-                th = th_get(pkt);
-                if (!th) {
-                    return (-ENOBUFS);
-                }
 
                 memset(ep, 0, sizeof(*ep));
 
@@ -363,24 +369,39 @@ static const char* tcp_flags(uint8_t flags) {
     return (buf);
 }
 
-static size_t tcp_data_len(struct net_pkt* pkt) {
-    struct tcphdr* th = th_get(pkt);
-    size_t tcp_options_len = (th_off(th) - 5) * 4;
-    int len = net_pkt_get_len(pkt) - net_pkt_ip_hdr_len(pkt) -
-              net_pkt_ip_opts_len(pkt) - sizeof(*th) - tcp_options_len;
+static size_t tcp_data_len(struct net_pkt* pkt, struct tcphdr const* th) {
+    size_t tcp_options_len;
+    int len;
+
+    /* An offset below the header size would make the option length
+     * underflow, and the payload length derived from it is then whatever
+     * the subtraction wraps to. Such a segment carries no usable data.
+     */
+    if ((th == NULL) || (th_off(th) < 5)) {
+        return (0);
+    }
+
+    tcp_options_len = ((th_off(th) - 5) * 4);
+    len = net_pkt_get_len(pkt) - net_pkt_ip_hdr_len(pkt) -
+          net_pkt_ip_opts_len(pkt) - sizeof(*th) - tcp_options_len;
 
     return ((len > 0) ? (size_t)len : 0);
 }
 
-static const char *tcp_th(struct net_pkt* pkt, uint32_t* seq_ptr, uint32_t* ack_ptr) {
+static const char* tcp_th(struct net_pkt* pkt, struct tcphdr* th,
+                          uint32_t* seq_ptr, uint32_t* ack_ptr) {
     #define BUF_SIZE 80
     static char buf[BUF_SIZE];
     int len = 0;
-    struct tcphdr* th = th_get(pkt);
     uint32_t seq;
     uint32_t ack;
 
     buf[0] = '\0';
+
+    if (th == NULL) {
+        len += snprintk(buf + len, BUF_SIZE - len, "no header");
+        goto end;
+    }
 
     if (th_off(th) < 5) {
         len += snprintk((buf + len), (BUF_SIZE - len),
@@ -413,7 +434,7 @@ static const char *tcp_th(struct net_pkt* pkt, uint32_t* seq_ptr, uint32_t* ack_
     }
 
     len += snprintk(buf + len, BUF_SIZE - len,
-                    " Len=%ld", (long)tcp_data_len(pkt));
+                    " Len=%ld", (long)tcp_data_len(pkt, th));
 end :
     #undef BUF_SIZE
     return (buf);
@@ -1100,14 +1121,15 @@ out :
     return ((prefix) ? s : (s + 4));
 }
 
-static char const* tcp_conn_state(struct tcp* conn, struct net_pkt* pkt) {
+static char const* tcp_conn_state(struct tcp* conn, struct net_pkt* pkt,
+                                  struct tcphdr* th) {
     #define BUF_SIZE 160
     static char buf[BUF_SIZE];
     uint32_t seq = conn->isn;
     uint32_t ack = conn->isn_peer;
 
     snprintk(buf, BUF_SIZE, "%s [%s Seq=%u{%u} Ack=%u{%u}]",
-             pkt ? tcp_th(pkt, &seq, &ack) : "",
+             pkt ? tcp_th(pkt, th, &seq, &ack) : "",
              tcp_state_to_str(conn->state, false),
              conn->seq - seq, conn->seq,
              conn->ack - ack, conn->ack);
@@ -1603,7 +1625,8 @@ void net_tcp_reply_rst(struct net_pkt* pkt) {
         UNALIGNED_PUT(th_pkt->th_ack, UNALIGNED_MEMBER_ADDR(th_rst, th_seq));
     }
     else {
-        uint32_t ack = net_ntohl(th_pkt->th_seq) + tcp_data_len(pkt);
+        uint32_t ack = net_ntohl(th_pkt->th_seq) +
+                       tcp_data_len(pkt, th_pkt);
 
         if (th_flags(th_pkt) & SYN) {
             ack++;
@@ -1627,7 +1650,7 @@ void net_tcp_reply_rst(struct net_pkt* pkt) {
         goto err;
     }
 
-    NET_DBG("%s", tcp_th(rst, NULL, NULL));
+    NET_DBG("%s", tcp_th(rst, th_get(rst), NULL, NULL));
 
     tcp_send(rst);
 
@@ -1736,8 +1759,7 @@ static void tcp_out(struct tcp* conn, uint8_t flags) {
     (void) tcp_out_ext(conn, flags, 0 /* no data */, conn->seq + conn->unacked_len);
 }
 
-static int tcp_pkt_pull(struct net_pkt* pkt, size_t len) {
-    int total = net_pkt_get_len(pkt);
+static int tcp_pkt_pull(struct net_pkt* pkt, size_t len, size_t total) {
     int ret   = 0;
 
     if (len > (size_t)total) {
@@ -1792,7 +1814,7 @@ static int tcp_pkt_trim_data(struct tcp* conn, struct net_pkt* pkt, size_t data_
     }
 
     /* Last, append the valid data part to the new_pkt */
-    ret = tcp_pkt_pull(pkt, hdrlen + trim_len);
+    ret = tcp_pkt_pull(pkt, hdrlen + trim_len, total);
     if (ret < 0) {
         goto out;
     }
@@ -2119,14 +2141,14 @@ static void tcp_timewait_timeout(struct k_work* work) {
     struct tcp* conn = CONTAINER_OF(dwork, struct tcp, timewait_timer);
 
     /* no need to acquire the conn->lock as there is nothing scheduled here */
-    NET_DBG("[%p] %s", conn, tcp_conn_state(conn, NULL));
+    NET_DBG("[%p] %s", conn, tcp_conn_state(conn, NULL, NULL));
 
     (void)tcp_conn_close(conn, -ETIMEDOUT);
 }
 
 static void tcp_establish_timeout(struct tcp* conn) {
     NET_DBG("[%p] Did not receive %s in %dms", conn, "ACK", ACK_TIMEOUT_MS);
-    NET_DBG("[%p] %s", conn, tcp_conn_state(conn, NULL));
+    NET_DBG("[%p] %s", conn, tcp_conn_state(conn, NULL, NULL));
 
     (void)tcp_conn_close(conn, -ETIMEDOUT);
 }
@@ -2142,7 +2164,7 @@ static void tcp_fin_timeout(struct k_work* work) {
     }
 
     NET_DBG("[%p] Did not receive %s in %dms", conn, "FIN", tcp_max_timeout_ms);
-    NET_DBG("[%p] %s", conn, tcp_conn_state(conn, NULL));
+    NET_DBG("[%p] %s", conn, tcp_conn_state(conn, NULL, NULL));
 
     (void)tcp_conn_close(conn, -ETIMEDOUT);
 }
@@ -2173,7 +2195,7 @@ static void tcp_last_ack_timeout(struct k_work* work) {
     struct tcp* conn = CONTAINER_OF(dwork, struct tcp, fin_timer);
 
     NET_DBG("[%p] Did not receive %s in %dms", conn, "last ACK", LAST_ACK_TIMEOUT_MS);
-    NET_DBG("[%p] %s", conn, tcp_conn_state(conn, NULL));
+    NET_DBG("[%p] %s", conn, tcp_conn_state(conn, NULL, NULL));
 
     (void)tcp_conn_close(conn, -ETIMEDOUT);
 }
@@ -2370,31 +2392,35 @@ int net_tcp_get(struct net_context* context) {
     return (ret);
 }
 
-static bool tcp_endpoint_cmp(union tcp_endpoint* ep, struct net_pkt* pkt,
-                             enum pkt_addr which) {
-    union tcp_endpoint ep_tmp;
-
-    if (tcp_endpoint_set(&ep_tmp, pkt, which) < 0) {
-        return (false);
-    }
-
-    return !memcmp(ep, &ep_tmp, tcp_endpoint_len(ep->sa.sa_family));
+static bool tcp_endpoint_cmp(const union tcp_endpoint* ep,
+                             const union tcp_endpoint* ep_pkt) {
+    /* The length comes from the connection's endpoint, as before, so a
+     * connection of one address family never matches a packet of another:
+     * the family byte is part of the compared region.
+     */
+    return !memcmp(ep, ep_pkt, tcp_endpoint_len(ep->sa.sa_family));
 }
 
-static bool tcp_conn_cmp(struct tcp* conn, struct net_pkt* pkt) {
-    return tcp_endpoint_cmp(&conn->src, pkt, TCP_EP_DST) &&
-                            tcp_endpoint_cmp(&conn->dst, pkt, TCP_EP_SRC);
-}
-
-static struct tcp* tcp_conn_search(struct net_pkt* pkt) {
+static struct tcp* tcp_conn_search(struct net_pkt* pkt, struct tcphdr* th) {
+    union tcp_endpoint src_ep;
+    union tcp_endpoint dst_ep;
     bool found = false;
     struct tcp* conn;
     struct tcp* tmp;
 
+    /* Build the packet's endpoints once instead of rebuilding them for
+     * every connection examined below.
+     */
+    if ((tcp_endpoint_set(&src_ep, pkt, th, TCP_EP_SRC) < 0) ||
+        (tcp_endpoint_set(&dst_ep, pkt, th, TCP_EP_DST) < 0)) {
+        return (NULL);
+    }
+
     k_mutex_lock(&tcp_lock, K_FOREVER);
 
     SYS_SLIST_FOR_EACH_CONTAINER_SAFE(&tcp_conns, conn, tmp, next) {
-        found = tcp_conn_cmp(conn, pkt);
+        found = tcp_endpoint_cmp(&conn->src, &dst_ep) &&
+                tcp_endpoint_cmp(&conn->dst, &src_ep);
         if (found) {
             break;
         }
@@ -2402,10 +2428,10 @@ static struct tcp* tcp_conn_search(struct net_pkt* pkt) {
 
     k_mutex_unlock(&tcp_lock);
 
-    return found ? conn : NULL;
+    return (found ? conn : NULL);
 }
 
-static struct tcp* tcp_conn_new(struct net_pkt* pkt);
+static struct tcp* tcp_conn_new(struct net_pkt* pkt, struct tcphdr* th);
 
 static enum net_verdict tcp_recv(struct net_conn* net_conn,
                                  struct net_pkt* pkt,
@@ -2424,7 +2450,7 @@ static enum net_verdict tcp_recv(struct net_conn* net_conn,
         goto out;
     }
 
-    conn = tcp_conn_search(pkt);
+    conn = tcp_conn_search(pkt, th);
     if (conn) {
         goto in;
     }
@@ -2441,7 +2467,7 @@ static enum net_verdict tcp_recv(struct net_conn* net_conn,
             goto out;
         }
 
-        conn = tcp_conn_new(pkt);
+        conn = tcp_conn_new(pkt, th);
         if (!conn) {
             NET_ERR("Cannot allocate a new TCP connection");
             goto in;
@@ -2452,7 +2478,7 @@ static enum net_verdict tcp_recv(struct net_conn* net_conn,
 
 in :
     if (conn) {
-        verdict = tcp_in(conn, pkt);
+        verdict = tcp_in(conn, pkt, th);
     }
     else {
         net_tcp_reply_rst(pkt);
@@ -2582,7 +2608,7 @@ static uint32_t tcp_init_isn(struct net_sockaddr const* saddr, struct net_sockad
 /* Create a new tcp connection, as a part of it, create and register
  * net_context
  */
-static struct tcp* tcp_conn_new(struct net_pkt* pkt) {
+static struct tcp* tcp_conn_new(struct net_pkt* pkt, struct tcphdr* th) {
     struct tcp* conn = NULL;
     struct net_context* context = NULL;
     net_sa_family_t af = net_pkt_family(pkt);
@@ -2602,13 +2628,13 @@ static struct tcp* tcp_conn_new(struct net_pkt* pkt) {
 
     net_context_set_family(conn->context, net_pkt_family(pkt));
 
-    if (tcp_endpoint_set(&conn->dst, pkt, TCP_EP_SRC) < 0) {
+    if (tcp_endpoint_set(&conn->dst, pkt, th, TCP_EP_SRC) < 0) {
         net_context_put(context);
         conn = NULL;
         goto err;
     }
 
-    if (tcp_endpoint_set(&conn->src, pkt, TCP_EP_DST) < 0) {
+    if (tcp_endpoint_set(&conn->src, pkt, th, TCP_EP_DST) < 0) {
         net_context_put(context);
         conn = NULL;
         goto err;
@@ -2977,15 +3003,17 @@ static enum net_verdict tcp_data_received(struct tcp* conn, struct net_pkt* pkt,
 static void tcp_out_of_order_data(struct tcp* conn, struct net_pkt* pkt,
                                   size_t data_len, uint32_t seq) {
     size_t headers_len;
+    size_t total_len;
 
     if (data_len == 0) {
         return;
     }
 
-    headers_len = net_pkt_get_len(pkt) - data_len;
+    total_len = net_pkt_get_len(pkt);
+    headers_len = (total_len - data_len);
 
     /* Get rid of protocol headers from the data */
-    if (tcp_pkt_pull(pkt, headers_len) < 0) {
+    if (tcp_pkt_pull(pkt, headers_len, total_len) < 0) {
         return;
     }
 
@@ -3034,15 +3062,17 @@ static void tcp_check_sock_options(struct tcp* conn) {
 
 /* TCP state machine, everything happens here */
 #if defined(_MSC_VER) /* #CUSTOM@NDRS */
-static enum net_verdict tcp_in(struct tcp* conn, struct net_pkt* pkt) {
-    (void) conn;
-    (void) pkt;
+static enum net_verdict tcp_in(struct tcp* conn, struct net_pkt* pkt,
+                               struct tcphdr* th) {
+    ARG_UNUSED(conn);
+    ARG_UNUSED(pkt);
+    ARG_UNUSED(th);
 
     return (NET_DROP);
 }
 #else
-static enum net_verdict tcp_in(struct tcp* conn, struct net_pkt* pkt) {
-    struct tcphdr* th;
+static enum net_verdict tcp_in(struct tcp* conn, struct net_pkt* pkt,
+                               struct tcphdr* th) {
     uint8_t next = 0;
     uint8_t fl = 0;
     bool do_close = false;
@@ -3057,14 +3087,8 @@ static enum net_verdict tcp_in(struct tcp* conn, struct net_pkt* pkt) {
     int close_status = 0;
     enum net_verdict verdict = NET_DROP;
 
-    if ((conn == NULL) || (pkt == NULL)) {
+    if ((conn == NULL) || (pkt == NULL) || (th == NULL)) {
         NET_ERR("Invalid parameters");
-        return (NET_DROP);
-    }
-
-    th = th_get(pkt);
-    if (th == NULL) {
-        NET_ERR("Failed to get TCP header");
         return (NET_DROP);
     }
 
@@ -3085,9 +3109,9 @@ static enum net_verdict tcp_in(struct tcp* conn, struct net_pkt* pkt) {
         return (NET_DROP);
     }
 
-    NET_DBG("[%p] %s", conn, tcp_conn_state(conn, pkt));
+    NET_DBG("[%p] %s", conn, tcp_conn_state(conn, pkt, th));
 
-    len = tcp_data_len(pkt);
+    len = tcp_data_len(pkt, th);
 
     /* first validate the seqnum */
     if (!tcp_validate_seq(conn, th, len)) {
@@ -3443,8 +3467,8 @@ static enum net_verdict tcp_in(struct tcp* conn, struct net_pkt* pkt) {
                 NET_DBG("[%p] len_acked=%u", conn, len_acked);
 
                 if ((conn->send_data_total < len_acked) ||
-                                (tcp_pkt_pull(&conn->send_data,
-                                              len_acked) < 0)) {
+                    (tcp_pkt_pull(&conn->send_data, len_acked,
+                                  conn->send_data_total) < 0)) {
                     NET_ERR("[%p] Invalid len_acked=%u "
                             "(total=%zu)", conn, len_acked,
                             conn->send_data_total);
@@ -3559,6 +3583,16 @@ data_recv :
                 int32_t new_len = tcp_compute_new_length(conn, th, len, false);
 
                 if (tcp_pkt_trim_data(conn, pkt, len, (size_t)(len - new_len)) == 0) {
+                    /* Trimming replaces pkt->buffer, so the header
+                     * derived on entry no longer points into this
+                     * packet.
+                     */
+                    th = th_get(pkt);
+                    if (th == NULL) {
+                        verdict = NET_DROP;
+                        break;
+                    }
+
                     len = new_len;
                     goto data_recv;
                 }
@@ -3863,7 +3897,7 @@ int net_tcp_put(struct net_context* context, bool force_close) {
 
     k_mutex_lock(&conn->lock, K_FOREVER);
 
-    NET_DBG("[%p] %s", conn, conn ? tcp_conn_state(conn, NULL) : "");
+    NET_DBG("[%p] %s", conn, conn ? tcp_conn_state(conn, NULL, NULL) : "");
     NET_DBG("[%p] context %p %s", conn, context,
             ({const char* state = net_context_state(context);
                                   state ? state : "<unknown>";}));
@@ -4481,16 +4515,17 @@ static enum net_verdict tcp_input(struct net_conn* net_conn,
     enum net_verdict verdict = NET_DROP;
 
     if (th && (th_off(th) >= 5)) {
-        struct tcp* conn = tcp_conn_search(pkt);
+        struct tcp* conn = tcp_conn_search(pkt, th);
 
-        if (conn == NULL && SYN == th_flags(th)) {
-            struct net_context* context =
-                    tcp_calloc(1, sizeof(struct net_context));
+        if ((conn == NULL) && (SYN == th_flags(th))) {
+            struct net_context* context;
+
+            context = tcp_calloc(1, sizeof(struct net_context));
             net_tcp_get(context);
             net_context_set_family(context, net_pkt_family(pkt));
             conn = context->tcp;
-            tcp_endpoint_set(&conn->dst, pkt, TCP_EP_SRC);
-            tcp_endpoint_set(&conn->src, pkt, TCP_EP_DST);
+            tcp_endpoint_set(&conn->dst, pkt, th, TCP_EP_SRC);
+            tcp_endpoint_set(&conn->src, pkt, th, TCP_EP_DST);
             /* Make an extra reference, the sanity check suite
              * will delete the connection explicitly
              */
@@ -4499,7 +4534,7 @@ static enum net_verdict tcp_input(struct net_conn* net_conn,
 
         if (conn) {
             conn->iface = pkt->iface;
-            verdict     = tcp_in(conn, pkt);
+            verdict = tcp_in(conn, pkt, th);
         }
     }
 
@@ -4507,7 +4542,7 @@ static enum net_verdict tcp_input(struct net_conn* net_conn,
 }
 
 static size_t tp_tcp_recv_cb(struct tcp* conn, struct net_pkt* pkt) {
-    ssize_t         len = tcp_data_len(pkt);
+    ssize_t len = tcp_data_len(pkt, th_get(pkt));
     struct net_pkt* up  = tcp_pkt_clone(pkt);
 
     NET_DBG("[%p] pkt: %p, len: %zu", conn, pkt, net_pkt_get_len(pkt));
@@ -4558,7 +4593,10 @@ enum net_verdict tp_input(struct net_conn* net_conn,
                           void* user_data) {
     struct net_udp_hdr* uh = net_udp_get_hdr(pkt, NULL);
     size_t data_len  = net_ntohs(uh->len) - sizeof(*uh);
-    struct tcp* conn = tcp_conn_search(pkt);
+    /* The test protocol rides on UDP; th_get() lands on the UDP header,
+     * whose port fields alias the TCP ones, which is all that is read.
+     */
+    struct tcp* conn = tcp_conn_search(pkt, th_get(pkt));
     size_t json_len  = 0;
     struct tp* tp;
     struct tp_new* tp_new;
@@ -4615,8 +4653,15 @@ enum net_verdict tp_input(struct net_conn* net_conn,
                     net_context_set_family(context,
                                            net_pkt_family(pkt));
                     conn = context->tcp;
-                    tcp_endpoint_set(&conn->dst, pkt, TCP_EP_SRC);
-                    tcp_endpoint_set(&conn->src, pkt, TCP_EP_DST);
+
+                    /* This is a UDP packet carrying the test
+                     * protocol; only the port fields are read,
+                     * and those alias the TCP header layout.
+                     */
+                    tcp_endpoint_set(&conn->dst, pkt, th_get(pkt),
+                                     TCP_EP_SRC);
+                    tcp_endpoint_set(&conn->src, pkt, th_get(pkt),
+                                     TCP_EP_DST);
                     conn->iface = pkt->iface;
                     tcp_conn_ref(conn);
                 }

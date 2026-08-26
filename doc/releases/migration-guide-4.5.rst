@@ -57,6 +57,11 @@ Build System
   now fails on one. Expand the pattern with ``file(GLOB ...)`` and pass the
   resulting file names instead.
 
+* ``west spdx --init`` is deprecated and will be removed in Zephyr 5.0. A build with
+  :kconfig:option:`CONFIG_BUILD_OUTPUT_META` now asks CMake for the file-based API object model
+  that ``west spdx`` reads, so generating an SBOM no longer needs the build directory to be
+  prepared beforehand: build as usual, then run ``west spdx``.
+
 Kernel
 ******
 
@@ -212,6 +217,23 @@ Boards
   or :c:func:`spi_transceive_cb` without DMA) on an affected board must now explicitly enable
   :kconfig:option:`CONFIG_SPI_STM32_INTERRUPT` in their own configuration. (:github:`116218`)
 
+* The following board name aliases, deprecated in v4.3 or earlier, have been removed
+  (:github:`116657`, :github:`116750`). Build for the board target the alias used to
+  redirect to instead:
+
+  * ``arduino_uno_r4_minima`` → ``arduino_uno_r4@minima``
+  * ``arduino_uno_r4_wifi`` → ``arduino_uno_r4@wifi``
+  * ``esp32c6_devkitc`` → ``esp32c6_devkitc/esp32c6/hpcore``
+  * ``esp32_devkitc_wroom/esp32/procpu`` and ``esp32_devkitc_wrover/esp32/procpu`` →
+    ``esp32_devkitc/esp32/procpu``
+  * ``esp32_devkitc_wroom/esp32/appcpu`` and ``esp32_devkitc_wrover/esp32/appcpu`` →
+    ``esp32_devkitc/esp32/appcpu``
+  * ``neorv32`` → ``neorv32/neorv32/up5kdemo``
+  * ``panb511evb`` → ``panb611evb``
+  * ``raytac_an54l15q_db/nrf54l15/cpuapp`` → ``raytac_an54lq_db_15/nrf54l15/cpuapp``
+  * ``scobc_module1`` → ``scobc_a1``
+  * ``xiao_esp32c6`` → ``xiao_esp32c6/esp32c6/hpcore``
+
 Device Drivers and Devicetree
 *****************************
 
@@ -284,6 +306,9 @@ Controller Area Network (CAN)
 * The Bosch M_CAN driver now solely uses RX FIFO0 for processing received CAN frames, ensuring these
   are processed in the order received on the bus. Out-of-tree users may want to update any
   ``bosch,mram-cfg`` devicetree property overrides to allocate all FIFO elements to RX FIFO0.
+
+* The deprecated ``bus-speed`` and ``bus-speed-data`` CAN controller devicetree properties have
+  been removed. Use ``bitrate`` and ``bitrate-data`` instead.
 
 Counter
 =======
@@ -1413,6 +1438,23 @@ Bluetooth Host
   should review their synchronization and callback stack requirements. See
   pull request :github:`93033` for details.
 
+* ``CONFIG_BT_AUTO_PHY_UPDATE`` has been removed. Use the per-role ``BT_AUTO_PHY_CENTRAL``
+  and ``BT_AUTO_PHY_PERIPHERAL`` choices instead. ``=n`` does not translate to dropping the
+  option: the central choice defaults to :kconfig:option:`CONFIG_BT_AUTO_PHY_CENTRAL_2M`, so
+  both roles must be set to ``_NONE`` explicitly.
+
+* The deprecated ``CONFIG_BT_CONN_TX_MAX`` Kconfig option has been removed. It has been
+  deprecated since Zephyr 4.2, and the number of pending TX buffers with a callback always
+  follows :kconfig:option:`CONFIG_BT_BUF_ACL_TX_COUNT`.
+
+Bluetooth Mesh
+==============
+
+* The deprecated ``CONFIG_BT_MESH_BLOB_IO_FLASH_WITH_ERASE`` and
+  ``CONFIG_BT_MESH_BLOB_IO_FLASH_WITHOUT_ERASE`` Kconfig options have been removed, with no
+  replacement. They have been deprecated since Zephyr 4.3, where the BLOB IO Flash module
+  started querying the erase capability at runtime, and have had no effect since.
+
 Bluetooth Services
 ==================
 
@@ -1864,6 +1906,9 @@ Architectures
   hook to :c:func:`soc_reset_hook`. The new hook runs later in the reset path,
   after the stack pointers have been set up, and is skipped on resume from
   suspend-to-RAM.
+
+* The RISC-V specific ``CONFIG_EXTRA_EXCEPTION_INFO`` has been removed. Use
+  :kconfig:option:`CONFIG_EXCEPTION_DEBUG` instead. The option is unchanged on Arm and SPARC.
 
 Video
 =====
