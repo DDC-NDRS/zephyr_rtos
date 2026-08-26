@@ -949,11 +949,20 @@
 			status = "disabled";
 		};
 
-		/* S32K358 specific - Hardware Security Engine */
-		hse: hse@40060000 {
-			compatible = "nxp,s32-hse";
-			reg = <0x40060000 0x8000>;
-			interrupts = <125 0>;
+		/* S32K358 specific - Hardware Security Engine host-side Messaging Units.
+		 * Only MU_0 and MU_1 are routed to the HSE firmware core (a third instance,
+		 * MU_2, is core-to-core only and not modeled here). No interrupts property -
+		 * the NXP S32 HSE crypto/entropy drivers poll the MU synchronously, they don't
+		 * use IRQ_CONNECT (see nxp_s32z27x_r52.dtsi's mub0..7 for the same pattern). */
+		mub0: mu@4038c000 {
+			compatible = "nxp,s32-crypto-hse-mu";
+			reg = <0x4038c000 0x10000>;
+			status = "disabled";
+		};
+
+		mub1: mu@404ec000 {
+			compatible = "nxp,s32-hse-entropy";
+			reg = <0x404ec000 0x10000>;
 			status = "disabled";
 		};
 	};
