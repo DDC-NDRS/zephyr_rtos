@@ -530,9 +530,6 @@ static int async_read(struct shell_uart_async* sh_uart,
 
             return (err == -EACCES) ? 0 : err;
         }
-        else {
-            return (err);
-        }
     }
 
     return (0);

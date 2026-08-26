@@ -233,6 +233,14 @@ static inline struct esp32_wifi_runtime* esp32_wifi_data_get(struct net_if* ifac
     return (&esp32_data);
 }
 
+static inline bool esp32_wifi_iface_valid(struct net_if* iface) {
+    #if defined(CONFIG_ESP32_WIFI_AP_STA_MODE)
+    return ((iface == esp32_wifi_iface) || (iface == esp32_wifi_iface_ap));
+    #else
+    return (iface == esp32_wifi_iface);
+    #endif
+}
+
 static int esp32_wifi_send(const struct device* dev __unused, struct net_pkt* pkt) {
     struct esp32_wifi_runtime* data = esp32_wifi_data_get(net_pkt_iface(pkt));
     const size_t pkt_len = net_pkt_get_len(pkt);
@@ -1861,7 +1869,7 @@ static int esp32_wifi_status(const struct device* dev __unused,
     return (0);
 }
 
-int esp32_wifi_reg_domain(const struct device* dev, struct wifi_reg_domain* reg_domain) {
+static int esp32_wifi_reg_domain(const struct device* dev, struct wifi_reg_domain* reg_domain) {
     esp_err_t err;
 
     ARG_UNUSED(dev);
@@ -1886,14 +1894,15 @@ int esp32_wifi_reg_domain(const struct device* dev, struct wifi_reg_domain* reg_
     return (0);
 }
 
-int esp32_wifi_mode(const struct device* dev, struct wifi_mode_info* mode) {
+static int esp32_wifi_mode(const struct device* dev, struct wifi_mode_info* mode) {
     struct net_if* iface = net_if_get_by_index(mode->if_index);
     wifi_mode_t wifi_mode;
     esp_err_t err;
 
     ARG_UNUSED(dev);
+
     /* Make sure we are on the right interface */
-    if (iface != esp32_wifi_iface) {
+    if (!esp32_wifi_iface_valid(iface)) {
         return (-ESRCH);
     }
 
@@ -1929,8 +1938,8 @@ int esp32_wifi_mode(const struct device* dev, struct wifi_mode_info* mode) {
 }
 
 
-int esp32_wifi_channel(struct device const* dev,
-                       struct wifi_channel_info *channel) {
+static int esp32_wifi_channel(struct device const* dev,
+                              struct wifi_channel_info *channel) {
     struct net_if* iface = net_if_get_by_index(channel->if_index);
     uint8_t primary_chan;
     wifi_second_chan_t second_chan;
@@ -1939,7 +1948,7 @@ int esp32_wifi_channel(struct device const* dev,
     ARG_UNUSED(dev);
 
     /* Make sure we are on the right interface */
-    if (iface != esp32_wifi_iface) {
+    if (!esp32_wifi_iface_valid(iface)) {
         return (-ESRCH);
     }
 
@@ -1965,6 +1974,8 @@ int esp32_wifi_channel(struct device const* dev,
 int esp32_wifi_ap_config_params(const struct device* dev, struct wifi_ap_config_params* params) {
     wifi_config_t wifi_config;
     esp_err_t err;
+
+    ARG_UNUSED(dev);
 
     err = esp_wifi_get_config(WIFI_IF_AP, &wifi_config);
     if (err != ESP_OK) {
@@ -2047,7 +2058,7 @@ int esp32_wifi_dpp_dispatch(const struct device* dev, struct wifi_dpp_params* pa
             return (-1);
     }
 
-    return (0);
+    return (-ENOTSUP);
 }
 #endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_DPP */
 

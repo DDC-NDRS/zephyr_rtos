@@ -1665,16 +1665,11 @@ static int tcp_out_ext(struct tcp* conn, uint8_t flags, size_t data_len, uint32_
     int ret = 0;
 
     #if defined(_MSC_VER) /* #CUSTOM@NDRS */
-    if (data_len > 0) {
-        pkt = net_pkt_alloc_with_buffer(conn->iface,
-                                        data_len,
-                                        net_context_get_family(conn->context),
-                                        NET_IPPROTO_TCP,
-                                        TCP_PKT_ALLOC_TIMEOUT);
-    }
-    else {
-        pkt = net_pkt_alloc(TCP_PKT_ALLOC_TIMEOUT);
-    }
+    pkt = net_pkt_alloc_with_buffer(conn->iface,
+                                    data_len,
+                                    net_context_get_family(conn->context),
+                                    NET_IPPROTO_TCP,
+                                    TCP_PKT_ALLOC_TIMEOUT);
     #else
     /* The allocation adds the IP and TCP header estimate on top of the
      * requested length, so the headers written below and the copied
