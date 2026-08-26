@@ -350,7 +350,6 @@ static int crypto_nxp_s32_hse_cipher_key_element_set(const struct device *dev,
 	session->key_info.keyFlags = HSE_KF_USAGE_ENCRYPT | HSE_KF_USAGE_DECRYPT;
 	session->key_info.keyCounter = 0U;
 	session->key_info.smrFlags = 0U;
-	session->key_info.specific.aesBlockModeMask = HSE_KU_AES_BLOCK_MODE_ANY;
 	session->key_info.specific.aesBlockModeMask = (hseAesBlockModeMask_t)0U;
 	session->key_info.hseReserved[0U] = 0U;
 	session->key_info.hseReserved[1U] = 0U;
