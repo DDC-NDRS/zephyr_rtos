@@ -5133,10 +5133,14 @@ void net_tcp_init(void) {
 
     #if defined(CONFIG_NET_TEST_PROTOCOL)
     /* Register inputs for TTCN-3 based TCP sanity check */
-    test_cb_register(NET_AF_INET , NET_SOCK_STREAM, NET_IPPROTO_TCP, 4242, 4242, tcp_input);
-    test_cb_register(NET_AF_INET6, NET_SOCK_STREAM, NET_IPPROTO_TCP, 4242, 4242, tcp_input);
-    test_cb_register(NET_AF_INET , NET_SOCK_DGRAM , NET_IPPROTO_UDP, 4242, 4242, tp_input);
-    test_cb_register(NET_AF_INET6, NET_SOCK_DGRAM , NET_IPPROTO_UDP, 4242, 4242, tp_input);
+	test_cb_register(NET_AF_INET,  NET_SOCK_STREAM, NET_IPPROTO_TCP,
+			 4242, 4242, tcp_input);
+	test_cb_register(NET_AF_INET6, NET_SOCK_STREAM, NET_IPPROTO_TCP,
+			 4242, 4242, tcp_input);
+	test_cb_register(NET_AF_INET,  NET_SOCK_DGRAM, NET_IPPROTO_UDP,
+			 4242, 4242, tp_input);
+	test_cb_register(NET_AF_INET6, NET_SOCK_DGRAM, NET_IPPROTO_UDP,
+			 4242, 4242, tp_input);
 
     tcp_recv_cb = tp_tcp_recv_cb;
     #endif

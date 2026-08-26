@@ -60,10 +60,8 @@ static void eswifi_iface_uart_isr(const struct device *uart_dev,
 	int rx;
 	uint8_t* dst = NULL;
 	uint32_t partial_size = 0;
-	uint32_t total_size = 0;
 
 	ARG_UNUSED(user_data);
-
 	uart_irq_update(uart->dev);
 
 	if (uart_irq_rx_ready(uart->dev) <= 0) {
@@ -71,11 +69,7 @@ static void eswifi_iface_uart_isr(const struct device *uart_dev,
 	}
 
 	while (true) {
-		if (!partial_size) {
-			partial_size = ring_buf_put_claim(&uart->rx_rb, &dst,
-							  UINT32_MAX);
-		}
-
+		partial_size = ring_buf_put_ptr(&uart->rx_rb, &dst, 0);
 		if (!partial_size) {
 			LOG_ERR("Rx buffer doesn't have enough space");
 			eswifi_iface_uart_flush(uart);
@@ -87,12 +81,8 @@ static void eswifi_iface_uart_isr(const struct device *uart_dev,
 			break;
 		}
 
-		dst += rx;
-		total_size += rx;
-		partial_size -= rx;
+		ring_buf_commit(&uart->rx_rb, rx);
 	}
-
-	ring_buf_put_finish(&uart->rx_rb, total_size);
 }
 
 static char get_fsm_char(int fsm)
@@ -115,7 +105,7 @@ static char get_fsm_char(int fsm)
 
 static int eswifi_uart_get_resp(struct eswifi_uart_data *uart)
 {
-	uint8_t c;
+	uint8_t c = 0;
 
 	while (ring_buf_get(&uart->rx_rb, &c, 1) > 0) {
 		LOG_DBG("FSM: %c, RX: 0x%02x : %c",

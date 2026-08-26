@@ -117,6 +117,9 @@ Removed APIs and options
     * ``_bt_gatt_ccc``
     * ``BT_GATT_CCC_INITIALIZER``
     * ``CONFIG_BT_CONN_TX_MAX``
+    * ``CONFIG_BT_FIXED_PASSKEY``
+    * ``bt_passkey_set()``
+    * ``BT_PASSKEY_INVALID``
 
   * Mesh
 
@@ -372,6 +375,16 @@ New APIs and options
     * :c:func:`bt_ascs_unregister`
     * :c:func:`bt_bap_unicast_client_qos_from_group`
     * :c:func:`bt_bap_qos_cfg_eq`
+    * :c:member:`bt_bap_unicast_group_info.c_to_p_interval`
+    * :c:member:`bt_bap_unicast_group_info.p_to_c_interval`
+    * :c:member:`bt_bap_unicast_group_info.c_to_p_latency`
+    * :c:member:`bt_bap_unicast_group_info.p_to_c_latency`
+    * :c:member:`bt_bap_unicast_group_info.framing`
+    * :c:member:`bt_bap_unicast_group_info.packing`
+    * :c:member:`bt_bap_unicast_group_info.has_been_connected`
+    * :c:member:`bt_bap_unicast_group_info.c_to_p_ft`
+    * :c:member:`bt_bap_unicast_group_info.p_to_c_ft`
+    * :c:member:`bt_bap_unicast_group_info.iso_interval`
 
   * Host
 
@@ -662,8 +675,11 @@ Libraries / Subsystems
 
 * TF-M
 
-  * TF-M was updated from version 2.2.2 to version 2.3.0. Release notes can be
-    found `here <https://trustedfirmware-m.readthedocs.io/en/tf-mv2.3.0/releases/2.3.0.htm>`_.
+  * TF-M was updated from version 2.2.2 to version 2.3.1. Release notes can be
+    found at:
+
+    * https://trustedfirmware-m.readthedocs.io/en/latest/releases/2.3.0.html
+    * https://trustedfirmware-m.readthedocs.io/en/tf-mv2.3.1/releases/2.3.1.html
 
   * TF-M can now be compiled using LLVM by setting ``ZEPHYR_TOOLCHAIN_VARIANT``
     to ``zephyr/llvm``.

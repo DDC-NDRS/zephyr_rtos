@@ -168,17 +168,9 @@ static int modem_cellular_find_apn(char *dst, size_t dst_sz, const char *key)
 	return -ENOENT;
 }
 
-static void modem_event_cb(const struct device *dev, enum cellular_event evt, const void *payload,
-			   void *user_data)
+static void auto_apn_modem_info_cb(const struct device *dev,
+				   const struct cellular_evt_modem_info *mi)
 {
-	ARG_UNUSED(user_data);
-
-	if (evt != CELLULAR_EVENT_MODEM_INFO_CHANGED) {
-		return;
-	}
-
-	const struct cellular_evt_modem_info *mi = payload;
-
 	if (!mi || mi->field != CELLULAR_MODEM_INFO_SIM_IMSI) {
 		return; /* not the IMSI notification */
 	}
@@ -227,6 +219,67 @@ static void modem_event_cb(const struct device *dev, enum cellular_event evt, co
 }
 
 #endif
+
+static void modem_registration_changed(const struct device *dev,
+				       const struct cellular_evt_registration_status *rs)
+{
+	ARG_UNUSED(dev);
+
+	printk("Registration status: %d\n", rs->status);
+}
+
+static void comms_check_result(const struct device *dev,
+			       const struct cellular_evt_modem_comms_check_result *ccr)
+{
+	ARG_UNUSED(dev);
+
+	printk("Comms check %s\n", ccr->success ? "succeeded" : "failed");
+}
+
+static void network_status_changed(const struct device *dev,
+				   const struct cellular_evt_network_status *ns)
+{
+	ARG_UNUSED(dev);
+	ARG_UNUSED(ns);
+
+	printk("Network status changed\n");
+}
+
+static void modem_suspended(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+
+	printk("Modem suspended\n");
+}
+
+static void modem_event_cb(const struct device *dev, enum cellular_event evt, const void *payload,
+			   void *user_data)
+{
+	ARG_UNUSED(user_data);
+
+	switch (evt) {
+	case CELLULAR_EVENT_MODEM_INFO_CHANGED:
+#ifdef CONFIG_SAMPLE_CELLULAR_MODEM_AUTO_APN
+		auto_apn_modem_info_cb(dev, payload);
+#endif
+		break;
+	case CELLULAR_EVENT_REGISTRATION_STATUS_CHANGED:
+		modem_registration_changed(dev, payload);
+		break;
+	case CELLULAR_EVENT_MODEM_COMMS_CHECK_RESULT:
+		comms_check_result(dev, payload);
+		break;
+	case CELLULAR_EVENT_NETWORK_STATUS_CHANGED:
+		network_status_changed(dev, payload);
+		break;
+	case CELLULAR_EVENT_MODEM_SUSPENDED:
+		modem_suspended(dev);
+		break;
+	default:
+		printk("Unhandled event: %d\n", evt);
+		break;
+	}
+}
 
 static void sample_dns_request_result(enum dns_resolve_status status, struct dns_addrinfo *info,
 				      void *user_data)
@@ -455,21 +508,23 @@ NET_MGMT_REGISTER_EVENT_HANDLER(l4_events, L4_EVENT_MASK, l4_event_handler, NULL
 
 int main(void)
 {
+	const cellular_event_mask_t all_events =
+		CELLULAR_EVENT_MODEM_INFO_CHANGED | CELLULAR_EVENT_REGISTRATION_STATUS_CHANGED |
+		CELLULAR_EVENT_MODEM_COMMS_CHECK_RESULT | CELLULAR_EVENT_NETWORK_STATUS_CHANGED |
+		CELLULAR_EVENT_MODEM_SUSPENDED;
 	bool valid_dns = false;
 	uint16_t *port;
 	int ret;
 
-#ifdef CONFIG_SAMPLE_CELLULAR_MODEM_AUTO_APN
-	/* subscribe before powering the modem so we catch the IMSI event */
-	cellular_set_callback(modem, CELLULAR_EVENT_MODEM_INFO_CHANGED, modem_event_cb, NULL);
-#endif
+	/* Subscribe before powering the modem so we catch all events */
+	ret = cellular_set_callback(modem, all_events, modem_event_cb, NULL);
+	if (ret < 0) {
+		printk("Failed to subscribe to modem events (%d)\n", ret);
+	}
 
 	init_sample_test_packet();
 
 	ppp_iface = net_if_get_first_by_type(&NET_L2_GET_NAME(PPP));
-
-	printk("Powering on modem\n");
-	pm_device_action_run(modem, PM_DEVICE_ACTION_RESUME);
 
 	printk("Bring up network interface\n");
 	ret = net_if_up(ppp_iface);
@@ -544,15 +599,19 @@ int main(void)
 	}
 
 power_cycle:
-	printk("Shutting down modem\n");
-	ret = pm_device_action_run(modem, PM_DEVICE_ACTION_SUSPEND);
-	if (ret != 0) {
-		printk("Failed to power down modem\n");
+	printk("Taking interface down\n");
+	ret = net_if_down(ppp_iface);
+	if (ret < 0) {
+		printk("Failed to take down network interface\n");
 		return -1;
 	}
 
-	printk("Restarting modem\n");
-	pm_device_action_run(modem, PM_DEVICE_ACTION_RESUME);
+	printk("Requesting interface up\n");
+	ret = net_if_up(ppp_iface);
+	if (ret < 0) {
+		printk("Failed to request network interface back up\n");
+		return -1;
+	}
 
 	printk("Waiting for L4 connected\n");
 	ret = k_event_wait(&l4_event, L4_CONNECTED, false, K_SECONDS(120));
@@ -562,7 +621,7 @@ power_cycle:
 	}
 	printk("L4 connected\n");
 
-	/* Wait a bit to avoid (unsuccessfully) trying to send the first echo packet too quickly. */
+	/* Wait a bit to avoid (unsuccessfully) trying to send the first echo packet too quickly */
 	k_sleep(K_SECONDS(5));
 
 	if (valid_dns) {
@@ -576,16 +635,10 @@ power_cycle:
 		return -1;
 	}
 
+	printk("Final interface down\n");
 	ret = net_if_down(ppp_iface);
 	if (ret < 0) {
-		printk("Failed to bring down network interface\n");
-		return -1;
-	}
-
-	printk("Powering down modem\n");
-	ret = pm_device_action_run(modem, PM_DEVICE_ACTION_SUSPEND);
-	if (ret != 0) {
-		printk("Failed to power down modem\n");
+		printk("Failed to take down network interface\n");
 		return -1;
 	}
 
