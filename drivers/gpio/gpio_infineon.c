@@ -61,16 +61,16 @@ static void gpio_ifx_select_input_drive_mode(gpio_flags_t flags, uint32_t* drive
     uint32_t mode;
 
     if ((flags & GPIO_PULL_UP) && (flags & GPIO_PULL_DOWN)) {
-        mode = CY_GPIO_DM_PULLUP_DOWN;
+        mode = CY_GPIO_DM_PULLUP_DOWN_IN_OFF;
     }
     else if (flags & GPIO_PULL_UP) {
-        mode = CY_GPIO_DM_PULLUP;
+        mode = CY_GPIO_DM_PULLUP_IN_OFF;
     }
     else if (flags & GPIO_PULL_DOWN) {
-        mode = CY_GPIO_DM_PULLDOWN;
+        mode = CY_GPIO_DM_PULLDOWN_IN_OFF;
     }
     else {
-        mode = CY_GPIO_DM_HIGHZ;
+        mode = CY_GPIO_DM_ANALOG;
     }
 
     *drive_mode = mode;
@@ -96,7 +96,7 @@ static int gpio_ifx_select_output_drive_mode(gpio_flags_t flags, uint32_t* drive
                     " in push-pull output mode");
         }
 
-        *drive_mode = CY_GPIO_DM_STRONG;
+        *drive_mode = CY_GPIO_DM_STRONG_IN_OFF;
         return (0);
     }
 
@@ -105,17 +105,16 @@ static int gpio_ifx_select_output_drive_mode(gpio_flags_t flags, uint32_t* drive
             return (-ENOTSUP);
         }
 
-        *drive_mode = (flags & GPIO_PULL_UP) ? CY_GPIO_DM_PULLUP
-                                             : CY_GPIO_DM_OD_DRIVESLOW;
+        *drive_mode = (flags & GPIO_PULL_UP) ? CY_GPIO_DM_PULLUP_IN_OFF
+                                             : CY_GPIO_DM_OD_DRIVESLOW_IN_OFF;
     }
     else {
-        /* Open-source */
         if (flags & GPIO_PULL_UP) {
             return (-ENOTSUP);
         }
 
-        *drive_mode = (flags & GPIO_PULL_DOWN) ? CY_GPIO_DM_PULLDOWN
-                                               : CY_GPIO_DM_OD_DRIVESHIGH;
+        *drive_mode = (flags & GPIO_PULL_DOWN) ? CY_GPIO_DM_PULLDOWN_IN_OFF
+                                               : CY_GPIO_DM_OD_DRIVESHIGH_IN_OFF;
     }
 
     return (0);
@@ -178,13 +177,13 @@ static int gpio_ifx_configure(const struct device* dev, gpio_pin_t pin, gpio_fla
             return (-ENOTSUP);
     }
 
-    #if defined(CY_MMIO_SMIF0_PERI_NR)
-    if (base == (GPIO_PRT_Type*)SMIF0_CORE_SMIF_GPIO_SMIF_PRT0) {
-        Cy_SysClk_PeriGroupSlaveInit(CY_MMIO_SMIF0_PERI_NR, CY_MMIO_SMIF0_GROUP_NR,
-                                     CY_MMIO_SMIF0_SLAVE_NR, CY_MMIO_SMIF0_CLK_HF_NR);
-        Cy_GPIO_SetHSIOM(base, pin, HSIOM_SEL_ACT_14);
+    if (flags & GPIO_INPUT) {
+        #if defined(CONFIG_SOC_FAMILY_INFINEON_PSOC4)
+        drive_mode &= ~CY_GPIO_DM_VAL_IBUF_DISABLE_MASK;
+        #else
+        drive_mode |= CY_GPIO_DM_HIGHZ;
+        #endif
     }
-    #endif
 
     #if defined(CY_PDL_TZ_ENABLED)
     Cy_GPIO_Pin_SecFastInit(base, pin, drive_mode, pin_val, HSIOM_SEL_GPIO);
@@ -359,12 +358,105 @@ static int gpio_ifx_pin_interrupt_configure(const struct device* dev, gpio_pin_t
     return (0);
 }
 
-static int gpio_ifx_manage_callback(const struct device* port, struct gpio_callback* callback,
+static int gpio_ifx_manage_callback(const struct device* port, struct gpio_callback* cb,
                                     bool set) {
     struct gpio_ifx_data* const data = port->data;
 
-    return gpio_manage_callback(&data->callbacks, callback, set);
+    return gpio_manage_callback(&data->callbacks, cb, set);
 }
+
+#ifdef CONFIG_GPIO_GET_CONFIG
+static int gpio_ifx_pin_get_config(const struct device* dev, gpio_pin_t pin,
+                                   gpio_flags_t *out_flags) {
+    const struct gpio_ifx_config* cfg = dev->config;
+    GPIO_PRT_Type* base = cfg->regs;
+    gpio_flags_t flags = 0;
+    uint32_t drive_mode;
+
+    if (pin >= cfg->ngpios) {
+        return (-EINVAL);
+    }
+
+    /* If the pin is routed to a peripheral, report it as disconnected from a GPIO POV. */
+    if ((uint32_t)Cy_GPIO_GetHSIOM(base, pin) != (uint32_t)HSIOM_SEL_GPIO) {
+        *out_flags = 0;
+        return (0);
+    }
+
+    drive_mode = Cy_GPIO_GetDrivemode(base, pin);
+
+    switch (drive_mode) {
+        case CY_GPIO_DM_ANALOG :
+            flags = GPIO_DISCONNECTED;
+            break;
+
+        case CY_GPIO_DM_HIGHZ :
+            flags = GPIO_INPUT;
+            break;
+
+        case CY_GPIO_DM_PULLUP_IN_OFF :
+            flags = GPIO_PULL_UP;
+            break;
+
+        case CY_GPIO_DM_PULLUP :
+            flags = GPIO_INPUT | GPIO_PULL_UP;
+            break;
+
+        case CY_GPIO_DM_PULLDOWN_IN_OFF :
+            flags = GPIO_PULL_DOWN;
+            break;
+
+        case CY_GPIO_DM_PULLDOWN :
+            flags = GPIO_INPUT | GPIO_PULL_DOWN;
+            break;
+
+        case CY_GPIO_DM_PULLUP_DOWN_IN_OFF :
+            flags = GPIO_PULL_UP | GPIO_PULL_DOWN;
+            break;
+
+        case CY_GPIO_DM_PULLUP_DOWN :
+            flags = GPIO_INPUT | GPIO_PULL_UP | GPIO_PULL_DOWN;
+            break;
+
+        case CY_GPIO_DM_STRONG_IN_OFF :
+            flags = GPIO_OUTPUT;
+            flags |= Cy_GPIO_ReadOut(base, pin) ? GPIO_OUTPUT_HIGH : GPIO_OUTPUT_LOW;
+            break;
+
+        case CY_GPIO_DM_STRONG :
+            flags = GPIO_INPUT | GPIO_OUTPUT;
+            flags |= Cy_GPIO_ReadOut(base, pin) ? GPIO_OUTPUT_HIGH : GPIO_OUTPUT_LOW;
+            break;
+
+        case CY_GPIO_DM_OD_DRIVESLOW_IN_OFF :
+            flags = GPIO_OUTPUT | GPIO_SINGLE_ENDED | GPIO_LINE_OPEN_DRAIN;
+            flags |= Cy_GPIO_ReadOut(base, pin) ? GPIO_OUTPUT_HIGH : GPIO_OUTPUT_LOW;
+            break;
+
+        case CY_GPIO_DM_OD_DRIVESLOW :
+            flags = GPIO_INPUT | GPIO_OUTPUT | GPIO_SINGLE_ENDED | GPIO_LINE_OPEN_DRAIN;
+            flags |= Cy_GPIO_ReadOut(base, pin) ? GPIO_OUTPUT_HIGH : GPIO_OUTPUT_LOW;
+            break;
+
+        case CY_GPIO_DM_OD_DRIVESHIGH_IN_OFF :
+            flags = GPIO_OUTPUT | GPIO_SINGLE_ENDED | GPIO_LINE_OPEN_SOURCE;
+            flags |= Cy_GPIO_ReadOut(base, pin) ? GPIO_OUTPUT_HIGH : GPIO_OUTPUT_LOW;
+            break;
+
+        case CY_GPIO_DM_OD_DRIVESHIGH :
+            flags = GPIO_INPUT | GPIO_OUTPUT | GPIO_SINGLE_ENDED | GPIO_LINE_OPEN_SOURCE;
+            flags |= Cy_GPIO_ReadOut(base, pin) ? GPIO_OUTPUT_HIGH : GPIO_OUTPUT_LOW;
+            break;
+
+        default :
+            return (-ENOTSUP);
+    }
+
+    *out_flags = flags;
+
+    return (0);
+}
+#endif /* CONFIG_GPIO_GET_CONFIG */
 
 static DEVICE_API(gpio, gpio_ifx_api) = {
     .pin_configure           = gpio_ifx_configure,
@@ -376,6 +468,10 @@ static DEVICE_API(gpio, gpio_ifx_api) = {
     .pin_interrupt_configure = gpio_ifx_pin_interrupt_configure,
     .manage_callback         = gpio_ifx_manage_callback,
     .get_pending_int         = gpio_ifx_get_pending_int,
+
+    #ifdef CONFIG_GPIO_GET_CONFIG
+    .pin_get_config = gpio_ifx_pin_get_config,
+    #endif
 };
 
 static int gpio_ifx_init(const struct device* dev) {

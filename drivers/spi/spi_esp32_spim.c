@@ -758,8 +758,39 @@ static inline uint8_t spi_esp32_get_line_mode(uint16_t operation) {
     return (1);
 }
 
-static int IRAM_ATTR spi_esp32_configure(struct device const* dev,
-                                         struct spi_config const* spi_cfg) {
+#ifdef SPI_LL_SRC_PRE_DIV_MAX
+
+/* Peripheral hardware limitation for the clock rate entering the peripheral */
+#define SPI_ESP32_PERIPH_SRC_FREQ_MAX (80 * 1000 * 1000)
+
+static uint32_t spi_esp32_find_clock_src_pre_div(uint32_t src_freq, uint32_t target_freq) {
+    /* Pre-division must be even and at least 2 */
+    uint32_t min_div = (DIV_ROUND_UP(src_freq, SPI_ESP32_PERIPH_SRC_FREQ_MAX) + 1) & (~0x01UL);
+
+    min_div = (min_div < 2) ? 2 : min_div;
+
+    if (target_freq == 0) {
+        return (min_div);
+    }
+
+    uint32_t total_div = src_freq / target_freq;
+
+    for (uint32_t pre_div = min_div; pre_div <= MIN(total_div, SPI_LL_SRC_PRE_DIV_MAX);
+         pre_div += 2) {
+        if ((total_div % pre_div) || (total_div / pre_div) > SPI_LL_PERIPH_CLK_DIV_MAX) {
+            continue;
+        }
+
+        return (pre_div);
+    }
+
+    return (min_div);
+}
+
+#endif /* SPI_LL_SRC_PRE_DIV_MAX */
+
+static int IRAM_ATTR spi_esp32_configure(const struct device* dev,
+                                         const struct spi_config* spi_cfg) {
     const struct spi_esp32_config* cfg = dev->config;
     struct spi_esp32_data* data = dev->data;
     struct spi_context* ctx = &data->ctx;
@@ -848,6 +879,17 @@ static int IRAM_ATTR spi_esp32_configure(struct device const* dev,
         hal_dev->cs_pin_id = ctx->config->slave;
     }
 
+    uint32_t clk_src_hz = data->clock_source_hz;
+
+    #ifdef SPI_LL_SRC_PRE_DIV_MAX
+    uint32_t pre_div = spi_esp32_find_clock_src_pre_div(clk_src_hz, spi_cfg->frequency);
+
+    /* The timing configuration below is computed from the rate that
+     * enters the peripheral, after the pre-divider
+     */
+    clk_src_hz /= pre_div;
+    #endif
+
     /* input parameters to calculate timing configuration */
     spi_hal_timing_param_t timing_param = {
         .half_duplex    = hal_dev->half_duplex,
@@ -856,10 +898,15 @@ static int IRAM_ATTR spi_esp32_configure(struct device const* dev,
         .duty_cycle     = cfg->duty_cycle == 0 ? 128 : cfg->duty_cycle,
         .input_delay_ns = cfg->input_delay_ns,
         .use_gpio       = !cfg->use_iomux,
-        .clk_src_hz     = data->clock_source_hz,
+        .clk_src_hz     = clk_src_hz,
     };
 
     spi_hal_cal_clock_conf(&timing_param, &hal_dev->timing_conf);
+
+    #ifdef SPI_LL_SRC_PRE_DIV_MAX
+    hal_dev->timing_conf.source_pre_div   = pre_div;
+    hal_dev->timing_conf.source_real_freq = clk_src_hz;
+    #endif
 
     data->trans_config.dummy_bits = hal_dev->timing_conf.timing_dummy;
 
@@ -890,6 +937,18 @@ static int IRAM_ATTR spi_esp32_configure(struct device const* dev,
     }
 
     spi_hal_setup_device(hal, hal_dev);
+
+    #ifdef SPI_LL_SRC_PRE_DIV_MAX
+    /* The pre-divider fields share a clkrst register with the other
+     * SPI host, so the read-modify-write must not be preempted
+     */
+    unsigned int key = irq_lock();
+
+    /* Program the pre-divider; hs_div times mst_div is the total pre-division */
+    spi_ll_clk_source_pre_div(hal->hw, pre_div / 2, 2);
+
+    irq_unlock(key);
+    #endif
 
     /* Workaround to handle default state of MISO and MOSI lines */
     #ifndef CONFIG_SOC_SERIES_ESP32
@@ -991,6 +1050,23 @@ static int transceive(struct device const* dev,
     #ifdef CONFIG_SPI_ESP32_INTERRUPT
     spi_ll_enable_int(cfg->spi);
     spi_ll_set_int_stat(cfg->spi);
+
+    if (!asynchronous) {
+        ret = spi_context_wait_for_completion(&data->ctx);
+        if (ret != 0) {
+            /* A late ISR completion must not signal the context of
+             * the next transfer
+             */
+            spi_ll_disable_int(cfg->spi);
+            spi_ll_clear_int_stat(cfg->spi);
+            spi_context_cs_control(&data->ctx, false);
+
+            #ifdef CONFIG_PM
+            spi_esp32_pm_policy_state_lock_put(dev);
+            #endif
+        }
+    }
+
     spi_context_release(&data->ctx, ret);
     return (ret);
     #else

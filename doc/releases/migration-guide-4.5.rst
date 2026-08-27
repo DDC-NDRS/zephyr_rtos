@@ -37,6 +37,11 @@ Build System
 * :kconfig:option:`CONFIG_LEGACY_GENERATED_INCLUDE_PATH` has been deprecated, and disabled by
   default, includes must now be prefixed with ``zephyr/`` for zephyr files.
 
+* :kconfig:option:`CONFIG_COMPILER_TRACK_MACRO_EXPANSION` is now disabled by default, so a
+  compiler diagnostic raised inside a macro is reported once, at the line that caused it,
+  rather than once per step of the expansion chain. Applications that relied on seeing the
+  whole chain can enable the option again.
+
 * CMake variables ``SOC_NAME``, ``SOC_SERIES``, ``SOC_FAMILY`` and ``SOC_V2_DIR`` have been
   deprecated as they duplicate variables already, the replacement variables are as follows:
   :kconfig:option:`CONFIG_SOC`, :kconfig:option:`CONFIG_SOC_SERIES`,
@@ -539,6 +544,10 @@ Ethernet
   (:kconfig:option:`CONFIG_ETH_DWC_ETHER_MULTICAST_FILTER`), so only multicast for the addresses
   the network stack has joined is received. Disable this option to receive all multicast, as
   before. (:github:`113235`)
+
+* Boards with Ethernet interfaces should now enable :kconfig:option:`CONFIG_ETH_DRIVER` by default,
+  instead of :kconfig:option:`CONFIG_NET_L2_ETHERNET`. The later is now enabled by default when the
+  former is. (:github:`117121`)
 
 Flash
 =====
@@ -1730,6 +1739,11 @@ Other subsystems
   ``<zephyr/sys/cpu_load.h>``, and :c:func:`cpu_load_metric_get` is a deprecated wrapper around
   :c:func:`cpu_load_get_cpu`. Note that :c:func:`cpu_load_get_cpu` returns the load in per mille
   (0...1000) rather than percent; use :c:macro:`CPU_LOAD_PERMILLE_TO_PERCENT` to convert.
+
+* The internal ``__ASSERT_ON`` define has been removed. Out-of-tree code should invoke
+  ``__ASSERT()`` or ``__ASSERT_NO_MSG()`` directly, as these macros already compile out when
+  assertions are disabled.
+  Mark values used only by assertions with ``__maybe_unused`` or ``ARG_UNUSED()`` as appropriate.
 
 Logging
 =======

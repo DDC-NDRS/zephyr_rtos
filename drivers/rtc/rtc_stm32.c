@@ -217,7 +217,7 @@ static int rtc_stm32_enter_init_mode(void) {
     if (LL_RTC_IsActiveFlag_INIT(STM32_ARG(RTC)) == 0U) {
         /* Set the Initialization mode */
         LL_RTC_EnableInitMode(STM32_ARG(RTC));
-        if (!WAIT_FOR(LL_RTC_IsActiveFlag_INIT(STM32_ARG(RTC)), RTC_TIMEOUT, NULL)) {
+        if (!WAIT_FOR(LL_RTC_IsActiveFlag_INIT(STM32_ARG(RTC)), RTC_TIMEOUT, (void)NULL)) {
             status = -ETIMEDOUT;
         }
     }

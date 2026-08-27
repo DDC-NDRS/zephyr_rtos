@@ -55,12 +55,12 @@ struct k_spinlock z_mm_lock;
 /* Database of all RAM page frames */
 struct k_mem_page_frame k_mem_page_frames[K_MEM_NUM_PAGE_FRAMES];
 
-#if __ASSERT_ON
+#ifdef CONFIG_ASSERT
 /* Indicator that k_mem_page_frames has been initialized, many of these APIs do
  * not work before POST_KERNEL
  */
 static bool page_frames_initialized;
-#endif
+#endif /* CONFIG_ASSERT */
 
 /* Add colors to page table dumps to indicate mapping type */
 #define COLOR_PAGE_FRAMES	1
@@ -909,7 +909,7 @@ void k_mem_map_phys_bare(uint8_t **virt_ptr, uintptr_t phys, size_t size, uint32
 					 phys, size,
 					 CONFIG_MMU_PAGE_SIZE);
 	__ASSERT(aligned_size != 0U, "0-length mapping at 0x%lx", aligned_phys);
-	__ASSERT(aligned_phys < (aligned_phys + (aligned_size - 1)),
+	__ASSERT(aligned_size - 1 <= (UINTPTR_MAX - aligned_phys),
 		 "wraparound for physical address 0x%lx (size %zu)",
 		 aligned_phys, aligned_size);
 
@@ -991,7 +991,7 @@ void k_mem_unmap_phys_bare(uint8_t *virt, size_t size)
 					 POINTER_TO_UINT(virt), size,
 					 CONFIG_MMU_PAGE_SIZE);
 	__ASSERT(aligned_size != 0U, "0-length mapping at 0x%lx", aligned_virt);
-	__ASSERT(aligned_virt < (aligned_virt + (aligned_size - 1)),
+	__ASSERT(aligned_size - 1 <= (UINTPTR_MAX - aligned_virt),
 		 "wraparound for virtual address 0x%lx (size %zu)",
 		 aligned_virt, aligned_size);
 
@@ -1153,9 +1153,10 @@ void z_mem_manage_init(void)
 	z_paging_ondemand_section_map();
 #endif
 
-#if __ASSERT_ON
+#ifdef CONFIG_ASSERT
 	page_frames_initialized = true;
-#endif
+#endif /* CONFIG_ASSERT */
+
 	k_spin_unlock(&z_mm_lock, key);
 }
 
