@@ -253,11 +253,13 @@ static void update_txtime_stats_detail(struct net_pkt* pkt,
 static void net_if_tx(struct net_if* iface, struct net_pkt* pkt) {
     struct net_linkaddr ll_dst = {0};
     struct net_context* context;
+    uint32_t create_time;
     int status;
 
     /* We collect send statistics for each socket priority if enabled */
     uint8_t pkt_priority;
 
+    create_time = net_pkt_create_time(pkt);
     debug_check_packet(pkt);
 
     /* If there're any link callbacks, with such a callback receiving
@@ -298,8 +300,7 @@ static void net_if_tx(struct net_if* iface, struct net_pkt* pkt) {
 
         if (IS_ENABLED(CONFIG_NET_PKT_TXTIME_STATS) ||
             IS_ENABLED(CONFIG_TRACING_NET_CORE)) {
-            uint32_t end_tick    = k_cycle_get_32();
-            uint32_t create_time = net_pkt_create_time(pkt);
+            uint32_t end_tick = k_cycle_get_32();
 
             net_pkt_set_tx_stats_tick(pkt, end_tick);
 
