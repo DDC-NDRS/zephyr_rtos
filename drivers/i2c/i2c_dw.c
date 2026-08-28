@@ -7,11 +7,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/arch/cpu.h>
-#ifdef CONFIG_CPU_CORTEX_M
-#include <cmsis_core.h>
-#endif
-
 #include <stddef.h>
 #include <zephyr/types.h>
 #include <stdlib.h>
@@ -509,10 +504,14 @@ static inline void i2c_dw_transfer_complete(const struct device *dev)
 
 	write_intr_mask(DW_DISABLE_ALL_I2C_INT, reg_base);
 	(void) read_clr_intr(reg_base);
-#ifdef CONFIG_CPU_CORTEX_M
+#ifdef CONFIG_I2C_RTS5912
 	const struct i2c_dw_rom_config *const rom = dev->config;
-	/* clear pending interrupt */
-	NVIC_ClearPendingIRQ(rom->irqnumber);
+	/*
+	 * The RTS5912 keeps the NVIC line asserted after the IP-level interrupt
+	 * source has been cleared, so the pending bit has to be dropped by hand.
+	 * This is a quirk of that SoC, not of the DesignWare IP.
+	 */
+	k_irq_clear_pending(rom->irqnumber);
 #endif
 	k_sem_give(&dw->device_sync_sem);
 }
@@ -1622,6 +1621,12 @@ static int i2c_dw_initialize(const struct device *dev)
 #define TIMEOUT_DW_CONFIG(n)
 #endif
 
+#ifdef CONFIG_I2C_RTS5912
+#define IRQN_DW_CONFIG(n) .irqnumber = DT_INST_IRQN(n),
+#else
+#define IRQN_DW_CONFIG(n)
+#endif
+
 /* clang-format off */
 #define I2C_DEVICE_INIT_DW(n)                                                                      \
 	PINCTRL_DW_DEFINE(n);                                                                      \
@@ -1634,7 +1639,7 @@ static int i2c_dw_initialize(const struct device *dev)
 				 (HOLD_TIME_TO_TICKS(DT_INST_PROP(n, i2c_sda_hold_time_ns))),      \
 				 (DT_INST_PROP_OR(n, sda_hold_tx, SDA_HOLD_INVALID))),             \
 		.sda_hold_rx = DT_INST_PROP_OR(n, sda_hold_rx, SDA_HOLD_INVALID),                  \
-		.irqnumber = DT_INST_IRQN(n),                                                      \
+		IRQN_DW_CONFIG(n)                                                                  \
 		.lcnt_offset = (int16_t)DT_INST_PROP_OR(n, lcnt_offset, 0),                        \
 		.hcnt_offset = (int16_t)DT_INST_PROP_OR(n, hcnt_offset, 0),                        \
 		.fs_spk_len = MAX((uint8_t)DT_INST_PROP_OR(n, fs_spike_len, 0), DW_IC_SPKLEN_MIN), \

@@ -155,6 +155,9 @@ Removed APIs and options
     * Board revision Kconfig fragments named ``<board>_<revision>.conf``, replaced by
       ``<board>_<revision>_defconfig``
     * Pattern expansion in ``zephyr_code_relocate(FILES ...)``, replaced by ``file(GLOB ...)``
+    * The CMake ``flash``, ``debug``, ``debugserver``, ``attach`` and ``rtt`` targets,
+      replaced by the corresponding ``west`` commands
+    * The ``WEST_DIR`` build system variable
 
 * CAN
 
@@ -171,6 +174,10 @@ Removed APIs and options
 
     * ``CONFIG_COUNTER_MAXIM_DS3231``
     * ``prescaler`` property of :dtcompatible:`nxp,lptmr`
+
+* hawkBit
+
+    * ``<zephyr/mgmt/hawkbit.h>``
 
 * LLEXT
 
@@ -235,6 +242,11 @@ Removed APIs and options
 * Stream Flash
 
     * ``stream_flash_erase_page()``
+
+* ZTest
+
+    * ``CONFIG_ZTEST_SHUFFLE_SUITE_REPEAT_COUNT``
+    * ``CONFIG_ZTEST_SHUFFLE_TEST_REPEAT_COUNT``
 
 * West sign support for imgtool, which was deprecated in Zephyr 4.0, has been removed.
 
@@ -1767,11 +1779,6 @@ Other notable changes
   * The minimum required CMake version has been raised to 3.28.0, a version satisfied by the CMake package in the
     Ubuntu 24.04 LTS package repositories. See the :ref:`migration guide <migration_4.5>` for
     options if your distribution ships an older version.
-
-  * :kconfig:option:`CONFIG_COMPILER_TRACK_MACRO_EXPANSION` is now disabled by default. A
-    diagnostic raised inside Zephyr's logging, device or devicetree macros is now reported as a
-    single message at the line that caused it, instead of one message for every step of the
-    expansion chain. Set the option to ``y`` to get the full chain back.
 
 * Kernel
 
