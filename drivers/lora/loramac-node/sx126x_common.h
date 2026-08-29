@@ -10,6 +10,7 @@
 #define ZEPHYR_DRIVERS_SX126X_COMMON_H_
 
 #include <zephyr/types.h>
+#include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/lora.h>
 #include <zephyr/drivers/spi.h>
@@ -54,6 +55,8 @@ struct sx126x_data {
 	struct k_work dio1_irq_work;
 	DioIrqHandler *radio_dio_irq;
 	RadioOperatingModes_t mode;
+	/* serialises the ready/transfer/busy sequence of one bus access */
+	struct k_sem bus_lock;
 };
 
 enum sx126x_rf_switch {
