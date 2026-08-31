@@ -72,7 +72,11 @@ const struct ivt ivt_header __attribute__((section(".ivt_header"), used)) = {
     .cm7_2_start_address = NULL,
     .lc_configure        = NULL,
     .cm7_3_start_address = NULL,
-    .hse_fw_header_start_address = NULL,
+
+    /* Boot ROM looks for the HSE firmware image here. 0 (the default) leaves it
+     * NULL - no HSE firmware.
+     */
+    .hse_fw_header_start_address = (uint32_t const*)CONFIG_NXP_S32_HSE_FW_ADDRESS,
 };
 #endif
 #endif /* CONFIG_XIP */

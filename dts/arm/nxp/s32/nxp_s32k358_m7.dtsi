@@ -69,13 +69,25 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 
-			/* Map child address 0x0..size onto CPU 0x0040_0000.. */
-			/* Last 48Kb is reserved by Secure BAF, app core cannot access it.*/
-			ranges = <0x0 0x00400000 DT_SIZE_K(8144)>; /* 8144 KiB Flash window */
+			/* Map child address 0x0..size onto CPU 0x0040_0000..
+			 *
+			 * The application owns 8016 KiB (0x0040_0000..0x00BD_4000). The top
+			 * 176 KiB of the 8 MiB P-Flash (0x00BD_4000..0x00C0_0000) belongs to
+			 * the HSE subsystem - Secure BAF plus the installed HSE firmware -
+			 * and is not application-accessible.
+			 *
+			 * Per AN744810 "HSE FW install for S32K3xx" section 9.2 the
+			 * application area is (total - 176 KiB) across the family, stated
+			 * unconditionally: 3920 KiB on the 4 MiB S32K3x4 and 1872 KiB on the
+			 * 2 MiB S32K3x2, in both cases ending exactly where section 9.1 puts
+			 * "HSE code flash" (0x007D_4000 and 0x005D_4000 respectively). This
+			 * 8 MiB part follows the same rule.
+			 */
+			ranges = <0x0 0x00400000 DT_SIZE_K(8016)>; /* 8016 KiB Flash window */
 
 			flash0: flash@0 {
 				compatible = "nxp,c40-flash", "soc-nv-flash";
-				reg = <0x0 DT_SIZE_K(8144)>;
+				reg = <0x0 DT_SIZE_K(8016)>;        /* 1002 x 8 KiB sectors */
 				erase-block-size = <DT_SIZE_K(8)>;  /* 8 KiB sectors */
 				write-block-size = <8>;             /* 8-byte min program unit */
 				status = "disabled";

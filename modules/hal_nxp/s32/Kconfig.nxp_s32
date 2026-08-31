@@ -7,3 +7,15 @@ config HAS_NXP_S32_HAL
 	bool
 	select HAS_CMSIS_CORE
 	depends on SOC_FAMILY_NXP_S32
+
+# #CUSTOM@NDRS
+config NXP_S32_HSE_IP
+	bool
+	depends on SOC_SERIES_S32K3
+	help
+	  Build the HSE-over-MU transport IP layer (Hse_Ip.c, Mu_Ip_Irq.c) and the
+	  HSE firmware service ABI headers, independently of the Zephyr crypto and
+	  entropy drivers that normally pull them in. Select this when talking to
+	  the HSE firmware directly through Hse_Ip_ServiceRequest() - e.g. during
+	  HSE provisioning/bring-up, before CRYPTO_NXP_S32_HSE or
+	  ENTROPY_NXP_S32_HSE_TRNG can safely be enabled.

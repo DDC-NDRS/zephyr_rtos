@@ -37,4 +37,15 @@ config IVT_HEADER_SIZE
 	help
 	  Size of ivt header region
 
+# #CUSTOM@NDRS
+config NXP_S32_HSE_FW_ADDRESS
+	hex "Absolute flash address of the HSE firmware image"
+	depends on XIP
+	default 0x0
+	help
+	  Written to the IVT's hse_fw_header_start_address field, telling the boot
+	  ROM where to find the HSE firmware image. 0 leaves the field NULL, i.e.
+	  no HSE firmware is installed. Placing the image itself in flash at this
+	  address is the application's job - this only publishes the pointer.
+
 endif # SOC_SERIES_S32K3
