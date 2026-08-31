@@ -38,6 +38,21 @@ static struct arm_mpu_region mpu_regions[] = {
 	 */
 	MPU_REGION_ENTRY("FLASH_LO", CONFIG_FLASH_BASE_ADDRESS, REGION_FLASH_ATTR(REGION_4M)),
 	MPU_REGION_ENTRY("FLASH_HI", CONFIG_FLASH_BASE_ADDRESS + 0x400000, REGION_FLASH_ATTR(REGION_4M)),
+
+	/*
+	 * UTEST flash: 8 KiB at a fixed physical address outside the FLASH_LO/HI window,
+	 * backed by the same C40 flash macro (see C40_BASE_ADDR_UTEST/C40_END_ADDR_UTEST in
+	 * fsl_c40_flash.c). Without this region any direct load from 0x1B000000 - e.g. reading
+	 * back the HSE-FW-usage feature flag - falls through to the deny-all UNMAPPED region
+	 * above and raises an MPU Data Access Violation (MMFAR = 0x1B000000).
+	 *
+	 * Same REGION_FLASH_ATTR as FLASH_LO/HI above, which under CONFIG_MPU_ALLOW_FLASH_WRITE
+	 * grants privileged read/write - though nothing here relies on the write half.
+	 * Programming UTEST goes through the C40 flash controller's job engine
+	 * (PFCPGM_PEADR_L / FLASH->DATA[], both inside the PERIPHERALS region below) rather
+	 * than a direct store to this address; only the read is actually load/store traffic.
+	 */
+	MPU_REGION_ENTRY("UTEST", 0x1B000000UL, REGION_FLASH_ATTR(REGION_8K)),
 #else
 	/* Run from SRAM */
 	MPU_REGION_ENTRY("CODE", DT_CHOSEN_SRAM_ADDR, {(uint32_t)_rom_attr}),
