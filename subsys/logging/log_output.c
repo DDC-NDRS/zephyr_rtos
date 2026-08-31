@@ -815,6 +815,10 @@ void log_output_timestamp_freq_set(uint32_t frequency)
 
 uint64_t log_output_timestamp_to_us(log_timestamp_t timestamp)
 {
+	if (log_output_context.timestamp_freq == 0U) {
+		return 0U;
+	}
+
 	timestamp /= log_output_context.timestamp_div;
 
 	return ((uint64_t) timestamp * 1000000U) / log_output_context.timestamp_freq;

@@ -144,7 +144,7 @@ manifest:
       groups:
         - tools
     - name: fatfs
-      revision: 79df0453c1652cae50949f11bde2d2e541159955
+      revision: 353a386386ccc13b97a786d80ecb2d71a42626ea
       path: modules/fs/fatfs
       groups:
         - fs
@@ -215,7 +215,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: 603b4ab43c6db7acb6b0716871699a5ba15444ed
+      revision: 0c7f95512b98315dca45f08023cc4b37edc9ad98
       path: modules/hal/nxp
       groups:
         - hal
@@ -358,7 +358,7 @@ manifest:
       revision: c84230d0329a2ce5e449bbd556d6854861a6eee7
       path: modules/bsim_hw_models/nrf_hw_models
     - name: nrf_wifi
-      revision: 0aaa9aa812877cb6bc020df8260d0607a3f0ec1a
+      revision: fc0872109ec4c006d32843a202b129db33cf16b9
       path: modules/lib/nrf_wifi
     - name: open-amp
       revision: 01032a8a7bdfdd541686f5dfa3671e602b9fcbff

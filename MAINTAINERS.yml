@@ -1009,6 +1009,7 @@ Build system:
     - version.h.in
     - scripts/schemas/arch-schema.yaml
     - scripts/schemas/board-schema.yaml
+    - scripts/schemas/module-schema.yaml
     - scripts/schemas/soc-schema.yaml
     - scripts/list_shields.py
     - scripts/snippets.py
@@ -6148,6 +6149,7 @@ TI K3 Platforms:
     - vaishnavachath
     - natto1784
     - Kronosblaster
+    - soumya-TI
   files:
     - boards/ti/*am2*/
     - boards/ti/*am6*/
@@ -6178,6 +6180,7 @@ TI MSPM Platforms:
     - karthi012
     - Girinandha-M
     - santhosh-c-c
+    - soumya-TI
   files:
     - soc/ti/mspm/
     - boards/ti/*mspm*/
