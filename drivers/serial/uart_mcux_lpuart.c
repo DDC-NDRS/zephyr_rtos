@@ -17,6 +17,7 @@
 #include <zephyr/irq.h>
 #include <zephyr/kernel.h>
 #include <zephyr/pm/policy.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/drivers/pinctrl.h>
 #if LPUART_ASYNC_ENABLE
 #include <zephyr/drivers/dma.h>
@@ -142,6 +143,11 @@ struct mcux_lpuart_data {
     bool tx_poll_stream_on;
     bool tx_int_stream_on;
     #endif /* CONFIG_PM */
+
+    /* Interrupts enabled before suspend, restored on resume (the peripheral
+     * may lose all state if its power domain is collapsed in low power).
+     */
+    uint32_t pm_saved_int;
 
     #if LPUART_ASYNC_ENABLE
     struct mcux_lpuart_async_data async;
@@ -1548,8 +1554,36 @@ static int mcux_lpuart_line_ctrl_get(struct device const* dev,
 #endif /* LPUART_HAS_MCR */
 #endif /* CONFIG_UART_LINE_CTRL */
 
-static int mcux_lpuart_init(struct device const* dev) {
-    struct mcux_lpuart_config const* config = dev->config;
+static int mcux_lpuart_pm_action(const struct device* dev, enum pm_device_action action) {
+    struct mcux_lpuart_data* data = dev->data;
+    int ret;
+
+    switch (action) {
+        case PM_DEVICE_ACTION_TURN_ON :
+            ret = mcux_lpuart_configure_init(dev, &data->uart_config);
+            if (ret != 0) {
+                return (ret);
+            }
+            break;
+
+        case PM_DEVICE_ACTION_SUSPEND :
+            data->pm_saved_int = LPUART_GetEnabledInterrupts(get_base(dev));
+            LPUART_DisableInterrupts(get_base(dev), data->pm_saved_int);
+            break;
+
+        case PM_DEVICE_ACTION_RESUME :
+            LPUART_EnableInterrupts(get_base(dev), data->pm_saved_int);
+            break;
+
+        default :
+            return (-ENOTSUP);
+    }
+
+    return (0);
+}
+
+static int mcux_lpuart_init(const struct device* dev) {
+    const struct mcux_lpuart_config* config = dev->config;
     struct mcux_lpuart_data* data = dev->data;
     struct uart_config* uart_api_config = &data->uart_config;
     int err;
@@ -1562,8 +1596,11 @@ static int mcux_lpuart_init(struct device const* dev) {
     uart_api_config->data_bits = UART_CFG_DATA_BITS_8;
     uart_api_config->flow_ctrl = config->flow_ctrl;
 
-    /* set initial configuration */
-    mcux_lpuart_configure_init(dev, uart_api_config);
+    err = pm_device_driver_init(dev, mcux_lpuart_pm_action);
+    if (err < 0) {
+        return (err);
+    }
+
     err = mcux_lpuart_config_pinctrl(dev, config->flow_ctrl);
     if (err < 0) {
         return (err);
@@ -1776,9 +1813,11 @@ static DEVICE_API(uart, mcux_lpuart_driver_api) = {
                                                                 \
     LPUART_MCUX_DECLARE_CFG(n)                                  \
                                                                 \
+    PM_DEVICE_DT_INST_DEFINE(n, mcux_lpuart_pm_action);         \
+                                                                \
     DEVICE_DT_INST_DEFINE(n,                                    \
                           mcux_lpuart_init,                     \
-                          NULL,                                 \
+                          PM_DEVICE_DT_INST_GET(n),             \
                           &mcux_lpuart_##n##_data,              \
                           &mcux_lpuart_##n##_config,            \
                           PRE_KERNEL_1,                         \

@@ -124,7 +124,7 @@ manifest:
       groups:
         - hal
     - name: cmsis-dsp
-      revision: 97512610ec92058f0119450b9e743eeb7e95b5c8
+      revision: 45d23287f5b41be49612281a5e7c802c6a415388
       path: modules/lib/cmsis-dsp
     - name: cmsis-nn
       revision: d20117c9e88cf9018d6fa06744dddac700c3e3a1
@@ -251,7 +251,7 @@ manifest:
       groups:
         - hal
     - name: hal_silabs
-      revision: 28eb6670caf3486321a033c7f08687867a7ef4f4
+      revision: 1093933f15c4ad606059441a96b1433d53df1a84
       path: modules/hal/silabs
       groups:
         - hal
@@ -305,7 +305,7 @@ manifest:
       revision: b6be45dfc5c67c43c3a5e12589ae3845ea00ab5e
       path: modules/lib/libmctp
     - name: libmetal
-      revision: c41f476ba425663cadf7e456b6432e4b21591278
+      revision: 77237e9748212796a8f93a33689ce935fb9c81c2
       path: modules/hal/libmetal
       groups:
         - hal

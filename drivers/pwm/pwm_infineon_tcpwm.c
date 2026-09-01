@@ -1,6 +1,6 @@
 /*
- * SPDX-FileCopyrightText: <text>Copyright (c) 2026 Infineon Technologies AG,
- * or an affiliate of Infineon Technologies AG. All rights reserved.</text>
+ * SPDX-FileCopyrightText: Copyright (c) 2026 Infineon Technologies AG,
+ * SPDX-FileCopyrightText: or an affiliate of Infineon Technologies AG. All rights reserved.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,6 +13,7 @@
 
 #include <zephyr/drivers/pwm.h>
 #include <zephyr/drivers/pinctrl.h>
+#include <zephyr/pm/device.h>
 
 #include <infineon_kconfig.h>
 #include <zephyr/drivers/timer/ifx_tcpwm.h>
@@ -84,6 +85,20 @@ struct ifx_tcpwm_pwm_capture_data {
 
 struct ifx_tcpwm_pwm_data {
     struct ifx_cat1_clock clock;
+
+    #ifdef CONFIG_PM_DEVICE
+    /* Last values programmed via set_cycles, replayed on resume to
+     * restore the PWM after DS-RAM (all peripheral state lost).
+     */
+    uint32_t last_period_cycles;
+    uint32_t last_pulse_cycles;
+    pwm_flags_t last_flags;
+
+    /* Whether the counter was running when suspend was entered, so
+     * resume only restarts a PWM that was previously active.
+     */
+    bool was_running;
+    #endif /* CONFIG_PM_DEVICE */
 
     #if defined(CONFIG_PWM_EVENT) || defined(CONFIG_PWM_CAPTURE)
     struct k_spinlock lock;
@@ -229,6 +244,9 @@ static int ifx_tcpwm_pwm_set_cycles(const struct device* dev, uint32_t channel,
     ARG_UNUSED(channel);
 
     const struct ifx_tcpwm_pwm_config* config = dev->config;
+    #ifdef CONFIG_PM_DEVICE
+    struct ifx_tcpwm_pwm_data* const data = dev->data;
+    #endif /* CONFIG_PM_DEVICE */
     uint32_t pwm_status;
     uint32_t ctrl_temp;
 
@@ -304,6 +322,14 @@ static int ifx_tcpwm_pwm_set_cycles(const struct device* dev, uint32_t channel,
 
     /* Start the TCPWM block */
     IFX_TCPWM_TriggerStart_Single(tcpwm);
+
+    #ifdef CONFIG_PM_DEVICE
+    /* Cache the request so it can be replayed on resume after DS-RAM. */
+    data->last_period_cycles = period_cycles;
+    data->last_pulse_cycles  = pulse_cycles;
+    data->last_flags         = flags;
+    data->was_running        = true;
+    #endif /* CONFIG_PM_DEVICE */
 
     return (0);
 }
@@ -533,6 +559,48 @@ static int ifx_tcpwm_pwm_capture_disable(const struct device* dev, uint32_t chan
 }
 #endif /* CONFIG_PWM_CAPTURE */
 
+#ifdef CONFIG_PM_DEVICE
+static int ifx_tcpwm_pwm_pm_action(const struct device* dev, enum pm_device_action action) {
+    const struct ifx_tcpwm_pwm_config* config = dev->config;
+    struct ifx_tcpwm_pwm_data* const data = dev->data;
+    int ret;
+
+    switch (action) {
+        case PM_DEVICE_ACTION_SUSPEND :
+            /* Clock gate the block; clock tree left untouched. */
+            IFX_TCPWM_PWM_Disable(config->reg_base);
+            break;
+
+        case PM_DEVICE_ACTION_RESUME :
+            IFX_TCPWM_PWM_Enable(config->reg_base);
+            /* Restart the PWM if it was running before suspend. */
+            if (data->was_running) {
+                ret = ifx_tcpwm_pwm_set_cycles(dev, 0, data->last_period_cycles,
+                                               data->last_pulse_cycles, data->last_flags);
+                if (ret < 0) {
+                    return (ret);
+                }
+            }
+            break;
+
+        #if defined(CONFIG_PM_S2RAM) || defined(CONFIG_PM_DEVICE_POWER_DOMAIN)
+        case PM_DEVICE_ACTION_TURN_ON :
+            /* Power was removed so re-initialize the peripheral */
+            ret = ifx_tcpwm_pwm_init(dev);
+            if (ret < 0) {
+                return (ret);
+            }
+            break;
+        #endif /* CONFIG_PM_S2RAM || CONFIG_PM_DEVICE_POWER_DOMAIN */
+
+        default :
+            return (-ENOTSUP);
+    }
+
+    return (0);
+}
+#endif /* CONFIG_PM_DEVICE */
+
 static DEVICE_API(pwm, ifx_tcpwm_pwm_api) = {
     .set_cycles         = ifx_tcpwm_pwm_set_cycles,
     .get_cycles_per_sec = ifx_tcpwm_pwm_get_cycles_per_sec,
@@ -628,6 +696,8 @@ static DEVICE_API(pwm, ifx_tcpwm_pwm_api) = {
     IF_ENABLED(IFX_TCPWM_PWM_IRQ_ENABLED, (INFINEON_TCPWM_PWM_IRQ_INIT(n))) \
     PINCTRL_DT_INST_DEFINE(n);                                  \
                                                                 \
+    PM_DEVICE_DT_INST_DEFINE(n, ifx_tcpwm_pwm_pm_action);       \
+                                                                \
     static struct ifx_tcpwm_pwm_data ifx_tcpwm_pwm##n##_data = {PWM_PERI_CLOCK_INIT(n)}; \
                                                                 \
     static struct ifx_tcpwm_pwm_config DT_CONST pwm_tcpwm_config_##n = {    \
@@ -648,8 +718,8 @@ static DEVICE_API(pwm, ifx_tcpwm_pwm_api) = {
     DEVICE_DT_INST_DEFINE(                                                  \
         n, COND_CODE_1(IFX_TCPWM_PWM_IRQ_ENABLED,                           \
                        (ifx_tcpwm_pwm_init_##n), (ifx_tcpwm_pwm_init)),     \
-        NULL, &ifx_tcpwm_pwm##n##_data, &pwm_tcpwm_config_##n, POST_KERNEL, \
-        CONFIG_PWM_INIT_PRIORITY, &ifx_tcpwm_pwm_api);
+        PM_DEVICE_DT_INST_GET(n), &ifx_tcpwm_pwm##n##_data, &pwm_tcpwm_config_##n, \
+        POST_KERNEL, CONFIG_PWM_INIT_PRIORITY, &ifx_tcpwm_pwm_api);
 /* clang-format on */
 
 DT_INST_FOREACH_STATUS_OKAY(INFINEON_TCPWM_PWM_INIT)

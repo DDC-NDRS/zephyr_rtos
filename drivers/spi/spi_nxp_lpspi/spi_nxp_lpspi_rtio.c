@@ -75,6 +75,7 @@ struct lpspi_driver_data {
     } rx_curr;
 
     uint32_t word_size_bytes;
+    uint32_t tcr_cmd;
 
     #ifdef CONFIG_SPI_NXP_LPSPI_RTIO_DMA
     struct spi_dma_stream dma_rx;
@@ -302,7 +303,12 @@ static inline bool lpspi_rtio_next_tx_fill(const struct device* dev) {
     }
 
     if (lpspi_data->total.words_clocked_tx >= lpspi_data->total.words_to_clock) {
-        lpspi->TCR &= ~(LPSPI_TCR_CONT_MASK | LPSPI_TCR_CONTC_MASK);
+        /* End the continuous transfer with a command composed from the
+         * cached start command. A read-modify-write here can sample TCR
+         * while it is being loaded from the FIFO and queue a corrupted
+         * command word (see LPSPI_GetTcr() and ERR050606).
+         */
+        lpspi->TCR = lpspi_data->tcr_cmd & ~(LPSPI_TCR_CONT_MASK | LPSPI_TCR_CONTC_MASK);
     }
 
     return (true);
@@ -512,7 +518,7 @@ static void lpspi_dma_callback(const struct device* dev, void* arg, uint32_t cha
      * (chip select) line to be deasserted once the transfer fully completes.
      */
     if (channel == lpspi_data->dma_tx.channel) {
-        lpspi->TCR &= ~(LPSPI_TCR_CONT_MASK | LPSPI_TCR_CONTC_MASK);
+        lpspi->TCR = (lpspi_data->tcr_cmd & ~(LPSPI_TCR_CONT_MASK | LPSPI_TCR_CONTC_MASK));
     }
 
     /* RX DMA completion marks the end of the full SPI transfer;
@@ -537,9 +543,16 @@ static void lpspi_isr(const struct device* dev) {
     irq_enable &= ~(LPSPI_IER_RDIE_MASK | LPSPI_IER_TDIE_MASK);
 
     if (lpspi_data->total.words_to_clock_rx > 0) {
-        if (lpspi_rtio_next_rx_fetch(dev)) {
+        if (!(status_flags & LPSPI_SR_RDF_MASK)) {
+            /* Words are still due but the RX watermark has not been
+             * crossed, this interrupt is for TX or completion only.
+             * Skip the drain pass but keep the RX interrupt armed
+             * so completion still waits on the outstanding words.
+             */
             irq_enable |= LPSPI_IER_RDIE_MASK;
-
+        }
+        else if (lpspi_rtio_next_rx_fetch(dev)) {
+            irq_enable |= LPSPI_IER_RDIE_MASK;
             if (lpspi_data->total.words_to_clock_rx < config->rx_fifo_size) {
                 lpspi->FCR = LPSPI_FCR_TXWATER(0) |
                              LPSPI_FCR_RXWATER(lpspi_data->total.words_to_clock_rx - 1);
@@ -567,11 +580,12 @@ static void lpspi_isr(const struct device* dev) {
         if (irq_enable == 0) {
             /** Due to stalling behavior on older LPSPI, if we know we already wrote
              * all the words into the fifo, then we need to end xfer manually by
-             * writing TCR in order to get last bit clocked out on bus. So all we need
-             * to do is touch the TCR by writing to fifo through TCR register and wait
-             * for final RX interrupt.
+             * writing TCR in order to get last bit clocked out on bus. Write the
+             * cached end command instead of reading TCR back, the readback is
+             * not reliable while the FIFO holds entries.
              */
-            lpspi->TCR = lpspi->TCR;
+            lpspi->TCR =
+                (lpspi_data->tcr_cmd & ~(LPSPI_TCR_CONT_MASK | LPSPI_TCR_CONTC_MASK));
 
             /** We're done both TX and RX as they each clear their Interrupt
              * enable bit once fully received. The transfer has completed.
@@ -634,8 +648,13 @@ static void lpspi_rtio_iodev_start(const struct device* dev) {
     rx_curr->sqe = sqe;
     rx_curr->words_clocked = 0;
 
-    lpspi->TCR = (lpspi->TCR & ~(LPSPI_TCR_PCS_MASK | LPSPI_TCR_RXMSK_MASK)) |
-                 LPSPI_TCR_PCS(spi_cfg->slave) | LPSPI_TCR_CONT_MASK;
+    /* Compose the transfer command once, while the transmit FIFO is empty
+     * and the TCR read is defined, and cache it. Every later command write
+     * reuses the cached value so no TCR readback happens mid-transfer.
+     */
+    lpspi_data->tcr_cmd = (lpspi->TCR & ~(LPSPI_TCR_PCS_MASK | LPSPI_TCR_RXMSK_MASK)) |
+                          LPSPI_TCR_PCS(spi_cfg->slave) | LPSPI_TCR_CONT_MASK;
+    lpspi->TCR = lpspi_data->tcr_cmd;
     spi_context_cs_control(&data->ctx, true);
 
     /* tcr is written to tx fifo */
@@ -675,6 +694,18 @@ static void lpspi_rtio_iodev_start(const struct device* dev) {
 
     lpspi->CR = LPSPI_CR_MEN_MASK;
 
+    if (lpspi_data->total.words_to_clock_rx == 0) {
+        /* Mask RX before the first data word is queued so no unread
+         * words collect in the RX FIFO behind the fill. The command
+         * is queued ahead of the data and the cached copy keeps the
+         * mask for the end-of-transfer command writes. The DMA path
+         * is not masked, it drains every received word and completes
+         * on the RX channel.
+         */
+        lpspi_data->tcr_cmd |= LPSPI_TCR_RXMSK_MASK;
+        base->TCR = lpspi_data->tcr_cmd;
+    }
+
     /* start the transfer sequence which are handled by irqs */
     if (lpspi_rtio_next_tx_fill(dev) == false) {
         ret = -EINVAL;
@@ -687,9 +718,9 @@ static void lpspi_rtio_iodev_start(const struct device* dev) {
         lpspi->IER = LPSPI_IER_RDIE_MASK | LPSPI_IER_TCIE_MASK;
     }
     else {
-        lpspi->TCR |= LPSPI_TCR_RXMSK_MASK;
-        lpspi->IER  = LPSPI_IER_TDIE_MASK | LPSPI_IER_TCIE_MASK;
+        lpspi->IER = LPSPI_IER_TDIE_MASK | LPSPI_IER_TCIE_MASK;
     }
+
     return;
 
 lpspi_rtio_iodev_start_on_error:

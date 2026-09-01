@@ -74,10 +74,16 @@
 		("[%04u-%02u-%02uT%02u:%02u:%02u,%03uZ] "), \
 		("[%04u-%02u-%02uT%02u:%02u:%02u,%06uZ] "))
 
+#if IS_ENABLED(CONFIG_LOG_TIMESTAMP_64BIT)
+#define LOG_TS_HHMMSS_MS_FMT "[%02llu:%02u:%02u.%03u"
+#else
+#define LOG_TS_HHMMSS_MS_FMT "[%02u:%02u:%02u.%03u"
+#endif
+
 /* HH:MM:SS timestamp format - depends on HIDE_US */
 #define LOG_TS_HHMMSS_FMT \
 	COND_CODE_1(CONFIG_LOG_OUTPUT_FORMAT_HIDE_US, \
-		("[%02u:%02u:%02u.%03u] "), ("[%02u:%02u:%02u.%03u,%03u] "))
+		(LOG_TS_HHMMSS_MS_FMT "] "), (LOG_TS_HHMMSS_MS_FMT ",%03u] "))
 
 /* Value selector macros - evaluates at compile-time */
 #define LOG_TS_VAL_SIMPLE(ts) (ts)
@@ -322,13 +328,16 @@ static int timestamp_print(const struct log_output *output,
 #endif /* CONFIG_REQUIRES_FULL_LIBC */
 #endif /* CONFIG_POSIX_C_LANG_SUPPORT_R */
 			} else {
-				uint32_t seconds;
+#if IS_ENABLED(CONFIG_LOG_TIMESTAMP_64BIT)
+				uint64_t hours;
+#else
 				uint32_t hours;
+#endif
 				uint32_t mins;
+				uint32_t seconds;
 
-				seconds = total_seconds;
-				hours = seconds / 3600U;
-				seconds -= hours * 3600U;
+				hours = total_seconds / 3600U;
+				seconds = (uint32_t)(total_seconds - (hours * 3600U));
 				mins = seconds / 60U;
 				seconds -= mins * 60U;
 
