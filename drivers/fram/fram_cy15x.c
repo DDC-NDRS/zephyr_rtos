@@ -590,7 +590,7 @@ static DEVICE_API(fram, fram_cy15x_api) = {
 /// @note Required "q" to be small letter
 #define fram_cy15q_bus(n, t)    \
     { .spi = SPI_DT_SPEC_GET(INST_DT_CY15X(n, t),       \
-             SPI_OP_MODE_MASTER | SPI_TRANSFER_MSB |    \
+             SPI_OP_MODE_CONTROLLER | SPI_TRANSFER_MSB |    \
              SPI_WORD_SET(8)) }
 
 #define FRAM_CY15X_WP_GPIOS(id) \

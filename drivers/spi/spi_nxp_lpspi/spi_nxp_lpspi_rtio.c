@@ -615,7 +615,7 @@ static void lpspi_rtio_iodev_start(const struct device* dev) {
         goto lpspi_rtio_iodev_start_on_error;
     }
 
-    if (op_mode != SPI_OP_MODE_MASTER) {
+    if (SPI_OP_MODE_GET(spi_cfg->operation) != SPI_OP_MODE_CONTROLLER) {
         LOG_WRN("Target mode not supported for LPSPI RTIO");
         ret = -ENOTSUP;
         goto lpspi_rtio_iodev_start_on_error;
@@ -653,7 +653,7 @@ static void lpspi_rtio_iodev_start(const struct device* dev) {
      * reuses the cached value so no TCR readback happens mid-transfer.
      */
     lpspi_data->tcr_cmd = (lpspi->TCR & ~(LPSPI_TCR_PCS_MASK | LPSPI_TCR_RXMSK_MASK)) |
-                          LPSPI_TCR_PCS(spi_cfg->slave) | LPSPI_TCR_CONT_MASK;
+                          LPSPI_TCR_PCS(spi_cfg->peripheral) | LPSPI_TCR_CONT_MASK;
     lpspi->TCR = lpspi_data->tcr_cmd;
     spi_context_cs_control(&data->ctx, true);
 

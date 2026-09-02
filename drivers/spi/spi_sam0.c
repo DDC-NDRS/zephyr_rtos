@@ -92,7 +92,7 @@ static int spi_sam0_configure(const struct device* dev,
         ret = -ENOTSUP;
 
         if ((config->operation & SPI_HALF_DUPLEX) == 0U) {
-            if (SPI_OP_MODE_GET(config->operation) == SPI_OP_MODE_MASTER) {
+            if (SPI_OP_MODE_GET(config->operation) == SPI_OP_MODE_CONTROLLER) {
                 if (SPI_WORD_SIZE_GET(config->operation) == 8) {
                     ret = 0;
                 }
@@ -101,7 +101,7 @@ static int spi_sam0_configure(const struct device* dev,
                 }
             }
             else {
-                /* Slave mode is not implemented. */
+                /* Peripheral mode is not implemented. */
             }
         }
         else {
@@ -127,7 +127,7 @@ static int spi_sam0_configure(const struct device* dev,
             }
 
             if ((config->operation & SPI_MODE_LOOP) != 0U) {
-                /* Put MISO and MOSI on the same pad */
+                /* Put SDI and SDO on the same pad */
                 ctrla.bit.DOPO = 0;
                 ctrla.bit.DIPO = 0;
             }
@@ -189,7 +189,7 @@ static bool spi_sam0_transfer_ongoing(struct spi_sam0_data* data) {
     return (spi_context_tx_on(&data->ctx) || spi_context_rx_on(&data->ctx));
 }
 
-static void spi_sam0_shift_master(SercomSpi* regs, struct spi_sam0_data* data) {
+static void spi_sam0_shift_controller(SercomSpi* regs, struct spi_sam0_data* data) {
     uint8_t tx;
     uint8_t rx;
     bool rc;
@@ -664,7 +664,7 @@ static int spi_sam0_transceive(const struct device* dev,
         spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 1);
 
         do {
-            spi_sam0_shift_master(regs, data);
+            spi_sam0_shift_controller(regs, data);
         } while (spi_sam0_transfer_ongoing(data));
     }
 

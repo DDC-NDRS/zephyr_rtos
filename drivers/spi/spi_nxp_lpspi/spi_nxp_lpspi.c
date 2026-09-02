@@ -187,7 +187,8 @@ static inline void lpspi_handle_tx_irq(const struct device* dev) {
 
     lpspi->SR = LPSPI_SR_TDF_MASK;
 
-    if ((op_mode == SPI_OP_MODE_SLAVE) && ((status_flags & LPSPI_SR_TEF_MASK) != 0U)) {
+    if ((op_mode == SPI_OP_MODE_PERIPHERAL) &&
+        ((status_flags & LPSPI_SR_TEF_MASK) != 0U)) {
         /* handling err051588 */
         lpspi->SR = LPSPI_SR_TEF_MASK;
         /* workaround is to reset the transmit fifo before writing any new data */
@@ -308,7 +309,8 @@ static void lpspi_isr(const struct device* dev) {
     lpspi_fill_tx_fifo_nop(dev, max_fill);
 }
 
-static void lpspi_master_setup_native_cs(const struct device* dev, const struct spi_config* spi_cfg) {
+static void lpspi_controller_setup_native_cs(const struct device* dev,
+                                             const struct spi_config* spi_cfg) {
     LPSPI_Type* lpspi = (LPSPI_Type*)DEVICE_MMIO_NAMED_GET(dev, reg_base);
 
     /* keep the chip select asserted until the end of the zephyr xfer by using
@@ -349,7 +351,8 @@ static int lpspi_ll_transceive(const struct device* dev, const struct spi_config
         goto error;
     }
 
-    if ((op_mode == SPI_OP_MODE_SLAVE) && !(spi_cfg->operation & SPI_MODE_CPHA)) {
+    if ((op_mode == SPI_OP_MODE_PERIPHERAL) &&
+        ((spi_cfg->operation & SPI_MODE_CPHA) == 0)) {
         LOG_ERR("CPHA=0 not supported with LPSPI peripheral mode");
         ret = -ENOTSUP;
         goto error;
@@ -386,18 +389,18 @@ static int lpspi_ll_transceive(const struct device* dev, const struct spi_config
     LOG_DBG("Starting LPSPI transfer");
     spi_context_cs_control(ctx, true);
 
-    if (op_mode == SPI_OP_MODE_MASTER) {
+    if (op_mode == SPI_OP_MODE_CONTROLLER) {
         /* set watermarks to 0 so get tx interrupt when fifo empty
          * and rx interrupt when any data received
          */
         lpspi->FCR = 0;
     }
     else {
-        /* set watermarks so that we are as responsive to master as possible and don't
+        /* set watermarks so that we are as responsive to controller as possible and don't
          * miss any communication. This means RX interrupt at 0 so that if we ever
          * get any data, we get interrupt and handle immediately, and TX interrupt
          * to one less than the max of the fifo (-2 of size) so that we have as much
-         * data ready to send to master as possible at any time
+         * data ready to send to controller as possible at any time
          */
         lpspi->FCR = LPSPI_FCR_TXWATER(config->tx_fifo_size - 1);
         lpspi->CFGR1 |= LPSPI_CFGR1_AUTOPCS_MASK;
@@ -405,8 +408,8 @@ static int lpspi_ll_transceive(const struct device* dev, const struct spi_config
 
     lpspi->CR |= LPSPI_CR_MEN_MASK;
 
-    if (op_mode == SPI_OP_MODE_MASTER) {
-        lpspi_master_setup_native_cs(dev, spi_cfg);
+    if (op_mode == SPI_OP_MODE_CONTROLLER) {
+        lpspi_controller_setup_native_cs(dev, spi_cfg);
     }
 
     /* start the transfer sequence which are handled by irqs */
@@ -466,7 +469,7 @@ static int lpspi_init(const struct device* dev) {
 
     lpspi = (LPSPI_Type*)DEVICE_MMIO_NAMED_GET(dev, reg_base);
 
-    /* Starting config should be master with active low CS, to make sure
+    /* Starting config should be controller with active low CS, to make sure
      * the CS lines are configured properly at init for the most common use
      * cases. This can be changed later on transceive call if user specifies
      * different spi configuration.

@@ -95,8 +95,8 @@ static int lpspi_stream_validate_args(struct spi_nxp_stream_data const* stream,
         return (-EINVAL);
     }
 
-    if ((spec->config.operation & SPI_OP_MODE_SLAVE) == 0U) {
-        LOG_ERR("stream: slave mode (SPI_OP_MODE_SLAVE) required");
+    if ((spec->config.operation & SPI_OP_MODE_PERIPHERAL) == 0U) {
+        LOG_ERR("stream: peripheral mode (SPI_OP_MODE_PERIPHERAL) required");
         return (-EINVAL);
     }
 

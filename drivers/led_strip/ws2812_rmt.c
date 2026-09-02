@@ -58,7 +58,7 @@ static const rmt_symbol_word_t ws2812_reset = {
  * - no shenanigans (don't hold CS, don't hold the device lock, this
  *   isn't an EEPROM)
  */
-#define SPI_OPER(idx) (SPI_OP_MODE_MASTER | SPI_TRANSFER_MSB | \
+#define SPI_OPER(idx) (SPI_OP_MODE_CONTROLLER | SPI_TRANSFER_MSB | \
           SPI_WORD_SET(SPI_FRAME_BITS))
 
 struct ws2812_spi_cfg {

@@ -78,7 +78,7 @@ int lpspi_wait_tx_fifo_empty(const struct device* dev, spi_operation_t operation
     /* In slave mode, master controls TX FIFO drain via clock.
      * Don't wait - it will deadlock.
      */
-    if (SPI_OP_MODE_GET(operation) == SPI_OP_MODE_SLAVE) {
+    if (SPI_OP_MODE_GET(operation) == SPI_OP_MODE_PERIPHERAL) {
         return (0);
     }
 
@@ -118,7 +118,7 @@ int spi_lpspi_release(const struct device* dev, const struct spi_config* spi_cfg
 
 static inline int lpspi_validate_xfer_args(const struct spi_config* spi_cfg) {
     uint32_t word_size = SPI_WORD_SIZE_GET(spi_cfg->operation);
-    uint32_t pcs = spi_cfg->slave;
+    uint32_t pcs = spi_cfg->peripheral;
 
     if ((spi_cfg->operation & SPI_HALF_DUPLEX) != 0U) {
         /* the IP DOES support half duplex, need to implement driver support */
@@ -267,7 +267,7 @@ static inline uint32_t lpspi_set_sckdiv(uint32_t desired_freq,
 static void lpspi_basic_config(const struct device* dev, const struct spi_config* spi_cfg) {
     const struct lpspi_config* config = dev->config;
     LPSPI_Type* lpspi = (LPSPI_Type*)DEVICE_MMIO_NAMED_GET(dev, reg_base);
-    uint32_t pcs_control_bit = (1 << (LPSPI_CFGR1_PCSPOL_SHIFT + spi_cfg->slave));
+    uint32_t pcs_control_bit = (1 << (LPSPI_CFGR1_PCSPOL_SHIFT + spi_cfg->peripheral));
     uint32_t cfgr1_val = 0;
 
     if (spi_cfg->operation & SPI_CS_ACTIVE_HIGH) {
@@ -277,7 +277,7 @@ static void lpspi_basic_config(const struct device* dev, const struct spi_config
         cfgr1_val &= ~pcs_control_bit;
     }
 
-    if (SPI_OP_MODE_GET(spi_cfg->operation) == SPI_OP_MODE_MASTER) {
+    if (SPI_OP_MODE_GET(spi_cfg->operation) == SPI_OP_MODE_CONTROLLER) {
         cfgr1_val |= LPSPI_CFGR1_MASTER_MASK;
     }
 
@@ -345,7 +345,7 @@ int lpspi_configure(const struct device* dev, const struct spi_config* spi_cfg) 
     uint32_t clock_freq = data->clock_freq;
     uint8_t prescaler = 0;
 
-    if (SPI_OP_MODE_GET(spi_cfg->operation) == SPI_OP_MODE_MASTER) {
+    if (SPI_OP_MODE_GET(spi_cfg->operation) == SPI_OP_MODE_CONTROLLER) {
         uint32_t ccr;
 
         /* sckdiv algorithm must run *before* delays are set in order to know prescaler */
@@ -365,7 +365,7 @@ int lpspi_configure(const struct device* dev, const struct spi_config* spi_cfg) 
                  LPSPI_TCR_CPHA((operation & SPI_MODE_CPHA) != 0) |
                  LPSPI_TCR_LSBF((operation & SPI_TRANSFER_LSB) != 0) |
                  LPSPI_TCR_FRAMESZ(word_size - 1) |
-                 LPSPI_TCR_PRESCALE(prescaler) | LPSPI_TCR_PCS(spi_cfg->slave);
+                 LPSPI_TCR_PRESCALE(prescaler) | LPSPI_TCR_PCS(spi_cfg->peripheral);
 
     ret = lpspi_wait_tx_fifo_empty(dev, operation);
 

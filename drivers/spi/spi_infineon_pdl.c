@@ -1,6 +1,6 @@
 /*
- * SPDX-FileCopyrightText: <text>Copyright (c) 2026 Infineon Technologies AG,
- * or an affiliate of Infineon Technologies AG. All rights reserved.</text>
+ * SPDX-FileCopyrightText: Copyright (c) 2026 Infineon Technologies AG,
+ * SPDX-FileCopyrightText: or an affiliate of Infineon Technologies AG. All rights reserved.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -107,7 +107,7 @@ struct spi_ifx_data {
     struct ifx_cat1_clock clock;
     cy_en_scb_spi_sclk_mode_t clk_mode;
     uint8_t data_bits;
-    bool is_slave;
+    bool is_peripheral;
     uint8_t oversample_value;
     bool msb_first;
     cy_stc_scb_spi_context_t context;
@@ -344,7 +344,7 @@ static int spi_ifx_configure(const struct device* dev, const struct spi_config* 
     /* Store spi config in context */
     ctx->config = spi_cfg;
 
-    if (spi_context_is_slave(ctx)) {
+    if (spi_context_is_peripheral(ctx)) {
         scb_spi_config.spiMode    = CY_SCB_SPI_SLAVE;
         scb_spi_config.oversample = 0;
         scb_spi_config.enableMisoLateSample = false;
@@ -356,8 +356,9 @@ static int spi_ifx_configure(const struct device* dev, const struct spi_config* 
          * devicetree/overlay files, the default of four will be used from the
          * default configuration
          */
-        if (config->cs_oversample_cnt > 0 && spi_cfg->slave < config->cs_oversample_cnt) {
-            scb_spi_config.oversample = config->cs_oversample[spi_cfg->slave];
+        if ((config->cs_oversample_cnt > 0) &&
+            (spi_cfg->peripheral < config->cs_oversample_cnt)) {
+            scb_spi_config.oversample = config->cs_oversample[spi_cfg->peripheral];
         }
     }
 
@@ -394,16 +395,16 @@ static int spi_ifx_configure(const struct device* dev, const struct spi_config* 
         return (-ENOTSUP);
     }
 
-    /* Configure Slave select polarity */
-    if (spi_context_is_slave(ctx)) {
+    /* Configure chip select polarity */
+    if (spi_context_is_peripheral(ctx)) {
         Cy_SCB_SPI_SetActiveSlaveSelectPolarity(config->reg_addr, CY_SCB_SPI_SLAVE_SELECT0,
                                                 scb_spi_config.ssPolarity);
     }
 
-    /* Validate hardware CS slave index before doing any heavy init work */
-    if (!spi_context_is_slave(ctx) && !spi_cs_is_gpio(spi_cfg)) {
-        if (spi_cfg->slave > (uint32_t)CY_SCB_SPI_SLAVE_SELECT3) {
-            LOG_ERR("HW slave %u exceeds max SSEL index 3", spi_cfg->slave);
+    /* Validate hardware CS index before doing any heavy init work */
+    if (!spi_context_is_peripheral(ctx) && !spi_cs_is_gpio(spi_cfg)) {
+        if (spi_cfg->peripheral > (uint32_t)CY_SCB_SPI_SLAVE_SELECT3) {
+            LOG_ERR("HW peripheral %u exceeds max SSEL index 3", spi_cfg->peripheral);
             return (-EINVAL);
         }
     }
@@ -415,13 +416,13 @@ static int spi_ifx_configure(const struct device* dev, const struct spi_config* 
     }
 
     /* Select hardware SSEL line.
-     * SPI_CTRL.SSEL may be written while the master is idle without disabling the SCB block.
+     * SPI_CTRL.SSEL may be written while the controller is idle without disabling the SCB block.
      * spi_ifx_set_frequency() above leaves SCB enabled and idle, so no
      * Disable/Enable cycle is needed here.
      */
-    if (!spi_context_is_slave(ctx) && !spi_cs_is_gpio(spi_cfg)) {
+    if (!spi_context_is_peripheral(ctx) && !spi_cs_is_gpio(spi_cfg)) {
         cy_en_scb_spi_slave_select_t hw_sel =
-            (cy_en_scb_spi_slave_select_t)spi_cfg->slave;
+            (cy_en_scb_spi_slave_select_t)spi_cfg->peripheral;
         cy_en_scb_spi_polarity_t hw_pol =
             (spi_cfg->operation & SPI_CS_ACTIVE_HIGH)
             ? CY_SCB_SPI_ACTIVE_HIGH : CY_SCB_SPI_ACTIVE_LOW;
@@ -584,7 +585,7 @@ static int spi_ifx_init(const struct device* dev) {
         return (ret);
     }
 
-    /* Configure slave select (master) */
+    /* Configure chip select (controller) */
     ret = spi_context_cs_configure_all(&data->ctx);
     if (ret < 0) {
         return (ret);
@@ -894,7 +895,7 @@ static cy_rslt_t spi_ifx_int_frequency(const struct device* dev, uint32_t hz,
     uint32_t peri_freq = Cy_SysClk_ClkHfGetFrequency();
     #endif
 
-    if (!data->is_slave) {
+    if (!data->is_peripheral) {
         for (uint32_t oversample_value = IFX_SPI_OVERSAMPLE_MIN;
              oversample_value <= IFX_SPI_OVERSAMPLE_MAX;
              oversample_value++) {
@@ -925,9 +926,10 @@ static cy_rslt_t spi_ifx_int_frequency(const struct device* dev, uint32_t hz,
         *over_sample_val = (uint8_t)last_ovrsmpl_val;
     }
     else {
-        /* Slave requires such frequency: required_frequency = N / ((0.5 * desired_period)
-         * – 20 nsec - tDSI, N is 3 when "Enable Input Glitch Filter" is false and 4 when
-         * true. tDSI Is external master delay which is assumed to be 16.66 nsec
+        /* Peripheral requires such frequency: required_frequency = N / ((0.5 *
+         * desired_period) – 20 nsec - tDSI, N is 3 when "Enable Input Glitch Filter" is
+         * false and 4 when true. tDSI Is external controller delay which is assumed to be
+         * 16.66 nsec
          */
 
         /* Divided by 2 desired period to avoid dividing in required_frequency formula */
@@ -964,16 +966,16 @@ static cy_rslt_t spi_ifx_set_frequency(const struct device* dev, uint32_t hz) {
     Cy_SCB_SPI_Disable(config->reg_addr, &data->context);
     result = spi_ifx_int_frequency(dev, hz, &ovr_sample_val);
 
-    /* No need to reconfigure slave since oversample value, that was changed in
-     * spi_ifx_int_frequency, in slave is ignored
+    /* No need to reconfigure peripheral since oversample value, that was changed in
+     * spi_ifx_int_frequency, in peripheral is ignored
      */
-    if ((CY_RSLT_SUCCESS == result) && !data->is_slave &&
+    if ((CY_RSLT_SUCCESS == result) && !data->is_peripheral &&
         (data->oversample_value != ovr_sample_val)) {
         cy_stc_scb_spi_config_t config_structure = config->scb_spi_config;
 
         Cy_SCB_SPI_DeInit(config->reg_addr);
         config_structure.spiMode =
-            (data->is_slave == false) ? CY_SCB_SPI_MASTER : CY_SCB_SPI_SLAVE;
+            (data->is_peripheral == false) ? CY_SCB_SPI_MASTER : CY_SCB_SPI_SLAVE;
         config_structure.enableMsbFirst = data->msb_first;
         config_structure.sclkMode       = data->clk_mode;
         config_structure.rxDataWidth    = data->data_bits;
@@ -1010,10 +1012,10 @@ static cy_rslt_t spi_ifx_init_cfg(const struct device* dev, cy_stc_scb_spi_confi
     struct spi_ifx_data* const data = dev->data;
     cy_stc_scb_spi_config_t cfg_local = *scb_spi_config;
 
-    bool is_slave = (cfg_local.spiMode == CY_SCB_SPI_SLAVE);
+    bool is_peripheral = (cfg_local.spiMode == CY_SCB_SPI_SLAVE);
     cy_rslt_t result;
 
-    data->is_slave   = is_slave;
+    data->is_peripheral = is_peripheral;
     data->write_fill = (uint8_t)CY_SCB_SPI_DEFAULT_TX;
 
     result = spi_ifx_int_frequency(dev, IFX_SPI_DEFAULT_SPEED,
