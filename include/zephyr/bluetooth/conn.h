@@ -35,6 +35,10 @@
 #include <zephyr/sys/util_macro.h>
 #include <zephyr/toolchain.h>
 
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define EHOSTDOWN   117
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

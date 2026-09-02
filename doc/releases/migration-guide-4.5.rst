@@ -244,6 +244,28 @@ Boards
   * ``scobc_module1`` → ``scobc_a1``
   * ``xiao_esp32c6`` → ``xiao_esp32c6/esp32c6/hpcore``
 
+* The Nordic nRF52 Kconfig option ``CONFIG_GPIO_AS_PINRESET`` has been removed. Set the
+  ``gpio-as-nreset`` property on the ``&uicr`` devicetree node instead.
+
+* The Nordic Kconfig options ``CONFIG_SOC_DCDC_NRF52X``, ``CONFIG_SOC_DCDC_NRF52X_HV``,
+  ``CONFIG_SOC_DCDC_NRF53X_APP``, ``CONFIG_SOC_DCDC_NRF53X_NET`` and
+  ``CONFIG_SOC_DCDC_NRF53X_HV`` have been removed. Configure the regulators in devicetree
+  instead: ``regulator-initial-mode = <NRF5X_REG_MODE_DCDC>`` on ``&reg1``/``&vregmain``/
+  ``&vregradio``, and ``status = "okay"`` on ``&reg0``/``&vregh``.
+
+* The Nordic nRF53 Kconfig option ``CONFIG_BOARD_ENABLE_CPUNET`` has been removed. Use
+  :kconfig:option:`CONFIG_SOC_NRF53_CPUNET_ENABLE` instead.
+
+* The ``esp_threadbr_ethernet`` shield has been removed. Existing users should
+  build for ``esp_threadbr/esp32s3/procpu/ethernet`` instead of combining
+  ``esp_threadbr/esp32s3/procpu`` with ``SHIELD=esp_threadbr_ethernet``.
+  Along with the shield, the ``esp_threadbr`` sub-board connector description
+  has been removed, so the ``espressif,esp-threadbr-header`` binding, the
+  ``esp_threadbr_header`` GPIO nexus node and the ``esp_threadbr_spi`` and
+  ``esp_threadbr_i2c`` devicetree labels are gone. Out-of-tree overlays using
+  them have to reference the SoC nodes (``&spi2``, ``&i2c0``, ``&gpio0``,
+  ``&gpio1``) directly. (:github:`116956`)
+
 Device Drivers and Devicetree
 *****************************
 
@@ -312,6 +334,9 @@ Audio Codec
 
 Clock Control
 =============
+
+* The Nordic Kconfig option ``CONFIG_NRFS_LOCAL_DOMAIN_DVFS_SCALE_DOWN_AFTER_INIT`` has been
+  removed. Use :kconfig:option:`CONFIG_CLOCK_CONTROL_NRF_HSFLL_LOCAL_REQ_LOW_FREQ` instead.
 
 * The :dtcompatible:`nxp,imxrt11xx-arm-pll` binding now uses ``loop-div`` and
   ``post-div`` for ARM PLL configuration. The legacy ``clock-mult`` and
@@ -1478,6 +1503,11 @@ Bluetooth Classic
 * Renamed ``CONFIG_BT_DEVICE_VEDNOR_ID`` to :kconfig:option:`CONFIG_BT_DEVICE_VENDOR_ID`
   to fix a typo.
 
+* The :c:member:`bt_rfcomm_dlc_ops.recv` callback signature has changed from
+  ``void`` to ``int``. Existing implementations must be updated to return ``0``
+  to preserve previous synchronous behavior, or ``-EINPROGRESS`` to use the new
+  asynchronous completion path.
+
 Bluetooth HCI
 =============
 
@@ -1849,6 +1879,13 @@ Random
   Use :kconfig:option:`CONFIG_PSA_CSPRNG_GENERATOR` instead.
 
 * ``CONFIG_CS_CTR_DRBG_PERSONALIZATION`` has been removed. It did not have any effect.
+
+Shell
+=====
+
+* The ``kernel log_level <module> <severity>`` shell command, deprecated since Zephyr v4.1.0,
+  has been removed. Use ``log enable <severity> <module>`` instead: the arguments are reversed
+  and the severity is a name (``none``, ``err``, ``wrn``, ``inf``, ``dbg``), not a number.
 
 Stream Flash
 ============

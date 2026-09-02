@@ -412,9 +412,42 @@ struct net_buf *bt_hci_cmd_alloc(k_timeout_t timeout)
 	return buf;
 }
 
+/* Drop every queued command once the HCI transport has been closed,
+ * completing synchronous senders with an error.
+ */
+static void hci_cmd_queue_purge(void)
+{
+	struct net_buf *buf;
+
+	while (true) {
+		buf = k_fifo_get(&bt_dev.cmd_tx_queue, K_NO_WAIT);
+		if (buf == NULL) {
+			break;
+		}
+
+		LOG_WRN("Dropping queued command 0x%04x: HCI transport closed", cmd(buf)->opcode);
+
+		if (cmd(buf)->sync != NULL) {
+			cmd(buf)->status = BT_HCI_ERR_UNSPECIFIED;
+			k_sem_give(cmd(buf)->sync);
+		}
+
+		net_buf_unref(buf);
+	}
+}
+
 int bt_hci_cmd_send(uint16_t opcode, struct net_buf *buf)
 {
 	struct bt_hci_cmd_hdr *hdr;
+
+	/* Make sure the HCI transport is open before attempting anything else */
+	if (!atomic_test_bit(bt_dev.flags, BT_DEV_OPEN)) {
+		if (buf != NULL) {
+			net_buf_unref(buf);
+		}
+
+		return -EHOSTDOWN;
+	}
 
 	if (buf != NULL) {
 		/* Check for sufficient headeroom, which can only happen if the user passes a
@@ -457,6 +490,19 @@ int bt_hci_cmd_send(uint16_t opcode, struct net_buf *buf)
 	}
 
 	k_fifo_put(&bt_dev.cmd_tx_queue, buf);
+
+	/* bt_disable() clears BT_DEV_OPEN before purging the queue, so a
+	 * command queued by a sender that passed the check above just before
+	 * the transport was closed is either found by that purge or seen
+	 * here: take it back and fail the call. If the purge got to it first
+	 * it completes the command like any other queued one.
+	 */
+	if (!atomic_test_bit(bt_dev.flags, BT_DEV_OPEN) &&
+	    k_queue_remove(&bt_dev.cmd_tx_queue._queue, buf)) {
+		net_buf_unref(buf);
+		return -EHOSTDOWN;
+	}
+
 	bt_tx_irq_raise();
 
 	return 0;
@@ -524,6 +570,14 @@ int bt_hci_cmd_send_sync(uint16_t opcode, struct net_buf *buf,
 			 * Example: 0x0c03 represents HCI_Reset command.
 			 */
 			__maybe_unused bool success = process_pending_cmd(HCI_CMD_TIMEOUT);
+
+			if (!atomic_test_bit(bt_dev.flags, BT_DEV_OPEN)) {
+				/* The transport was closed while draining: the queue
+				 * has been purged, completing this command with an
+				 * error, so there is nothing left to send.
+				 */
+				break;
+			}
 
 			BT_ASSERT_MSG(success, "command opcode 0x%04x timeout", opcode);
 		} while (buf != cmd);
@@ -4588,7 +4642,7 @@ static void hci_event_prio(struct net_buf *buf)
  */
 static bool rx_teardown_active(void)
 {
-	return atomic_test_bit(bt_dev.flags, BT_DEV_DISABLE) &&
+	return atomic_test_bit(bt_dev.flags, BT_DEV_DISABLING) &&
 	       !atomic_test_bit(bt_dev.flags, BT_DEV_READY);
 }
 
@@ -4685,15 +4739,34 @@ static int bt_recv(const struct device *dev, struct net_buf *buf)
 	return err;
 }
 
-void bt_finalize_init(void)
+/* Complete the enable transition started by bt_enable(), whatever its
+ * outcome: BT_DEV_ENABLING is cleared in every case, so that bt_enable()
+ * and bt_disable() can be called again, while the stack is marked ready
+ * only when the initialization succeeded. Called once per transition,
+ * either from bt_init() or, when the identity comes from settings, from
+ * the settings commit handler.
+ */
+void bt_finalize_init(int err)
 {
-	atomic_set_bit(bt_dev.flags, BT_DEV_READY);
-
-	if (IS_ENABLED(CONFIG_BT_OBSERVER)) {
-		bt_scan_reset();
+	if (!atomic_test_bit(bt_dev.flags, BT_DEV_ENABLING)) {
+		return;
 	}
 
-	bt_dev_show_info();
+	if (err == 0) {
+		if (IS_ENABLED(CONFIG_BT_OBSERVER)) {
+			bt_scan_reset();
+		}
+
+		bt_dev_show_info();
+
+		/* Publish BT_DEV_READY before clearing BT_DEV_ENABLING, so that
+		 * bt_disable() always finds the stack either still enabling or
+		 * ready, never in between.
+		 */
+		atomic_set_bit(bt_dev.flags, BT_DEV_READY);
+	}
+
+	atomic_clear_bit(bt_dev.flags, BT_DEV_ENABLING);
 }
 
 static int bt_init(void)
@@ -4702,20 +4775,20 @@ static int bt_init(void)
 
 	err = hci_init();
 	if (err) {
-		return err;
+		goto done;
 	}
 
 	if (IS_ENABLED(CONFIG_BT_CONN)) {
 		err = bt_conn_init();
 		if (err) {
-			return err;
+			goto done;
 		}
 	}
 
 	if (IS_ENABLED(CONFIG_BT_ISO)) {
 		err = bt_conn_iso_init();
 		if (err) {
-			return err;
+			goto done;
 		}
 	}
 
@@ -4728,8 +4801,9 @@ static int bt_init(void)
 		atomic_set_bit(bt_dev.flags, BT_DEV_PRESET_ID);
 	}
 
-	bt_finalize_init();
-	return 0;
+done:
+	bt_finalize_init(err);
+	return err;
 }
 
 static void init_work(struct k_work *work)
@@ -4817,17 +4891,26 @@ int bt_enable(bt_ready_cb_t cb)
 		return -ENODEV;
 	}
 
+	if (atomic_test_and_set_bit(bt_dev.flags, BT_DEV_ENABLING)) {
+		return -EALREADY;
+	}
+
+	if (atomic_test_bit(bt_dev.flags, BT_DEV_DISABLING)) {
+		err = -EAGAIN;
+		goto failed;
+	}
+
 	if (!device_is_ready(bt_dev.hci)) {
 		LOG_ERR("HCI driver is not ready");
-		return -ENODEV;
+		err = -ENODEV;
+		goto failed;
 	}
 
 	bt_monitor_new_index(BT_MONITOR_TYPE_PRIMARY, BT_HCI_BUS, BT_ADDR_ANY, BT_HCI_NAME);
 
-	atomic_clear_bit(bt_dev.flags, BT_DEV_DISABLE);
-
-	if (atomic_test_and_set_bit(bt_dev.flags, BT_DEV_ENABLE)) {
-		return -EALREADY;
+	if (atomic_test_bit(bt_dev.flags, BT_DEV_OPEN)) {
+		err = -EALREADY;
+		goto failed;
 	}
 
 	/* Keep the queue alive across enable/disable cycles because delayable
@@ -4838,12 +4921,14 @@ int bt_enable(bt_ready_cb_t cb)
 	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
 		err = bt_settings_init();
 		if (err) {
-			return err;
+			goto failed;
 		}
 	} else if (IS_ENABLED(CONFIG_BT_DEVICE_NAME_DYNAMIC)) {
 		err = bt_set_name(CONFIG_BT_DEVICE_NAME);
 		if (err) {
 			LOG_WRN("Failed to set device name (%d)", err);
+			/* Not a critical error, so continue with initialization. */
+			err = 0;
 		}
 	}
 
@@ -4863,8 +4948,10 @@ int bt_enable(bt_ready_cb_t cb)
 	err = bt_hci_open(bt_dev.hci, bt_recv);                 // @see h4_open
 	if (err) {
 		LOG_ERR("HCI driver open failed (%d)", err);
-		return err;
+		goto failed;
 	}
+
+	atomic_set_bit(bt_dev.flags, BT_DEV_OPEN);
 
 	bt_monitor_send(BT_MONITOR_OPEN_INDEX, NULL, 0);
 
@@ -4874,29 +4961,37 @@ int bt_enable(bt_ready_cb_t cb)
 
 	k_work_submit(&bt_dev.init);
 	return 0;
+
+failed:
+	atomic_clear_bit(bt_dev.flags, BT_DEV_ENABLING);
+	return err;
 }
 
 int bt_disable(void)
 {
 	struct net_buf *buf;
+	bool was_ready;
 	int err;
 
-	/* When bt_enable() was called with a ready callback, bt_init() runs
-	 * asynchronously in the init_work item. If bt_disable() is called
-	 * before init has finished, reject it so that bt_init() can complete
-	 * without racing against HCI_Reset. The caller should retry once
-	 * bt_enable() has signalled its ready callback.
-	 */
-	if (k_work_busy_get(&bt_dev.init) != 0) {
-		return -EAGAIN;
-	}
-
-	if (atomic_test_and_set_bit(bt_dev.flags, BT_DEV_DISABLE)) {
+	if (atomic_test_and_set_bit(bt_dev.flags, BT_DEV_DISABLING)) {
 		return -EALREADY;
 	}
 
-	/* Clear BT_DEV_READY before disabling HCI link */
-	atomic_clear_bit(bt_dev.flags, BT_DEV_READY);
+	if (atomic_test_bit(bt_dev.flags, BT_DEV_ENABLING)) {
+		atomic_clear_bit(bt_dev.flags, BT_DEV_DISABLING);
+		return -EAGAIN;
+	}
+
+	if (!atomic_test_bit(bt_dev.flags, BT_DEV_OPEN)) {
+		atomic_clear_bit(bt_dev.flags, BT_DEV_DISABLING);
+		return -EALREADY;
+	}
+
+	/* Clear BT_DEV_READY before disabling HCI link. It is not set if
+	 * bt_enable() failed after opening the transport, in which case a
+	 * failed disable must not set it either.
+	 */
+	was_ready = atomic_test_and_clear_bit(bt_dev.flags, BT_DEV_READY);
 
 #if defined(CONFIG_BT_BROADCASTER)
 	bt_adv_reset_adv_pool();
@@ -4909,18 +5004,6 @@ int bt_disable(void)
 #if defined(CONFIG_BT_PER_ADV_SYNC)
 	bt_periodic_sync_disable();
 #endif /* CONFIG_BT_PER_ADV_SYNC */
-
-	if (IS_ENABLED(CONFIG_BT_ISO)) {
-		bt_iso_reset();
-	}
-
-#if defined(CONFIG_BT_CONN)
-	if (IS_ENABLED(CONFIG_BT_SMP)) {
-		bt_pub_key_hci_disrupted();
-	}
-	bt_conn_cleanup_all();
-	disconnected_handles_reset();
-#endif /* CONFIG_BT_CONN */
 
 	/* Stop low-priority RX processing before resetting and closing the
 	 * transport: new packets are no longer queued (see
@@ -4951,25 +5034,49 @@ int bt_disable(void)
 		err = bt_hci_cmd_send_sync(BT_HCI_OP_RESET, NULL, NULL);
 		if (err) {
 			LOG_ERR("Failed to reset BLE controller");
+			if (was_ready) {
+				atomic_set_bit(bt_dev.flags, BT_DEV_READY);
+			}
+			atomic_clear_bit(bt_dev.flags, BT_DEV_DISABLING);
 			return err;
 		}
 
 		hci_reset_complete();
 	}
 
-	err = bt_hci_close(bt_dev.hci);
-	if (err == -ENOSYS) {
-		atomic_clear_bit(bt_dev.flags, BT_DEV_DISABLE);
-		atomic_set_bit(bt_dev.flags, BT_DEV_READY);
-		return -ENOTSUP;
+	/* Tear down the connections only after the controller has been reset:
+	 * until then it still owns the packets in flight and reports their
+	 * completion, which must find the TX bookkeeping intact. What is left
+	 * afterwards is completed by the host with an error. Neither the ISO
+	 * nor the connection cleanup sends HCI commands.
+	 */
+	if (IS_ENABLED(CONFIG_BT_ISO)) {
+		bt_iso_reset();
 	}
 
+#if defined(CONFIG_BT_CONN)
+	if (IS_ENABLED(CONFIG_BT_SMP)) {
+		bt_pub_key_hci_disrupted();
+	}
+	bt_conn_cleanup_all();
+	disconnected_handles_reset();
+#endif /* CONFIG_BT_CONN */
+
+	/* Mark the transport closed before purging the command queue: a
+	 * command queued after this point is taken back by its sender (see
+	 * bt_hci_cmd_send()), so nothing is left behind for the next enable.
+	 */
+	atomic_clear_bit(bt_dev.flags, BT_DEV_OPEN);
+	hci_cmd_queue_purge();
+
+	err = bt_hci_close(bt_dev.hci);
 	if (err) {
-		LOG_ERR("HCI driver close failed (%d)", err);
-
-		/* Re-enable BT_DEV_READY to avoid inconsistent stack state */
-		atomic_set_bit(bt_dev.flags, BT_DEV_READY);
-
+		/* Re-enable state bits to avoid inconsistent stack state */
+		atomic_set_bit(bt_dev.flags, BT_DEV_OPEN);
+		if (was_ready) {
+			atomic_set_bit(bt_dev.flags, BT_DEV_READY);
+		}
+		atomic_clear_bit(bt_dev.flags, BT_DEV_DISABLING);
 		return err;
 	}
 
@@ -4992,10 +5099,7 @@ int bt_disable(void)
 
 	bt_monitor_send(BT_MONITOR_CLOSE_INDEX, NULL, 0);
 
-	/* Clear BT_DEV_ENABLE here to prevent early bt_enable() calls, before disable is
-	 * completed.
-	 */
-	atomic_clear_bit(bt_dev.flags, BT_DEV_ENABLE);
+	atomic_clear_bit(bt_dev.flags, BT_DEV_DISABLING);
 
 	return 0;
 }
@@ -5282,6 +5386,11 @@ int bt_configure_data_path(uint8_t dir, uint8_t id, uint8_t vs_config_len,
 /* Return `true` if a command was processed/sent */
 static bool process_pending_cmd(k_timeout_t timeout)
 {
+	if (!atomic_test_bit(bt_dev.flags, BT_DEV_OPEN)) {
+		hci_cmd_queue_purge();
+		return false;
+	}
+
 	if (!k_fifo_is_empty(&bt_dev.cmd_tx_queue)) {
 		if (k_sem_take(&bt_dev.ncmd_sem, timeout) == 0) {
 			hci_core_send_cmd();

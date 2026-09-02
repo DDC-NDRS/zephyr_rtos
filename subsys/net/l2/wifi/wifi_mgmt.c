@@ -192,6 +192,9 @@ char const* wifi_band_txt(enum wifi_frequency_bands band) {
         case WIFI_FREQ_BAND_6_GHZ :
             return "6GHz";
 
+        case WIFI_FREQ_BAND_SUB_1_GHZ :
+            return "Sub-1GHz";
+
         case WIFI_FREQ_BAND_UNKNOWN :
         default :
             return "UNKNOWN";
@@ -208,6 +211,18 @@ const char* wifi_bandwidth_txt(enum wifi_frequency_bandwidths bandwidth) {
 
         case WIFI_FREQ_BANDWIDTH_80MHZ :
             return "80 MHz";
+
+        case WIFI_FREQ_BANDWIDTH_1MHZ :
+            return "1 MHz";
+
+        case WIFI_FREQ_BANDWIDTH_2MHZ :
+            return "2 MHz";
+
+        case WIFI_FREQ_BANDWIDTH_4MHZ :
+            return "4 MHz";
+
+        case WIFI_FREQ_BANDWIDTH_8MHZ :
+            return "8 MHz";
 
         case WIFI_FREQ_BANDWIDTH_UNKNOWN :
         default :
