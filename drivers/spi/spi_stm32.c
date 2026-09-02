@@ -574,6 +574,12 @@ static void spi_stm32_dma_rx_done(const struct device* dev, const struct spi_con
         spi_context_update_tx(ctx, dfs, data->tx_len);
         spi_context_update_rx(ctx, dfs, data->rx_len);
     }
+    else if (transfer_dir == STM32_SPI_HALF_DUPLEX_TX) {
+        spi_context_update_tx(ctx, dfs, data->tx_len);
+    }
+    else {
+        spi_context_update_rx(ctx, dfs, data->rx_len);
+    }
     #endif /* !CONFIG_SPI_RTIO */
 
     data->tx_len = data->rx_len = 0U;
