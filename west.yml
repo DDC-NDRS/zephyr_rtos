@@ -215,7 +215,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: 0c7f95512b98315dca45f08023cc4b37edc9ad98
+      revision: f2350cbae98379c71354611f245855507395b09e
       path: modules/hal/nxp
       groups:
         - hal
@@ -321,7 +321,7 @@ manifest:
       revision: a8ddc544043e72807cf7db532478e1dda734ae7c
       path: modules/lib/lora-basics-modem
     - name: loramac-node
-      revision: 88deb45109317473ac5706e97a6b8bbeb524aab1
+      revision: 220328016723d7138374c6da2e8626f1847cc7cb
       path: modules/lib/loramac-node
     - name: lvgl
       revision: d1fe35d350a1503db2ec7fd4dfff8e0cc26eea7e

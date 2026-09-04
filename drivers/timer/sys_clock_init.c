@@ -19,7 +19,8 @@
 /* Weak-linked noop defaults for optional driver interfaces*/
 #if !defined(CONFIG_CORTEX_M_SYSTICK) /* #CUSTOM@NDRS */
 void __weak sys_clock_set_timeout(uint32_t ticks, bool idle) {
-	/* pass */
+	ARG_UNUSED(ticks);
+	ARG_UNUSED(idle);
 }
 
 void __weak sys_clock_idle_exit(void) {
