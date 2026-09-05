@@ -415,6 +415,7 @@ New APIs and options
 
   * Audio
 
+    * :c:func:`bt_aics_client_free_instance`
     * :c:func:`bt_ascs_register`
     * :c:func:`bt_ascs_unregister`
     * :c:func:`bt_bap_unicast_client_qos_from_group`
@@ -429,6 +430,7 @@ New APIs and options
     * :c:member:`bt_bap_unicast_group_info.c_to_p_ft`
     * :c:member:`bt_bap_unicast_group_info.p_to_c_ft`
     * :c:member:`bt_bap_unicast_group_info.iso_interval`
+    * :c:func:`bt_vocs_client_free_instance`
 
   * Host
 
@@ -586,6 +588,7 @@ New APIs and options
     Memberships still held when the socket is closed are dropped automatically,
     and :kconfig:option:`CONFIG_NET_SOCKETS_PACKET_MCAST_MEMBERSHIP_COUNT` sets
     how many memberships can be active at the same time.
+  * :kconfig:option:`CONFIG_PTP_NETWORK_MODE_HYBRID`
 
 * Power Management
 
@@ -1483,6 +1486,12 @@ New Drivers
 
 * Networking
 
+  * gPTP
+
+    * :kconfig:option:`CONFIG_NET_GPTP_STATIC_TIME_RECEIVER` operates the node as a
+      statically configured time receiver, so it can synchronize through IEEE 802.1AS
+      automotive profile bridges that transmit no Announce messages.
+
   * :dtcompatible:`st,stm32wba-radio` (:github:`110546`)
 
 * :abbr:`OPAMP (Operational Amplifier)`
@@ -1604,6 +1613,7 @@ New Drivers
   * :dtcompatible:`microchip,pac194x` (:github:`105902`)
   * :dtcompatible:`nordic,nrf-vbat` (:github:`106102`)
   * :dtcompatible:`nxp,mcux-eqdc` (:github:`111927`)
+  * :dtcompatible:`plantower,pmsa003i` (:github:`113377`)
   * :dtcompatible:`raspberrypi,bcm283x-vc-thermal` (:github:`110192`)
   * :dtcompatible:`realtek,bee-aon-qdec` (:github:`105129`)
   * :dtcompatible:`realtek,bee-basic-qdec` (:github:`105129`)

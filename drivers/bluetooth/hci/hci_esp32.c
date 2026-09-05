@@ -30,7 +30,7 @@ extern char* ble_controller_get_compile_version(void);
 #define esp32_get_controller_version() ble_controller_get_compile_version()
 #endif
 
-#if defined(CONFIG_ESP32_BT_LE_SLEEP_ENABLE) && defined(CONFIG_ESP32_SOC_PAU_SUPPORTED)
+#if defined(CONFIG_ESP32_BT_LE_SLEEP_ENABLE) && defined(CONFIG_SOC_ESP32_PAU_SUPPORTED)
 extern bool r_ble_lll_sleep_should_skip_light_sleep_check(void);
 #endif
 
@@ -886,7 +886,7 @@ static int bt_esp32_pm_action(const struct device* dev,
 
         case PM_DEVICE_ACTION_SUSPEND :
             #if defined(CONFIG_ESP32_BT_LE_SLEEP_ENABLE) && \
-                defined(CONFIG_ESP32_SOC_PAU_SUPPORTED)
+                defined(CONFIG_SOC_ESP32_PAU_SUPPORTED)
             if (r_ble_lll_sleep_should_skip_light_sleep_check()) {
                 return (-EBUSY);
             }

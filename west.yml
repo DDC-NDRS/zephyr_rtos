@@ -281,7 +281,7 @@ manifest:
       groups:
         - hal
     - name: hal_wch
-      revision: 1713a445d44278e902a00e0fee3a111d7bde0d60
+      revision: fbfabfc590e86b74af873bd26d3b4433a0ffb9e9
       path: modules/hal/wch
       groups:
         - hal
@@ -297,7 +297,7 @@ manifest:
         - hal
     - name: hostap
       path: modules/lib/hostap
-      revision: d467a115b8fc20b8b7120937cb1d445dacebc6a1
+      revision: 4f141f443d66cfa06269edc1bcf213e86136d0e6
     - name: liblc3
       revision: 48bbd3eacd36e99a57317a0a4867002e0b09e183
       path: modules/lib/liblc3
@@ -405,7 +405,7 @@ manifest:
       groups:
         - tee
     - name: trusted-firmware-m
-      revision: e0b7b16a58d8f54a5833bd91f7227cf08742c8f3
+      revision: c821782bcf12b01807359a51de76066317cc616b
       path: modules/tee/tf-m/trusted-firmware-m
       groups:
         - tee

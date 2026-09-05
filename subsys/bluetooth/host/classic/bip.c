@@ -579,7 +579,7 @@ struct bip_function {
 	bool op_get;
 	uint8_t func_bit;
 	uint32_t supported_features;
-	uint32_t required_appl_param_tag_id;
+	uint32_t required_ap_tag_id;
 	struct bip_required_hdr hdr;
 	bt_bip_server_cb_t (*get_server_cb)(struct bt_bip_server *server);
 	bt_bip_client_cb_t (*get_client_cb)(struct bt_bip_client *client);
@@ -687,7 +687,7 @@ struct bip_function {
 		BT_OBEX_HEADER_ID_APP_PARAM
 #define REMOTE_DISPLAY_AP AP_REMOTE_DISPLAY
 
-#define DELETE_IMAGE_FUNC_BIT      BT_BIP_SUPP_FUNC_REMOTE_DISPLAY
+#define DELETE_IMAGE_FUNC_BIT      BT_BIP_SUPP_FUNC_DELETE_IMAGE
 #define DELETE_IMAGE_SUPPORT_FEATS IMAGE_PULL | ARCHIVED_OBJ
 #define DELETE_IMAGE_REQUIRED_HDR                                                                  \
 	BT_OBEX_HEADER_ID_CONN_ID, BT_OBEX_HEADER_ID_TYPE, BT_BIP_HEADER_ID_IMG_HANDLE
@@ -935,6 +935,19 @@ static bool has_required_hdrs(struct net_buf *buf, const struct bip_required_hdr
 	return true;
 }
 
+static bool has_required_ap_tag_id(struct net_buf *buf, uint32_t tag_mask)
+{
+	while (tag_mask != 0) {
+		uint8_t id = __builtin_ctz(tag_mask);
+
+		if (!bt_obex_has_app_param(buf, id)) {
+			return false;
+		}
+		tag_mask &= ~(1U << id);
+	}
+	return true;
+}
+
 static enum bt_obex_rsp_code bip_server_get_req_cb(struct bt_bip_server *server,
 						   struct net_buf *buf, bool is_get,
 						   bt_bip_server_cb_t *cb)
@@ -976,7 +989,9 @@ static enum bt_obex_rsp_code bip_server_get_req_cb(struct bt_bip_server *server,
 			continue;
 		}
 
-		/* Application parameter tag id is not checked. */
+		if (!has_required_ap_tag_id(buf, bip_functions[i].required_ap_tag_id)) {
+			continue;
+		}
 
 		if (bip_functions[i].get_server_cb == NULL) {
 			continue;
@@ -1789,7 +1804,9 @@ static int bip_client_get_req_cb(struct bt_bip_client *client, const char *type,
 			continue;
 		}
 
-		/* Application parameter tag id is not checked. */
+		if (!has_required_ap_tag_id(buf, bip_functions[i].required_ap_tag_id)) {
+			continue;
+		}
 
 		if (bip_functions[i].get_client_cb == NULL) {
 			continue;
