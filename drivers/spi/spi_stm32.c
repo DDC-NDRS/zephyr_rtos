@@ -378,8 +378,8 @@ static int spi_stm32_dma_tx_load(const struct device* dev, uint8_t const* buf, s
 
     /* tx direction has memory as source and periph as dest. */
     if ((buf == NULL) || (len == 0)) {
-        /* if tx buff is null, then sends NOP on the line. */
-        dummy_rx_tx_buffer = data->tx_nop;
+        /* if tx buff is null, then shift out the overrun character. */
+        dummy_rx_tx_buffer = data->orc;
         #if SPI_STM32_MANUAL_CACHE_COHERENCY_REQUIRED
         sys_cache_data_flush_range((void*)&dummy_rx_tx_buffer, sizeof(uint32_t));
         #endif /* SPI_STM32_MANUAL_CACHE_COHERENCY_REQUIRED */
@@ -587,14 +587,11 @@ static void spi_stm32_dma_rx_done(const struct device* dev, const struct spi_con
 }
 #endif /* CONFIG_SPI_STM32_DMA */
 
-/* Value to shift out when no application data needs transmitting. */
-#define SPI_STM32_TX_NOP 0x00
-
 static size_t spi_stm32_send_next_frame(SPI_TypeDef* spi, struct spi_stm32_data* data,
                                         size_t fifo_space) {
     struct spi_context* ctx = &data->ctx;
     size_t const dfs = bits2bytes(ctx->config->operation);
-    uint32_t tx_frame = data->tx_nop;
+    uint32_t tx_frame = data->orc;
     size_t len;
 
     if (DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) &&
@@ -2748,9 +2745,9 @@ static int spi_stm32_init(const struct device* dev) {
     }
 
     /* For easier access during operation,
-     * transfer the `tx_nop` setting to runtime data structure.
+     * cache the overrun character in the runtime data structure.
      */
-    data->tx_nop = cfg->tx_nop;
+    data->orc = cfg->orc;
 
     #ifdef CONFIG_SPI_STM32_INTERRUPT
     cfg->irq_config(dev);
@@ -2875,9 +2872,10 @@ static int spi_stm32_init(const struct device* dev) {
                                                                 \
     static struct spi_stm32_config DT_CONST spi_stm32_cfg_##id = { \
         .spi      = (SPI_TypeDef*)DT_INST_REG_ADDR(id),         \
+        .pcfg     = PINCTRL_DT_INST_DEV_CONFIG_GET(id),         \
         .pclken   = pclken_##id,                                \
         .pclk_len = DT_INST_NUM_CLOCKS(id),                     \
-        .pcfg     = PINCTRL_DT_INST_DEV_CONFIG_GET(id),         \
+        .orc      = DT_INST_PROP_OR(id, overrun_character, 0),  \
         .datawidth = CONCAT(STM32_SPI_DATA_WIDTH_,              \
             DT_INST_STRING_UPPER_TOKEN(id, st_spi_data_width)), \
         .ioswp    = DT_INST_PROP(id, ioswp),                    \

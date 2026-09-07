@@ -2403,8 +2403,8 @@ static inline struct net_if* net_if_ipv6_select_src_iface(
 struct net_if* net_if_ipv6_select_src_iface_addr(const struct net_in6_addr* dst,
                                                  const struct net_in6_addr** src_addr);
 #else
-static inline struct net_if *net_if_ipv6_select_src_iface_addr(
-    const struct in6_addr *dst, const struct in6_addr **src_addr) {
+static inline struct net_if* net_if_ipv6_select_src_iface_addr(
+    const struct net_in6_addr* dst, const struct net_in6_addr** src_addr) {
     ARG_UNUSED(dst);
     ARG_UNUSED(src_addr);
 

@@ -22,9 +22,9 @@ typedef void (*irq_config_func_t)(const struct device* port);
 struct spi_stm32_config {
     SPI_TypeDef* spi;
     const struct pinctrl_dev_config* pcfg;
-    uint32_t tx_nop;                        /* 4-bytes expansion of overrun character (orc) */
     const struct stm32_pclken* pclken;
     size_t pclk_len;
+    uint32_t orc;                           /* Overrun character (ORC): word shifted out when TX has no data */
     int datawidth;
     int fifo_byte_threshold;                /* Threshold value (in bytes) */
 
@@ -81,7 +81,7 @@ struct spi_stm32_data {
 
     HAL_SPI_StateTypeDef State;
     uint32_t ErrorCode;
-    uint32_t tx_nop;                        /* 4-bytes expansion of overrun character (orc) */
+    uint32_t orc;                           /* Overrun character (ORC): word shifted out when TX has no data */
 
     #ifdef CONFIG_SPI_STM32_DMA
     struct k_sem status_sem;
