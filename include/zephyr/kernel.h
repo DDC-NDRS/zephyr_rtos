@@ -2627,9 +2627,9 @@ __syscall void* k_queue_peek_tail(struct k_queue* queue);
  *
  * A k_futex is a lightweight mutual exclusion primitive designed
  * to minimize kernel involvement. Uncontended operation relies
- * only on atomic access to shared memory. k_futex are tracked as
- * kernel objects and can live in user memory so that any access
- * bypasses the kernel object permission management mechanism.
+ * only on atomic access to shared memory. k_futex live in user
+ * memory so that any address can be used as long as the thread
+ * has access to the underlying memory.
  */
 struct k_futex {
     /**
@@ -2639,37 +2639,6 @@ struct k_futex {
      */
     atomic_t val;
 };
-
-/**
- * @brief futex kernel data structure
- *
- * z_futex_data are the helper data structure for k_futex to complete
- * futex contended operation on kernel side, structure z_futex_data
- * of every futex object is invisible in user mode.
- *
- * All the members are internal and should not be accessed directly.
- */
-struct z_futex_data {
-/**
- * @cond INTERNAL_HIDDEN
- */
-    _wait_q_t wait_q;
-    struct k_spinlock lock;
-/**
- * INTERNAL_HIDDEN @endcond
- */
-};
-
-/**
- * @cond INTERNAL_HIDDEN
- */
-#define Z_FUTEX_DATA_INITIALIZER(obj) \
-    { \
-    .wait_q = Z_WAIT_Q_INIT(&obj.wait_q) \
-    }
-/**
- * INTERNAL_HIDDEN @endcond
- */
 
 /**
  * @defgroup futex_apis FUTEX APIs
@@ -2690,7 +2659,6 @@ struct z_futex_data {
  *                K_NO_WAIT or K_FOREVER.
  * @retval -EACCES Caller does not have write access to futex address.
  * @retval -EAGAIN If the futex value did not match the expected parameter.
- * @retval -EINVAL Futex parameter address not recognized by the kernel.
  * @retval -ETIMEDOUT Thread woke up due to timeout and not a futex wakeup.
  * @retval 0 if the caller went to sleep and was woken up. The caller
  *           should check the futex's value on wakeup to determine if it needs
@@ -2710,7 +2678,6 @@ __syscall int k_futex_wait(struct k_futex* futex, int expected,
  * @param wake_all If true, wake up all pending threads; If false,
  *                 wakeup the highest priority thread.
  * @retval -EACCES Caller does not have access to the futex address.
- * @retval -EINVAL Futex parameter address not recognized by the kernel.
  * @retval >=0 Number of threads that were woken up.
  */
 __syscall int k_futex_wake(struct k_futex* futex, bool wake_all);
@@ -3933,6 +3900,9 @@ __syscall void k_sem_give(struct k_sem* sem);
  * This routine sets the count of @a sem to zero.
  * Any outstanding semaphore takes will be aborted
  * with -EAGAIN.
+ *
+ * @note A reset does not wake semaphore poll waiters. They remain pending until the semaphore
+ *       becomes available or the poll operation times out.
  *
  * @param sem Address of the semaphore.
  */

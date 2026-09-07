@@ -1013,7 +1013,7 @@ static int tcp_conn_close(struct tcp* conn, int status)
         }
 
         conn->in_connect = false;
-        k_sem_reset(&conn->connect_sem);
+        k_sem_give(&conn->connect_sem);
     }
     else if (conn->context->recv_cb) {
         conn->context->recv_cb(conn->context, NULL, NULL, NULL,
@@ -3982,7 +3982,7 @@ int net_tcp_put(struct net_context* context, bool force_close) {
     }
     else if (conn->in_connect && (conn->state != TCP_CLOSED) && (conn->state != TCP_UNUSED)) {
         conn->in_connect = false;
-        k_sem_reset(&conn->connect_sem);
+        k_sem_give(&conn->connect_sem);
         tcp_conn_close(conn, -ECONNABORTED);
     }
 
@@ -4320,8 +4320,10 @@ int net_tcp_connect(struct net_context* context,
             ret = -EINPROGRESS;
             goto out;
         }
-        else if ((k_sem_take(&conn->connect_sem, timeout) != 0) &&
-                 (conn->state != TCP_ESTABLISHED)) {
+
+        (void) k_sem_take(&conn->connect_sem, timeout);
+
+        if (conn->state != TCP_ESTABLISHED) {
             if (conn->in_connect) {
                 conn->in_connect = false;
                 tcp_conn_close(conn, -ETIMEDOUT);
@@ -4335,6 +4337,7 @@ int net_tcp_connect(struct net_context* context,
             }
             goto out;
         }
+
         conn->in_connect = false;
     }
 
@@ -5133,14 +5136,14 @@ void net_tcp_init(void) {
 
     #if defined(CONFIG_NET_TEST_PROTOCOL)
     /* Register inputs for TTCN-3 based TCP sanity check */
-	test_cb_register(NET_AF_INET,  NET_SOCK_STREAM, NET_IPPROTO_TCP,
-			 4242, 4242, tcp_input);
-	test_cb_register(NET_AF_INET6, NET_SOCK_STREAM, NET_IPPROTO_TCP,
-			 4242, 4242, tcp_input);
-	test_cb_register(NET_AF_INET,  NET_SOCK_DGRAM, NET_IPPROTO_UDP,
-			 4242, 4242, tp_input);
-	test_cb_register(NET_AF_INET6, NET_SOCK_DGRAM, NET_IPPROTO_UDP,
-			 4242, 4242, tp_input);
+    test_cb_register(NET_AF_INET,  NET_SOCK_STREAM, NET_IPPROTO_TCP,
+                     4242, 4242, tcp_input);
+    test_cb_register(NET_AF_INET6, NET_SOCK_STREAM, NET_IPPROTO_TCP,
+                     4242, 4242, tcp_input);
+    test_cb_register(NET_AF_INET,  NET_SOCK_DGRAM, NET_IPPROTO_UDP,
+                     4242, 4242, tp_input);
+    test_cb_register(NET_AF_INET6, NET_SOCK_DGRAM, NET_IPPROTO_UDP,
+                     4242, 4242, tp_input);
 
     tcp_recv_cb = tp_tcp_recv_cb;
     #endif

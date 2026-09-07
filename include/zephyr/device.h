@@ -4,6 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @file
+ * @brief APIs and macros for the Zephyr device model.
+ * @ingroup device_model
+ */
+
 #ifndef ZEPHYR_INCLUDE_DEVICE_H_
 #define ZEPHYR_INCLUDE_DEVICE_H_
 
@@ -346,6 +352,18 @@ typedef int16_t device_handle_t;
 #define DEVICE_DT_INST_GET(inst) DEVICE_DT_GET(DT_DRV_INST(inst))
 
 /**
+ * @brief Like @ref DEVICE_DT_INST_GET, with a trailing comma.
+ *
+ * This is convenient for use with devicetree iteration macros like
+ * @ref DT_INST_FOREACH_STATUS_OKAY.
+ *
+ * @param inst `DT_DRV_COMPAT` instance number
+ *
+ * @return A pointer to the device object created for that instance, followed by a comma
+ */
+#define DEVICE_DT_INST_GET_COMMA(inst) DEVICE_DT_INST_GET(inst),
+
+/**
  * @brief Get a @ref device reference from a devicetree compatible.
  *
  * If an enabled devicetree node has the given compatible and a device
@@ -569,13 +587,22 @@ struct device {
      * @kconfig{CONFIG_PM_DEVICE} is enabled).
      */
     union {
+        /** Info common to all device PM variants */
         struct pm_device_base* pm_base;
+
+        /** Info for a device using generic PM */
         struct pm_device* pm;
+
+        /** Info for a device using synchronous PM */
         struct pm_device_isr* pm_isr;
     };
     #endif
 
     #if defined(CONFIG_DEVICE_DT_METADATA) || defined(__DOXYGEN__)
+    /**
+     * Devicetree metadata associated with the device (only available if
+     * @kconfig{CONFIG_DEVICE_DT_METADATA} is enabled).
+     */
     const struct device_dt_metadata* dt_meta;
     #endif /* CONFIG_DEVICE_DT_METADATA */
 };
@@ -934,7 +961,7 @@ __syscall bool device_is_ready(const struct device* dev);
  * @param dev pointer to a struct device.
  */
 #define LOG_INST_WRN_DEVICE_NOT_READY(_log_inst, dev) \
-	LOG_INST_WRN(_log_inst, "%s device not ready", (dev) ? (dev)->name : "(null)")
+    LOG_INST_WRN(_log_inst, "%s device not ready", (dev) ? (dev)->name : "(null)")
 
 /**
  * @brief Writes a "device not ready" error message to the log for the logging instance.
@@ -946,7 +973,7 @@ __syscall bool device_is_ready(const struct device* dev);
  * @param dev pointer to a struct device.
  */
 #define LOG_INST_ERR_DEVICE_NOT_READY(_log_inst, dev) \
-	LOG_INST_ERR(_log_inst, "%s device not ready", (dev) ? (dev)->name : "(null)")
+    LOG_INST_ERR(_log_inst, "%s device not ready", (dev) ? (dev)->name : "(null)")
 
 /**
  * @brief Initialize a device.

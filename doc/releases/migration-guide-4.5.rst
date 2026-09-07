@@ -78,6 +78,11 @@ Kernel
 * ``_k_neg_eagain`` has been renamed to ``_errno_neg_egain`` as ``errno`` has been migrated out of
   kernel into ``lib/libc/common``.
 
+* :c:func:`k_sem_reset` no longer wakes poll waiters waiting on the semaphore. Poll waiters
+  remain pending until the semaphore becomes available or the poll operation times out.
+  Applications that rely on reset to wake poll waiters must use an explicit synchronization
+  mechanism instead.
+
 * The ``CONFIG_SMP_BOOT_DELAY`` Kconfig option has been removed. Deferring the start of secondary
   CPUs to run time is now expressed per CPU in the devicetree: add the ``zephyr,deferred-start``
   flag to the corresponding ``cpu`` node under ``/cpus`` (typically in a board overlay) and start
@@ -118,6 +123,11 @@ Kernel
   milliseconds should convert, for instance with
   :c:func:`k_ticks_to_ms_ceil64`.  Out of tree tracing backends defining any of
   the retired hooks must be updated.
+
+* :c:struct:`k_futex` is no longer a kernel object and the corresponding type
+  :c:enumerator:`K_OBJ_FUTEX` has been removed. Any user-accessible memory can
+  be used as futex address. The error -EINVAL can no longer happen on futex
+  operations.
 
 Boards
 ******

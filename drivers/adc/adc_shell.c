@@ -470,30 +470,63 @@ static int cmd_adc_read(const struct shell* sh, size_t argc, char** argv) {
     return (stop ? 0 : retval);
 }
 
+static void adc_shell_print_acq_time(const struct shell* sh, uint16_t acq_time) {
+    char const* unit;
+
+    if (acq_time == ADC_ACQ_TIME_DEFAULT) {
+        shell_print(sh, "Acquisition Time: default");
+        return;
+    }
+
+    if (acq_time == ADC_ACQ_TIME_MAX) {
+        shell_print(sh, "Acquisition Time: max");
+        return;
+    }
+
+    switch (ADC_ACQ_TIME_UNIT(acq_time)) {
+        case ADC_ACQ_TIME_MICROSECONDS :
+            unit = "us";
+            break;
+
+        case ADC_ACQ_TIME_NANOSECONDS :
+            unit = "ns";
+            break;
+
+        case ADC_ACQ_TIME_TICKS :
+            unit = "ticks";
+            break;
+
+        default:
+            shell_print(sh, "Acquisition Time: invalid (%u)", acq_time);
+            return;
+    }
+
+    shell_print(sh, "Acquisition Time: %u %s", (unsigned int)ADC_ACQ_TIME_VALUE(acq_time),
+                unit);
+}
+
 static int cmd_adc_print(const struct shell* sh, size_t argc, char** argv) {
     /* -1 index of ADC label name */
     struct adc_hdl* adc = get_adc(argv[-1]);
 
-    shell_print(sh, "%s:\n"
+    shell_print(sh,
+                "%s:\n"
                 "Gain: %s\n"
-                "Reference: %s\n"
-                "Acquisition Time: %u\n"
+                "Reference: %s",
+                adc->dev->name, chosen_gain, chosen_reference);
+
+    adc_shell_print_acq_time(sh, adc->channel_config.acquisition_time);
+
+    shell_print(sh,
                 "Channel ID: %u\n"
                 "Differential: %u\n"
                 "Resolution: %u",
-                adc->dev->name,
-                chosen_gain,
-                chosen_reference,
-                adc->channel_config.acquisition_time,
-                adc->channel_config.channel_id,
-                adc->channel_config.differential,
+                adc->channel_config.channel_id, adc->channel_config.differential,
                 adc->resolution);
     #if CONFIG_ADC_CONFIGURABLE_INPUTS
-    shell_print(sh, "Input positive: %u",
-                adc->channel_config.input_positive);
+    shell_print(sh, "Input positive: %u", adc->channel_config.input_positive);
     if (adc->channel_config.differential != 0) {
-        shell_print(sh, "Input negative: %u",
-                    adc->channel_config.input_negative);
+        shell_print(sh, "Input negative: %u", adc->channel_config.input_negative);
     }
     #endif
 
