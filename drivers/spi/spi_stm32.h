@@ -274,8 +274,58 @@ static inline void ll_disable_spi(SPI_TypeDef* spi) {
 }
 
 #if !DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) /* #CUSTOM@NDRS */
-/* Provide a dummy implementation for the function that is not available on this SoC */
-static inline void LL_SPI_TransmitData32(SPI_TypeDef* SPIx, uint32_t TxData) {
+/* Provide dummy definitions for the symbols that are not available on this SoC.
+ * Ordered to match their declaration order in stm32h7xx_ll_spi.h.
+ */
+#define LL_SPI_SS_LEVEL_HIGH        (0x1UL << 12)
+#define LL_SPI_SS_LEVEL_LOW         (0x00000000UL)
+
+#define LL_SPI_NSS_POLARITY_LOW     (0x00000000UL)
+#define LL_SPI_NSS_POLARITY_HIGH    (0x1UL << 28)
+
+/* CMSIS register bits (stm32h7xx.h), not part of the LL API */
+#define SPI_CFG2_MIDI_Pos           (4U)
+#define SPI_IFCR_EOTC               (0x1UL << 3)
+#define SPI_IFCR_TXTFC              (0x1UL << 4)
+#define SPI_IFCR_OVRC               (0x1UL << 6)
+
+static inline void LL_SPI_EnableGPIOControl(SPI_TypeDef* SPIx) {
+    /* pass */
+}
+
+static inline void LL_SPI_SetMasterSSIdleness(SPI_TypeDef* SPIx, uint32_t MasterSSIdleness) {
+    /* pass */
+}
+
+static inline void LL_SPI_SetInterDataIdleness(SPI_TypeDef* SPIx, uint32_t MasterInterDataIdleness) {
+    /* pass */
+}
+
+static inline void LL_SPI_SetTransferSize(SPI_TypeDef* SPIx, uint32_t Count) {
+    /* pass */
+}
+
+static inline uint32_t LL_SPI_GetTransferSize(const SPI_TypeDef* SPIx) {
+    return (0);
+}
+
+static inline void LL_SPI_SetInternalSSLevel(SPI_TypeDef* SPIx, uint32_t SSLevel) {
+    /* pass */
+}
+
+static inline void LL_SPI_StartMasterTransfer(SPI_TypeDef *SPIx) {
+    /* pass */
+}
+
+static inline uint32_t LL_SPI_IsActiveMasterTransfer(const SPI_TypeDef* SPIx) {
+  return (1UL);
+}
+
+static inline uint32_t LL_SPI_GetNSSPolarity(const SPI_TypeDef* SPIx) {
+    return (LL_SPI_NSS_POLARITY_LOW);
+}
+
+static inline void LL_SPI_ClearFlag(SPI_TypeDef* SPIx, uint32_t ClearBits) {
     /* pass */
 }
 
@@ -283,7 +333,10 @@ static inline uint32_t LL_SPI_ReceiveData32(SPI_TypeDef* SPIx) {
     return (0);
 }
 
-#endif
+static inline void LL_SPI_TransmitData32(SPI_TypeDef* SPIx, uint32_t TxData) {
+    /* pass */
+}
+#endif /* !DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) */
 
 #if defined(SPI_CFG2_IOSWP)
 static inline void ll_spi_swap_sdo_sdi(SPI_TypeDef* spi) {
