@@ -188,6 +188,18 @@ int modbus_iface_get_by_ctx(struct modbus_context const* ctx);
 void modbus_tx_adu(struct modbus_context* ctx);
 
 /**
+ * @brief Submit received ADU processing to the Modbus work queue.
+ *
+ * Uses the dedicated work queue if CONFIG_MODBUS_WORKQUEUE is enabled,
+ * the system work queue otherwise.
+ *
+ * @param work       Work item to submit
+ *
+ * @retval           Value as returned by k_work_submit_to_queue().
+ */
+int modbus_work_submit(struct k_work *work);
+
+/**
  * @brief Send ADU and wait certain time for response.
  *
  * @param ctx        Modbus interface context

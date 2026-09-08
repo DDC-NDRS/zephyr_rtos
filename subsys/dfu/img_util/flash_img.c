@@ -29,8 +29,10 @@ LOG_MODULE_REGISTER(flash_img, CONFIG_IMG_MANAGER_LOG_LEVEL);
 #if defined(CONFIG_TRUSTED_EXECUTION_NONSECURE) && (CONFIG_TFM_MCUBOOT_IMAGE_NUMBER == 2)
 #define UPLOAD_FLASH_AREA_LABEL     slot1_ns_partition
 #else
-#if PARTITION_EXISTS(slot1_partition) && \
-    PARTITION_IS_RUNNING_APP_PARTITION(slot0_partition)
+#if (PARTITION_EXISTS(slot1_partition) && \
+     (PARTITION_IS_RUNNING_APP_PARTITION(slot0_partition) || \
+      (PARTITION_EXISTS(slot0_ns_partition) && \
+       PARTITION_IS_RUNNING_APP_PARTITION(slot0_ns_partition))))
 #define UPLOAD_FLASH_AREA_LABEL     slot1_partition
 #else
 #define UPLOAD_FLASH_AREA_LABEL     slot0_partition
@@ -122,7 +124,7 @@ int flash_img_buffered_write(struct flash_img_context* ctx, uint8_t const* data,
 
 
     /* if CONFIG_IMG_ERASE_PROGRESSIVELY is enabled the enabled CONFIG_STREAM_FLASH_ERASE
-	 * ensures that stream_flash erases flash progressively.
+     * ensures that stream_flash erases flash progressively.
      */
     rc = stream_flash_buffered_write(&ctx->stream, data, len, flush);
     if (!flush) {

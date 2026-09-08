@@ -243,6 +243,10 @@ Removed APIs and options
     * ``CONFIG_SOC_DCDC_NRF53X_NET``
     * ``CONFIG_SOC_DCDC_NRF53X_HV``
 
+* POSIX
+
+    * ``CONFIG_POSIX_READER_WRITER_LOCKS``
+
 * Random
 
     * ``CONFIG_CTR_DRBG_CSPRNG_GENERATOR``
@@ -289,6 +293,40 @@ Deprecated APIs and options
 
   * The ``zephyr_file_copy()`` CMake function has been deprecated. Use the native
     ``file(COPY_FILE ...)`` CMake command instead.
+
+* Clock control
+
+  * The function :c:func:`z_nrf_clock_control_get_onoff` has been deprecated.
+    See the :ref:`migration guide <migration_4.5>` for details.
+
+  * The macro :c:macro:`CLOCK_CONTROL_NRF_K32SRC_ACCURACY` has been deprecated.
+    See the :ref:`migration guide <migration_4.5>` for details.
+
+  * The macro :c:macro:`CLOCK_CONTROL_NRF_K32SRC` has been deprecated.
+    See the :ref:`migration guide <migration_4.5>` for details.
+
+  * The macro :c:macro:`CLOCK_CONTROL_NRF_SUBSYS_HFAUDIO` has been deprecated.
+    See the :ref:`migration guide <migration_4.5>` for details.
+
+  * The macro :c:macro:`CLOCK_CONTROL_NRF_SUBSYS_HFAUDIO` has been deprecated.
+    See the :ref:`migration guide <migration_4.5>` for details.
+
+  * The macro :c:macro:`CLOCK_CONTROL_NRF_SUBSYS_HF24M` has been deprecated.
+    See the :ref:`migration guide <migration_4.5>` for details.
+
+  * The macro :c:macro:`CLOCK_CONTROL_NRF_SUBSYS_HF24M` has been deprecated.
+    See the :ref:`migration guide <migration_4.5>` for details.
+
+  * The macro :c:macro:`CLOCK_CONTROL_NRF_SUBSYS_HF` has been deprecated.
+    See the :ref:`migration guide <migration_4.5>` for details.
+
+  * The enum :c:enumerator:`clock_control_nrf_type` has been deprecated.
+    See the :ref:`migration guide <migration_4.5>` for details.
+
+  * The Kconfig option :kconfig:option:`CONFIG_CLOCK_CONTROL_NRF` and all dependent kconfigs have
+    been deprecated. See the :ref:`migration guide <migration_4.5>` for details. The Kconfigs are
+    located in the ``drivers/clock_control/Kconfig.nrf`` and  ``modules/hal_nordic/nrfx/Kconfig``
+    files.
 
 * CPU Load
 
@@ -455,6 +493,18 @@ New APIs and options
     * :c:func:`bt_mesh_stat_lpn_timing_get`
     * :c:func:`bt_mesh_stat_lpn_timing_reset`
     * :kconfig:option:`CONFIG_BT_MESH_LPN_OFFER_WAIT_TIMEOUT`
+
+* Clock control
+
+  * :kconfig:option:`CLOCK_CONTROL_NRF_ONOFF`
+  * The following functions are now supported for devices compatible with ``nordic,nrf-clock-hfclk``,
+    ``nordic,nrf-clock-lfclk``, ``nordic,nrf-clock-hfclk192m``, ``nordic,nrf-clock-hfclk24m``,
+    ``nordic,nrf-clock-hfclkaudio``, ``nordic,nrf-clock-xo``, ``nordic,nrf-clock-xo24m``:
+    See the :ref:`migration guide <migration_4.5>` for details.
+    * :c:func:`clock_control_request`
+    * :c:func:`clock_control_request_sync`
+    * :c:func:`clock_control_release`
+    * :c:func:`clock_control_cancel_or_release`
 
 * Crypto
 
@@ -1873,6 +1923,14 @@ Other notable changes
 
   * Removed the ``samples/net/wifi/test_certs/rsa2k`` enterprise test
     certificates (DES-encrypted private keys). Use ``rsa2k_no_des`` instead.
+
+  * The connection result event can now say that the access point rejected the
+    authentication or the association, through the new
+    :c:enumerator:`WIFI_STATUS_CONN_AUTH_REJECT` and
+    :c:enumerator:`WIFI_STATUS_CONN_ASSOC_REJECT` values, and
+    :c:struct:`wifi_status` carries the raw IEEE 802.11 status and reason codes
+    behind the failure. The supplicant fills these in, and the Wi-Fi shell prints
+    them with the connection and disconnection results. (:github:`116704`)
 
   * The transmit power ceiling properties in ``wifi-tx-power-2g.yaml`` and
     ``wifi-tx-power-5g.yaml`` are no longer ``required`` and now carry
