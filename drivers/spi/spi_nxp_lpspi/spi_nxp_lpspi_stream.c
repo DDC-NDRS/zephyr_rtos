@@ -7,7 +7,7 @@
  *
  * Design summary
  * --------------
- * spi_read_stream_async() configures:
+ * spi_read_stream_async_dt() configures:
  *   1. LPSPI in slave mode with TCR.TXMSK=1 (RX-only, no TX output).
  *   2. FCR.RXWATER=0 (DMA request per word).
  *   3. IER.FCIE=1  (interrupt on Frame Complete Flag = CS deassertion).
@@ -15,7 +15,7 @@
  *      DLAST = -(int32_t)ring_buf_size wraps destination automatically.
  *   5. DER.RDDE=1  (RX DMA request enable).
  *
- * On each CS deassertion lpspi_isr() fires FCIE → calls
+ * On each CS deassertion lpspi_isr() fires FCIE -> calls
  * lpspi_stream_isr_fcf_handler() which:
  *   - Records the frame start/length into a pool descriptor (no alloc).
  *   - Posts descriptor to cfg->frame_fifo (k_fifo_put, ISR-safe).
@@ -28,7 +28,7 @@
  * ------------
  *   - Peripheral mode only.
  *   - Fixed frame_size per streaming session.
- *   - ring_buf_size must be a multiple of frame_size, >= 2×frame_size.
+ *   - ring_buf_size must be a multiple of frame_size, >= (2 * frame_size).
  *   - LPSPI DTS node must have "dmas" property with an "rx" entry.
  *   - CONFIG_SPI_NXP_LPSPI_DMA must be enabled (DMA driver wired).
  *   - Concurrent spi_transceive() on the same device is rejected with EBUSY.
@@ -46,23 +46,29 @@ LOG_MODULE_DECLARE(spi_lpspi, CONFIG_SPI_LOG_LEVEL);
  * S32K358_DMA_TCD.h (included transitively via S32K358.h) defines:
  *   IP_TCD_BASE = 0x40210000  — base of the eDMA TCD register region
  * Each TCD channel occupies 0x4000 bytes; TCD_DADDR resides at offset +0x30.
- * These constants are used once, at stream-start, to cache the DADDR register
- * pointer used by the spurious-FCF guard in lpspi_stream_isr_fcf_handler().
  * @see 15.6.2.13 TCD Destination Address (TCD0_DADDR - TCD31_DADDR)
  */
-#define LPSPI_STREAM_TCD_STRIDE     (0x4000U)  /* bytes between adjacent TCD channels  */
-#define LPSPI_STREAM_TCD_DADDR_OFF  (0x030U)   /* offset of DADDR within one TCD channel */
+#define LPSPI_STREAM_TCD_STRIDE     (0x4000U)   /* bytes between adjacent TCD channels  */
+#define LPSPI_STREAM_TCD_DADDR_OFF  (0x030U)    /* offset of DADDR within one TCD channel */
 
-/* -------------------------------------------------------------------------
- * Internal helpers
- * ------------------------------------------------------------------------- */
-static inline LPSPI_Type* lpspi_base(const struct device* dev) {
-    return (LPSPI_Type*)DEVICE_MMIO_NAMED_GET(dev, reg_base);
+static inline LPSPI_Type* lpspi_stream_base(const struct device* dev) {
+    LPSPI_Type* lpspi = (LPSPI_Type*)DEVICE_MMIO_NAMED_GET(dev, reg_base);
+
+    return (lpspi);
 }
 
-static inline volatile uint32_t* lpspi_get_tcd_daddr_reg(uint32_t dma_channel) {
+static inline volatile uint32_t* lpspi_stream_get_tcd_daddr_reg(uint32_t dma_channel) {
     return (volatile uint32_t*)(IP_TCD_BASE +
                                 ((dma_channel * LPSPI_STREAM_TCD_STRIDE) + LPSPI_STREAM_TCD_DADDR_OFF));
+}
+
+/* Resolves the stream data block for a dt-spec, without exposing dev/lpspi_data to
+ * callers that only need read-only access to it (the counter accessors below). */
+static inline struct spi_nxp_stream_data const* lpspi_stream_data_dt(struct spi_dt_spec const* spec) {
+    struct device const* dev = spec->bus;
+    struct lpspi_data const* data = dev->data;
+
+    return (data->stream);
 }
 
 static int lpspi_stream_validate_args(struct spi_nxp_stream_data const* stream,
@@ -74,7 +80,7 @@ static int lpspi_stream_validate_args(struct spi_nxp_stream_data const* stream,
     }
 
     if ((cfg == NULL) ||
-        (cfg->ring_buf == (uintptr_t)NULL)   || (cfg->frame_pool  == NULL) ||
+        (cfg->ring_buf == 0U)     || (cfg->frame_pool  == NULL) ||
         (cfg->frame_fifo == NULL) || (cfg->ring_buf_size == 0U) ||
         (cfg->frame_size == 0U)   || (cfg->frame_pool_count == 0U)) {
         return (-EINVAL);
@@ -103,21 +109,12 @@ static int lpspi_stream_validate_args(struct spi_nxp_stream_data const* stream,
     return (0);
 }
 
-/* -------------------------------------------------------------------------
- * DMA configuration
- * ------------------------------------------------------------------------- */
 /**
  * No-op DMA callback for the streaming RX channel.
  *
- * dma_mcux_edma.c wires nxp_edma_callback unconditionally onto every channel
- * and calls data->dma_callback() after each major loop (INTMAJOR fires when
- * EDMA_PrepareTransfer sets enabledInterruptMask=kEDMA_MajorInterruptEnable).
- * A NULL dma_callback pointer would cause a null-pointer crash on that call.
- *
- * For the streaming path, frame notification is driven entirely by the FCF
- * interrupt — the DMA major-loop interrupt is not needed.  This callback
- * simply absorbs the periodic major-loop interrupt (one per full ring buffer
- * traversal) without taking any action.
+ * dma_mcux_edma.c invokes dma_callback after each major loop. A NULL callback
+ * causes a null pointer dereference. The callback absorbs periodic major-loop
+ * interrupts since frame notification is handled by FCF.
  */
 static void lpspi_stream_dma_callback(const struct device* dma_dev,
                                       void* user_data,
@@ -126,6 +123,7 @@ static void lpspi_stream_dma_callback(const struct device* dma_dev,
     ARG_UNUSED(user_data);
     ARG_UNUSED(channel);
     ARG_UNUSED(status);
+
     /* Intentionally empty: FCF ISR owns frame notification */
 }
 
@@ -153,7 +151,7 @@ static void lpspi_stream_dma_callback(const struct device* dma_dev,
  */
 static int lpspi_stream_dma_configure(struct spi_dt_spec const* spec) {
     struct device const* dev = spec->bus;
-    LPSPI_Type* lpspi = lpspi_base(dev);
+    LPSPI_Type* lpspi = lpspi_stream_base(dev);
     struct lpspi_data* data = dev->data;
     struct spi_nxp_stream_data* stream = data->stream;
     struct spi_stream_config const* cfg = stream->cfg;
@@ -164,7 +162,7 @@ static int lpspi_stream_dma_configure(struct spi_dt_spec const* spec) {
     struct spi_dma_stream* dma_rx = &dma_data->dma_rx;
     struct dma_block_config* blk_cfg = &dma_rx->dma_blk_cfg;
 
-    memset(blk_cfg, 0, sizeof(struct dma_block_config));
+    (void) memset(blk_cfg, 0, sizeof(struct dma_block_config));
     blk_cfg->source_address   = (uintptr_t)&lpspi->RDR;
     blk_cfg->dest_address     = cfg->ring_buf;
     blk_cfg->block_size       = cfg->ring_buf_size;
@@ -205,7 +203,7 @@ static int lpspi_stream_dma_configure(struct spi_dt_spec const* spec) {
          * Channels used for LPSPI streaming (ch4-7) satisfy this constraint.
          * Reading DADDR in the ISR is safe — MMIO register, no locking required.
          */
-        stream->dma_daddr_reg = lpspi_get_tcd_daddr_reg(dma_rx->channel);
+        stream->dma_daddr_reg = lpspi_stream_get_tcd_daddr_reg(dma_rx->channel);
     }
 
     return (rc);
@@ -217,44 +215,29 @@ static int lpspi_stream_dma_configure(struct spi_dt_spec const* spec) {
 /**
  * lpspi_stream_isr_fcf_handler() - Handle Frame Complete interrupt.
  *
- * Runs at interrupt priority.  Must not block, allocate, or call any
- * sleeping Zephyr API.  Execution time is O(1).
+ * Runs at interrupt priority: must not block, allocate, or call a sleeping
+ * Zephyr API. Execution time is bounded by the number of frames coalesced
+ * into this interrupt (normally one).
  *
- * Sequence:
- *   1. Measure how far the DMA has run past write_pos.
- *   2. Spurious-FCF guard: skip if it has not advanced at all.
- *   3. Publish one descriptor per whole frame of that distance:
- *      peek the pool slot, overrun-guard it, then advance and publish.
+ * FCF is a single status bit, so two CS deassertions landing before (or
+ * while) this ISR runs raise it once — one interrupt can cover several
+ * received frames. Publishing a fixed one frame per interrupt would leave
+ * write_pos permanently one frame behind DADDR: no data is lost (neither
+ * guard below trips) but every later FCF then publishes the previous frame,
+ * withholding the newest frame of each burst indefinitely. Measuring the
+ * DMA/write_pos distance instead keeps write_pos locked to the hardware, so
+ * a coalesced interrupt is absorbed rather than latching a permanent lag.
  *
- * Why the distance is measured rather than assumed
- * ------------------------------------------------
- * FCF is a single status bit.  Two CS deassertions that land before this ISR
- * runs (or while it runs) raise it once, so one interrupt can cover several
- * received frames.  Publishing a fixed one frame per interrupt would leave
- * write_pos permanently one frame behind DADDR: no data is lost — neither the
- * spurious nor the overrun guard trips — but from then on every FCF publishes
- * the PREVIOUS frame, and the newest frame of any burst is withheld until the
- * next burst arrives.  Deriving the count from DADDR keeps the pointer locked
- * to the hardware, so a coalesced interrupt is absorbed instead of latching a
- * permanent lag.
+ * Overrun guard: desc->in_fifo is set by this ISR at publish and cleared by
+ * the consumer via spi_stream_frame_release(). (A prior version guarded with
+ * sys_slist_peek_next(&desc->node) != NULL, which is NULL for the tail/sole
+ * fifo entry regardless of link state — blind to the common one-pending-slot
+ * case, and would corrupt the fifo by re-queuing an already-linked node.)
  *
- * Previous overrun guard (removed)
- * ---------------------------------
- * The old guard used sys_slist_peek_next(&desc->node) != NULL.
- * sys_slist_peek_next returns node->next, which is NULL for the tail (or sole)
- * entry in the fifo regardless of whether it is still linked.  That made the
- * guard blind to the most common case — a small pool where one slot is
- * frequently the only pending entry — and would have corrupted the fifo list
- * by calling k_fifo_put on an already-linked node.
- * The atomic in_fifo flag has no such edge case: set by ISR at publish,
- * cleared by consumer via spi_stream_frame_release() after processing.
- *
- * write_pos / desc_pool_head ordering
- * ------------------------------------
- * Both are advanced only inside the publish branch.  On overrun they are left
- * unchanged so the same ring-buffer region is offered again on the next FCF —
- * the DMA will have overwritten it by then, but that is unavoidable without a
- * copy; at least the software pointers stay consistent.
+ * write_pos and desc_pool_head advance only in the publish branch; on
+ * overrun both are left unchanged so the same ring region is re-offered on
+ * the next FCF (the DMA will have overwritten it by then, but that is
+ * unavoidable without a copy).
  */
 void lpspi_stream_isr_fcf_handler(const struct device* dev) {
     struct lpspi_data* data = dev->data;
@@ -289,7 +272,7 @@ void lpspi_stream_isr_fcf_handler(const struct device* dev) {
      */
     n_frames = pending / (uint32_t)cfg->frame_size;
 
-    /* Spurious-FCF guard: CS deasserted without completing a frame. */
+    /* Spurious-FCF guard: CS deasserted without completing a frame */
     if (n_frames == 0U) {
         stream->spurious_count++;
         return;
@@ -304,11 +287,11 @@ void lpspi_stream_isr_fcf_handler(const struct device* dev) {
         uint32_t frame_start = stream->write_pos;
         uint32_t pool_idx    = stream->desc_pool_head % (uint32_t)cfg->frame_pool_count;
         struct spi_stream_frame* desc = &cfg->frame_pool[pool_idx];
+        atomic_val_t in_fifo;
 
-        /* Overrun guard: slot still held by consumer. Leave the pointers alone
-         * so the same region is offered again on the next FCF.
-         */
-        if (atomic_get(&desc->in_fifo) != 0) {
+        /* Overrun guard: slot still held by consumer */
+        in_fifo = atomic_get(&desc->in_fifo);
+        if (in_fifo != 0) {
             stream->overrun_count++;
             break;
         }
@@ -321,17 +304,14 @@ void lpspi_stream_isr_fcf_handler(const struct device* dev) {
         desc->data = cfg->ring_buf + frame_start;
         desc->len  = cfg->frame_size;
 
-        atomic_set(&desc->in_fifo, 1);
+        (void) atomic_set(&desc->in_fifo, 1);
         k_fifo_put(cfg->frame_fifo, desc);
     }
 }
 
-/* -------------------------------------------------------------------------
- * Public API implementation
- * ------------------------------------------------------------------------- */
 int spi_read_stream_async_dt(struct spi_dt_spec const* spec, const struct spi_stream_config* cfg) {
     struct device const* dev = spec->bus;
-    LPSPI_Type* lpspi = lpspi_base(dev);
+    LPSPI_Type* lpspi = lpspi_stream_base(dev);
     struct lpspi_data* data = dev->data;
     struct spi_nxp_stream_data* stream = data->stream;
     struct spi_nxp_dma_data const* dma_data = (struct spi_nxp_dma_data const*)data->driver_data;
@@ -343,7 +323,7 @@ int spi_read_stream_async_dt(struct spi_dt_spec const* spec, const struct spi_st
     }
 
     /* Initialise stream state */
-    stream->cfg            = cfg;
+    stream->cfg             = cfg;
     stream->write_pos       = 0U;
     stream->desc_pool_head  = 0U;
     stream->overrun_count   = 0U;
@@ -354,10 +334,10 @@ int spi_read_stream_async_dt(struct spi_dt_spec const* spec, const struct spi_st
     /* Reset in_fifo for all pool slots - required on restart after stop,
      * where slots may still be marked in-use from the previous session. */
     for (size_t i = 0U; i < cfg->frame_pool_count; i++) {
-        cfg->frame_pool[i].in_fifo = 0;
+        (void) atomic_set(&cfg->frame_pool[i].in_fifo, 0);
     }
 
-    /* Configure LPSPI hardware for slave RX-only streaming */
+    /* Configure LPSPI hardware for peripheral RX-only streaming */
     ret = lpspi_configure(dev, &spec->config);
     if (ret == 0) {
         /* 3-state MISO — slave does not drive output in RX-only stream mode.
@@ -369,7 +349,6 @@ int spi_read_stream_async_dt(struct spi_dt_spec const* spec, const struct spi_st
         /* RXWATER=0: DMA request fires per received word (maximum granularity) */
         lpspi->FCR = LPSPI_FCR_RXWATER(0U);
 
-        /* Configure cyclic DMA channel */
         ret = lpspi_stream_dma_configure(spec);
         if (ret == 0) {
             /* Start DMA — runs continuously; never stopped between frames */
@@ -399,7 +378,7 @@ int spi_read_stream_async_dt(struct spi_dt_spec const* spec, const struct spi_st
 
 int spi_stream_stop_dt(struct spi_dt_spec const* spec) {
     struct device const* dev = spec->bus;
-    LPSPI_Type* lpspi = lpspi_base(dev);
+    LPSPI_Type* lpspi;
     struct lpspi_data* data = dev->data;
     struct spi_nxp_stream_data* stream = data->stream;
     struct spi_nxp_dma_data const* dma_data;
@@ -409,11 +388,13 @@ int spi_stream_stop_dt(struct spi_dt_spec const* spec) {
         return (-ENODEV);
     }
 
+    lpspi = lpspi_stream_base(dev);
+
     /* Disable interrupt and DMA request first to avoid stray callbacks */
     lpspi->IER &= ~LPSPI_IER_FCIE_MASK;
     lpspi->DER &= ~LPSPI_DER_RDDE_MASK;
 
-    /* Clear TXMSK — it does not auto-clear in Peripheral mode */
+    /* Clear TXMSK — does not auto-clear in Peripheral mode */
     lpspi->TCR &= ~LPSPI_TCR_TXMSK_MASK;
 
     dma_data = (struct spi_nxp_dma_data const*)data->driver_data;
@@ -428,43 +409,41 @@ int spi_stream_stop_dt(struct spi_dt_spec const* spec) {
 
     LOG_INF("stream: stopped on %s (overruns=%u)",
             dev->name, stream->overrun_count);
+
     return (0);
 }
 
 uint32_t spi_stream_overrun_count_dt(struct spi_dt_spec const* spec) {
-    struct device const* dev = spec->bus;
-    struct lpspi_data const* data = dev->data;
-    struct spi_nxp_stream_data const* stream = data->stream;
+    struct spi_nxp_stream_data const* stream = lpspi_stream_data_dt(spec);
+    uint32_t count = 0U;
 
-    if (stream == NULL) {
-        return (0U);
+    if (stream != NULL) {
+        count = stream->overrun_count;
     }
 
-    return (stream->overrun_count);
+    return (count);
 }
 
 uint32_t spi_stream_spurious_count_dt(struct spi_dt_spec const* spec) {
-    struct device const* dev = spec->bus;
-    struct lpspi_data const* data = dev->data;
-    struct spi_nxp_stream_data const* stream = data->stream;
+    struct spi_nxp_stream_data const* stream = lpspi_stream_data_dt(spec);
+    uint32_t count = 0U;
 
-    if (stream == NULL) {
-        return (0U);
+    if (stream != NULL) {
+        count = stream->spurious_count;
     }
 
-    return (stream->spurious_count);
+    return (count);
 }
 
 uint32_t spi_stream_coalesced_count_dt(struct spi_dt_spec const* spec) {
-    struct device const* dev = spec->bus;
-    struct lpspi_data const* data = dev->data;
-    struct spi_nxp_stream_data const* stream = data->stream;
+    struct spi_nxp_stream_data const* stream = lpspi_stream_data_dt(spec);
+    uint32_t count = 0U;
 
-    if (stream == NULL) {
-        return (0U);
+    if (stream != NULL) {
+        count = stream->coalesced_count;
     }
 
-    return (stream->coalesced_count);
+    return (count);
 }
 
 /* END OF FILE */
