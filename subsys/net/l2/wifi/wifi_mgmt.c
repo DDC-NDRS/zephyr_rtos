@@ -1017,7 +1017,7 @@ static int wifi_ap_set_rts_threshold(uint64_t mgmt_request, struct net_if* iface
     const struct wifi_mgmt_ops* const wifi_mgmt_api = get_wifi_api(iface);
     unsigned int* rts_threshold = data;
 
-    if ((wifi_mgmt_api == NULL) |
+    if ((wifi_mgmt_api == NULL) ||
         (wifi_mgmt_api->set_rts_threshold == NULL)) {
         return (-ENOTSUP);
     }
