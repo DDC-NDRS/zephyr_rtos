@@ -162,6 +162,23 @@ uint32_t spi_stream_overrun_count_dt(struct spi_dt_spec const* spec);
  */
 uint32_t spi_stream_spurious_count_dt(struct spi_dt_spec const* spec);
 
+/**
+ * @brief Return the number of extra frames absorbed from multi-frame FCF events.
+ *
+ * FCF is a single status bit, so CS deassertions that land before the ISR runs
+ * are coalesced into one interrupt. The handler detects this from the DMA
+ * destination pointer and publishes every whole frame it covers; this counter
+ * reports how many frames beyond the first were recovered that way. A non-zero
+ * value is normal on a busy stream — it means the condition occurred and was
+ * absorbed, not that anything was lost.
+ *
+ * Resets to zero on each call to spi_read_stream_async_dt().
+ *
+ * @param spec SPI device specification.
+ * @return Coalesced-frame count since last stream start.
+ */
+uint32_t spi_stream_coalesced_count_dt(struct spi_dt_spec const* spec);
+
 #ifdef __cplusplus
 }
 #endif

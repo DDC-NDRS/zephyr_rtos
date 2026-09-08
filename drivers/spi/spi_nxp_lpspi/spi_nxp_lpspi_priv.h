@@ -120,9 +120,12 @@ struct spi_nxp_stream_data {
 
     /* ------------------------------------------------------------------ */
     /* Ring buffer write pointer (software-tracked per FCF event)         */
-    /* Advanced by frame_size bytes on every FCF interrupt.               */
+    /* Advanced by frame_size bytes per frame published, where the frame  */
+    /* count comes from how far DADDR has run past it — one FCF can cover */
+    /* several frames, see lpspi_stream_isr_fcf_handler().                */
     /* ------------------------------------------------------------------ */
-    uint32_t write_pos; /**< Byte offset of next frame start in ring_buf */
+    uint32_t write_pos;       /**< Byte offset of next frame start in ring_buf */
+    uint32_t coalesced_count; /**< Extra frames absorbed from multi-frame FCF events */
 
     /* ------------------------------------------------------------------ */
     /* Frame descriptor pool state                                        */

@@ -221,10 +221,22 @@ static int lpspi_stream_dma_configure(struct spi_dt_spec const* spec) {
  * sleeping Zephyr API.  Execution time is O(1).
  *
  * Sequence:
- *   1. Spurious-FCF guard: skip if DMA has not advanced past write_pos.
- *   2. Peek at the next pool slot (no head advance yet).
- *   3. Overrun guard: if slot is still held by consumer, drop and return.
- *   4. Advance write_pos and pool head, populate descriptor, publish.
+ *   1. Measure how far the DMA has run past write_pos.
+ *   2. Spurious-FCF guard: skip if it has not advanced at all.
+ *   3. Publish one descriptor per whole frame of that distance:
+ *      peek the pool slot, overrun-guard it, then advance and publish.
+ *
+ * Why the distance is measured rather than assumed
+ * ------------------------------------------------
+ * FCF is a single status bit.  Two CS deassertions that land before this ISR
+ * runs (or while it runs) raise it once, so one interrupt can cover several
+ * received frames.  Publishing a fixed one frame per interrupt would leave
+ * write_pos permanently one frame behind DADDR: no data is lost — neither the
+ * spurious nor the overrun guard trips — but from then on every FCF publishes
+ * the PREVIOUS frame, and the newest frame of any burst is withheld until the
+ * next burst arrives.  Deriving the count from DADDR keeps the pointer locked
+ * to the hardware, so a coalesced interrupt is absorbed instead of latching a
+ * permanent lag.
  *
  * Previous overrun guard (removed)
  * ---------------------------------
@@ -249,45 +261,66 @@ void lpspi_stream_isr_fcf_handler(const struct device* dev) {
     struct spi_nxp_stream_data* stream = data->stream;
     const struct spi_stream_config* cfg = stream->cfg;
     uint32_t dma_pos;
-    uint32_t frame_start;
-    uint32_t pool_idx;
-    struct spi_stream_frame* desc;
+    uint32_t pending;
+    uint32_t n_frames;
 
     /*
-     * Spurious-FCF guard.
      * DADDR reflects where DMA writes the NEXT byte; normalised to a ring-buffer
-     * offset it equals how far DMA has written.  Equal to write_pos means no
-     * bytes arrived — suppress without touching any state.
+     * offset it equals how far DMA has written.  Both operands below are already
+     * in [0, ring_buf_size), so the wrap case is a plain two-term sum.
      */
     dma_pos = (*stream->dma_daddr_reg - (uint32_t)cfg->ring_buf) %
               (uint32_t)cfg->ring_buf_size;
 
-    if (dma_pos == stream->write_pos) {
+    if (dma_pos >= stream->write_pos) {
+        pending = dma_pos - stream->write_pos;
+    }
+    else {
+        pending = ((uint32_t)cfg->ring_buf_size - stream->write_pos) + dma_pos;
+    }
+
+    /* Spurious-FCF guard: CS deasserted with no bytes clocked. */
+    if (pending == 0U) {
         stream->spurious_count++;
         return;
     }
 
-    /* Snapshot frame_start and peek pool slot before any mutation */
-    frame_start = stream->write_pos;
-    pool_idx    = stream->desc_pool_head % (uint32_t)cfg->frame_pool_count;
-    desc        = &cfg->frame_pool[pool_idx];
+    /*
+     * Round up: the eDMA may still be draining the RX FIFO for the newest frame
+     * when this ISR reads DADDR, so a partial tail counts as a whole frame.  The
+     * consumer thread runs well after the ISR, by which time those words landed.
+     */
+    n_frames = (pending + ((uint32_t)cfg->frame_size - 1U)) / (uint32_t)cfg->frame_size;
 
-    /* Overrun guard: slot still held by consumer */
-    if (atomic_get(&desc->in_fifo) != 0) {
-        stream->overrun_count++;
-        return;
+    if (n_frames > 1U) {
+        stream->coalesced_count += (n_frames - 1U);
     }
 
-    /* Safe to publish - advance pointers and post descriptor */
-    stream->write_pos = (frame_start + (uint32_t)cfg->frame_size) %
-                        (uint32_t)cfg->ring_buf_size;
-    stream->desc_pool_head++;
+    for (uint32_t frame = 0U; frame < n_frames; frame++) {
+        /* Snapshot frame_start and peek pool slot before any mutation */
+        uint32_t frame_start = stream->write_pos;
+        uint32_t pool_idx    = stream->desc_pool_head % (uint32_t)cfg->frame_pool_count;
+        struct spi_stream_frame* desc = &cfg->frame_pool[pool_idx];
 
-    desc->data = cfg->ring_buf + frame_start;
-    desc->len  = cfg->frame_size;
+        /* Overrun guard: slot still held by consumer. Leave the pointers alone
+         * so the same region is offered again on the next FCF.
+         */
+        if (atomic_get(&desc->in_fifo) != 0) {
+            stream->overrun_count++;
+            break;
+        }
 
-    atomic_set(&desc->in_fifo, 1);
-    k_fifo_put(cfg->frame_fifo, desc);
+        /* Safe to publish - advance pointers and post descriptor */
+        stream->write_pos = (frame_start + (uint32_t)cfg->frame_size) %
+                            (uint32_t)cfg->ring_buf_size;
+        stream->desc_pool_head++;
+
+        desc->data = cfg->ring_buf + frame_start;
+        desc->len  = cfg->frame_size;
+
+        atomic_set(&desc->in_fifo, 1);
+        k_fifo_put(cfg->frame_fifo, desc);
+    }
 }
 
 /* -------------------------------------------------------------------------
@@ -308,10 +341,11 @@ int spi_read_stream_async_dt(struct spi_dt_spec const* spec, const struct spi_st
 
     /* Initialise stream state */
     stream->cfg            = cfg;
-    stream->write_pos      = 0U;
-    stream->desc_pool_head = 0U;
-    stream->overrun_count  = 0U;
-    stream->spurious_count = 0U;
+    stream->write_pos       = 0U;
+    stream->desc_pool_head  = 0U;
+    stream->overrun_count   = 0U;
+    stream->spurious_count  = 0U;
+    stream->coalesced_count = 0U;
     /* stream->dma_daddr_reg is set by lpspi_stream_dma_configure() below */
 
     /* Reset in_fifo for all pool slots - required on restart after stop,
@@ -416,6 +450,18 @@ uint32_t spi_stream_spurious_count_dt(struct spi_dt_spec const* spec) {
     }
 
     return (stream->spurious_count);
+}
+
+uint32_t spi_stream_coalesced_count_dt(struct spi_dt_spec const* spec) {
+    struct device const* dev = spec->bus;
+    struct lpspi_data const* data = dev->data;
+    struct spi_nxp_stream_data const* stream = data->stream;
+
+    if (stream == NULL) {
+        return (0U);
+    }
+
+    return (stream->coalesced_count);
 }
 
 /* END OF FILE */
