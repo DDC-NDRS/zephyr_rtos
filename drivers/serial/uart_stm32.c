@@ -549,12 +549,6 @@ static inline enum uart_config_data_bits uart_stm32_ll2cfg_databits(uint32_t db,
  */
 static inline uint32_t uart_stm32_cfg2ll_hwctrl(enum uart_config_flow_control fc) {
     if (fc == UART_CFG_FLOW_CTRL_RTS_CTS) {
-        #if defined(CONFIG_UART_STM32_ABNORMAL_RTS_ERRATUM_WORKAROUND)
-        if (config->rts_gpio.port != NULL) {
-            return (LL_USART_HWCONTROL_CTS);
-        }
-        #endif
-
         return (LL_USART_HWCONTROL_RTS_CTS);
     }
     else if (fc == UART_CFG_FLOW_CTRL_RS485) {
@@ -577,12 +571,6 @@ static inline enum uart_config_flow_control uart_stm32_ll2cfg_hwctrl(uint32_t fc
         return (UART_CFG_FLOW_CTRL_RTS_CTS);
     }
 
-    #if defined(CONFIG_UART_STM32_ABNORMAL_RTS_ERRATUM_WORKAROUND)
-    if ((config->rts_gpio.port != NULL) && (fc == LL_USART_HWCONTROL_CTS)) {
-        return (UART_CFG_FLOW_CTRL_RTS_CTS);
-    }
-    #endif
-
     return (UART_CFG_FLOW_CTRL_NONE);
 }
 
@@ -595,11 +583,23 @@ static int uart_stm32_parameters_set(struct device const* dev,
     const uint32_t stopbits = uart_stm32_cfg2ll_stopbits(usart, cfg->stop_bits);
     const uint32_t databits = uart_stm32_cfg2ll_databits(cfg->data_bits,
                                                          cfg->parity);
-    const uint32_t flowctrl = uart_stm32_cfg2ll_hwctrl(cfg->flow_ctrl);
+    uint32_t flowctrl = uart_stm32_cfg2ll_hwctrl(cfg->flow_ctrl);
     #if HAS_DRIVER_ENABLE
     bool driver_enable = (cfg->flow_ctrl == UART_CFG_FLOW_CTRL_RS485);
     #endif
     int ret;
+
+    #if defined(CONFIG_UART_STM32_ABNORMAL_RTS_ERRATUM_WORKAROUND)
+    const struct uart_stm32_config* config = dev->config;
+
+    /* Erratum "nRTS driven abnormally low after protocol violation": keep the
+     * USART in CTS-only hardware flow control and drive RTS from software
+     * instead (see uart_stm32_irq_rx_enable()/uart_stm32_irq_rx_disable()).
+     */
+    if ((config->rts_gpio.port != NULL) && (flowctrl == LL_USART_HWCONTROL_RTS_CTS)) {
+        flowctrl = LL_USART_HWCONTROL_CTS;
+    }
+    #endif
 
     if (cfg == uart_cfg) {
         /* Called via (re-)init function, so the SoC either just booted,
@@ -731,7 +731,20 @@ static int uart_stm32_config_get(struct device const* dev,
     cfg->stop_bits = (uint8_t)uart_stm32_ll2cfg_stopbits(uart_stm32_get_stopbits(usart));
     cfg->data_bits = (uint8_t)uart_stm32_ll2cfg_databits(uart_stm32_get_databits(usart),
                                                          uart_stm32_get_parity(usart));
-    cfg->flow_ctrl = (uint8_t)uart_stm32_ll2cfg_hwctrl(uart_stm32_get_hwctrl(usart));
+    uint32_t hwctrl = uart_stm32_get_hwctrl(usart);
+
+    #if defined(CONFIG_UART_STM32_ABNORMAL_RTS_ERRATUM_WORKAROUND)
+    const struct uart_stm32_config* config = dev->config;
+
+    /* Under the software-RTS erratum workaround the peripheral runs in
+     * CTS-only mode; report it back to the caller as RTS/CTS.
+     */
+    if ((config->rts_gpio.port != NULL) && (hwctrl == LL_USART_HWCONTROL_CTS)) {
+        hwctrl = LL_USART_HWCONTROL_RTS_CTS;
+    }
+    #endif
+
+    cfg->flow_ctrl = (uint8_t)uart_stm32_ll2cfg_hwctrl(hwctrl);
     #if HAS_DRIVER_ENABLE
     if (uart_stm32_get_driver_enable(usart)) {
         cfg->flow_ctrl = UART_CFG_FLOW_CTRL_RS485;
@@ -1109,6 +1122,8 @@ static void uart_stm32_irq_rx_enable(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
 
     #if defined(CONFIG_UART_STM32_ABNORMAL_RTS_ERRATUM_WORKAROUND)
+    const struct uart_stm32_config* config = dev->config;
+
     if (config->rts_gpio.port != NULL) {
         gpio_pin_set_dt(&config->rts_gpio, 1);
     }
@@ -1121,6 +1136,8 @@ static void uart_stm32_irq_rx_disable(struct device const* dev) {
     USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
 
     #if defined(CONFIG_UART_STM32_ABNORMAL_RTS_ERRATUM_WORKAROUND)
+    const struct uart_stm32_config* config = dev->config;
+
     if (config->rts_gpio.port != NULL) {
         gpio_pin_set_dt(&config->rts_gpio, 0);
     }
@@ -1285,7 +1302,7 @@ static inline void async_evt_tx_abort(struct uart_stm32_data* data) {
     dma_tx->counter       = 0;
 
     #ifdef CONFIG_PM
-    dma_tx->int_stream_on = false;
+    data->tx_int_stream_on = false;
     #endif
 
     async_user_callback(data, &event);
@@ -1661,6 +1678,8 @@ static int uart_stm32_async_rx_disable(struct device const* dev) {
      */
 
     #if defined(CONFIG_UART_STM32_ABNORMAL_RTS_ERRATUM_WORKAROUND)
+    const struct uart_stm32_config* config = dev->config;
+
     if (config->rts_gpio.port != NULL) {
         gpio_pin_set_dt(&config->rts_gpio, 0);
     }
@@ -2023,6 +2042,8 @@ static int uart_stm32_async_rx_enable(struct device const* dev,
     async_evt_rx_buf_request(data);
 
     #if defined(CONFIG_UART_STM32_ABNORMAL_RTS_ERRATUM_WORKAROUND)
+    const struct uart_stm32_config* config = dev->config;
+
     if (config->rts_gpio.port != NULL) {
         gpio_pin_set_dt(&config->rts_gpio, 1);
     }
