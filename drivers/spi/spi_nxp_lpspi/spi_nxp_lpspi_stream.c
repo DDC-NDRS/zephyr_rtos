@@ -406,4 +406,16 @@ uint32_t spi_stream_overrun_count_dt(struct spi_dt_spec const* spec) {
     return (stream->overrun_count);
 }
 
+uint32_t spi_stream_spurious_count_dt(struct spi_dt_spec const* spec) {
+    struct device const* dev = spec->bus;
+    struct lpspi_data const* data = dev->data;
+    struct spi_nxp_stream_data const* stream = data->stream;
+
+    if (stream == NULL) {
+        return (0U);
+    }
+
+    return (stream->spurious_count);
+}
+
 /* END OF FILE */

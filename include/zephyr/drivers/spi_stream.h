@@ -146,6 +146,22 @@ int spi_stream_stop_dt(struct spi_dt_spec const* spec);
  */
 uint32_t spi_stream_overrun_count_dt(struct spi_dt_spec const* spec);
 
+/**
+ * @brief Return the number of FCF events suppressed by the spurious-frame guard.
+ *
+ * The guard fires when the DMA destination pointer equals the software write
+ * pointer, which normally means no bytes arrived since the last frame. It
+ * cannot distinguish that from the DMA having advanced exactly one full
+ * ring_buf_size, so a rising count on an otherwise busy stream indicates the
+ * consumer fell a whole ring behind and real frames were discarded.
+ *
+ * Resets to zero on each call to spi_read_stream_async_dt().
+ *
+ * @param spec SPI device specification.
+ * @return Suppressed-FCF count since last stream start.
+ */
+uint32_t spi_stream_spurious_count_dt(struct spi_dt_spec const* spec);
+
 #ifdef __cplusplus
 }
 #endif
