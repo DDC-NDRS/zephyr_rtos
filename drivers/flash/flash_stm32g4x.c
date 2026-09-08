@@ -341,11 +341,13 @@ int flash_stm32_set_rdp_level(const struct device *dev, uint8_t level)
 }
 #endif /* CONFIG_FLASH_STM32_READOUT_PROTECTION */
 
+#define PAGES_PER_BANK  ((FLASH_SIZE / FLASH_PAGE_SIZE) / 2)
+#define DUMMY_PAGE_SIZE (BANK2_OFFSET - (PAGES_PER_BANK * FLASH_PAGE_SIZE))
+
 void flash_stm32_page_layout(const struct device *dev,
 			     const struct flash_pages_layout **layout,
 			     size_t *layout_size)
 {
-#define DUMMY_PAGE_SIZE (BANK2_OFFSET - (PAGES_PER_BANK * FLASH_PAGE_SIZE))
 	static struct flash_pages_layout stm32g4_flash_layout[3];
 
 	if (IS_DUAL_BANK(dev) && (CONFIG_FLASH_SIZE < STM32G4_SERIES_MAX_FLASH)) {
