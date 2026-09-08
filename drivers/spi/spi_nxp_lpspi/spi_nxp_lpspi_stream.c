@@ -279,18 +279,21 @@ void lpspi_stream_isr_fcf_handler(const struct device* dev) {
         pending = ((uint32_t)cfg->ring_buf_size - stream->write_pos) + dma_pos;
     }
 
-    /* Spurious-FCF guard: CS deasserted with no bytes clocked. */
-    if (pending == 0U) {
+    /*
+     * Whole frames only.  A partial tail means the controller has already started
+     * clocking the next frame; its own FCF is still to come, and publishing it now
+     * would hand the consumer a frame that is still being written.  Rounding down
+     * is also the safe direction: write_pos stays put on anything not published, so
+     * the next interrupt picks it up.  Under-counting self-corrects, over-counting
+     * does not.
+     */
+    n_frames = pending / (uint32_t)cfg->frame_size;
+
+    /* Spurious-FCF guard: CS deasserted without completing a frame. */
+    if (n_frames == 0U) {
         stream->spurious_count++;
         return;
     }
-
-    /*
-     * Round up: the eDMA may still be draining the RX FIFO for the newest frame
-     * when this ISR reads DADDR, so a partial tail counts as a whole frame.  The
-     * consumer thread runs well after the ISR, by which time those words landed.
-     */
-    n_frames = (pending + ((uint32_t)cfg->frame_size - 1U)) / (uint32_t)cfg->frame_size;
 
     if (n_frames > 1U) {
         stream->coalesced_count += (n_frames - 1U);

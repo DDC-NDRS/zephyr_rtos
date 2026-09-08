@@ -149,11 +149,18 @@ uint32_t spi_stream_overrun_count_dt(struct spi_dt_spec const* spec);
 /**
  * @brief Return the number of FCF events suppressed by the spurious-frame guard.
  *
- * The guard fires when the DMA destination pointer equals the software write
- * pointer, which normally means no bytes arrived since the last frame. It
- * cannot distinguish that from the DMA having advanced exactly one full
- * ring_buf_size, so a rising count on an otherwise busy stream indicates the
- * consumer fell a whole ring behind and real frames were discarded.
+ * The guard fires when the DMA destination pointer has not advanced a whole
+ * frame past the software write pointer, meaning nothing complete arrived since
+ * the last one.
+ *
+ * Expect roughly one of these per coalesced frame: when the handler publishes
+ * the frames of a multi-frame FCF, it consumes what the follow-up interrupt for
+ * the second CS edge would have published, so that interrupt finds nothing
+ * pending. Compare against spi_stream_coalesced_count_dt() before reading
+ * anything into a rising count. Spurious events beyond that pairing are the
+ * ones worth investigating: the guard cannot distinguish an idle stream from
+ * the DMA having advanced exactly one full ring_buf_size, so on a busy stream
+ * they indicate the consumer fell a whole ring behind and frames were lost.
  *
  * Resets to zero on each call to spi_read_stream_async_dt().
  *
