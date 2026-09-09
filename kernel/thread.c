@@ -1345,11 +1345,7 @@ int k_thread_runtime_stats_get(k_tid_t thread,
     #ifdef CONFIG_SCHED_THREAD_USAGE
     z_sched_thread_usage(thread, stats);
     #else
-    #if defined(_MSC_VER) /* #CUSTOM@NDRS */
-    *stats = (k_thread_runtime_stats_t) {0};
-    #else
-    *stats = (k_thread_runtime_stats_t) {};
-    #endif
+    memset(stats, 0, sizeof(k_thread_runtime_stats_t));
     #endif /* CONFIG_SCHED_THREAD_USAGE */
 
     return (0);
@@ -1364,11 +1360,7 @@ int k_thread_runtime_stats_all_get(k_thread_runtime_stats_t* stats) {
         return (-EINVAL);
     }
 
-    #if defined(_MSC_VER) /* #CUSTOM@NDRS */
-    *stats = (k_thread_runtime_stats_t) {0};
-    #else
-    *stats = (k_thread_runtime_stats_t) {};
-    #endif
+    memset(stats, 0, sizeof(k_thread_runtime_stats_t));
 
     #ifdef CONFIG_SCHED_THREAD_USAGE_ALL
     /* Retrieve the usage stats for each core and amalgamate them. */
@@ -1398,7 +1390,7 @@ int k_thread_runtime_stats_cpu_get(int cpu, k_thread_runtime_stats_t* stats) {
         return (-EINVAL);
     }
 
-    *stats = (k_thread_runtime_stats_t) {};
+    memset(stats, 0, sizeof(k_thread_runtime_stats_t));
 
     #ifdef CONFIG_SCHED_THREAD_USAGE_ALL
     CHECKIF((cpu < 0) || ((unsigned int)cpu >= arch_num_cpus())) {
