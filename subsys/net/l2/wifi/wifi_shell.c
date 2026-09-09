@@ -421,7 +421,7 @@ static void handle_wifi_scan_done(const struct net_mgmt_event_callback *cb)
 }
 
 static void print_ieee80211_codes(const struct shell *sh,
-				  struct net_mgmt_event_callback *cb)
+				  const struct net_mgmt_event_callback *cb)
 {
 	const struct wifi_status *status = cb->info;
 
