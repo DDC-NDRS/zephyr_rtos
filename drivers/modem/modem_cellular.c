@@ -457,7 +457,51 @@ void modem_cellular_chat_on_imei(struct modem_chat* chat, char** argv, uint16_t 
         return;
     }
 
+    /* Any modem using this callback is making the assumption that IMEI == SN,
+     * as the documented response to 'AT+CGSN' is the SN, not the IMEI.
+     */
     strncpy(data->imei, argv[1], sizeof(data->imei) - 1);
+    modem_cellular_emit_modem_info(data, CELLULAR_MODEM_INFO_IMEI);
+
+    strncpy(data->sn, argv[1], sizeof(data->sn) - 1);
+    modem_cellular_emit_modem_info(data, CELLULAR_MODEM_INFO_SERIAL_NUMBER);
+}
+
+void modem_cellular_chat_on_cgsn_sn(struct modem_chat* chat, char** argv, uint16_t argc,
+                                    void* user_data) {
+    struct modem_cellular_data* data = (struct modem_cellular_data*)user_data;
+
+    if (argc != 2) {
+        return;
+    }
+
+    strncpy(data->sn, argv[1], sizeof(data->sn) - 1);
+    modem_cellular_emit_modem_info(data, CELLULAR_MODEM_INFO_SERIAL_NUMBER);
+}
+
+void modem_cellular_chat_on_cgsn_imei(struct modem_chat* chat, char** argv, uint16_t argc,
+                                      void* user_data) {
+    struct modem_cellular_data* data = (struct modem_cellular_data*)user_data;
+    const char* rsp;
+    size_t rsp_len;
+
+    if (argc != 2) {
+        return;
+    }
+
+    /* 3GPP specifies 15 digit string type in decimal format */
+    rsp = argv[1];
+    rsp_len = strlen(rsp);
+    if ((rsp_len != 17) || (rsp[0] != '"') || (rsp[16] != '"')) {
+        LOG_WRN("Invalid CGSN respnse: %s", rsp);
+        return;
+    }
+
+    /* IMEI from AT+CGSN is string quoted.
+     * 3GPP specifies the length as exactly 15 digits.
+     * Start from offset 1 to skip first quote character.
+     */
+    memcpy(data->imei, rsp + 1, 15);
     modem_cellular_emit_modem_info(data, CELLULAR_MODEM_INFO_IMEI);
 }
 
@@ -1921,6 +1965,13 @@ static void modem_cellular_await_registered_event_handler(struct modem_cellular_
             }
             break;
 
+        case MODEM_CELLULAR_EVENT_PPP_DEAD :
+            if (net_if_is_admin_up(modem_ppp_get_iface(config->ppp))) {
+                modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_AWAIT_PPP_DEAD);
+                modem_cellular_start_timer(data, MODEM_CELLULAR_PERIODIC_SCRIPT_TIMEOUT);
+            }
+            break;
+
         case MODEM_CELLULAR_EVENT_HANGUP :
             modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_AWAIT_PPP_DEAD);
             modem_cellular_start_timer(data, MODEM_CELLULAR_PERIODIC_SCRIPT_TIMEOUT);
@@ -2697,40 +2748,54 @@ static int modem_cellular_get_signal(const struct device* dev,
 static int modem_cellular_get_modem_info(const struct device* dev,
                                          enum cellular_modem_info_type type,
                                          char* info, size_t size) {
-    int ret = 0;
     struct modem_cellular_data const* data = dev->data;
+    const char* info_str;
+
+    if (size <= 1) {
+        return (-EINVAL);
+    }
 
     switch (type) {
         case CELLULAR_MODEM_INFO_IMEI :
-            strncpy(info, &data->imei[0], MIN(size, sizeof(data->imei)));
+            info_str = &data->imei[0];
             break;
 
         case CELLULAR_MODEM_INFO_SIM_IMSI :
-            strncpy(info, &data->imsi[0], MIN(size, sizeof(data->imsi)));
+            info_str = &data->imsi[0];
             break;
 
         case CELLULAR_MODEM_INFO_MANUFACTURER :
-            strncpy(info, &data->manufacturer[0], MIN(size, sizeof(data->manufacturer)));
+            info_str = &data->manufacturer[0];
             break;
 
         case CELLULAR_MODEM_INFO_FW_VERSION :
-            strncpy(info, &data->fw_version[0], MIN(size, sizeof(data->fw_version)));
+            info_str = &data->fw_version[0];
             break;
 
         case CELLULAR_MODEM_INFO_MODEL_ID :
-            strncpy(info, &data->model_id[0], MIN(size, sizeof(data->model_id)));
+            info_str = &data->model_id[0];
             break;
 
         case CELLULAR_MODEM_INFO_SIM_ICCID :
-            strncpy(info, &data->iccid[0], MIN(size, sizeof(data->iccid)));
+            info_str = &data->iccid[0];
+            break;
+
+        case CELLULAR_MODEM_INFO_SERIAL_NUMBER :
+            info_str = &data->sn[0];
             break;
 
         default :
-            ret = -ENODATA;
-            break;
+            return (-ENODATA);
     }
 
-    return (ret);
+    /* All internal copies of modem info are NUL terminated.
+     * Copy at most `size - 1` bytes of the info to the output.
+     * Manually NUL terminate the output.
+     */
+    strncpy(info, info_str, size - 1);
+    info[size - 1] = '\0';
+
+    return (0);
 }
 
 static int modem_cellular_get_registration_status(const struct device* dev,

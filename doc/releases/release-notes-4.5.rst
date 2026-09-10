@@ -401,6 +401,11 @@ Deprecated APIs and options
   * New :c:func:`sys_clock_idle_enter` hook for handling of entry in low-power state,
     replacing the call to :c:func:`sys_clock_set_timeout` with ``idle=true``.
 
+* :abbr:`USB (Universal Serial Bus)`
+
+  * Deprecated property ``clock-reference`` of :dtcompatible:`st,stm32u5-otghs-phy`.
+    Do not specify the property; it is no longer required by the underlying driver.
+
 * Video
 
   * All functions in the video driver API (``<zephyr/drivers/video.h>``) have moved to the video
@@ -470,6 +475,11 @@ New APIs and options
     * :c:member:`bt_bap_unicast_group_info.p_to_c_ft`
     * :c:member:`bt_bap_unicast_group_info.iso_interval`
     * :c:func:`bt_vocs_client_free_instance`
+
+  * Classic
+
+    * :kconfig:option:`CONFIG_BT_SMP_DERIVE_LTK`
+    * :kconfig:option:`CONFIG_BT_SMP_DERIVE_LK`
 
   * Host
 
@@ -583,6 +593,10 @@ New APIs and options
       :kconfig:option:`CONFIG_MCUMGR_GRP_TRANSPORT_GROUP_ID_CUSTOM_VALUE_GROUP_ID`,
       :kconfig:option:`CONFIG_MCUMGR_GRP_TRANSPORT_GROUP_ID_CUSTOM_FUNCTION` and
       :kconfig:option:`CONFIG_MCUMGR_GRP_TRANSPORT_INFO_FUNCTIONS`.
+
+* Modem
+
+  * :c:enumerator:`CELLULAR_MODEM_INFO_SERIAL_NUMBER`
 
 * Network
 

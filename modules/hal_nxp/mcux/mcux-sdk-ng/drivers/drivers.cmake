@@ -99,8 +99,10 @@ set_variable_ifdef(CONFIG_COUNTER_MCUX_QTMR     CONFIG_MCUX_COMPONENT_driver.qtm
 set_variable_ifdef(CONFIG_PWM_MCUX_QTMR         CONFIG_MCUX_COMPONENT_driver.qtmr_1)
 set_variable_ifdef(CONFIG_SPI_MCUX_DSPI         CONFIG_MCUX_COMPONENT_driver.dspi)
 set_variable_ifdef(CONFIG_SPI_MCUX_ECSPI        CONFIG_MCUX_COMPONENT_driver.ecspi)
-set_variable_ifdef(CONFIG_MCUX_FLEXIO           CONFIG_MCUX_COMPONENT_driver.flexio)
-set_variable_ifdef(CONFIG_SPI_MCUX_FLEXIO       CONFIG_MCUX_COMPONENT_driver.flexio_spi)
+set_variable_ifdef(CONFIG_MCUX_FLEXIO               CONFIG_MCUX_COMPONENT_driver.flexio)
+set_variable_ifdef(CONFIG_VIDEO_MCUX_FLEXIO   CONFIG_MCUX_COMPONENT_driver.flexio)
+set_variable_ifdef(CONFIG_VIDEO_MCUX_FLEXIO   CONFIG_MCUX_COMPONENT_driver.flexio_camera)
+set_variable_ifdef(CONFIG_SPI_MCUX_FLEXIO           CONFIG_MCUX_COMPONENT_driver.flexio_spi)
 set_variable_ifdef(CONFIG_UART_MCUX             CONFIG_MCUX_COMPONENT_driver.uart)
 set_variable_ifdef(CONFIG_UART_MCUX_LPSCI       CONFIG_MCUX_COMPONENT_driver.lpsci)
 set_variable_ifdef(CONFIG_WDT_MCUX_WDOG         CONFIG_MCUX_COMPONENT_driver.wdog)
@@ -433,6 +435,26 @@ if((DEFINED CONFIG_FLASH_MCUX_XSPI_XIP) AND (DEFINED CONFIG_FLASH))
     LOCATION ${CONFIG_FLASH_MCUX_XSPI_XIP_MEM}_TEXT)
   zephyr_code_relocate(FILES ${MCUX_SDK_NG_DIR}/drivers/xspi/fsl_xspi.c
     LOCATION ${CONFIG_FLASH_MCUX_XSPI_XIP_MEM}_RODATA)
+endif()
+
+if(CONFIG_ADVC_DRIVER_USED)
+  # Pull in fsl_advc.c/.h directly instead of turning on the whole
+  # driver.advc component: that component's device CMakeLists.txt
+  # (devices/MCX/MCXL/MCXL255/drivers/CMakeLists.txt) also links
+  # libadvc_cm33.a/libadvc_cm0p.a straight from the device tree, which
+  # doesn't exist for Zephyr (those binaries are fetched via `west blobs`
+  # into zephyr/blobs/mcxl255 instead). Linking the correct blob path below
+  # avoids ever adding the wrong one, so no fixup.cmake cleanup is needed.
+  set(advc_drivers_dir ${SdkRootDirPath}/devices/MCX/MCXL/MCXL255/drivers)
+  zephyr_library_sources(${advc_drivers_dir}/fsl_advc.c)
+  zephyr_include_directories(${advc_drivers_dir})
+
+  set(advc_blobs_dir ${ZEPHYR_HAL_NXP_MODULE_DIR}/zephyr/blobs/mcxl255)
+  if(CONFIG_SOC_MCXL255_CPU0)
+    target_link_libraries(${MCUX_SDK_PROJECT_NAME} PRIVATE ${advc_blobs_dir}/libadvc_cm33.a)
+  elseif(CONFIG_SOC_MCXL255_CPU1)
+    target_link_libraries(${MCUX_SDK_PROJECT_NAME} PRIVATE ${advc_blobs_dir}/libadvc_cm0p.a)
+  endif()
 endif()
 
 # Load all drivers

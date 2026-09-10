@@ -293,6 +293,24 @@ Boards
   ``SOC_STM32MP15_M4`` must select :kconfig:option:`CONFIG_SOC_STM32MP157CXX_M4` instead.
   (:github:`118151`)
 
+* On the Arduino UNO R4 WiFi, ``zephyr,console`` and ``zephyr,shell-uart`` now
+  default to SCI9, which the on-board ESP32-S3 bridges to the USB-C connector as
+  a USB CDC ACM port, instead of SCI2 on the D0/D1 header pins. Console output is
+  now visible on the same port used to flash the board, with no external
+  USB-serial adapter. Applications that relied on the console being on D0/D1 can
+  select it again in an application overlay:
+
+  .. code-block:: devicetree
+
+     / {
+         chosen {
+             zephyr,console = &uart2;
+             zephyr,shell-uart = &uart2;
+         };
+     };
+
+  The Arduino UNO R4 Minima is unaffected. (:github:`118433`)
+
 Device Drivers and Devicetree
 *****************************
 
@@ -803,6 +821,10 @@ Haptics
   :dtcompatible:`cirrus,cs40l50`, :dtcompatible:`cirrus,cs40l51`, :dtcompatible:`cirrus,cs40l52`,
   and :dtcompatible:`cirrus,cs40l53`. Applications using the old compatible must update their
   devicetree nodes accordingly.
+
+* The ``vib-rated-mv`` and ``vib-overdrive-mv`` properties of :dtcompatible:`ti,drv2605` now
+  default to the device reset values, 1362 mV and 3075 mV, instead of 3200 mV. Boards that need
+  the previous drive level must set them explicitly.
 
 HWSPINLOCK
 ==========
@@ -1458,6 +1480,79 @@ STM32
   property has been removed. This should have no impact since the property was not used except for the
   wake-up pins feature, which is now handled by :dtcompatible:`st,stm32-pwr-wkupctrl`. (:github:`114092`)
 
+* All Ethernet pinctrl nodes for STM32H5 series except :samp:`eth_mdc_{px0}`, :samp:`eth_mdio_{px0}`
+  and :samp:`eth_pps_out_{px0}` have been renamed to match the Data Sheet names (:github:`118318`).
+
+  The following table indicates the mapping between old and new names and can be used to migrate:
+
+  .. list-table::
+     :header-rows: 1
+     :widths: 30 35 35
+
+     * - Old name
+       - New name (``mii`` PHY)
+       - New name (``rmii`` PHY)
+     * - :samp:`eth_crs_dv_{px0}`
+       - *N/A for MII*
+       - :samp:`eth_rmii_crs_dv_{px0}`
+     * - :samp:`eth_ref_clk_{px0}`
+       - *N/A for MII*
+       - :samp:`eth_rmii_ref_clk_{px0}`
+     * - :samp:`eth_col_{px0}`
+       - :samp:`eth_mii_col_{px0}`
+       - *N/A for RMII*
+     * - :samp:`eth_crs_{px0}`
+       - :samp:`eth_mii_crs_{px0}`
+       - *N/A for RMII*
+     * - :samp:`eth_rx_clk_{px0}`
+       - :samp:`eth_mii_rx_clk_{px0}`
+       - *N/A for RMII*
+     * - :samp:`eth_rx_dv_{px0}`
+       - :samp:`eth_mii_rx_dv_{px0}`
+       - *N/A for RMII*
+     * - :samp:`eth_rx_er_{px0}`
+       - :samp:`eth_mii_rx_er_{px0}`
+       - *N/A for RMII*
+     * - :samp:`eth_rxd0_{px0}`
+       - :samp:`eth_mii_rxd0_{px0}`
+       - :samp:`eth_rmii_rxd0_{px0}`
+     * - :samp:`eth_rxd1_{px0}`
+       - :samp:`eth_mii_rxd1_{px0}`
+       - :samp:`eth_rmii_rxd1_{px0}`
+     * - :samp:`eth_rxd2_{px0}`
+       - :samp:`eth_mii_rxd2_{px0}`
+       - *N/A for RMII*
+     * - :samp:`eth_rxd3_{px0}`
+       - :samp:`eth_mii_rxd3_{px0}`
+       - *N/A for RMII*
+     * - :samp:`eth_tx_clk_{px0}`
+       - :samp:`eth_mii_tx_clk_{px0}`
+       - *N/A for RMII*
+     * - :samp:`eth_tx_en_{px0}`
+       - :samp:`eth_mii_tx_en_{px0}`
+       - :samp:`eth_rmii_tx_en_{px0}`
+     * - :samp:`eth_txd0_{px0}`
+       - :samp:`eth_mii_txd0_{px0}`
+       - :samp:`eth_rmii_txd0_{px0}`
+     * - :samp:`eth_txd1_{px0}`
+       - :samp:`eth_mii_txd1_{px0}`
+       - :samp:`eth_rmii_txd1_{px0}`
+     * - :samp:`eth_txd2_{px0}`
+       - :samp:`eth_mii_txd2_{px0}`
+       - *N/A for RMII*
+     * - :samp:`eth_txd3_{px0}`
+       - :samp:`eth_mii_txd3_{px0}`
+       - *N/A for RMII*
+
+  .. note::
+    Pin names now vary depending on whether an MII PHY or an RMII PHY is used; this is indicated
+    by property ``phy-connection-type`` (``mii`` or ``rmii``) on the Ethernet node in Devicetree.
+
+    :samp:`{px0}` is a placeholder and should be replaced with actual pin names (e.g., ``pa1``).
+
+    SoCs of the STM32H5Ex/STM32H5Fx line are not affected by this change as they have always used
+    the new names since their introduction in Zephyr.
+
 Syscon
 ======
 
@@ -1557,6 +1652,10 @@ USB
   It now also uses :c:macro:`DEVICE_API`. Out-of-tree USB host controller drivers must rename
   their API struct definitions and switch their API instances to ``DEVICE_API(uhc, ...)``.
   (:github:`108414`)
+
+* The ``clock-reference`` property of :dtcompatible:`st,stm32u5-otghs-phy` is now deprecated
+  and should be removed from DTS files; the underlying driver will compute the correct value
+  automatically if the property doesn't exist (and honor it otherwise). (:github:`117882`)
 
 Video
 =====
@@ -1859,6 +1958,11 @@ Bluetooth Services
 
 Networking
 **********
+
+* The HTTP client response callback (:c:type:`http_response_cb_t`) may now be
+  invoked more than once for a single received buffer, once per body fragment,
+  for example once per chunk of a chunked response. Applications that assumed a
+  single callback per receive must append every fragment they are handed.
 
 * The ``struct dns_server`` type nested in :c:struct:`dns_resolve_context` has been
   renamed to ``struct dns_server_info``. A C++ class member cannot share the name of

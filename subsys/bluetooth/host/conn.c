@@ -139,14 +139,14 @@ static struct bt_conn sco_conns[CONFIG_BT_MAX_SCO_CONN];
 #if defined(CONFIG_BT_CONN_TX)
 static void frag_destroy(struct net_buf *buf);
 
-/* Storage for fragments (views) into the upper layers' PDUs. */
-/* TODO: remove user-data requirements */
+/* Storage for fragments (views) into the upper layers' PDUs. No user data:
+ * the HCI driver may use a sent fragment's user data, so the view metadata
+ * lives in frag_md_pool below instead.
+ */
 #if defined(_MSC_VER) /* #CUSTOM@NDRS */
-NET_BUF_POOL_FIXED_DEFINE(fragments, CONFIG_BT_CONN_FRAG_COUNT, 1,
-	CONFIG_BT_CONN_TX_USER_DATA_SIZE, frag_destroy);
+NET_BUF_POOL_FIXED_DEFINE(fragments, CONFIG_BT_CONN_FRAG_COUNT, 1, 1, frag_destroy);
 #else
-NET_BUF_POOL_FIXED_DEFINE(fragments, CONFIG_BT_CONN_FRAG_COUNT, 0,
-			  CONFIG_BT_CONN_TX_USER_DATA_SIZE, frag_destroy);
+NET_BUF_POOL_FIXED_DEFINE(fragments, CONFIG_BT_CONN_FRAG_COUNT, 0, 0, frag_destroy);
 #endif
 
 struct frag_md {
@@ -154,7 +154,7 @@ struct frag_md {
 };
 static struct frag_md frag_md_pool[CONFIG_BT_CONN_FRAG_COUNT];
 
-static struct frag_md *get_frag_md(struct net_buf *fragment)
+static struct frag_md *get_frag_md(const struct net_buf *fragment)
 {
 	return &frag_md_pool[net_buf_id(fragment)];
 }
