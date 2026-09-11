@@ -829,8 +829,8 @@ static inline void *usbd_class_get_private(const struct usbd_class_data *const c
  */
 #if defined(_MSC_VER) /* #CUSTOM@NDRS */
 #define USBD_VENDOR_REQ(...) \
-	VENDOR_REQ_DEFINE(((uint8_t []) { __VA_ARGS__ }), \
-			  sizeof((uint8_t []) { __VA_ARGS__ }))
+	VENDOR_REQ_DEFINE(((const uint8_t []) { __VA_ARGS__ }), \
+			  sizeof((const uint8_t []) { __VA_ARGS__ }))
 #else
 #define USBD_VENDOR_REQ(_reqs...) \
 	VENDOR_REQ_DEFINE(((const uint8_t []) { _reqs }), \

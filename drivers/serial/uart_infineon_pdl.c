@@ -966,7 +966,7 @@ static int ifx_cat1_uart_async_rx_enable(const struct device* dev, uint8_t* rx_d
     struct dma_status dma_status = {0};
     int ret;
 
-    if ((dma_rx->dma_dev == NULL) || (dma_rx->buf_len != 0)) {
+    if (dma_rx->dma_dev == NULL) {
         ret = -ENODEV;
     }
     else {
@@ -979,26 +979,31 @@ static int ifx_cat1_uart_async_rx_enable(const struct device* dev, uint8_t* rx_d
     if (ret == 0) {
         unsigned int key = irq_lock();
 
-        /* Store information about data buffer need to send */
-        dma_rx->buf                   = rx_data;
-        dma_rx->buf_len               = rx_data_size;
-        dma_rx->blk_cfg.block_size    = 0;
-        dma_rx->dma_transmitted_bytes = 0;
-        dma_rx->timeout               = timeout;
-
-        /* Request buffers before enabling rx */
-        async_evt_rx_buf_request(data);
-
-        /* Configure dma to transfer */
-        ret = ifx_cat1_uart_async_dma_config_buffer(dev, false);
-        if (ret == 0) {
-            if ((timeout != SYS_FOREVER_US) && (timeout != 0)) {
-                /* Configure timeout */
-                k_work_reschedule(&dma_rx->timeout_work, K_USEC(timeout));
-            }
+        if (dma_rx->buf_len != 0) {
+            ret = -ENODEV;
         }
         else {
-            LOG_ERR("Error Rx DMA configure (%d)", ret);
+            /* Store information about data buffer need to send */
+            dma_rx->buf                   = rx_data;
+            dma_rx->buf_len               = rx_data_size;
+            dma_rx->blk_cfg.block_size    = 0;
+            dma_rx->dma_transmitted_bytes = 0;
+            dma_rx->timeout               = timeout;
+
+            /* Request buffers before enabling rx */
+            async_evt_rx_buf_request(data);
+
+            /* Configure dma to transfer */
+            ret = ifx_cat1_uart_async_dma_config_buffer(dev, false);
+            if (ret == 0) {
+                if ((timeout != SYS_FOREVER_US) && (timeout != 0)) {
+                    /* Configure timeout */
+                    k_work_reschedule(&dma_rx->timeout_work, K_USEC(timeout));
+                }
+            }
+            else {
+                LOG_ERR("Error Rx DMA configure (%d)", ret);
+            }
         }
 
         irq_unlock(key);
@@ -1444,6 +1449,7 @@ static DEVICE_API(uart, ifx_cat1_uart_driver_api) = {
         .pcfg             = PINCTRL_DT_INST_DEV_CONFIG_GET(n),  \
         .reg_addr         = (CySCB_Type*)DT_INST_REG_ADDR(n),   \
         .clk_dst          = DT_INST_PROP(n, clk_dst),           \
+        .scb_num          = DT_INST_PROP(n, scb_index),         \
         CLOCK_GET(n)                                            \
         IRQ_INFO(n)                                             \
     };                                                          \

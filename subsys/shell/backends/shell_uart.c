@@ -616,6 +616,6 @@ const struct shell* shell_backend_uart_get_ptr(void) {
     #if DT_NODE_HAS_STATUS_OKAY(DT_CHOSEN(zephyr_shell_uart))
     return (&shell_uart);
     #else
-    return (NULL;)
+    return (NULL);
     #endif
 }
