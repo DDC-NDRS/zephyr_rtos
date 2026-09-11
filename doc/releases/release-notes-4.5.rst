@@ -480,6 +480,7 @@ New APIs and options
 
     * :kconfig:option:`CONFIG_BT_SMP_DERIVE_LTK`
     * :kconfig:option:`CONFIG_BT_SMP_DERIVE_LK`
+    * :c:func:`bt_sdp_unregister_service`
 
   * Host
 
@@ -684,6 +685,14 @@ New APIs and options
 * Ring buffer
 
   * :c:struct:`sys_ringq` (see :ref:`fixed_size_ringq_api`)
+
+* Secure Storage
+
+  * :kconfig:option:`CONFIG_SECURE_STORAGE_ITS_TRANSFORM_AEAD_CRYPT_CUSTOM` to allow
+    implementing your own :c:func:`secure_storage_its_transform_aead_crypt`. (:github:`118542`)
+  * :kconfig:option:`CONFIG_SECURE_STORAGE_ITS_TRANSFORM_AEAD_SCHEME_IS_CONFIGURABLE`
+  * :kconfig:option:`CONFIG_SECURE_STORAGE_ITS_TRANSFORM_AEAD_KEY_SIZE_IS_CONFIGURABLE`
+
 
 * USB Type-C
 
@@ -1868,6 +1877,14 @@ Libraries / Subsystems
     LoRaWAN 1.0.x Class A directly on top of the LoRa radio driver, without
     the Semtech LoRaMac-node dependency.  Currently supports the EU868 region.
   * :c:member:`lora_modem_config.sync_word`
+
+* Management
+
+  * MCUmgr
+
+    * The image management client now supports SHA-512 image digests. It can
+      list and select images for testing or confirmation on targets built with
+      :kconfig:option:`CONFIG_MCUBOOT_BOOTLOADER_USES_SHA512`.
 
 * Video
 

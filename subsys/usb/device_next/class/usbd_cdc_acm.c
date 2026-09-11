@@ -92,8 +92,8 @@ struct cdc_acm_uart_config {
 	struct usbd_desc_node *const if_desc_data;
 	/* Pointer to the class interface descriptors */
 	struct usbd_cdc_acm_desc *const desc;
-	const struct usb_desc_header **const fs_desc;
-	const struct usb_desc_header **const hs_desc;
+	const struct usb_desc_header *const *const fs_desc;
+	const struct usb_desc_header *const *const hs_desc;
 };
 
 struct cdc_acm_uart_data {
@@ -426,8 +426,8 @@ static void usbd_cdc_acm_resumed(struct usbd_class_data *const c_data)
 	atomic_clear_bit(&data->state, CDC_ACM_CLASS_SUSPENDED);
 }
 
-static void *usbd_cdc_acm_get_desc(struct usbd_class_data *const c_data,
-				   const enum usbd_speed speed)
+static const void *usbd_cdc_acm_get_desc(struct usbd_class_data *const c_data,
+					 const enum usbd_speed speed)
 {
 	const struct device *dev = usbd_class_get_private(c_data);
 	const struct cdc_acm_uart_config *cfg = dev->config;
@@ -1204,7 +1204,7 @@ static DEVICE_API(uart, cdc_acm_uart_api) = {
 #endif
 };
 
-struct usbd_class_api usbd_cdc_acm_api = {
+static const struct usbd_class_api usbd_cdc_acm_api = {
 	.request = usbd_cdc_acm_request,
 	.update = usbd_cdc_acm_update,
 	.enable = usbd_cdc_acm_enable,
@@ -1350,7 +1350,7 @@ static struct usbd_cdc_acm_desc cdc_acm_desc_##n = {				\
 	},									\
 };										\
 										\
-const static struct usb_desc_header *cdc_acm_fs_desc_##n[] = {			\
+const static struct usb_desc_header *const cdc_acm_fs_desc_##n[] = {		\
 	(struct usb_desc_header *) &cdc_acm_desc_##n.iad,			\
 	(struct usb_desc_header *) &cdc_acm_desc_##n.if0,			\
 	(struct usb_desc_header *) &cdc_acm_desc_##n.if0_header,		\
@@ -1365,7 +1365,7 @@ const static struct usb_desc_header *cdc_acm_fs_desc_##n[] = {			\
 }
 
 #define CDC_ACM_DEFINE_HS_DESC_HEADER(n)					\
-const static struct usb_desc_header *cdc_acm_hs_desc_##n[] = {			\
+const static struct usb_desc_header *const cdc_acm_hs_desc_##n[] = {		\
 	(struct usb_desc_header *) &cdc_acm_desc_##n.iad,			\
 	(struct usb_desc_header *) &cdc_acm_desc_##n.if0,			\
 	(struct usb_desc_header *) &cdc_acm_desc_##n.if0_header,		\

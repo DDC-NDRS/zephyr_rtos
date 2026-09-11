@@ -10,12 +10,15 @@
  */
 
 #include <zephyr/drivers/pinctrl.h>
+#include <zephyr/sys/util.h>
 
 #include <infineon_kconfig.h>
 #include <cy_gpio.h>
 
 #define GPIO_PORT_OR_NULL(node_id) \
     COND_CODE_1(DT_NODE_EXISTS(node_id), ((GPIO_PRT_Type*)DT_REG_ADDR(node_id)), (NULL))
+
+#define GPIO_PORT_ENTRY(i, _) GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt##i))
 
 /* On PSE84, the SMIF flash data/clock pins are routed through dedicated
  * GPIO ports inside the SMIF blocks rather than regular IOSS GPIO ports.
@@ -48,28 +51,7 @@
  */
 #if (__GTEST == 0) /* #CUSTOM@NDRS */
 static GPIO_PRT_Type* const gpio_ports[] = {
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt0)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt1)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt2)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt3)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt4)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt5)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt6)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt7)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt8)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt9)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt10)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt11)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt12)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt13)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt14)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt15)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt16)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt17)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt18)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt19)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt20)),
-    GPIO_PORT_OR_NULL(DT_NODELABEL(gpio_prt21)),
+    LISTIFY(31, GPIO_PORT_ENTRY, (,)),
     IFX_PINCTRL_SMIF_PORT_ENTRIES
 };
 #else
@@ -174,14 +156,17 @@ int pinctrl_configure_pins(const pinctrl_soc_pin_t* pins, uint8_t pin_cnt, uintp
         }
 
         #if defined(CY_IP_MXS22IOSS)
-        Cy_GPIO_SetDriveSel(gpio_ports[port_num], pin_num, soc_gpio_get_drv_strength(gpio_flags));
+        Cy_GPIO_SetDriveSel(gpio_ports[port_num], pin_num,
+                            soc_gpio_get_drv_strength(gpio_flags));
 
         /* CFGOUT3 internal pull-up: value from DT, 0 = disabled. */
         if (drv_mode == CY_GPIO_DM_CFGOUT3_STRONG_PULLUP_HIGHZ) {
-            uint32_t pullup_val = (gpio_flags & SOC_GPIO_CFGOUT3_PULLUP_MASK) >> SOC_GPIO_CFGOUT3_PULLUP_POS;
+            uint32_t pullup_val = (gpio_flags & SOC_GPIO_CFGOUT3_PULLUP_MASK) >>
+                                  SOC_GPIO_CFGOUT3_PULLUP_POS;
 
             if (pullup_val != 0U) {
-                Cy_GPIO_SetPullupResistance(gpio_ports[port_num], pin_num, pullup_val);
+                Cy_GPIO_SetPullupResistance(gpio_ports[port_num], pin_num,
+                                            pullup_val);
             }
         }
         #endif

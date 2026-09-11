@@ -548,6 +548,11 @@ Counter
   ``prescale-glitch-filter`` and ``prescale-glitch-filter-bypass`` instead. The new property is
   an exponent, not a divisor: the prescaler divides by ``2^(prescale-glitch-filter + 1)``.
 
+* :dtcompatible:`adi,max32-rtc-counter` and :dtcompatible:`adi,max32-wut` now use the shared
+  ``clk_32k`` node for 32 kHz clock source selection. The clock source is now configured through the
+  ``clocks`` property of the ``clk_32k`` node, instead of ``clock-source`` property in each
+  peripheral node (:github:`117709`).
+
 Devicetree
 ==========
 
@@ -1657,6 +1662,10 @@ USB
   and should be removed from DTS files; the underlying driver will compute the correct value
   automatically if the property doesn't exist (and honor it otherwise). (:github:`117882`)
 
+* The ``get_desc`` callback in :c:struct:`usbd_class_api` now returns ``const void *`` instead of
+  ``void *``, so that a class can keep its array of descriptor pointers in ROM. Out-of-tree
+  classes must update the return type of their handler. (:github:`118251`)
+
 Video
 =====
 
@@ -1940,6 +1949,14 @@ Bluetooth Host
 * The deprecated ``CONFIG_BT_CONN_TX_MAX`` Kconfig option has been removed. It has been
   deprecated since Zephyr 4.2, and the number of pending TX buffers with a callback always
   follows :kconfig:option:`CONFIG_BT_BUF_ACL_TX_COUNT`.
+
+* :c:member:`bt_le_ext_adv_info.sid` is now being set to ``BT_GAP_SID_INVALID`` for legacy
+  advertising sets, as SIDs are only valid for extended advertising sets. Applications should not
+  expect the :c:member:`bt_le_adv_param.sid` to be applied for legacy advertising sets.
+
+* :c:member:`bt_le_ext_adv_info.sid` now reflects the SID given to
+  :c:func:`bt_le_ext_adv_update_param`. Previously it kept the value from
+  :c:func:`bt_le_ext_adv_create` even though the controller applied the new one.
 
 Bluetooth Mesh
 ==============
@@ -2264,6 +2281,17 @@ MCUmgr
   :ref:`mcumgr_os_application_info` command now always reports the board target as hardware
   platform; the pre-4.3 board and board revision output is no longer available.
 
+* The image management client (:kconfig:option:`CONFIG_MCUMGR_GRP_IMG_CLIENT`)
+  now supports SHA-512 image digests in addition to SHA-256:
+
+  * :c:func:`img_mgmt_client_state_write` takes a new ``hash_len`` argument.
+    When ``hash`` is not ``NULL``, pass its length in bytes (for example, ``32``
+    for SHA-256). Otherwise, pass ``0``.
+  * :c:struct:`mcumgr_image_data` now stores a variable-length digest: the
+    ``hash`` buffer is :c:macro:`IMG_MGMT_CLIENT_HASH_MAX_LEN` (64) bytes, and
+    the new ``hash_len`` field holds the actual length. Code that reads ``hash``
+    must use ``hash_len`` instead of assuming :c:macro:`IMG_MGMT_DATA_SHA_LEN`.
+
 POSIX
 =====
 
@@ -2277,6 +2305,16 @@ Random
   Use :kconfig:option:`CONFIG_PSA_CSPRNG_GENERATOR` instead.
 
 * ``CONFIG_CS_CTR_DRBG_PERSONALIZATION`` has been removed. It did not have any effect.
+
+Secure Storage
+==============
+
+* The following files were renamed:
+
+  * ``zephyr/secure_storage/its/store/settings_get.h`` ->
+    ``zephyr/secure_storage/its/store/settings.h``
+  * ``zephyr/secure_storage/its/transform/aead_get.h`` ->
+    ``zephyr/secure_storage/its/transform/aead.h``
 
 Shell
 =====
@@ -2455,6 +2493,11 @@ Architectures
 
 * The RISC-V specific ``CONFIG_EXTRA_EXCEPTION_INFO`` has been removed. Use
   :kconfig:option:`CONFIG_EXCEPTION_DEBUG` instead. The option is unchanged on Arm and SPARC.
+
+* Both :c:func:`arch_mem_map` and :c:func:`arch_mem_unmap` have changed from
+  returning ``void`` to ``int`` so that the caller can react to error code when
+  assertion is disabled. If assertion is enabled, it currently retains mostly
+  the previous behavior of halting the system.
 
 Video
 =====

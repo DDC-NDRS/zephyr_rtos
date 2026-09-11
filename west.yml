@@ -149,7 +149,7 @@ manifest:
       groups:
         - fs
     - name: hal_adi
-      revision: 1a5d9748b680adf0669739f37d05cb985f39b7b8
+      revision: 7b845b62c15a2ec75e67f4eb95f23790aa607c61
       path: modules/hal/adi
       groups:
         - hal
@@ -205,7 +205,7 @@ manifest:
       groups:
         - hal
     - name: hal_nordic
-      revision: 4387c79cebd31927fb1ea7d64bee11728ae8041f
+      revision: 2bbc7efdd88e2f89ea1b928cf9862b0bf5415a38
       path: modules/hal/nordic
       groups:
         - hal
