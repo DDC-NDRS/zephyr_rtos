@@ -95,12 +95,26 @@ void z_shell_multiline_data_calc(struct shell_multiline_cons* cons,
     cons->cur_x_end = (buff_len + cons->name_len) % cons->terminal_wid + 1;
 }
 
-static char make_argv(char** ppcmd, uint8_t c) {
-    char* cmd = *ppcmd;
+/* Unescapes one argument in place using independent read (src) and write
+ * (dst) cursors, so every input byte is inspected once and each output byte
+ * is written at most once. This avoids the memmove()+z_shell_strlen() pair
+ * the previous implementation called on every removed quote/escape char,
+ * which rescanned the *entire remaining buffer* (including still-unparsed
+ * arguments) each time and made parsing O(n^2) on inputs with many escapes.
+ * dst never runs ahead of src, so writes always stay within the bounds of
+ * the original NUL-terminated string. Bytes skipped between dst and src
+ * (removed quotes/escapes) are simply abandoned in the buffer; that's safe
+ * because each argv string is independent and does not need to stay packed
+ * contiguously with the arguments that follow it.
+ */
+static char make_argv(char** ppcmd) {
+    char* src = *ppcmd;
+    char* dst = src;
     char quote = 0;
+    char c;
 
-    while (1) {
-        c = *cmd;
+    while (true) {
+        c = *src;
 
         if (c == '\0') {
             break;
@@ -108,17 +122,24 @@ static char make_argv(char** ppcmd, uint8_t c) {
 
         if (!quote) {
             switch (c) {
-                case '\\' :
-                    memmove(cmd, cmd + 1,
-                            z_shell_strlen(cmd));
-                    cmd += 1;
+                case '\\' : {
+                    char t = *(src + 1);
+
+                    if (t != '\0') {
+                        *dst++ = t;
+                        src += 2;
+                    }
+                    else {
+                        /* trailing lone backslash: drop it, stop at EOS */
+                        src += 1;
+                    }
                     continue;
+                }
 
                 case '\'' :
                 case '\"' :
-                    memmove(cmd, cmd + 1,
-                            z_shell_strlen(cmd));
                     quote = c;
+                    src += 1;
                     continue;
 
                 default :
@@ -127,18 +148,17 @@ static char make_argv(char** ppcmd, uint8_t c) {
         }
 
         if (quote == c) {
-            memmove(cmd, cmd + 1, z_shell_strlen(cmd));
             quote = 0;
+            src += 1;
             continue;
         }
 
         if (quote && c == '\\') {
-            char t = *(cmd + 1);
+            char t = *(src + 1);
 
             if (t == quote) {
-                memmove(cmd, cmd + 1,
-                        z_shell_strlen(cmd));
-                cmd += 1;
+                *dst++ = t;
+                src += 2;
                 continue;
             }
 
@@ -147,7 +167,7 @@ static char make_argv(char** ppcmd, uint8_t c) {
                 uint_fast8_t v = 0U;
 
                 for (i = 2U; i < (2U + 3U); i++) {
-                    t = *(cmd + i);
+                    t = *(src + i);
 
                     if ((t >= '0') && (t <= '7')) {
                         v = (uint_fast8_t)((v << 3) | (t - '0'));
@@ -158,9 +178,8 @@ static char make_argv(char** ppcmd, uint8_t c) {
                 }
 
                 if (i > 2) {
-                    memmove(cmd, cmd + (i - 1),
-                            z_shell_strlen(cmd) - (i - 2));
-                    *cmd++ = v;
+                    *dst++ = (char)v;
+                    src += i;
                     continue;
                 }
             }
@@ -170,7 +189,7 @@ static char make_argv(char** ppcmd, uint8_t c) {
                 uint_fast8_t v = 0U;
 
                 for (i = 2U; i < (2U + 2U); i++) {
-                    t = *(cmd + i);
+                    t = *(src + i);
 
                     if ((t >= '0') && (t <= '9')) {
                         v = (uint_fast8_t)((v << 4) | (t - '0'));
@@ -187,9 +206,8 @@ static char make_argv(char** ppcmd, uint8_t c) {
                 }
 
                 if (i > 2U) {
-                    memmove(cmd, cmd + (i - 1),
-                            z_shell_strlen(cmd) - (i - 2));
-                    *cmd++ = v;
+                    *dst++ = (char)v;
+                    src += i;
                     continue;
                 }
             }
@@ -199,10 +217,18 @@ static char make_argv(char** ppcmd, uint8_t c) {
             break;
         }
 
-        cmd += 1;
+        *dst++ = *src++;
     }
 
-    *ppcmd = cmd;
+    if (dst != src) {
+        /* Only terminate here if compaction actually shortened the token
+         * (quotes/escapes were removed). Otherwise dst == src and that byte
+         * is the real delimiter (space or NUL) that the caller still needs
+         * to see untouched.
+         */
+        *dst = '\0';
+    }
+    *ppcmd = src;
 
     return (quote);
 }
@@ -229,7 +255,7 @@ char z_shell_make_argv(size_t* argc, char const** argv, char* cmd,
         if (*argc == max_argc) {
             break;
         }
-        quote = make_argv(&cmd, c);
+        quote = make_argv(&cmd);
     } while (true);
 
     return (quote);
@@ -603,6 +629,7 @@ static struct device const* shell_device_internal(size_t idx,
     struct device const* dev;
     size_t len = z_device_get_all_static(&dev);
     struct device const* dev_end = (dev + len);
+    size_t prefix_len = (prefix != NULL) ? strlen(prefix) : 0U;
 
     while (dev < dev_end) {
         if (((status == SHELL_DEVICE_STATUS_ANY) ||
@@ -610,7 +637,7 @@ static struct device const* shell_device_internal(size_t idx,
              ((status == SHELL_DEVICE_STATUS_NON_READY) && !device_is_ready(dev))) &&
             (dev->name != NULL)      &&
             (strlen(dev->name) != 0) &&
-            ((prefix == NULL) || (strncmp(prefix, dev->name, strlen(prefix)) == 0)) &&
+            ((prefix == NULL) || (strncmp(prefix, dev->name, prefix_len) == 0)) &&
             ((filter == NULL) || filter(dev))) {
             if (match_idx == idx) {
                 return (dev);
@@ -664,12 +691,13 @@ static inline bool device_has_nodelabel(struct device const* dev,
 
     nl = device_get_dt_nodelabels(dev);
     if (nl != NULL) {
+        size_t name_len = strlen(name);
         size_t i;
 
         for (i = 0; i < nl->num_nodelabels; i++) {
             const char* dev_nl = nl->nodelabels[i];
 
-            if ((strlen(dev_nl) == strlen(name)) &&
+            if ((strlen(dev_nl) == name_len) &&
                 (strcmp(name, dev_nl) == 0)) {
                 return (true);
             }
@@ -688,9 +716,11 @@ struct device const* shell_device_get_binding_all(const char* name) {
     struct device const* dev_end = dev + len;
 
     if (name != NULL) {
+        size_t name_len = strlen(name);
+
         for (; dev < dev_end; dev++) {
             if (((dev->name != NULL)
-                 && (strlen(dev->name) == strlen(name))
+                 && (strlen(dev->name) == name_len)
                  && (strcmp(name, dev->name) == 0))
                 || device_has_nodelabel(dev, name)) {
                 return (dev);
