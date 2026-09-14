@@ -629,14 +629,13 @@ static struct device const* shell_device_internal(size_t idx,
     struct device const* dev;
     size_t len = z_device_get_all_static(&dev);
     struct device const* dev_end = (dev + len);
-    size_t prefix_len = (prefix != NULL) ? strlen(prefix) : 0U;
+    size_t prefix_len = z_shell_strlen(prefix);
 
     while (dev < dev_end) {
         if (((status == SHELL_DEVICE_STATUS_ANY) ||
              ((status == SHELL_DEVICE_STATUS_READY) && device_is_ready(dev)) ||
              ((status == SHELL_DEVICE_STATUS_NON_READY) && !device_is_ready(dev))) &&
-            (dev->name != NULL)      &&
-            (strlen(dev->name) != 0) &&
+            (z_shell_strlen(dev->name) != 0U) &&
             ((prefix == NULL) || (strncmp(prefix, dev->name, prefix_len) == 0)) &&
             ((filter == NULL) || filter(dev))) {
             if (match_idx == idx) {
@@ -714,13 +713,11 @@ struct device const* shell_device_get_binding_all(const char* name) {
     struct device const* dev;
     size_t len = z_device_get_all_static(&dev);
     struct device const* dev_end = dev + len;
+    size_t name_len = z_shell_strlen(name);
 
-    if (name != NULL) {
-        size_t name_len = strlen(name);
-
+    if (name_len != 0U) {
         for (; dev < dev_end; dev++) {
-            if (((dev->name != NULL)
-                 && (strlen(dev->name) == name_len)
+            if (((z_shell_strlen(dev->name) == name_len)
                  && (strcmp(name, dev->name) == 0))
                 || device_has_nodelabel(dev, name)) {
                 return (dev);
