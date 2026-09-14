@@ -655,9 +655,9 @@ enum can_mcan_psr_lec {
  * @param _section_name Name of the linker section to place the buffer in
  */
 #define CAN_MCAN_DT_MRAM_DEFINE_SECTION(node_id, _name, _section_name)                             \
-	BUILD_ASSERT(CAN_MCAN_DT_MRAM_OFFSET(node_id) == 0, "offset must be 0");                   \
-	static char __aligned(4) _name[CAN_MCAN_DT_MRAM_ELEMENTS_SIZE(node_id)] Z_GENERIC_SECTION( \
-		_section_name);
+    BUILD_ASSERT(CAN_MCAN_DT_MRAM_OFFSET(node_id) == 0, "offset must be 0");                   \
+    static char __aligned(4) _name[CAN_MCAN_DT_MRAM_ELEMENTS_SIZE(node_id)] Z_GENERIC_SECTION( \
+        _section_name);
 
 /**
  * @brief Assert that the Message RAM configuration meets the Bosch M_CAN IP core restrictions
@@ -869,7 +869,7 @@ enum can_mcan_psr_lec {
  * @param _section_name Name of the linker section to place the buffer in
  */
 #define CAN_MCAN_DT_INST_MRAM_DEFINE_SECTION(inst, _name, _section_name)                           \
-	CAN_MCAN_DT_MRAM_DEFINE_SECTION(DT_DRV_INST(inst), _name, _section_name)
+    CAN_MCAN_DT_MRAM_DEFINE_SECTION(DT_DRV_INST(inst), _name, _section_name)
 
 /**
  * @brief Bosch M_CAN specific static initializer for a minimum nominal @p can_timing struct
@@ -1339,7 +1339,7 @@ struct can_mcan_config {
 #ifdef CONFIG_CAN_FD_MODE
 #define CAN_MCAN_DT_CONFIG_GET(node_id, _custom, _ops, _cbs)                    \
     {                                                                           \
-        .common = CAN_DT_DRIVER_CONFIG_GET(node_id, 0, 8000000),               	\
+        .common = CAN_DT_DRIVER_CONFIG_GET(node_id, 0, 8000000),                   \
         .ops = _ops,                                                            \
         .callbacks = _cbs,                                                      \
         .mram_elements = CAN_MCAN_DT_MRAM_ELEMENTS_GET(node_id),                \
@@ -1352,7 +1352,7 @@ struct can_mcan_config {
 #else /* CONFIG_CAN_FD_MODE */
 #define CAN_MCAN_DT_CONFIG_GET(node_id, _custom, _ops, _cbs)                    \
     {                                                                           \
-        .common = CAN_DT_DRIVER_CONFIG_GET(node_id, 0, 1000000),               	\
+        .common = CAN_DT_DRIVER_CONFIG_GET(node_id, 0, 1000000),                   \
         .ops = _ops,                                                            \
         .callbacks = _cbs,                                                      \
         .mram_elements = CAN_MCAN_DT_MRAM_ELEMENTS_GET(node_id),                \
@@ -1383,6 +1383,8 @@ struct can_mcan_config {
  */
 #define CAN_MCAN_DATA_DEFINE(_name, _custom)                    \
     static struct can_mcan_data _name = {                       \
+        .common.state_change_callbacks =                        \
+            SYS_SLIST_STATIC_INIT(_name.common.state_change_callbacks), \
         .lock   = Z_MUTEX_INITIALIZER(_name.lock),              \
         .tx_mtx = Z_MUTEX_INITIALIZER(_name.tx_mtx),            \
         .custom = _custom,                                      \
@@ -1732,13 +1734,6 @@ void can_mcan_remove_rx_filter(const struct device* dev, int filter_id);
  */
 int can_mcan_get_state(const struct device* dev, enum can_state* state,
                        struct can_bus_err_cnt* err_cnt);
-
-/**
- * @brief Bosch M_CAN driver callback API upon setting a state change callback
- * See @a can_set_state_change_callback() for argument description
- */
-void can_mcan_set_state_change_callback(const struct device* dev,
-                                        can_state_change_callback_t callback, void* user_data);
 
 #ifdef __cplusplus
 }

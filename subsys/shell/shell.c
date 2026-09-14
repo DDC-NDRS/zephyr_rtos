@@ -114,11 +114,11 @@ static int cmd_precheck(struct shell const* sh,
     return (0);
 }
 
-static inline void state_set(struct shell const* sh, enum shell_state state) {
+/* Print prompt if shell is active and not in bypass mode. */
+static void cond_print_prompt(struct shell const* sh) {
     struct shell_ctx* ctx = sh->ctx;
 
-    ctx->state = state;
-    if ((state == SHELL_STATE_ACTIVE) && !ctx->bypass) {
+    if ((ctx->state == SHELL_STATE_ACTIVE) && !ctx->bypass) {
         cmd_buffer_clear(sh);
         if (z_flag_print_noinit_get(sh)) {
             z_shell_fprintf(sh, SHELL_WARNING, "%s",
@@ -128,6 +128,10 @@ static inline void state_set(struct shell const* sh, enum shell_state state) {
 
         z_shell_print_prompt_and_cmd(sh);
     }
+}
+
+static inline void state_set(struct shell const* sh, enum shell_state state) {
+    sh->ctx->state = state;
 }
 
 static inline enum shell_state state_get(struct shell const* sh) {
@@ -1380,7 +1384,7 @@ static void ctrl_metakeys_handle(struct shell const* sh, char data) {
                 ctx->readline_state = SHELL_READLINE_CANCELED;
             }
             else {
-                state_set(sh, SHELL_STATE_ACTIVE);
+                cond_print_prompt(sh);
             }
             break;
 
@@ -1498,7 +1502,7 @@ static void state_collect(struct shell const* sh) {
                 z_flag_cmd_ctx_set(sh, false);
                 /* Check if bypass mode ended. */
                 if (!(volatile shell_bypass_cb_t*)ctx->bypass) {
-                    state_set(sh, SHELL_STATE_ACTIVE);
+                    cond_print_prompt(sh);
                 }
                 else {
                     continue;
@@ -1540,10 +1544,11 @@ static void state_collect(struct shell const* sh) {
                         /* Command execution */
                         ctx->ret_val = execute(sh);
                     }
+
                     /* Function responsible for printing prompt
                      * on received NL.
                      */
-                    state_set(sh, SHELL_STATE_ACTIVE);
+                    cond_print_prompt(sh);
                     continue;
                 }
 
@@ -1972,6 +1977,9 @@ int shell_start(struct shell const* sh) {
      */
     z_cursor_next_line_move(sh);
     state_set(sh, SHELL_STATE_ACTIVE);
+
+    /* Print prompt. */
+    cond_print_prompt(sh);
 
     z_shell_unlock(sh);
 

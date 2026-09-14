@@ -2127,7 +2127,7 @@ static void modem_cellular_await_ppp_dead_event_handler(struct modem_cellular_da
         case MODEM_CELLULAR_EVENT_RING :
             LOG_DBG("RING received!");
             modem_pipe_open_async(data->uart_pipe);
-            __fallthrough;
+            break;
 
         case MODEM_CELLULAR_EVENT_PPP_DEAD :
             /* Wait for the channel to return to AT mode after PPP termination */

@@ -329,6 +329,13 @@ Deprecated APIs and options
     located in the ``drivers/clock_control/Kconfig.nrf`` and  ``modules/hal_nordic/nrfx/Kconfig``
     files.
 
+* Controller Area Network (CAN)
+
+  * :c:func:`can_set_state_change_callback` is deprecated in favor of
+    :c:func:`can_init_state_change_callback`, :c:func:`can_add_state_change_callback`, and
+    :c:func:`can_remove_state_change_callback`. The new API functions allow adding more than one CAN
+    controller state change callback (:github:`117889`).
+
 * CPU Load
 
   * :kconfig:option:`CONFIG_CPU_LOAD_METRIC` and :c:func:`cpu_load_metric_get` are deprecated. The
@@ -447,6 +454,10 @@ New APIs and options
 
   * :kconfig:option:`CONFIG_ARM_MPU_CM7_UNMAPPED_REGION` (Arm Cortex-M7 catch-all MPU region
     for unmapped addresses, erratum 1013783 workaround)
+  * :kconfig:option:`CONFIG_CORTEX_M_ERRATUM_440977_WORKAROUND` (keeps an ISB after
+    priority-raising BASEPRI writes; enabled by default on Arm Cortex-M7, where erratum
+    440977 applies to r0p0/r0p1 cores. Other Cortex-M cores no longer execute barriers in
+    the interrupt lock/unlock fast paths, speeding up kernel hot paths)
   * :kconfig:option:`CONFIG_EXCEPTION_DUMP` (enabled by default, can be disabled to compile
     out the fault handler output on size constrained builds)
 
@@ -474,6 +485,14 @@ New APIs and options
     * :c:member:`bt_bap_unicast_group_info.c_to_p_ft`
     * :c:member:`bt_bap_unicast_group_info.p_to_c_ft`
     * :c:member:`bt_bap_unicast_group_info.iso_interval`
+    * :c:member:`bt_cap_initiator_cb.unicast_start_codec_configured`
+    * :c:member:`bt_cap_initiator_cb.unicast_start_qos_configured`
+    * :c:member:`bt_cap_initiator_cb.unicast_start_enabled`
+    * :c:member:`bt_cap_initiator_cb.unicast_start_connected`
+    * :c:member:`bt_cap_initiator_cb.unicast_start_started`
+    * :c:member:`bt_cap_initiator_cb.unicast_stop_disabled`
+    * :c:member:`bt_cap_initiator_cb.unicast_stop_stopped`
+    * :c:member:`bt_cap_initiator_cb.unicast_stop_released`
     * :c:func:`bt_vocs_client_free_instance`
 
   * Classic
@@ -521,6 +540,10 @@ New APIs and options
     * :c:func:`clock_control_release`
     * :c:func:`clock_control_cancel_or_release`
 
+* CPUFreq
+
+  * :kconfig:option:`CONFIG_CPU_FREQ_POLICY_TIMING_NOISE`
+
 * Crypto
 
   * :c:enumerator:`CRYPTO_CIPHER_MODE_CFB`
@@ -535,16 +558,19 @@ New APIs and options
 
 * Haptics
 
-  * :c:enumerator:`haptics_monitor`
-  * :c:enumerator:`haptics_monitor_type`
-  * :c:enumerator:`haptics_source`
+  * :c:enum:`haptics_monitor`
+  * :c:enum:`haptics_monitor_type`
+  * :c:enum:`haptics_source`
+  * :c:enum:`haptics_trigger_type`
   * :c:union:`haptics_config`
   * :c:func:`haptics_calibrate`
   * :c:func:`haptics_monitor_get`
   * :c:func:`haptics_monitor_set`
   * :c:func:`haptics_select_source`
   * :c:func:`haptics_set_level`
+  * :c:func:`haptics_set_trigger`
   * :c:func:`haptics_stream_samples`
+  * :c:func:`haptics_trigger`
 
 * HWSPINLOCK
 
@@ -1788,6 +1814,7 @@ New Samples
 * :zephyr:code-sample:`coredump-udp-demo-shell`
 * :zephyr:code-sample:`coresight_stm_shell`
 * :zephyr:code-sample:`cpu_freq_thermal_cap`
+* :zephyr:code-sample:`cpu_freq_timing_noise`
 * :zephyr:code-sample:`cs40l26`
 * :zephyr:code-sample:`dali`
 * :zephyr:code-sample:`dhcpv6-pd`

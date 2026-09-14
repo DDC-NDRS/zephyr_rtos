@@ -574,7 +574,7 @@ static int stm32_flash_init(struct device const* dev) {
     return (0);
 }
 
-DEVICE_DT_INST_DEFINE(0, stm32_flash_init, NULL, &flash_data, NULL, POST_KERNEL,
+DEVICE_DT_INST_DEFINE(0, stm32_flash_init, NULL, &flash_data, NULL, PRE_KERNEL_1,
                       CONFIG_FLASH_INIT_PRIORITY, &flash_stm32_api);
 
 #if (__GTEST == 1) /* #CUSTOM@NDRS */

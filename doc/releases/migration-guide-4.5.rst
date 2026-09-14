@@ -311,6 +311,41 @@ Boards
 
   The Arduino UNO R4 Minima is unaffected. (:github:`118433`)
 
+* The Espressif per-module devicetree include files and their SoC Kconfig symbols have been
+  removed. A module or SIP part number describes how much flash and PSRAM a board carries, which
+  is a property of the board rather than of the SoC, so both are now declared by the board itself.
+
+  Every ``espressif/<soc>/<soc>_<module>.dtsi`` file is replaced by a single
+  ``espressif/<soc>/<soc>.dtsi`` per SoC. The matching hidden Kconfig symbols, such as
+  ``SOC_ESP32S3_WROOM_N8`` and ``SOC_ESP32_WROVER_E_N16R8``, are replaced by the plain SoC symbol,
+  such as :kconfig:option:`CONFIG_SOC_ESP32S3`. ``SOC_PART_NUMBER`` now reports the SoC rather than
+  the module.
+
+  Out-of-tree Espressif boards must be updated, and fail to build until they are:
+
+  * Include the plain SoC dtsi instead of the module one.
+  * Select the plain SoC symbol in ``Kconfig.<board>``.
+  * Describe the flash in the board dts, giving both ``reg`` and a matching ``ranges``, because
+    the SoC dtsi no longer sets either.
+
+    .. code-block:: devicetree
+
+       &flash0 {
+           reg = <0x0 DT_SIZE_M(8)>;
+           ranges = <0x0 0x0 DT_SIZE_M(8)>;
+       };
+
+  * Describe the PSRAM the same way, on boards that have it:
+
+    .. code-block:: devicetree
+
+       &psram0 {
+           size = <DT_SIZE_M(2)>;
+       };
+
+  On the dual-core ESP32, ``espressif/esp32/esp32_appcpu.dtsi`` no longer sets a flash either, so
+  an APPCPU board dts has to declare the same flash as its PROCPU counterpart.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -533,6 +568,14 @@ Controller Area Network (CAN)
 
 * The deprecated ``bus-speed`` and ``bus-speed-data`` CAN controller devicetree properties have
   been removed. Use ``bitrate`` and ``bitrate-data`` instead.
+
+* The CAN controllers driver ops no longer contain a ``can_set_state_change_callback_t`` function
+  pointer as adding/removing callbacks is now handled via the generic
+  :c:func:`can_add_state_change_callback`, and :c:func:`can_remove_state_change_callback` API
+  functions. Out-of-tree drivers can either remove the driver op completely or replace it with
+  ``can_state_change_callbacks_enabled_t`` as needed. Drivers must now use
+  :c:func:`can_fire_state_change_callbacks` for firing CAN controller state change callbacks
+  (:github:`117889`).
 
 Counter
 =======
@@ -2316,6 +2359,9 @@ Secure Storage
   * ``zephyr/secure_storage/its/transform/aead_get.h`` ->
     ``zephyr/secure_storage/its/transform/aead.h``
 
+* The ZMS backend partition chosen name has been updated from
+  ``secure_storage_its_partition`` to ``zephyr,secure-storage-its-partition`` (:github:`118501`).
+
 Shell
 =====
 
@@ -2347,6 +2393,11 @@ Tools
 
 Modules
 *******
+
+* The `CHRE <https://github.com/zephyrproject-rtos/chre>`_ framework is no longer an optional
+  module of the Zephyr manifest and its sample moved out of the Zephyr tree. It is now an
+  :ref:`external module <external_module_chre>`; add it to the application manifest to keep using
+  it.
 
 * Support for the `CANopenNode <https://github.com/CANopenNode/CANopenNode>`_ protocol stack was
   moved to an :ref:`external module<external_module_canopennode>`.

@@ -149,7 +149,7 @@ manifest:
       groups:
         - fs
     - name: hal_adi
-      revision: 7b845b62c15a2ec75e67f4eb95f23790aa607c61
+      revision: 489885cdfa668870f95b00ded1cc56ac52cdf5c4
       path: modules/hal/adi
       groups:
         - hal
@@ -190,7 +190,7 @@ manifest:
       groups:
         - hal
     - name: hal_infineon
-      revision: 0cbb6f3723feedd0ec85d3efd1bc1c47398fc911
+      revision: 36721aa1af0d83f3c27c25af7ebbd124e6ce2b29
       path: modules/hal/infineon
       groups:
         - hal
