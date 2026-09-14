@@ -640,7 +640,7 @@ static DEVICE_API(dma, ifx_cat1_dma_api) = {
 
 #define INFINEON_CAT1_DMA_INIT(n)                               \
                                                                 \
-    static void ifx_cat1_dma_irq_configure##n(void);            \
+    static void ifx_cat1_dma_irq_configure_##n(void);           \
                                                                 \
     static struct ifx_cat1_dma_channel_t                        \
         ifx_cat1_dma_channels##n[DT_INST_PROP(n, dma_channels)];\
@@ -651,12 +651,12 @@ static DEVICE_API(dma, ifx_cat1_dma_api) = {
                                                                 \
     static struct ifx_cat1_dma_config_t DT_CONST ifx_cat1_dma_config_##n = { \
         .regs            = (DW_Type*)DT_INST_REG_ADDR(n),       \
-        .irq_configure   = ifx_cat1_dma_irq_configure##n,       \
+        .irq_configure   = ifx_cat1_dma_irq_configure_##n,      \
         .enable_chaining = DT_INST_PROP(n, enable_chaining),    \
         .num_channels    = DT_INST_PROP(n, dma_channels),       \
     };                                                          \
                                                                 \
-    static void ifx_cat1_dma_irq_configure##n(void) {           \
+    static void ifx_cat1_dma_irq_configure_##n(void) {          \
         extern struct ifx_cat1_dma_channel_t ifx_cat1_dma_channels##n[]; \
         CONFIGURE_ALL_IRQS(n, DT_NUM_IRQS(DT_DRV_INST(n)));     \
     }                                                           \
@@ -664,7 +664,7 @@ static DEVICE_API(dma, ifx_cat1_dma_api) = {
     PM_DEVICE_DT_INST_DEFINE(n, ifx_cat1_dma_pm_action);        \
                                                                 \
     DEVICE_DT_INST_DEFINE(n, ifx_cat1_dma_init, PM_DEVICE_DT_INST_GET(n), \
-                          &ifx_cat1_dma_data##n, &ifx_cat1_dma_config##n, PRE_KERNEL_1, \
+                          &ifx_cat1_dma_data_##n, &ifx_cat1_dma_config_##n, PRE_KERNEL_1, \
                           CONFIG_DMA_INIT_PRIORITY, &ifx_cat1_dma_api);
 
 DT_INST_FOREACH_STATUS_OKAY(INFINEON_CAT1_DMA_INIT)

@@ -1437,6 +1437,7 @@ static inline int can_mcan_sys_read_mram(mem_addr_t base, uint16_t offset, void*
     volatile uint32_t* src32 = (volatile uint32_t*)(base + offset);
     uint32_t* dst32 = (uint32_t*)dst;
     size_t len32 = (len / sizeof(uint32_t));
+    size_t i = 0U;
 
     __ASSERT(base % 4U == 0U, "base must be a multiple of 4");
     __ASSERT(offset % 4U == 0U, "offset must be a multiple of 4");
@@ -1450,10 +1451,11 @@ static inline int can_mcan_sys_read_mram(mem_addr_t base, uint16_t offset, void*
     if (err != 0) {
         return err;
     }
-    #endif /* !defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE) */
+    #endif /* defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE) */
 
-    while (len32-- > 0) {
-        *dst32++ = *src32++;
+    while (i < len32) {
+        dst32[i] = src32[i];
+        i++;
     }
 
     return (0);
@@ -1477,21 +1479,23 @@ static inline int can_mcan_sys_write_mram(mem_addr_t base, uint16_t offset, void
     volatile uint32_t* dst32 = (volatile uint32_t*)(base + offset);
     uint32_t const* src32 = (uint32_t const*)src;
     size_t len32 = (len / sizeof(uint32_t));
+    size_t i = 0U;
 
     __ASSERT(base % 4U == 0U, "base must be a multiple of 4");
     __ASSERT(offset % 4U == 0U, "offset must be a multiple of 4");
     __ASSERT(POINTER_TO_UINT(src) % 4U == 0U, "src must be 32-bit aligned");
     __ASSERT(len % 4U == 0U, "len must be a multiple of 4");
 
-    while (len32-- > 0) {
-        *dst32++ = *src32++;
+    while (i < len32) {
+        dst32[i] = src32[i];
+        i++;
     }
 
     #if (defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE))
     return sys_cache_data_flush_range((void*)(base + offset), len);
     #else  /* defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE) */
     return (0);
-    #endif /* !defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE) */
+    #endif /* defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE) */
 }
 
 /**
@@ -1511,20 +1515,22 @@ static inline int can_mcan_sys_write_mram(mem_addr_t base, uint16_t offset, void
 static inline int can_mcan_sys_clear_mram(mem_addr_t base, uint16_t offset, size_t len) {
     volatile uint32_t* dst32 = (volatile uint32_t*)(base + offset);
     size_t len32 = (len / sizeof(uint32_t));
+    size_t i = 0U;
 
     __ASSERT(base % 4U == 0U, "base must be a multiple of 4");
     __ASSERT(offset % 4U == 0U, "offset must be a multiple of 4");
     __ASSERT(len % 4U == 0U, "len must be a multiple of 4");
 
-    while (len32-- > 0) {
-        *dst32++ = 0U;
+    while (i < len32) {
+        dst32[i] = 0U;
+        i++;
     }
 
     #if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
     return sys_cache_data_flush_range((void*)(base + offset), len);
     #else  /* defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE) */
     return (0);
-    #endif /* !defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE) */
+    #endif /* defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE) */
 }
 
 #ifdef __cplusplus

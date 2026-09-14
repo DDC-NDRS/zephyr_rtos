@@ -286,6 +286,12 @@ static void can_sja1000_read_frame(const struct device *dev, struct can_frame *f
 		frame->flags = 0;
 	}
 
+#if defined(CONFIG_CAN_RX_TIMESTAMP)
+	frame->timestamp = 0U;
+#else
+	frame->reserved = 0U;
+#endif /* CONFIG_CAN_RX_TIMESTAMP */
+
 	frame->dlc = CAN_SJA1000_FRAME_INFO_DLC_GET(info);
 	if (frame->dlc > CAN_MAX_DLC) {
 		LOG_ERR("RX frame DLC %u exceeds maximum (%d)", frame->dlc, CAN_MAX_DLC);
@@ -314,16 +320,19 @@ static void can_sja1000_read_frame(const struct device *dev, struct can_frame *f
 		data_reg = CAN_SJA1000_SFF_DATA;
 	}
 
-	if ((frame->flags & CAN_FRAME_RTR) == 0U) {
-		frame->data[0] = read_reg(dev, data_reg);
-		frame->data[1] = read_reg(dev, data_reg + 1);
-		frame->data[2] = read_reg(dev, data_reg + 2);
-		frame->data[3] = read_reg(dev, data_reg + 3);
-		frame->data[4] = read_reg(dev, data_reg + 4);
-		frame->data[5] = read_reg(dev, data_reg + 5);
-		frame->data[6] = read_reg(dev, data_reg + 6);
-		frame->data[7] = read_reg(dev, data_reg + 7);
-	}
+	/* Always read all 8 data registers, even for RTR frames: the shadow
+	 * registers have no read side effects, and reading them unconditionally
+	 * guarantees frame->data is fully defined instead of leaving stack
+	 * garbage in bytes the RTR/short-frame case never asked for.
+	 */
+	frame->data[0] = read_reg(dev, data_reg);
+	frame->data[1] = read_reg(dev, data_reg + 1);
+	frame->data[2] = read_reg(dev, data_reg + 2);
+	frame->data[3] = read_reg(dev, data_reg + 3);
+	frame->data[4] = read_reg(dev, data_reg + 4);
+	frame->data[5] = read_reg(dev, data_reg + 5);
+	frame->data[6] = read_reg(dev, data_reg + 6);
+	frame->data[7] = read_reg(dev, data_reg + 7);
 }
 
 void can_sja1000_write_frame(const struct device *dev, const struct can_frame *frame)

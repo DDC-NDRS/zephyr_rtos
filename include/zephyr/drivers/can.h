@@ -169,10 +169,13 @@ enum can_state {
 struct can_frame {
     /** Standard (11-bit) or extended (29-bit) CAN identifier. */
     uint32_t id;
+
     /** Data Length Code (DLC) indicating data length in bytes. */
     uint8_t dlc;
+
     /** Flags. @see @ref CAN_FRAME_FLAGS. */
     uint8_t flags;
+
     #if defined(CONFIG_CAN_RX_TIMESTAMP) || defined(__DOXYGEN__)
     /** Captured value of the free-running timer in the CAN controller when
      * this frame was received. The timer is incremented every bit time and
@@ -188,10 +191,12 @@ struct can_frame {
     uint16_t reserved;
     /** @endcond */
     #endif
+
     /** The frame payload data. */
     union {
         /** Payload data accessed as unsigned 8 bit values. */
         uint8_t data[CAN_MAX_DLEN];
+
         /** Payload data accessed as unsigned 32 bit values. */
         uint32_t data_32[DIV_ROUND_UP(CAN_MAX_DLEN, sizeof(uint32_t))];
     };

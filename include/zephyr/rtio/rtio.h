@@ -357,7 +357,8 @@ static inline uint32_t rtio_sqe_acquirable(struct rtio* r) {
  */
 static inline struct rtio_sqe* rtio_sqe_acquire(struct rtio* r) {
     #if defined(_MSC_VER)
-    /* pass: unsupported compilation error */
+    ARG_UNUSED(r);
+    return (NULL);
     #else
     SYS_PORT_TRACING_FUNC_ENTER(rtio, sqe_acquire, r);
     struct rtio_iodev_sqe* iodev_sqe = rtio_sqe_pool_alloc(r->sqe_pool);

@@ -738,6 +738,8 @@ void can_mcan_get_message(const struct device* dev, uint16_t fifo_offset,
 
         #ifdef CONFIG_CAN_RX_TIMESTAMP
         frame.timestamp = hdr.rxts;
+        #else
+        frame.reserved = 0U;
         #endif /* CONFIG_CAN_RX_TIMESTAMP */
 
         filt_idx = hdr.fidx;
@@ -752,17 +754,21 @@ void can_mcan_get_message(const struct device* dev, uint16_t fifo_offset,
 
         data_length = can_dlc_to_bytes(frame.dlc);
         if (data_length <= sizeof(frame.data)) {
-            if (((frame.flags & CAN_FRAME_RTR) == 0U) && (data_length != 0U)) {
-                err = can_mcan_read_mram(dev,
-                                         fifo_offset +
-                                         (get_idx * sizeof(struct can_mcan_rx_fifo)) +
-                                         offsetof(struct can_mcan_rx_fifo, data_32),
-                                         &frame.data_32,
-                                         ROUND_UP(data_length, sizeof(uint32_t)));
-                if (err != 0) {
-                    LOG_ERR("failed to read Rx FIFO data (err %d)", err);
-                    return;
-                }
+            /* Always read the full data slot from message RAM, even for RTR
+             * or short frames: the read has no side effects, and reading it
+             * unconditionally guarantees frame.data is fully defined instead
+             * of leaving stack garbage in bytes the RTR/short-frame case
+             * never asked for.
+             */
+            err = can_mcan_read_mram(dev,
+                                     fifo_offset +
+                                     (get_idx * sizeof(struct can_mcan_rx_fifo)) +
+                                     offsetof(struct can_mcan_rx_fifo, data_32),
+                                     &frame.data_32,
+                                     sizeof(frame.data_32));
+            if (err != 0) {
+                LOG_ERR("failed to read Rx FIFO data (err %d)", err);
+                return;
             }
 
             if ((frame.flags & CAN_FRAME_IDE) != 0) {
