@@ -460,6 +460,14 @@ New APIs and options
     the interrupt lock/unlock fast paths, speeding up kernel hot paths)
   * :kconfig:option:`CONFIG_EXCEPTION_DUMP` (enabled by default, can be disabled to compile
     out the fault handler output on size constrained builds)
+  * :kconfig:option:`CONFIG_RISCV_USER_STRING_NLEN_VALIDATE` (RISC-V, validate the user
+    string chunk by chunk in ``arch_user_string_nlen()`` instead of relying on the fault fixup,
+    for SoCs whose load access fault is imprecise)
+  * :kconfig:option:`CONFIG_RISCV_SOC_HAS_SYSCALL_INTMASK` (RISC-V SoC hook to mask
+    interrupts in the user-mode syscall body without clearing ``mstatus.MIE``)
+  * :kconfig:option:`CONFIG_RISCV_SOC_SYSCALL_CLOSE_ECALL` (RISC-V SoC hook to leave the
+    ecall exception before the user-mode syscall body runs, for SoCs that cannot deliver a
+    fault raised by the body while that exception is open)
 
 * Audio
 
@@ -555,6 +563,11 @@ New APIs and options
 
   * :c:macro:`DT_IRQN_BY_NAME`
   * :c:macro:`DT_INST_IRQN_BY_NAME`
+
+* Display
+
+  * :c:enumerator:`PIXEL_FORMAT_YUYV`
+  * :c:macro:`PANEL_PIXEL_FORMAT_YUYV`
 
 * Haptics
 
@@ -1937,6 +1950,21 @@ Devicetree
 
   * :c:macro:`DT_NODELABEL_C_TOKEN`
   * :c:macro:`DT_NODELABEL_C_TOKEN_BY_IDX`
+
+* Bindings can declare device class membership with the new ``class:`` key
+  (see :ref:`dt-bindings-class`), enabling build-time enumeration of all
+  nodes of a device class:
+
+  * :c:macro:`DT_NODE_HAS_CLASS`
+  * :c:macro:`DT_HAS_CLASS_STATUS_OKAY`
+  * :c:macro:`DT_NUM_CLASS_STATUS_OKAY`
+  * :c:macro:`DT_FOREACH_CLASS_STATUS_OKAY`
+  * :c:macro:`DT_FOREACH_CLASS_STATUS_OKAY_VARGS`
+  * The ``$(dt_class_enabled,<class name>)`` Kconfig preprocessor function
+
+* The ADC shell now enumerates ADC controllers through the ``adc`` device
+  class instead of a hardcoded list of compatibles, so it also covers
+  out-of-tree ADC drivers.
 
 Other notable changes
 *********************

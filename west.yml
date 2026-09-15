@@ -131,7 +131,7 @@ manifest:
       path: modules/lib/cmsis-nn
     - name: cmsis_6
       repo-path: CMSIS_6
-      revision: 860dd4c63041fd38a587e117206f9b00f02de6e8
+      revision: d0462baee3fff6a02584564a3d436ed81d93dd5b
       path: modules/hal/cmsis_6
       groups:
         - hal
@@ -195,7 +195,7 @@ manifest:
       groups:
         - hal
     - name: hal_intel
-      revision: 7c8942c1ecb38b53dae0a02aeb4ab08371f4d4bf
+      revision: 71e18c0f225e5941cc1fc84f0ae35d61d9c654d0
       path: modules/hal/intel
       groups:
         - hal
@@ -276,7 +276,7 @@ manifest:
       groups:
         - hal
     - name: hal_ti
-      revision: 2e6514333cdb59e44a7635fb5852035c325f4c11
+      revision: 53c80140dd69905cc5e034f637eff9c66b2f9654
       path: modules/hal/ti
       groups:
         - hal
@@ -355,7 +355,7 @@ manifest:
       groups:
         - tools
     - name: nrf_hw_models
-      revision: c84230d0329a2ce5e449bbd556d6854861a6eee7
+      revision: ccc7a8094566ba835da80176c565044b0516b614
       path: modules/bsim_hw_models/nrf_hw_models
     - name: nrf_wifi
       revision: fc0872109ec4c006d32843a202b129db33cf16b9
@@ -405,7 +405,7 @@ manifest:
       groups:
         - tee
     - name: trusted-firmware-m
-      revision: ef35073337e66e3117a6ef33fc60f69596d2afbc
+      revision: ef007cd771423cf31a5a1427290efd37b891dbd6
       path: modules/tee/tf-m/trusted-firmware-m
       groups:
         - tee
@@ -421,7 +421,7 @@ manifest:
   # zephyr-keep-sorted-stop
     - name: thingset
       path: modules/lib/thingset
-      revision: 8c6206e07cd0cfd3571b0c123907a35215945e76
+      revision: 37fc4ed34b64b74eb25b9ac88f0a6cebcacb27d5
     - name: thingset-node-c
       path: modules/lib/thingset-node-c
       revision: b0b13262e9ddf144551bc05d8764ffbb462e8c89
