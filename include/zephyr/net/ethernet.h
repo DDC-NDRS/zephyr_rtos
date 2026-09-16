@@ -56,6 +56,7 @@ struct net_eth_addr {
 
 #define NET_ETH_HDR(pkt) ((struct net_eth_hdr*)net_pkt_data(pkt))
 
+/* clang-format off */
 /* zephyr-keep-sorted-start */
 #define NET_ETH_PTYPE_ALL           0x0003 /* from linux/if_ether.h */
 #define NET_ETH_PTYPE_ARP           0x0806
@@ -68,10 +69,12 @@ struct net_eth_addr {
 #define NET_ETH_PTYPE_IP            0x0800
 #define NET_ETH_PTYPE_IPV6          0x86DD
 #define NET_ETH_PTYPE_LLDP          0x88CC
+#define NET_ETH_PTYPE_OAM           0x8902
 #define NET_ETH_PTYPE_PTP           0x88F7
 #define NET_ETH_PTYPE_TSN           0x22F0 /* TSN (IEEE 1722) packet */
 #define NET_ETH_PTYPE_VLAN          0x8100
 /* zephyr-keep-sorted-stop */
+/* clang-format on */
 
 /* zephyr-keep-sorted-start re(^#define) */
 #if !defined(ETH_P_8021Q)
@@ -449,15 +452,6 @@ struct ethernet_filter {
 
 /** @cond INTERNAL_HIDDEN */
 
-/* The L2 multicast addresses are tracked only if something joins the groups,
- * either the IP level or a packet socket.
- */
-#if defined(CONFIG_NET_L2_ETHERNET) && !defined(CONFIG_NET_RAW_MODE) && \
-    (defined(CONFIG_NET_NATIVE_IP) || \
-     defined(CONFIG_NET_SOCKETS_PACKET_MCAST_MEMBERSHIP))
-#define NET_ETH_MCAST_FILTER_SUPPORTED 1
-#endif
-
 /* How many L2 multicast addresses one interface can track. The build system
  * sums up what the subsystems asked for and gives the result here, the
  * Kconfig value is only the floor and is used if the header is compiled
@@ -470,6 +464,14 @@ struct ethernet_filter {
 #define NET_ETH_MCAST_FILTER_COUNT 1
 #endif
 #endif /* NET_ETH_MCAST_FILTER_COUNT */
+
+/* The L2 multicast addresses are tracked only if something joins the groups,
+ * either the IP level, a packet socket, or other parts of the system.
+ */
+#if defined(CONFIG_NET_L2_ETHERNET) && !defined(CONFIG_NET_RAW_MODE) && \
+    (NET_ETH_MCAST_FILTER_COUNT > 0)
+#define NET_ETH_MCAST_FILTER_SUPPORTED 1
+#endif
 
 /** @endcond */
 

@@ -717,7 +717,8 @@ struct device const* shell_device_get_binding_all(const char* name) {
 
     if (name_len != 0U) {
         for (; dev < dev_end; dev++) {
-            if (((z_shell_strlen(dev->name) == name_len)
+            if (((dev->name != NULL)
+                 && (strlen(dev->name) == name_len)
                  && (strcmp(name, dev->name) == 0))
                 || device_has_nodelabel(dev, name)) {
                 return (dev);
