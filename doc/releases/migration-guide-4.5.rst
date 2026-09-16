@@ -346,6 +346,11 @@ Boards
   On the dual-core ESP32, ``espressif/esp32/esp32_appcpu.dtsi`` no longer sets a flash either, so
   an APPCPU board dts has to declare the same flash as its PROCPU counterpart.
 
+* On NXP S32K148, the ENET nodes ``enet`` (:dtcompatible:`nxp,enet`), ``enet_mac``
+  (:dtcompatible:`nxp,enet-mac`), ``enet_mdio`` (:dtcompatible:`nxp,enet-mdio`) and
+  ``enet_ptp_clock`` (:dtcompatible:`nxp,enet-ptp-clock`) are now ``disabled`` by default instead
+  of ``okay``. Out-of-tree boards that use Ethernet must set ``status = "okay"`` on these nodes.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -920,6 +925,14 @@ I2C
   :dtcompatible:`ite,it51xxx-i2c` :dtcompatible:`ite,it8xxx2-i2c` transfer
   timeout is now using the generic ``zephyr,transfer-timeout-ms`` property
   instead of ``transfer-timeout-ms``, default to 500ms.
+
+* The :dtcompatible:`nxp,sc18im704-i2c` bridge no longer sends the target address
+  unshifted to the SC18IM704. The Zephyr I2C API passes a 7-bit address to a controller's
+  ``transfer()`` callback, and the driver now shifts it left by one to build the address byte
+  the bridge expects. Devicetree nodes sitting on a :dtcompatible:`nxp,sc18im704-i2c` bus
+  that compensated for the missing shift by declaring a pre-shifted ``reg`` (for example
+  ``reg = <0xa0>`` for a device at address ``0x50``) must now declare the real 7-bit address
+  (``reg = <0x50>``).
 
 I2S
 ===

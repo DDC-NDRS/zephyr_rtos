@@ -110,6 +110,9 @@ static void can_msgq_put(const struct device* dev, struct can_frame* frame, void
 
     __ASSERT_NO_MSG(msgq);
 
+    /* k_msgq_put() copies msgq->msg_size bytes from the frame */
+    __ASSERT_NO_MSG(msgq->msg_size == sizeof(struct can_frame));
+
     ret = k_msgq_put(msgq, frame, K_NO_WAIT);
     if (ret) {
         LOG_ERR("Msgq %p overflowed. Frame ID: 0x%x", msgq, frame->id);
@@ -120,126 +123,128 @@ int z_impl_can_add_rx_filter_msgq(const struct device* dev, struct k_msgq* msgq,
                                   const struct can_filter* filter) {
     const struct can_driver_api* api = DEVICE_API_GET(can, dev);
 
+    if (msgq->msg_size != sizeof(struct can_frame)) {
+        LOG_ERR("msgq %p message size %zu, expected %zu", msgq, msgq->msg_size,
+                sizeof(struct can_frame));
+        return (-EINVAL);
+    }
+
     return api->add_rx_filter(dev, can_msgq_put, msgq, filter);
 }
 
 /* This is used for emulating the deprecated can_set_state_change_callback() API */
-static void can_state_change_callback_legacy_handler(const struct device *dev,
-						     struct can_state_change_callback *callback,
-						     enum can_state state,
-						     struct can_bus_err_cnt err_cnt)
-{
-	struct can_driver_data *common = (struct can_driver_data *)dev->data;
-	can_state_change_callback_t cb;
-	void *user_data;
-	int key = irq_lock();
+static void can_state_change_callback_legacy_handler(const struct device* dev,
+                                                     struct can_state_change_callback* callback,
+                                                     enum can_state state,
+                                                     struct can_bus_err_cnt err_cnt) {
+    struct can_driver_data* common = (struct can_driver_data*)dev->data;
+    can_state_change_callback_t cb;
+    void* user_data;
+    int key = irq_lock();
 
-	cb = common->legacy_state_change_cb_handler;
-	user_data = common->legacy_state_change_cb_user_data;
+    cb = common->legacy_state_change_cb_handler;
+    user_data = common->legacy_state_change_cb_user_data;
 
-	irq_unlock(key);
+    irq_unlock(key);
 
-	if (cb != NULL) {
-		cb(dev, state, err_cnt, user_data);
-	}
+    if (cb != NULL) {
+        cb(dev, state, err_cnt, user_data);
+    }
 }
 
 /* This is the deprecated can_set_state_change_callback() API */
-void can_set_state_change_callback(const struct device *dev, can_state_change_callback_t callback,
-				   void *user_data)
-{
-	struct can_driver_data *common = (struct can_driver_data *)dev->data;
-	k_spinlock_key_t key;
+void can_set_state_change_callback(const struct device* dev, can_state_change_callback_t callback,
+                                   void* user_data) {
+    struct can_driver_data* common = (struct can_driver_data*)dev->data;
+    k_spinlock_key_t key;
 
-	key = k_spin_lock(&common->state_change_callback_lock);
+    key = k_spin_lock(&common->state_change_callback_lock);
 
-	common->legacy_state_change_cb_handler = callback;
-	common->legacy_state_change_cb_user_data = user_data;
+    common->legacy_state_change_cb_handler   = callback;
+    common->legacy_state_change_cb_user_data = user_data;
 
-	can_init_state_change_callback(&common->legacy_state_change_cb,
-				       can_state_change_callback_legacy_handler);
+    can_init_state_change_callback(&common->legacy_state_change_cb,
+                                   can_state_change_callback_legacy_handler);
 
-	k_spin_unlock(&common->state_change_callback_lock, key);
+    k_spin_unlock(&common->state_change_callback_lock, key);
 
-	if (callback != NULL) {
-		(void)can_add_state_change_callback(dev, &common->legacy_state_change_cb);
-	} else {
-		(void)can_remove_state_change_callback(dev, &common->legacy_state_change_cb);
-	}
+    if (callback != NULL) {
+        (void)can_add_state_change_callback(dev, &common->legacy_state_change_cb);
+    }
+    else {
+        (void)can_remove_state_change_callback(dev, &common->legacy_state_change_cb);
+    }
 }
 
-int can_add_state_change_callback(const struct device *dev,
-				  struct can_state_change_callback *callback)
-{
-	struct can_driver_data *common = (struct can_driver_data *)dev->data;
-	const struct can_driver_api *api = DEVICE_API_GET(can, dev);
-	k_spinlock_key_t key;
-	int err = 0;
+int can_add_state_change_callback(const struct device* dev,
+                                  struct can_state_change_callback* callback) {
+    struct can_driver_data* common = (struct can_driver_data*)dev->data;
+    const struct can_driver_api* api = DEVICE_API_GET(can, dev);
+    k_spinlock_key_t key;
+    int err = 0;
 
-	__ASSERT_NO_MSG(callback != NULL);
-	__ASSERT_NO_MSG(callback->handler != NULL);
+    __ASSERT_NO_MSG(callback != NULL);
+    __ASSERT_NO_MSG(callback->handler != NULL);
 
-	key = k_spin_lock(&common->state_change_callback_lock);
+    key = k_spin_lock(&common->state_change_callback_lock);
 
-	if (api->state_change_callbacks_enabled != NULL) {
-		if (sys_slist_is_empty(&common->state_change_callbacks)) {
-			err = api->state_change_callbacks_enabled(dev, true);
-		}
-	}
+    if (api->state_change_callbacks_enabled != NULL) {
+        if (sys_slist_is_empty(&common->state_change_callbacks)) {
+            err = api->state_change_callbacks_enabled(dev, true);
+        }
+    }
 
-	(void)sys_slist_find_and_remove(&common->state_change_callbacks, &callback->node);
-	sys_slist_append(&common->state_change_callbacks, &callback->node);
+    (void) sys_slist_find_and_remove(&common->state_change_callbacks, &callback->node);
+    sys_slist_append(&common->state_change_callbacks, &callback->node);
 
-	k_spin_unlock(&common->state_change_callback_lock, key);
+    k_spin_unlock(&common->state_change_callback_lock, key);
 
-	return err;
+    return (err);
 }
 
-int can_remove_state_change_callback(const struct device *dev,
-				     struct can_state_change_callback *callback)
-{
-	struct can_driver_data *common = (struct can_driver_data *)dev->data;
-	const struct can_driver_api *api = DEVICE_API_GET(can, dev);
-	k_spinlock_key_t key;
-	int err = 0;
+int can_remove_state_change_callback(const struct device* dev,
+                                     struct can_state_change_callback* callback) {
+    struct can_driver_data* common = (struct can_driver_data*)dev->data;
+    const struct can_driver_api* api = DEVICE_API_GET(can, dev);
+    k_spinlock_key_t key;
+    int err = 0;
 
-	__ASSERT_NO_MSG(callback != NULL);
+    __ASSERT_NO_MSG(callback != NULL);
 
-	key = k_spin_lock(&common->state_change_callback_lock);
+    key = k_spin_lock(&common->state_change_callback_lock);
 
-	if (!sys_slist_find_and_remove(&common->state_change_callbacks, &callback->node)) {
-		err = -EINVAL;
-		goto unlock;
-	}
+    if (!sys_slist_find_and_remove(&common->state_change_callbacks, &callback->node)) {
+        err = -EINVAL;
+        goto unlock;
+    }
 
-	if (api->state_change_callbacks_enabled != NULL) {
-		if (sys_slist_is_empty(&common->state_change_callbacks)) {
-			err = api->state_change_callbacks_enabled(dev, false);
-		}
-	}
+    if (api->state_change_callbacks_enabled != NULL) {
+        if (sys_slist_is_empty(&common->state_change_callbacks)) {
+            err = api->state_change_callbacks_enabled(dev, false);
+        }
+    }
 
-unlock:
-	k_spin_unlock(&common->state_change_callback_lock, key);
+unlock :
+    k_spin_unlock(&common->state_change_callback_lock, key);
 
-	return err;
+    return (err);
 }
 
-void can_fire_state_change_callbacks(const struct device *dev, enum can_state state,
-				     struct can_bus_err_cnt err_cnt)
-{
-	struct can_driver_data *common = (struct can_driver_data *)dev->data;
-	struct can_state_change_callback *cb;
-	k_spinlock_key_t key;
+void can_fire_state_change_callbacks(const struct device* dev, enum can_state state,
+                                     struct can_bus_err_cnt err_cnt) {
+    struct can_driver_data* common = (struct can_driver_data*)dev->data;
+    struct can_state_change_callback* cb;
+    k_spinlock_key_t key;
 
-	key = k_spin_lock(&common->state_change_callback_lock);
+    key = k_spin_lock(&common->state_change_callback_lock);
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&common->state_change_callbacks, cb, node) {
-		__ASSERT_NO_MSG(cb->handler != NULL);
+    SYS_SLIST_FOR_EACH_CONTAINER(&common->state_change_callbacks, cb, node) {
+        __ASSERT_NO_MSG(cb->handler != NULL);
 
-		cb->handler(dev, cb, state, err_cnt);
-	}
+        cb->handler(dev, cb, state, err_cnt);
+    }
 
-	k_spin_unlock(&common->state_change_callback_lock, key);
+    k_spin_unlock(&common->state_change_callback_lock, key);
 }
 
 /**
