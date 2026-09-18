@@ -185,6 +185,11 @@ Removed APIs and options
 
     * ``zephyr,memory-region-mpu``
 
+* Ethernet
+
+    * The NuMaker Ethernet driver with ``CONFIG_ETH_NUMAKER`` is superseded by
+      :kconfig:option:`CONFIG_ETH_NUMAKER_DWC_ETHER_1000`. See the migration guide.
+
 * LLEXT
 
     * ``llext_get_fn_table``, replaced by ``llext_get_fn_table_entry``
@@ -541,6 +546,9 @@ New APIs and options
       parsing command responses independently of the Host.
     * :c:func:`bt_le_bond_addr_res_support`, :c:enum:`bt_le_addr_res_support` and
       :c:member:`bt_conn_auth_info_cb.addr_res_support_read`
+    * :c:enumerator:`BT_LE_SCAN_OPT_EXT_FILTER_POLICY`
+    * :kconfig:option:`CONFIG_BT_SCAN_EXT_FILTER_POLICY`
+    * :c:member:`bt_le_scan_recv_info.direct_addr`
 
   * Mesh
 
@@ -1476,6 +1484,7 @@ New Drivers
   * :dtcompatible:`nxp,lpc-pmc-hwinfo` (:github:`114693`)
   * :dtcompatible:`nxp,mc-rgm` (:github:`111359`)
   * :dtcompatible:`nxp,otp-uid` (:github:`111493`)
+  * :dtcompatible:`zephyr,hwinfo-nvmem` (:github:`118693`)
 
 * :abbr:`I2C (Inter-Integrated Circuit)`
 
@@ -1946,6 +1955,17 @@ Libraries / Subsystems
     * The image management client now supports SHA-512 image digests. It can
       list and select images for testing or confirmation on targets built with
       :kconfig:option:`CONFIG_MCUBOOT_BOOTLOADER_USES_SHA512`.
+* Secure Storage
+
+  * The ``psa_its_get*()`` functions now return ``PSA_ERROR_INVALID_SIGNATURE`` or
+    ``PSA_ERROR_DATA_CORRUPT`` for an entry that fails authentication or is malformed,
+    instead of ``PSA_ERROR_GENERIC_ERROR``.
+
+  * The ITS operations that modify an entry are now serialized, and discarding an entry
+    that cannot be read back is logged as a warning.
+
+  * ``psa_its_get()`` called with a ``data_size`` of 0 now reports whether the entry exists
+    and is valid instead of always returning ``PSA_SUCCESS``.
 
 * Multimedia Pipeline
 
@@ -1993,6 +2013,10 @@ Devicetree
 * The ADC shell now enumerates ADC controllers through the ``adc`` device
   class instead of a hardcoded list of compatibles, so it also covers
   out-of-tree ADC drivers.
+
+* The I3C shell now enumerates I3C controllers through the ``i3c`` device
+  class instead of a hardcoded list of compatibles, so it also covers
+  out-of-tree I3C drivers.
 
 Other notable changes
 *********************

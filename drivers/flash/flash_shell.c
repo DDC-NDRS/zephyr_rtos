@@ -753,8 +753,8 @@ static int cmd_flash_shell_page_info(const struct shell* sh, size_t argc, char* 
         return (-EINVAL);
     }
 
-    shell_print(sh, "Page for address 0x%x:\nstart offset: 0x%lx\nsize: %zu\nindex: %d",
-                addr, info.start_offset, info.size, info.index);
+    shell_print(sh, "Page for address 0x%x:\nstart offset: 0x%lx\nsize: %zu\nindex: %d", addr,
+                (long)info.start_offset, info.size, info.index);
 
     return (0);
 }

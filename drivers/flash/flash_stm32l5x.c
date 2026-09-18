@@ -78,7 +78,8 @@ bool flash_stm32_valid_range(struct device const* dev, off_t offset,
 
 static int write_nwords(struct device const* dev, off_t offset, uint32_t const* buff, size_t n) {
     FLASH_TypeDef* regs = FLASH_STM32_REGS(dev);
-    volatile uint32_t* flash = (uint32_t*)(offset + FLASH_STM32_BASE_ADDRESS);
+    volatile uint32_t* flash =
+        (uint32_t*)((uintptr_t)offset + FLASH_STM32_BASE_ADDRESS);
     bool full_zero = true;
     uint32_t tmp;
     int rc;
@@ -286,87 +287,87 @@ int flash_stm32_write_range(struct device const* dev, unsigned int offset,
 #define STM32H5_OTP_BLOCK_SIZE 64U
 
 static int otp_write_halfwords(const struct device *dev, uint8_t *otp_base, off_t offset,
-			       const void *data, size_t len)
+                   const void *data, size_t len)
 {
-	FLASH_TypeDef *regs = FLASH_STM32_REGS(dev);
-	const uint8_t *src = data;
-	size_t written = 0;
-	uint32_t lock_mask;
-	int rc;
+    FLASH_TypeDef *regs = FLASH_STM32_REGS(dev);
+    const uint8_t *src = data;
+    size_t written = 0;
+    uint32_t lock_mask;
+    int rc;
 
-	rc = flash_stm32_wait_flash_idle(dev);
-	if (rc < 0) {
-		return rc;
-	}
+    rc = flash_stm32_wait_flash_idle(dev);
+    if (rc < 0) {
+        return rc;
+    }
 
-	/* Refuse to program any OTP block that is already lock-protected. */
-	lock_mask = BIT_MASK(DIV_ROUND_UP(len, STM32H5_OTP_BLOCK_SIZE))
-		    << (offset / STM32H5_OTP_BLOCK_SIZE);
-	if (regs->OTPBLR_CUR & lock_mask) {
-		return -EACCES;
-	}
+    /* Refuse to program any OTP block that is already lock-protected. */
+    lock_mask = BIT_MASK(DIV_ROUND_UP(len, STM32H5_OTP_BLOCK_SIZE))
+            << (offset / STM32H5_OTP_BLOCK_SIZE);
+    if (regs->OTPBLR_CUR & lock_mask) {
+        return -EACCES;
+    }
 
-	/*
-	 * OTP is programmed one half-word at a time using the standard NVM
-	 * half-word programming mode (see RM0481 "FLASH OTP area").
-	 */
-	regs->NSCR |= FLASH_STM32_NSPG;
-	barrier_dsync_fence_full();
+    /*
+     * OTP is programmed one half-word at a time using the standard NVM
+     * half-word programming mode (see RM0481 "FLASH OTP area").
+     */
+    regs->NSCR |= FLASH_STM32_NSPG;
+    barrier_dsync_fence_full();
 
-	while (written < len) {
-		sys_write16(UNALIGNED_GET((uint16_t *)(src + written)),
-			    (uintptr_t)otp_base + offset + written);
+    while (written < len) {
+        sys_write16(UNALIGNED_GET((uint16_t *)(src + written)),
+                (uintptr_t)otp_base + offset + written);
 
-		rc = flash_stm32_wait_flash_idle(dev);
-		if (rc < 0) {
-			break;
-		}
+        rc = flash_stm32_wait_flash_idle(dev);
+        if (rc < 0) {
+            break;
+        }
 
-		written += sizeof(uint16_t);
-	}
+        written += sizeof(uint16_t);
+    }
 
-	regs->NSCR &= ~FLASH_STM32_NSPG;
+    regs->NSCR &= ~FLASH_STM32_NSPG;
 
-	return rc;
+    return rc;
 }
 
 int flash_stm32_otp_program(const struct device *dev, uint8_t *otp_base, off_t offset,
-			    const void *data, size_t len)
+                const void *data, size_t len)
 {
-	bool cache_enabled;
-	int rc, rc2;
+    bool cache_enabled;
+    int rc, rc2;
 
-	/* OTP is programmed by half-words only. */
-	if ((offset % sizeof(uint16_t)) || (len % sizeof(uint16_t))) {
-		return -EINVAL;
-	}
+    /* OTP is programmed by half-words only. */
+    if ((offset % sizeof(uint16_t)) || (len % sizeof(uint16_t))) {
+        return -EINVAL;
+    }
 
-	flash_stm32_sem_take(dev);
+    flash_stm32_sem_take(dev);
 
-	/*
-	 * As for regular flash writes, the i-cache must be disabled while
-	 * programming or the controller raises the ERRF error flag.
-	 */
-	cache_enabled = LL_ICACHE_IsEnabled();
-	sys_cache_instr_disable();
+    /*
+     * As for regular flash writes, the i-cache must be disabled while
+     * programming or the controller raises the ERRF error flag.
+     */
+    cache_enabled = LL_ICACHE_IsEnabled();
+    sys_cache_instr_disable();
 
-	rc = flash_stm32_cr_lock(dev, false);
-	if (rc == 0) {
-		rc = otp_write_halfwords(dev, otp_base, offset, data, len);
-	}
+    rc = flash_stm32_cr_lock(dev, false);
+    if (rc == 0) {
+        rc = otp_write_halfwords(dev, otp_base, offset, data, len);
+    }
 
-	rc2 = flash_stm32_cr_lock(dev, true);
-	if (!rc) {
-		rc = rc2;
-	}
+    rc2 = flash_stm32_cr_lock(dev, true);
+    if (!rc) {
+        rc = rc2;
+    }
 
-	if (cache_enabled) {
-		sys_cache_instr_enable();
-	}
+    if (cache_enabled) {
+        sys_cache_instr_enable();
+    }
 
-	flash_stm32_sem_give(dev);
+    flash_stm32_sem_give(dev);
 
-	return rc;
+    return rc;
 }
 #endif /* CONFIG_OTP_STM32_NVM_PROGRAMMING_SUPPORT && CONFIG_SOC_SERIES_STM32H5X */
 

@@ -131,7 +131,7 @@ static int ifx_serial_memory_flash_read(struct device const* dev, off_t offset, 
 
     rslt = mtb_serial_memory_read(&serial_memory_obj, offset, data_len, data);
     if (rslt != CY_RSLT_SUCCESS) {
-        LOG_ERR("Error reading @ %lu (Err:0x%x)", offset, rslt);
+        LOG_ERR("Error reading @ %lu (Err:0x%x)", (long)offset, rslt);
         ret = -EIO;
     }
 
@@ -157,7 +157,7 @@ static int ifx_serial_memory_flash_write(struct device const* dev, off_t offset,
 
     rslt = mtb_serial_memory_write(&serial_memory_obj, offset, data_len, data);
     if (rslt != CY_RSLT_SUCCESS) {
-        LOG_ERR("Error in writing @ %lu (Err:0x%x)", offset, rslt);
+        LOG_ERR("Error in writing @ %lu (Err:0x%x)", (long)offset, rslt);
         ret = -EIO;
     }
 

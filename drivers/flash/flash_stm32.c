@@ -142,7 +142,8 @@ static void flash_stm32_flush_caches(struct device const* dev, off_t offset, siz
         regs->ACR |= FLASH_ACR_DCEN;
     }
     #elif defined(CONFIG_SOC_SERIES_STM32F7X)
-    SCB_InvalidateDCache_by_Addr((uint32_t*)(FLASH_STM32_BASE_ADDRESS + offset), len);
+    SCB_InvalidateDCache_by_Addr((uint32_t*)
+                                 (FLASH_STM32_BASE_ADDRESS + (uintptr_t)offset), len);
     #endif
 }
 

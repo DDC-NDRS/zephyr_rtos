@@ -351,6 +351,12 @@ Boards
   ``enet_ptp_clock`` (:dtcompatible:`nxp,enet-ptp-clock`) are now ``disabled`` by default instead
   of ``okay``. Out-of-tree boards that use Ethernet must set ``status = "okay"`` on these nodes.
 
+* The Silabs Kconfig option ``CONFIG_SOC_SILABS_IMAGE_PROPERTIES``
+  has been renamed to :kconfig:option:`CONFIG_SOC_VENDOR_SILABS_IMAGE_PROPERTIES`.
+
+* The Silabs Kconfig option ``CONFIG_SOC_SILABS_PM_LOW_INTERRUPT_LATENCY``
+  has been renamed to :kconfig:option:`CONFIG_SOC_VENDOR_SILABS_PM_LOW_INTERRUPT_LATENCY`.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -745,6 +751,13 @@ Ethernet
 * The ``pinctrl-0`` and ``pinctrl-names`` devicetree properties for the
   :dtcompatible:`nxp,enet-mac` need to be moved from the MAC node to the parent Ethernet controller
   node. (:github:`107352`)
+
+* The NuMaker Ethernet driver has been removed together with ``CONFIG_ETH_NUMAKER``. The NuMaker
+  EMAC is now driven by :kconfig:option:`CONFIG_ETH_NUMAKER_DWC_ETHER_1000`, the generic Synopsys
+  DesignWare MAC driver, which needs the MDIO controller and the PHY in devicetree. Out-of-tree
+  boards have to enable the ``mdio`` node with the MDC and MDIO pins in its pinctrl state, add
+  their PHY to it and point the ``emac`` node at it with ``phy-handle``. The ``phy-addr``
+  property of :dtcompatible:`nuvoton,numaker-ethernet` has been removed.
 
 * ``port_generate_random_mac`` of the :c:struct:`dsa_api` got removed. Also
   :c:struct:`dsa_port_config` now uses :c:struct:`net_eth_mac_config` to set the MAC address.
@@ -1368,6 +1381,11 @@ SD Host Controller
 
 Sensor
 ======
+
+* The :dtcompatible:`pixart,paa3905` driver now enforces the sensor's
+  datasheet SPI contract: mode 3 is set by the driver and a devicetree
+  ``spi-max-frequency`` above 2 MHz fails the build. Out-of-tree boards
+  that overclocked the bus must lower the property to 2000000 or less.
 
 * The ``girqs`` and ``pcrs`` properties (array type) of :dtcompatible:`microchip,xec-tach` have been
   replaced by ``pcr-scr`` (int type) to use encoded PCR register index and bit position macros.
@@ -2491,7 +2509,15 @@ Secure Storage
     ``zephyr/secure_storage/its/transform/aead.h``
 
 * The ZMS backend partition chosen name has been updated from
-  ``secure_storage_its_partition`` to ``zephyr,secure-storage-its-partition`` (:github:`118501`).
+  ``secure_storage_its_partition`` to ``zephyr,secure-storage-its-partition``. (:github:`118501`)
+
+* The ``psa_its_get*()`` functions can now return ``PSA_ERROR_INVALID_SIGNATURE`` and
+  ``PSA_ERROR_DATA_CORRUPT``, which were previously reported as ``PSA_ERROR_GENERIC_ERROR``.
+  (:github:`118718`)
+
+* ``psa_its_get()`` called with a ``data_size`` of 0 goes through the usual retrieval path, so
+  it can now fail, with ``PSA_ERROR_DOES_NOT_EXIST`` for instance, instead of always returning
+  ``PSA_SUCCESS``. (:github:`118718`)
 
 Shell
 =====
