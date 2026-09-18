@@ -1760,7 +1760,7 @@ static int flash_stm32_qspi_mdma_init(struct flash_stm32_qspi_data* dev_data) {
     dma_cfg->user_data = &hmdma;
     /* HACK: This field is used to inform driver that it is overridden */
     dma_cfg->linked_channel = STM32_DMA_HAL_OVERRIDE;
-    ret = dma_config(dma->dev, dma->channel, &dma_cfg);
+    ret = dma_config(dma->dev, dma->channel, dma_cfg);
     if (ret != 0) {
         return (ret);
     }
@@ -1843,7 +1843,7 @@ static int flash_stm32_qspi_dma_init(struct flash_stm32_qspi_data* dev_data) {
     dma_cfg->channel_direction = PERIPHERAL_TO_MEMORY;
     /* HACK: This field is used to inform driver that it is overridden */
     dma_cfg->linked_channel = STM32_DMA_HAL_OVERRIDE;
-    ret = dma_config(dma->dev, dma->channel, &dma_cfg);
+    ret = dma_config(dma->dev, dma->channel, dma_cfg);
     if (ret != 0) {
         return (ret);
     }
