@@ -35,6 +35,8 @@
 		zephyr,flash = &ext_flash;
 		zephyr,code-partition = &slot0_partition;
 		zephyr,sram = &sram0;
+		zephyr,code-cpu1-partition = &sram_code;
+		zephyr,sram-cpu1-partition = &sram3;
 		zephyr,console = &flexcomm0_lpuart0;
 		zephyr,shell-uart = &flexcomm0_lpuart0;
 		zephyr,display = &lcdif;
@@ -612,5 +614,9 @@ dvp_20pin_i2c: &flexcomm8_lpi2c8 {};
 dvp_20pin_interface: &flexio_camera {};
 
 &jpegdec {
+	status = "okay";
+};
+
+&pngdec {
 	status = "okay";
 };
