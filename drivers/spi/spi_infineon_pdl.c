@@ -92,7 +92,6 @@ struct spi_ifx_data {
     struct spi_context ctx;
     uint8_t dfs_value;
     size_t chunk_len;
-    bool dma_configured;
 
     #ifdef CONFIG_SPI_INFINEON_DMA
     struct ifx_cat1_dma_stream dma_rx;
@@ -497,14 +496,26 @@ static int spi_ifx_transceive_async(const struct device* dev, const struct spi_c
 }
 #endif
 
-static int spi_ifx_release(const struct device* dev, const struct spi_config* spi_cfg) {
-    spi_ifx_free(dev);
+#if defined(CONFIG_SPI_INFINEON_DMA)
+/* Stop the DMA channels wired to this instance. An instance built with DMA
+ * support may still have no dmas assigned in devicetree, leaving dev_dma NULL.
+ */
+static void ifx_cat1_spi_dma_stop(struct ifx_cat1_spi_data* data) {
+    if (data->dma_tx.dev_dma != NULL) {
+        dma_stop(data->dma_tx.dev_dma, data->dma_tx.dma_channel);
+    }
+
+    if (data->dma_rx.dev_dma != NULL) {
+        dma_stop(data->dma_rx.dev_dma, data->dma_rx.dma_channel);
+    }
+}
+#endif
+
+static int ifx_cat1_spi_release(const struct device* dev, const struct spi_config* spi_cfg) {
+    spi_free(dev);
 
     #ifdef CONFIG_SPI_INFINEON_DMA
-    struct spi_ifx_data* const data = dev->data;
-
-    dma_stop(data->dma_tx.dev_dma, data->dma_tx.dma_channel);
-    dma_stop(data->dma_rx.dev_dma, data->dma_rx.dma_channel);
+    ifx_cat1_spi_dma_stop(dev->data);
     #endif
 
     return (0);
@@ -520,9 +531,62 @@ static DEVICE_API(spi, spi_ifx_api) = {
     .release = spi_ifx_release,
 };
 
-static int spi_ifx_init(const struct device* dev) {
-    struct spi_ifx_data* const data = dev->data;
-    const struct spi_ifx_config* const config = dev->config;
+bool ifx_cat1_spi_is_busy(const struct device* dev) {
+    struct ifx_cat1_spi_data* const data = dev->data;
+    const struct ifx_cat1_spi_config* const config = dev->config;
+    struct spi_context* ctx = &data->ctx;
+    bool is_busy;
+
+    /* On the large-chunk DMA path the transfer runs entirely through the DMA
+     * channels without setting data->pending, and Cy_SCB_SPI_IsBusBusy() can
+     * briefly read idle between FIFO-paced DMA bursts. The SPI context still
+     * holds the outstanding buffers until the transfer completes, so use it as
+     * the authoritative in-flight indicator that covers every transfer path.
+     */
+    if (spi_context_tx_on(ctx) || spi_context_rx_on(ctx)) {
+        return (true);
+    }
+
+    is_busy = Cy_SCB_SPI_IsBusBusy(config->reg_addr) ||
+                                   (data->pending != IFX_SPI_PENDING_NONE);
+
+    return (is_busy);
+}
+
+#ifdef CONFIG_DEVICE_DEINIT_SUPPORT
+static int ifx_cat1_spi_deinit(const struct device* dev) {
+    struct ifx_cat1_spi_config const* const config = dev->config;
+    struct ifx_cat1_spi_data* const data = dev->data;
+
+    if (ifx_cat1_spi_is_busy(dev)) {
+        return (-EBUSY);
+    }
+
+    #ifdef CONFIG_PM
+    Cy_SysPm_UnregisterCallback(&data->spi_deep_sleep);
+    #endif
+
+    irq_disable(config->irq_num);
+    Cy_SCB_SPI_Disable(config->reg_addr, NULL);
+
+    #ifdef CONFIG_SPI_INFINEON_DMA
+    ifx_cat1_spi_dma_stop(data);
+    #endif
+
+    /* Deinit the SCB last, then clear the cached config so the next transceive
+     * after device_init() takes the full reconfigure path instead of being
+     * short-circuited by spi_context_configured().
+     */
+    Cy_SCB_SPI_DeInit(config->reg_addr);
+    data->ctx.config = NULL;
+
+    return (0);
+}
+#endif /* CONFIG_DEVICE_DEINIT_SUPPORT */
+
+static int ifx_cat1_spi_init(const struct device* dev) {
+    struct ifx_cat1_spi_data* const data = dev->data;
+    struct ifx_cat1_spi_config const* const config = dev->config;
     int ret;
     cy_rslt_t result;
 
@@ -533,7 +597,7 @@ static int spi_ifx_init(const struct device* dev) {
     /* Connect this SCB to the peripheral clock */
     result = ifx_cat1_utils_peri_pclk_assign_divider(config->clk_dst, &data->clock);
     if (result != CY_RSLT_SUCCESS) {
-        return -EIO;
+        return (-EIO);
     }
 
     #ifdef CONFIG_SPI_INFINEON_DMA
@@ -738,9 +802,12 @@ static int spi_ifx_init(const struct device* dev) {
                             &spi_ifx_config_##n.spi_deep_sleep_param, NULL, NULL, 1} \
     };                                                          \
                                                                 \
-    DEVICE_DT_INST_DEFINE(n, spi_ifx_init, NULL, &spi_ifx_data_##n, \
-                          &spi_ifx_config_##n, POST_KERNEL,    \
-                          CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &spi_ifx_api);
+    SPI_DEVICE_DT_INST_DEINIT_DEFINE(n, ifx_cat1_spi_init,      \
+                                     COND_CODE_1(CONFIG_DEVICE_DEINIT_SUPPORT,        \
+                                                 (ifx_cat1_spi_deinit), (NULL)),      \
+                                     NULL, &spi_cat1_data_##n, &spi_cat1_config_##n,  \
+                                     POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE, \
+                                     &ifx_cat1_spi_api);
 
 DT_INST_FOREACH_STATUS_OKAY(SPI_IFX_INIT)
 
@@ -830,13 +897,6 @@ cy_rslt_t spi_ifx_transfer_async(const struct device* dev, uint8_t const* tx, si
     #endif /* IFX_SPI_ASYMM_PDL_FUNC_AVAIL */
 
     return (spi_status == CY_SCB_SPI_SUCCESS) ? CY_RSLT_SUCCESS : IFX_SPI_RSLT_TRANSFER_ERROR;
-}
-
-bool spi_ifx_is_busy(const struct device* dev) {
-    struct spi_ifx_data* const data = dev->data;
-    const struct spi_ifx_config* const config = dev->config;
-
-    return Cy_SCB_SPI_IsBusBusy(config->reg_addr) || (data->pending != IFX_SPI_PENDING_NONE);
 }
 
 cy_rslt_t spi_ifx_abort_async(const struct device* dev) {

@@ -1799,7 +1799,16 @@ static int spi_stm32_configure(const struct device* dev,
     }
     #endif
 
-    if (SPI_MODE_GET(operation) & SPI_MODE_CPOL) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    if (cfg->gpio_control) {
+        LL_SPI_EnableGPIOControl(cfg->spi);
+    }
+    else {
+        LL_SPI_DisableGPIOControl(cfg->spi);
+    }
+    #endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) */
+
+    if (SPI_MODE_GET(config->operation) & SPI_MODE_CPOL) {
         LL_SPI_SetClockPolarity(spi, STM32_SPI_CLOCK_POLARITY_HIGH);
     }
     else {
@@ -2660,7 +2669,7 @@ static int spi_stm32_pm_action(const struct device* dev, enum pm_device_action a
 
     switch (action) {
         case PM_DEVICE_ACTION_RESUME :
-            /* enable clock */
+            /* Enable clock */
             ret = clock_control_on(clk, (clock_control_subsys_t)&config->pclken[0]);
             if (ret != 0) {
                 LOG_ERR("Could not enable SPI clock");
@@ -2848,6 +2857,7 @@ static int spi_stm32_init(const struct device* dev) {
         (BUILD_ASSERT(DT_INST_PROP(id, st_fifo_threshold) <= DT_INST_PROP(id, fifo_size), \
                       "FIFO threshold should be less than or equal to FIFO size.")))
 
+/* clang-format off */
 #define STM32_SPI_INIT(id)                                      \
     SPI_STM32_CHECK_FIFO(id);                                   \
                                                                 \
@@ -2871,9 +2881,10 @@ static int spi_stm32_init(const struct device* dev) {
         IF_ENABLED(DT_INST_NODE_HAS_COMPAT(id, st_stm32_spi_subghz), \
                    (.is_subghzspi = true,))                     \
         IF_ENABLED(DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi), ( \
-            .midi_clocks = DT_INST_PROP(id, midi_clock),        \
-            .mssi_clocks = DT_INST_PROP(id, mssi_clock),        \
-            .fifo_size = DT_INST_PROP(id, fifo_size),           \
+            .gpio_control = DT_INST_PROP(id, st_gpio_control),  \
+            .midi_clocks  = DT_INST_PROP(id, midi_clock),       \
+            .mssi_clocks  = DT_INST_PROP(id, mssi_clock),       \
+            .fifo_size    = DT_INST_PROP(id, fifo_size),        \
             .fifo_max_transfer_size = DT_INST_PROP(id, fifo_max_transfer_size), \
             .fifo_byte_threshold = DT_INST_PROP(id, st_fifo_threshold), \
         ))                                                      \
@@ -2905,6 +2916,7 @@ static int spi_stm32_init(const struct device* dev) {
                               &spi_stm32_driver_api);           \
                                                                 \
     STM32_SPI_IRQ_HANDLER(id)
+/* clang-format on */
 
 DT_INST_FOREACH_STATUS_OKAY(STM32_SPI_INIT)
 

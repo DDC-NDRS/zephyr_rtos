@@ -2218,6 +2218,14 @@ static int esp32_wifi_pm_action(const struct device* dev, enum pm_device_action 
     return (0);
 }
 
+#if defined(CONFIG_ESP32_WIFI_STA_POWER_SAVE_NONE)
+#define ESP32_WIFI_STA_PS_TYPE WIFI_PS_NONE
+#elif defined(CONFIG_ESP32_WIFI_STA_POWER_SAVE_MAX_MODEM)
+#define ESP32_WIFI_STA_PS_TYPE WIFI_PS_MAX_MODEM
+#else
+#define ESP32_WIFI_STA_PS_TYPE WIFI_PS_MIN_MODEM
+#endif
+
 static int esp32_wifi_dev_init(const struct device* dev) {
     #if CONFIG_SOC_SERIES_ESP32S2 || CONFIG_SOC_SERIES_ESP32C3
     adc2_cal_include();
@@ -2259,7 +2267,14 @@ static int esp32_wifi_dev_init(const struct device* dev) {
         return (-EIO);
     }
 
-    return pm_device_driver_init(dev, esp32_wifi_pm_action);
+    ret = esp_wifi_set_ps(ESP32_WIFI_STA_PS_TYPE);
+    if (ret != ESP_OK) {
+        LOG_WRN("Unable to set the Wi-Fi power save mode: %d", ret);
+    }
+
+    ret = pm_device_driver_init(dev, esp32_wifi_pm_action);
+
+    return (ret);
 }
 
 static int esp32_wifi_set_config(const struct device* dev __unused,

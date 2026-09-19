@@ -143,7 +143,7 @@ static int tcp_pkt_linearize(struct net_pkt* pkt, size_t pos, size_t len) {
 
     buf = net_pkt_get_frag(pkt, len, TCP_PKT_ALLOC_TIMEOUT);
 
-    if (!buf || net_buf_max_len(buf) < len) {
+    if (!buf || net_buf_tailroom(buf) < len) {
         if (buf) {
             net_buf_unref(buf);
         }
@@ -151,7 +151,7 @@ static int tcp_pkt_linearize(struct net_pkt* pkt, size_t pos, size_t len) {
         goto out;
     }
 
-    net_buf_linearize(buf->data, net_buf_max_len(buf), pkt->frags, pos, len);
+    net_buf_linearize(buf->data, net_buf_tailroom(buf), pkt->frags, pos, len);
     net_buf_add(buf, len);
 
     len1 = first->len - (pkt->cursor.pos - pkt->cursor.buf->data);
@@ -165,11 +165,18 @@ static int tcp_pkt_linearize(struct net_pkt* pkt, size_t pos, size_t len) {
 
         len2 -= pull_len;
         net_buf_pull(second, pull_len);
-        next = second->frags;
+
+        /* Only discard an emptied buffer. Detach its frag chain first:
+         * net_buf_unref() frees the entire frags list, which would
+         * otherwise drop remaining payload buffers still needed below.
+         * If second still has data, it holds leftover payload - keep it.
+         */
         if (second->len == 0) {
+            next = second->frags;
+            second->frags = NULL;
             net_buf_unref(second);
+            second = next;
         }
-        second = next;
     }
 
     buf->frags   = second;

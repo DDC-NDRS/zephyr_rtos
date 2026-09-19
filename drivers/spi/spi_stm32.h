@@ -28,7 +28,7 @@ struct spi_stm32_config {
     int datawidth;
     int fifo_byte_threshold;                /* Threshold value (in bytes) */
 
-    #ifdef CONFIG_SPI_STM32_INTERRUPT
+    #if defined(CONFIG_SPI_STM32_INTERRUPT)
     irq_config_func_t irq_config;
     uint32_t irq_line;
     #endif
@@ -38,6 +38,7 @@ struct spi_stm32_config {
     int mssi_clocks;
     uint32_t fifo_max_transfer_size;
     uint8_t  fifo_size;
+    bool gpio_control: 1;
 
     bool ioswp: 1;
     bool soft_nss: 1;

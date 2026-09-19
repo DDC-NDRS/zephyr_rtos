@@ -748,6 +748,10 @@ ESPI
 Ethernet
 ========
 
+* The WIZnet Ethernet drivers now share one set of Kconfig options. Replace
+  ``CONFIG_ETH_W5500_*``, ``CONFIG_ETH_W6100_*`` and ``CONFIG_ETH_W6300_*`` with the matching
+  ``CONFIG_ETH_WIZNET_*`` option.
+
 * ``ETHERNET_CONFIG_TYPE_T1S_PARAM`` and the related ``NET_REQUEST_ETHERNET_SET_T1S_PARAM`` has
   been removed. :c:func:`phy_set_plca_cfg` together with :c:func:`net_eth_get_phy` should be
   used instead to set these parameters (:github:`108136`).
@@ -1652,6 +1656,18 @@ STM32
     SoCs of the STM32H5Ex/STM32H5Fx line are not affected by this change as they have always used
     the new names since their introduction in Zephyr.
 
+Storage
+=======
+
+* The ``fs_off`` element of :c:struct:`flash_sector` has been changed from type ``off_t`` to
+  ``ptrdiff_t``. This should make all platforms and toolchains use the native machine register size
+  and not vary based on the POSIX ``off_t`` type inherited from the C library. Picolibc 1.8.12
+  always defines ``off_t`` as a 64-bit integer, even on 32-bit platforms; this change effectively
+  returns the struct to the previous layout when using this C library. For older Picolibc versions
+  and all other supported C libraries, ``ptrdiff_t`` uses the same underlying C type as ``off_t``;
+  this change is intended to preserve the undering C type used for ``fs_off`` across the Picolibc
+  update.
+
 Syscon
 ======
 
@@ -2491,6 +2507,17 @@ MCUmgr
     ``hash`` buffer is :c:macro:`IMG_MGMT_CLIENT_HASH_MAX_LEN` (64) bytes, and
     the new ``hash_len`` field holds the actual length. Code that reads ``hash``
     must use ``hash_len`` instead of assuming :c:macro:`IMG_MGMT_DATA_SHA_LEN`.
+
+Network buffers
+===============
+
+* :c:func:`net_buf_max_len` and :c:func:`net_buf_simple_max_len` have been deprecated. They
+  returned the capacity of the buffer behind its ``data`` pointer, which is neither the storage
+  size nor the room left for more data. Use :c:func:`net_buf_tailroom` or
+  :c:func:`net_buf_simple_tailroom` to find out how much data can still be added, and
+  :c:func:`net_buf_headroom` or :c:func:`net_buf_simple_headroom` for how much can be pushed in
+  front. Code that used the value as the size of a scratch area starting at ``data`` can
+  compute it as ``buf->len + net_buf_tailroom(buf)``.
 
 POSIX
 =====

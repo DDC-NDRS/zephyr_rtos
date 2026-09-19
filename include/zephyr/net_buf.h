@@ -24,7 +24,7 @@ extern "C" {
  * @brief Network buffer library
  * @defgroup net_buf Network Buffer Library
  * @since 1.0
- * @version 1.0.0
+ * @version 1.1.0
  * @ingroup os_services
  * @{
  */
@@ -93,7 +93,8 @@ struct net_buf_simple {
     /**
      * Length of the data behind the data pointer.
      *
-     * To determine the max length, use net_buf_simple_max_len(), not #size!
+     * The room left for more data is net_buf_simple_tailroom(), not net_buf_simple::size
+     * minus net_buf_simple::len: net_buf_simple::size counts the headroom as well.
      */
     uint16_t len;
 
@@ -935,11 +936,16 @@ static inline size_t net_buf_simple_tailroom(const struct net_buf_simple* buf) {
  *
  * This value is depending on the number of bytes being reserved as headroom.
  *
+ * @deprecated Use net_buf_simple_tailroom() to find out how much data can
+ *             still be added and net_buf_simple_headroom() for how much can
+ *             be pushed in front. The size of a scratch area starting at
+ *             net_buf_simple::data is net_buf_simple::len plus the tailroom.
+ *
  * @param buf A valid pointer on a buffer
  *
  * @return Number of bytes usable behind the net_buf_simple::data pointer.
  */
-static inline uint16_t net_buf_simple_max_len(const struct net_buf_simple* buf) {
+__deprecated static inline uint16_t net_buf_simple_max_len(const struct net_buf_simple* buf) {
     return (buf->size - (uint16_t)net_buf_simple_headroom(buf));
 }
 
@@ -960,20 +966,19 @@ static inline uint16_t net_buf_simple_max_len(const struct net_buf_simple* buf) 
  *
  * @return true if the buffer is self-consistent, false otherwise.
  */
-static inline bool net_buf_simple_is_valid(const struct net_buf_simple *buf)
-{
-	size_t headroom;
+static inline bool net_buf_simple_is_valid(const struct net_buf_simple* buf) {
+    size_t headroom;
 
-	if (buf == NULL || buf->__buf == NULL || buf->data < buf->__buf) {
-		return false;
-	}
+    if ((buf == NULL) || (buf->__buf == NULL) || (buf->data < buf->__buf)) {
+        return (false);
+    }
 
-	headroom = net_buf_simple_headroom(buf);
-	if (headroom > buf->size) {
-		return false;
-	}
+    headroom = net_buf_simple_headroom(buf);
+    if (headroom > buf->size) {
+        return (false);
+    }
 
-	return (size_t)buf->len <= (size_t)(buf->size - headroom);
+    return ((size_t)buf->len <= (size_t)(buf->size - headroom));
 }
 
 /**
@@ -1726,13 +1731,12 @@ struct net_buf* __must_check net_buf_ref(struct net_buf* buf);
  * returning the previous value.
  *
  * @param orig Pointer to the buffer pointer to transfer. Will be set to NULL
- *		on return.
+ *        on return.
  *
  * @return The buffer originally pointed to by @p orig
  */
-static inline struct net_buf *__must_check net_buf_take(struct net_buf **orig)
-{
-	return (struct net_buf *)atomic_ptr_clear((atomic_ptr_t *)orig);
+static inline struct net_buf *__must_check net_buf_take(struct net_buf** orig) {
+    return (struct net_buf*)atomic_ptr_clear((atomic_ptr_t *)orig);
 }
 
 /** @brief Drop a buffer reference and clear the pointer.
@@ -1741,15 +1745,14 @@ static inline struct net_buf *__must_check net_buf_take(struct net_buf **orig)
  * unreferencing the previous value if it was not NULL.
  *
  * @param orig Pointer to the buffer pointer to drop. Will be set to NULL
- *		on return.
+ *        on return.
  */
-static inline void net_buf_drop(struct net_buf **orig)
-{
-	struct net_buf *buf = net_buf_take(orig);
+static inline void net_buf_drop(struct net_buf** orig) {
+    struct net_buf* buf = net_buf_take(orig);
 
-	if (buf != NULL) {
-		net_buf_unref(buf);
-	}
+    if (buf != NULL) {
+        net_buf_unref(buf);
+    }
 }
 
 /**
@@ -2655,12 +2658,17 @@ static inline size_t net_buf_headroom(const struct net_buf* buf) {
  *
  * This value is depending on the number of bytes being reserved as headroom.
  *
+ * @deprecated Use net_buf_tailroom() to find out how much data can still be
+ *             added and net_buf_headroom() for how much can be pushed in
+ *             front. The size of a scratch area starting at net_buf::data is
+ *             net_buf::len plus the tailroom.
+ *
  * @param buf A valid pointer on a buffer
  *
  * @return Number of bytes usable behind the net_buf::data pointer.
  */
-static inline uint16_t net_buf_max_len(const struct net_buf* buf) {
-    return net_buf_simple_max_len(&buf->b);
+__deprecated static inline uint16_t net_buf_max_len(const struct net_buf* buf) {
+    return (buf->size - (uint16_t)net_buf_headroom(buf));
 }
 
 /**
@@ -2678,9 +2686,8 @@ static inline uint16_t net_buf_max_len(const struct net_buf* buf) {
  * @return true if the buffer is referenced and self-consistent, false
  *         otherwise.
  */
-static inline bool net_buf_is_valid(const struct net_buf *buf)
-{
-	return buf != NULL && buf->ref > 0 && net_buf_simple_is_valid(&buf->b);
+static inline bool net_buf_is_valid(const struct net_buf* buf) {
+    return ((buf != NULL) && (buf->ref > 0) && net_buf_simple_is_valid(&buf->b));
 }
 
 /**

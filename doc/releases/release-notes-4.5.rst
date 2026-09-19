@@ -33,6 +33,9 @@ We are pleased to announce the release of Zephyr version 4.5.0.
 
 Major enhancements with this release include:
 
+**Infineon TriCore support**
+  Zephyr now supports the :zephyr:board-catalog:`Infineon TriCore architecture <#arch=tricore>`.
+
 **New driver classes**
 
   Zephyr 4.5 adds several new driver APIs, including:
@@ -389,6 +392,12 @@ Deprecated APIs and options
     always available, so the option is no longer required to use ring buffers. It now only serves
     as the deprecated switch that restores the legacy claim/finish and item APIs while out-of-tree
     code migrates to the replacement APIs.
+
+* Network buffers
+
+  * :c:func:`net_buf_max_len` and :c:func:`net_buf_simple_max_len` have been deprecated. Use
+    :c:func:`net_buf_tailroom` and :c:func:`net_buf_simple_tailroom` instead. See the
+    :ref:`migration guide <migration_4.5>` for details.
 
 * Networking
 
@@ -1415,6 +1424,7 @@ New Drivers
   * :dtcompatible:`snps,dwmac-mdio` (:github:`108046`)
   * :dtcompatible:`snps,dwmac-ptp-clock` (:github:`114242`)
   * :dtcompatible:`wch,ch9120` (:github:`111708`)
+  * :dtcompatible:`wiznet,w5100s` (:github:`113315`)
   * :dtcompatible:`wiznet,w6300` (:github:`102727`)
   * :dtcompatible:`xlnx,gem-mdio` (:github:`87313`)
   * :dtcompatible:`zephyr,native-ptp-clock` (:github:`109265`)
