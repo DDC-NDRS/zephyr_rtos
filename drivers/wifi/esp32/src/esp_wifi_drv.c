@@ -1708,11 +1708,13 @@ static int esp32_wifi_ap_disable(const struct device* dev __unused, struct net_i
     return (0);
 };
 
-static int esp32_wifi_ap_sta_disconnect(const struct device* dev, uint8_t const* mac) {
+static int esp32_wifi_ap_sta_disconnect(const struct device* dev, struct net_if* iface,
+                                        uint8_t const* mac) {
     uint16_t aid;
     esp_err_t err;
 
     ARG_UNUSED(dev);
+    ARG_UNUSED(iface);
 
     err = esp_wifi_ap_get_sta_aid(mac, &aid);
     if (err) {
@@ -1888,8 +1890,8 @@ static int esp32_wifi_status(const struct device* dev __unused,
     return (0);
 }
 
-static int esp32_wifi_mode(const struct device* dev, struct wifi_mode_info* mode) {
-    struct net_if* iface = net_if_get_by_index(mode->if_index);
+static int esp32_wifi_mode(const struct device* dev, struct net_if* iface,
+                           struct wifi_mode_info* mode) {
     wifi_mode_t wifi_mode;
     esp_err_t err;
 
@@ -1932,9 +1934,8 @@ static int esp32_wifi_mode(const struct device* dev, struct wifi_mode_info* mode
 }
 
 
-static int esp32_wifi_channel(struct device const* dev,
-                              struct wifi_channel_info *channel) {
-    struct net_if* iface = net_if_get_by_index(channel->if_index);
+static int esp32_wifi_channel(struct device const* dev, struct net_if* iface,
+                              struct wifi_channel_info* channel) {
     uint8_t primary_chan;
     wifi_second_chan_t second_chan;
     esp_err_t err;
@@ -1965,11 +1966,13 @@ static int esp32_wifi_channel(struct device const* dev,
     return (0);
 }
 
-int esp32_wifi_ap_config_params(const struct device* dev, struct wifi_ap_config_params* params) {
+int esp32_wifi_ap_config_params(const struct device* dev, struct net_if* iface,
+                                struct wifi_ap_config_params* params) {
     wifi_config_t wifi_config;
     esp_err_t err;
 
     ARG_UNUSED(dev);
+    ARG_UNUSED(iface);
 
     err = esp_wifi_get_config(WIFI_IF_AP, &wifi_config);
     if (err != ESP_OK) {
@@ -1999,7 +2002,8 @@ int esp32_wifi_ap_config_params(const struct device* dev, struct wifi_ap_config_
 #define STR_CUR_TO_END(cur) (cur) = (&(cur)[0] + strlen((cur)))
 
 #ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_DPP
-int esp32_wifi_dpp_dispatch(const struct device* dev, struct wifi_dpp_params* params) {
+int esp32_wifi_dpp_dispatch(const struct device* dev, struct net_if* iface,
+                            struct wifi_dpp_params* params) {
     char* pos;
     static char dpp_cmd_buf[ESP32_WIFI_DPP_CMD_BUF_SIZE] = {0};
     char* end = &dpp_cmd_buf[ESP32_WIFI_DPP_CMD_BUF_SIZE - 2];
@@ -2049,7 +2053,7 @@ int esp32_wifi_dpp_dispatch(const struct device* dev, struct wifi_dpp_params* pa
             break;
 
         default :
-            return (-1);
+            return (-EINVAL);
     }
 
     return (-ENOTSUP);
@@ -2317,7 +2321,7 @@ static int esp32_wifi_set_config(const struct device* dev __unused,
 static void esp32_wifi_fill_chan_info(struct wifi_reg_chan_info* info, uint8_t chan, int8_t power,
                                       bool is_5g) {
     if (is_5g) {
-        info->center_frequency = 5000 + （chan * 5）;
+        info->center_frequency = 5000 + (chan * 5);
     }
     else {
         info->center_frequency = (chan == ESP32_WIFI_CHAN_14) ? 2484 : (2407 + (chan * 5));

@@ -123,6 +123,27 @@ static inline uint32_t ll_spi_dma_busy(SPI_TypeDef* spi) {
             LL_SPI_IsActiveFlag_BSY(spi));
     #endif /* LL_SPI_SR_TXC */
 }
+
+/* Only the STM32H7 LL provides the combined TX+RX DMA request helpers. The other series
+ * (F4, F7, L4, G0, H7RS, WBA, ...) only have the per-direction ones, RX first as upstream does.
+ */
+static inline void ll_dma_enable_req_tx_rx(SPI_TypeDef* spi) {
+    #if defined(CONFIG_SOC_SERIES_STM32H7X)
+    LL_SPI_EnableDMAReq_TX_RX(spi);
+    #else
+    LL_SPI_EnableDMAReq_RX(spi);
+    LL_SPI_EnableDMAReq_TX(spi);
+    #endif /* CONFIG_SOC_SERIES_STM32H7X */
+}
+
+static inline void ll_dma_disable_req_tx_rx(SPI_TypeDef* spi) {
+    #if defined(CONFIG_SOC_SERIES_STM32H7X)
+    LL_SPI_DisableDMAReq_TX_RX(spi);
+    #else
+    LL_SPI_DisableDMAReq_TX(spi);
+    LL_SPI_DisableDMAReq_RX(spi);
+    #endif /* CONFIG_SOC_SERIES_STM32H7X */
+}
 #endif /* st_stm32h7_spi */
 
 static inline void ll_set_transfer_direction(SPI_TypeDef* spi, uint32_t direction) {

@@ -223,6 +223,7 @@
 			#size-cells = <0>;
 			interrupts = <45 6>;
 			clk-dst = <0x0>;
+			scb-index = <0>;
 			status = "disabled";
 		};
 
@@ -233,6 +234,7 @@
 			#size-cells = <0>;
 			interrupts = <46 6>;
 			clk-dst = <0x1>;
+			scb-index = <1>;
 			status = "disabled";
 		};
 
@@ -243,6 +245,7 @@
 			#size-cells = <0>;
 			interrupts = <47 6>;
 			clk-dst = <0x2>;
+			scb-index = <2>;
 			status = "disabled";
 		};
 
@@ -253,6 +256,7 @@
 			#size-cells = <0>;
 			interrupts = <49 6>;
 			clk-dst = <0x3>;
+			scb-index = <4>;
 			status = "disabled";
 		};
 
@@ -263,6 +267,7 @@
 			#size-cells = <0>;
 			interrupts = <50 6>;
 			clk-dst = <0x4>;
+			scb-index = <5>;
 			status = "disabled";
 		};
 
@@ -273,6 +278,7 @@
 			#size-cells = <0>;
 			interrupts = <18 6>;
 			clk-dst = <0x5>;
+			scb-index = <6>;
 			status = "disabled";
 		};
 

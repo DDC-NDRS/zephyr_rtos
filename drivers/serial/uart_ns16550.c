@@ -85,7 +85,7 @@ LOG_MODULE_REGISTER(uart_ns16550, CONFIG_UART_LOG_LEVEL);
 #define UART_NS16550_IOPORT_ENABLED \
 	(DT_INST_FOREACH_STATUS_OKAY_VARGS(UART_NS16550_DT_PROP_IOMAPPED_HELPER, io_mapped, 0) 0)
 
-#if (UART_NS16550_IOPORT_ENABLED == 0)
+#if !defined(CONFIG_X86) && (UART_NS16550_IOPORT_ENABLED == 0)
 /* Just provide function prototype to avoid compilation warning */
 void sys_out32(uint32_t data, io_port_t port);
 void sys_out8(uint8_t data, io_port_t port);
@@ -427,7 +427,7 @@ static void ns16550_outbyte(const struct device *dev,
 {
 	const struct uart_ns16550_dev_config *cfg = dev->config;
 
-	if (port <= 0x08) {
+	if (port <= REG_BRD1) {
 		port = get_port(dev) + (port * reg_interval(dev));
 	} else {
 		port = get_port(dev) + port;
@@ -454,7 +454,7 @@ static uint8_t ns16550_inbyte(const struct device *dev,
 {
 	const struct uart_ns16550_dev_config *cfg = dev->config;
 
-	if (port <= 0x08) {
+	if (port <= REG_BRD1) {
 		port = get_port(dev) + (port * reg_interval(dev));
 	} else {
 		port = get_port(dev) + port;
@@ -952,7 +952,7 @@ static int uart_ns16550_init(const struct device *dev)
 #endif /* DT_ANY_INST_ON_BUS_STATUS_OKAY(pcie) */
 	{
 		/* Map directly from DTS */
-		if (UART_NS16550_IOPORT_ENABLED && !dev_cfg->io_map) {
+		if (!UART_NS16550_IOPORT_ENABLED || !dev_cfg->io_map) {
 			DEVICE_MMIO_MAP(dev, K_MEM_CACHE_NONE);
 		}
 	}
@@ -970,7 +970,7 @@ static int uart_ns16550_init(const struct device *dev)
 		data->async.tx_dma_params.dma_cfg.head_block =
 			&data->async.tx_dma_params.active_dma_block;
 #if defined(CONFIG_UART_NS16550_INTEL_LPSS_DMA)
-		if (UART_NS16550_IOPORT_ENABLED && !dev_cfg->io_map) {
+		if (!UART_NS16550_IOPORT_ENABLED || !dev_cfg->io_map) {
 			uintptr_t base;
 
 			base = DEVICE_MMIO_GET(dev) + DMA_INTEL_LPSS_OFFSET;
@@ -990,7 +990,7 @@ static int uart_ns16550_init(const struct device *dev)
 #endif
 
 #ifdef CONFIG_UART_NS16550_BCM283X_AUX
-	ns16550_outbyte(dev_cfg, REG_MDR1, (MDR1_RX_EN | MDR1_TX_EN));
+	ns16550_outbyte(dev, REG_MDR1, (MDR1_RX_EN | MDR1_TX_EN));
 #endif
 
 	/* clear the port */

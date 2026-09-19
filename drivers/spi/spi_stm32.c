@@ -524,7 +524,7 @@ static void spi_dma_enable_requests(SPI_TypeDef* spi) {
     uint32_t transfer_dir = ll_get_transfer_direction(spi);
 
     if (transfer_dir == STM32_SPI_FULL_DUPLEX) {
-        LL_SPI_EnableDMAReq_TX_RX(spi);
+        ll_dma_enable_req_tx_rx(spi);
     }
     else if (transfer_dir == STM32_SPI_HALF_DUPLEX_TX) {
         LL_SPI_EnableDMAReq_TX(spi);
@@ -2442,8 +2442,9 @@ static int spi_stm32_ll_transceive_dma(const struct device* dev,
     if (!peripheral_hd_tx && !(operation & SPI_HOLD_ON_CS)) {
         ll_disable_spi(spi);
     }
+
     /* The Config. Reg. on some mcus is write un-protected when SPI is disabled */
-    LL_SPI_DisableDMAReq_TX_RX(spi);
+    ll_dma_disable_req_tx_rx(spi);
 
     int err;
 

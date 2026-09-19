@@ -177,6 +177,7 @@
 			reg = <0x40240000 0xfd0>;
 			interrupts = <7 3>;
 			clk-dst = <0x0>;
+			scb-index = <0>;
 			status = "disabled";
 		};
 
@@ -185,6 +186,7 @@
 			reg = <0x40250000 0xfd0>;
 			interrupts = <8 3>;
 			clk-dst = <0x1>;
+			scb-index = <1>;
 			status = "disabled";
 		};
 
@@ -193,6 +195,7 @@
 			reg = <0x40260000 0xfd0>;
 			interrupts = <9 3>;
 			clk-dst = <0x2>;
+			scb-index = <2>;
 			status = "disabled";
 		};
 
@@ -201,6 +204,7 @@
 			reg = <0x40270000 0xfd0>;
 			interrupts = <10 3>;
 			clk-dst = <0x3>;
+			scb-index = <3>;
 			status = "disabled";
 		};
 
@@ -209,6 +213,7 @@
 			reg = <0x40280000 0xfd0>;
 			interrupts = <11 3>;
 			clk-dst = <0x4>;
+			scb-index = <4>;
 			status = "disabled";
 		};
 

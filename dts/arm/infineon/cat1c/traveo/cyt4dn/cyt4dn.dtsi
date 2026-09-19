@@ -472,6 +472,7 @@
 			interrupt-parent = <&intmux_ch0>;
 			interrupts = <20 0>;
 			clk-dst = <IFX_PCLK_SCB0>;
+			scb-index = <0>;
 			status = "disabled";
 		};
 
@@ -481,6 +482,7 @@
 			interrupt-parent = <&intmux_ch0>;
 			interrupts = <135 0>;
 			clk-dst = <IFX_PCLK_SCB1>;
+			scb-index = <1>;
 			status = "disabled";
 		};
 
@@ -490,6 +492,7 @@
 			interrupt-parent = <&intmux_ch0>;
 			interrupts = <136 0>;
 			clk-dst = <IFX_PCLK_SCB2>;
+			scb-index = <2>;
 			status = "disabled";
 		};
 
@@ -499,6 +502,7 @@
 			interrupt-parent = <&intmux_ch0>;
 			interrupts = <137 0>;
 			clk-dst = <IFX_PCLK_SCB3>;
+			scb-index = <3>;
 			status = "disabled";
 		};
 
@@ -508,6 +512,7 @@
 			interrupt-parent = <&intmux_ch0>;
 			interrupts = <138 0>;
 			clk-dst = <IFX_PCLK_SCB4>;
+			scb-index = <4>;
 			status = "disabled";
 		};
 
@@ -517,6 +522,7 @@
 			interrupt-parent = <&intmux_ch0>;
 			interrupts = <139 0>;
 			clk-dst = <IFX_PCLK_SCB5>;
+			scb-index = <5>;
 			status = "disabled";
 		};
 
@@ -526,6 +532,7 @@
 			interrupt-parent = <&intmux_ch0>;
 			interrupts = <140 0>;
 			clk-dst = <IFX_PCLK_SCB6>;
+			scb-index = <6>;
 			status = "disabled";
 		};
 
@@ -535,6 +542,7 @@
 			interrupt-parent = <&intmux_ch0>;
 			interrupts = <141 0>;
 			clk-dst = <IFX_PCLK_SCB7>;
+			scb-index = <7>;
 			status = "disabled";
 		};
 
@@ -544,6 +552,7 @@
 			interrupt-parent = <&intmux_ch0>;
 			interrupts = <142 0>;
 			clk-dst = <IFX_PCLK_SCB8>;
+			scb-index = <8>;
 			status = "disabled";
 		};
 
@@ -553,6 +562,7 @@
 			interrupt-parent = <&intmux_ch0>;
 			interrupts = <143 0>;
 			clk-dst = <IFX_PCLK_SCB9>;
+			scb-index = <9>;
 			status = "disabled";
 		};
 
@@ -562,6 +572,7 @@
 			interrupt-parent = <&intmux_ch0>;
 			interrupts = <144 0>;
 			clk-dst = <IFX_PCLK_SCB10>;
+			scb-index = <10>;
 			status = "disabled";
 		};
 
@@ -571,6 +582,7 @@
 			interrupt-parent = <&intmux_ch0>;
 			interrupts = <145 0>;
 			clk-dst = <IFX_PCLK_SCB11>;
+			scb-index = <11>;
 			status = "disabled";
 		};
 
