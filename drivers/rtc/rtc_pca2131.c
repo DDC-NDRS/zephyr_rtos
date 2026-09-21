@@ -135,6 +135,9 @@ LOG_MODULE_REGISTER(pca2131, CONFIG_RTC_LOG_LEVEL);
 
 #define PCA2131_WRITE_REG_LEN_MAX 8U
 
+/* 100th_Seconds register resolution: 1 LSB (BCD) = 10 ms */
+#define PCA2131_NSEC_PER_100TH (10U * NSEC_PER_MSEC)
+
 struct pca2131_config {
     struct i2c_dt_spec i2c;
 
@@ -194,7 +197,9 @@ static int pca2131_write_regs(const struct device* dev, uint8_t addr, void* buf,
     block[0] = addr;
     memcpy(&block[1], buf, len);
 
-    ret = i2c_write_dt(&config->i2c, block, sizeof(block));
+    // Send only addr + the caller's len bytes: sizeof(block) would also push the uninitialized
+    // tail of block into the registers that follow (e.g. SR_Reset, 100th_Seconds, Seconds).
+    ret = i2c_write_dt(&config->i2c, block, sizeof(addr) + len);
     if (ret != 0) {
         LOG_ERR("failed to write reg addr 0x%02x, len %d (ret %d)", addr, len, ret);
         return (ret);
@@ -358,11 +363,15 @@ static void pca2131_int1_callback_handler(const struct device* port, struct gpio
 
 static int pca2131_set_time(const struct device* dev, const struct rtc_time* timeptr) {
     struct pca2131_data* data = dev->data;
-    uint8_t regs[7];
+    uint8_t regs[8];
     int ret;
 
     if ((timeptr->tm_year < PCA2131_YEARS_OFFSET) ||
         (timeptr->tm_year > PCA2131_YEARS_OFFSET + 99)) {
+        return (-EINVAL);
+    }
+
+    if ((timeptr->tm_nsec < 0) || (timeptr->tm_nsec >= (int)NSEC_PER_SEC)) {
         return (-EINVAL);
     }
 
@@ -379,16 +388,17 @@ static int pca2131_set_time(const struct device* dev, const struct rtc_time* tim
             timeptr->tm_year, timeptr->tm_mon, timeptr->tm_mday, timeptr->tm_wday,
             timeptr->tm_hour, timeptr->tm_min, timeptr->tm_sec);
 
-    regs[0] = bin2bcd(timeptr->tm_sec)  & PCA2131_SECONDS_MASK;
-    regs[1] = bin2bcd(timeptr->tm_min)  & PCA2131_MINUTES_MASK;
-    regs[2] = bin2bcd(timeptr->tm_hour) & PCA2131_HOURS_24H_MASK;
-    regs[3] = bin2bcd(timeptr->tm_mday) & PCA2131_DAYS_MASK;
-    regs[4] = bin2bcd(timeptr->tm_wday) & PCA2131_WEEKDAYS_MASK;
-    regs[5] = bin2bcd(timeptr->tm_mon  + PCA2131_MONTHS_OFFSET) & PCA2131_MONTHS_MASK;
-    regs[6] = bin2bcd(timeptr->tm_year - PCA2131_YEARS_OFFSET ) & PCA2131_YEARS_MASK;
+    regs[0] = bin2bcd(timeptr->tm_nsec / PCA2131_NSEC_PER_100TH);
+    regs[1] = bin2bcd(timeptr->tm_sec)  & PCA2131_SECONDS_MASK;
+    regs[2] = bin2bcd(timeptr->tm_min)  & PCA2131_MINUTES_MASK;
+    regs[3] = bin2bcd(timeptr->tm_hour) & PCA2131_HOURS_24H_MASK;
+    regs[4] = bin2bcd(timeptr->tm_mday) & PCA2131_DAYS_MASK;
+    regs[5] = bin2bcd(timeptr->tm_wday) & PCA2131_WEEKDAYS_MASK;
+    regs[6] = bin2bcd(timeptr->tm_mon  + PCA2131_MONTHS_OFFSET) & PCA2131_MONTHS_MASK;
+    regs[7] = bin2bcd(timeptr->tm_year - PCA2131_YEARS_OFFSET ) & PCA2131_YEARS_MASK;
 
-    /* Write registers PCA2131_SECONDS through PCA2131_YEARS */
-    ret = pca2131_write_regs(dev, PCA2131_SECONDS, &regs, sizeof(regs));
+    /* Write registers PCA2131_100TH_SECONDS through PCA2131_YEARS */
+    ret = pca2131_write_regs(dev, PCA2131_100TH_SECONDS, &regs, sizeof(regs));
     if (ret != 0) {
         goto unlock;
     }
@@ -406,7 +416,7 @@ unlock :
 }
 
 static int pca2131_get_time(const struct device* dev, struct rtc_time* timeptr) {
-    uint8_t regs[7];
+    uint8_t regs[8];
     uint8_t control_1;
     int ret;
 
@@ -420,25 +430,28 @@ static int pca2131_get_time(const struct device* dev, struct rtc_time* timeptr) 
         return (-ENODATA);
     }
 
-    /* Read registers PCA2131_SECONDS through PCA2131_YEARS */
-    ret = pca2131_read_regs(dev, PCA2131_SECONDS, &regs, sizeof(regs));
+    /* Read registers PCA2131_100TH_SECONDS through PCA2131_YEARS in one burst so the sub-second
+     * value belongs to the same instant as the rest of the time
+     */
+    ret = pca2131_read_regs(dev, PCA2131_100TH_SECONDS, &regs, sizeof(regs));
     if (ret != 0) {
         return (ret);
     }
 
-    if ((regs[0] & PCA2131_SECONDS_OS) != 0) {
+    if ((regs[1] & PCA2131_SECONDS_OS) != 0) {
         LOG_WRN("oscillator stopped or interrupted");
         return (-ENODATA);
     }
 
     memset(timeptr, 0U, sizeof(*timeptr));
-    timeptr->tm_sec   = bcd2bin(regs[0] & PCA2131_SECONDS_MASK);
-    timeptr->tm_min   = bcd2bin(regs[1] & PCA2131_MINUTES_MASK);
-    timeptr->tm_hour  = bcd2bin(regs[2] & PCA2131_HOURS_24H_MASK);
-    timeptr->tm_mday  = bcd2bin(regs[3] & PCA2131_DAYS_MASK);
-    timeptr->tm_wday  = bcd2bin(regs[4] & PCA2131_WEEKDAYS_MASK);
-    timeptr->tm_mon   = bcd2bin(regs[5] & PCA2131_MONTHS_MASK) - PCA2131_MONTHS_OFFSET;
-    timeptr->tm_year  = bcd2bin(regs[6] & PCA2131_YEARS_MASK ) + PCA2131_YEARS_OFFSET;
+    timeptr->tm_nsec  = bcd2bin(regs[0]) * PCA2131_NSEC_PER_100TH;
+    timeptr->tm_sec   = bcd2bin(regs[1] & PCA2131_SECONDS_MASK);
+    timeptr->tm_min   = bcd2bin(regs[2] & PCA2131_MINUTES_MASK);
+    timeptr->tm_hour  = bcd2bin(regs[3] & PCA2131_HOURS_24H_MASK);
+    timeptr->tm_mday  = bcd2bin(regs[4] & PCA2131_DAYS_MASK);
+    timeptr->tm_wday  = bcd2bin(regs[5] & PCA2131_WEEKDAYS_MASK);
+    timeptr->tm_mon   = bcd2bin(regs[6] & PCA2131_MONTHS_MASK) - PCA2131_MONTHS_OFFSET;
+    timeptr->tm_year  = bcd2bin(regs[7] & PCA2131_YEARS_MASK ) + PCA2131_YEARS_OFFSET;
     timeptr->tm_yday  = -1;
     timeptr->tm_isdst = -1;
 
