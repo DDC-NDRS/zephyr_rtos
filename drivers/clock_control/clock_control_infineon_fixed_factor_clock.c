@@ -40,19 +40,19 @@ static int check_legal_max_min(const struct device* dev) {
     if (config->block == IFX_HF && config->instance == 0) {
         if (Cy_SysClk_ClkHfGetFrequency(0) > MHZ(200)) {
             LOG_ERR("clk_hf0 frequency is greater than legal max 200 MHz");
-            return -EINVAL;
+            return (-EINVAL);
         }
     }
     #elif defined(CONFIG_SOC_SERIES_PSC3)
     if (config->block == IFX_HF && config->instance == 0) {
         if (Cy_SysClk_ClkHfGetFrequency(0) > MHZ(180)) {
             LOG_ERR("clk_hf0 frequency is greater than legal max 180 MHz");
-            return -EINVAL;
+            return (-EINVAL);
         }
     }
     #endif
 
-    return 0;
+    return (0);
 }
 #endif
 
@@ -74,7 +74,7 @@ static int fixed_factor_clk_init(const struct device* dev) {
             #if defined(CONFIG_SOC_FAMILY_INFINEON_PSOC4)
             err = Cy_SysClk_ClkHfSetSource(config->source_path);
             if (err != CY_SYSCLK_SUCCESS) {
-                return -EIO;
+                return (-EIO);
             }
 
             /* Note : you can use only 4 divider types
@@ -89,39 +89,42 @@ static int fixed_factor_clk_init(const struct device* dev) {
 
             err = Cy_SysClk_ClkHfSetSource(config->instance, config->source_path);
             if (err != CY_SYSCLK_SUCCESS) {
-                return -EIO;
+                return (-EIO);
             }
 
             err = Cy_SysClk_ClkHfSetDivider(config->instance, config->divider);
             if (err != CY_SYSCLK_SUCCESS) {
-                return -EIO;
+                return (-EIO);
             }
 
             err = Cy_SysClk_ClkHfEnable(config->instance);
             if (err != CY_SYSCLK_SUCCESS) {
-                return -EIO;
+                return (-EIO);
             }
             #endif
             break;
 
         case IFX_PUMP :
-            #if defined(CONFIG_SOC_FAMILY_INFINEON_PSOC4)
+            #if defined(CONFIG_INFINEON_SYSCLK_HAS_CLK_PUMP)
             err = Cy_SysClk_ClkPumpSetSource(config->source_path);
             if (err != CY_SYSCLK_SUCCESS) {
-                return -EIO;
+                return (-EIO);
             }
+            #else
+            /* No clk_pump (charge pump) IP block on this SoC. */
+            return (-ENOTSUP);
             #endif
             break;
 
         default :
-            return -EINVAL;
+            return (-EINVAL);
     }
 
     #if defined(CONFIG_SOC_SERIES_PSE84) || defined(CONFIG_SOC_SERIES_PSC3)
     rslt = check_legal_max_min(dev);
     #endif
 
-    return 0;
+    return (0);
 }
 
 #define FIXED_CLK_INIT(n)                   \

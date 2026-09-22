@@ -13,8 +13,11 @@ supported:
   - counter
   - dma
   - entropy
+  - flash
   - gpio
+  - hwinfo
   - pwm
   - spi
   - uart
+  - watchdog
 vendor: silabs
