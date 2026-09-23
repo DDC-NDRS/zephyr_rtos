@@ -462,7 +462,7 @@
 #define STM32_PLL2_SRC_HSI      1
 #endif
 #if DT_SAME_NODE(DT_PLL2_CLOCKS_CTRL, DT_NODELABEL(clk_csi))
-#define STM32_PLL2_SRC_CSI	1
+#define STM32_PLL2_SRC_CSI    1
 #endif
 #if DT_SAME_NODE(DT_PLL2_CLOCKS_CTRL, DT_NODELABEL(clk_hse))
 #define STM32_PLL2_SRC_HSE      1
@@ -484,7 +484,7 @@
 #define STM32_PLL3_SRC_HSI      1
 #endif
 #if DT_SAME_NODE(DT_PLL3_CLOCKS_CTRL, DT_NODELABEL(clk_csi))
-#define STM32_PLL3_SRC_CSI	1
+#define STM32_PLL3_SRC_CSI    1
 #endif
 #if DT_SAME_NODE(DT_PLL3_CLOCKS_CTRL, DT_NODELABEL(clk_hse))
 #define STM32_PLL3_SRC_HSE      1
@@ -737,10 +737,10 @@
 #endif
 
 #if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(clk_shsi), fixed_clock, okay)
-#define STM32_SHSI_ENABLED	1
-#define STM32_SHSI_FREQ	DT_PROP(DT_NODELABEL(clk_shsi), clock_frequency)
+#define STM32_SHSI_ENABLED    1
+#define STM32_SHSI_FREQ    DT_PROP(DT_NODELABEL(clk_shsi), clock_frequency)
 #else
-#define STM32_SHSI_FREQ	0
+#define STM32_SHSI_FREQ    0
 #endif
 
 #if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(perck), st_stm32_clock_mux, okay)
@@ -909,7 +909,7 @@ struct stm32_pclken {
     STM32_DT_INST_CLOCK_INFO_BY_IDX(0, inst)
 
 /* Get STM32 clock information for a named clock phandle in DT node */
-#define STM32_CLOCK_INFO_BY_NAME(node_id, name)                 \
+#define STM32_DT_CLOCK_INFO_BY_NAME(node_id, name)              \
     {                                                           \
         .enr = DT_CLOCKS_CELL_BY_NAME(node_id, name, bits),     \
         .bus = DT_CLOCKS_CELL_BY_NAME(node_id, name, bus) &     \
@@ -920,7 +920,7 @@ struct stm32_pclken {
 
 /* Get STM32 clock information for named clock phandle in a @c DT_DRV_COMPAT instance node */
 #define STM32_DT_INST_CLOCK_INFO_BY_NAME(inst, name)            \
-    STM32_CLOCK_INFO_BY_NAME(DT_DRV_INST(inst), name)
+    STM32_DT_CLOCK_INFO_BY_NAME(DT_DRV_INST(inst), name)
 
 /* Return true only if at least an enabled instance of the @c DT_DRV_COMPAT has at least 2 clocks */
 #define STM32_DOMAIN_CLOCK_INST_SUPPORT(inst)   DT_INST_CLOCKS_HAS_IDX(inst, 1) ||

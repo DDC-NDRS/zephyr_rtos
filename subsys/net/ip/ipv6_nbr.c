@@ -355,6 +355,11 @@ bool net_ipv6_nbr_rm(struct net_if *iface, struct net_in6_addr *addr)
 		return false;
 	}
 
+	/* The caller may have left the interface open, so report the removal
+	 * against the one the neighbor was actually found on.
+	 */
+	iface = nbr->iface;
+
 	/* Remove any routes with nbr as nexthop in first place */
 	net_route_ipv6_del_by_nexthop(iface, addr);
 
@@ -386,7 +391,7 @@ void net_ipv6_nbr_clear_cache(struct net_if *iface)
 		struct net_nbr *nbr = get_nbr(i);
 		struct net_in6_addr addr;
 
-		if (!nbr->ref || nbr->iface != iface ||
+		if (nbr->ref == 0 || (iface != NULL && nbr->iface != iface) ||
 		    net_ipv6_nbr_data(nbr)->state == NET_IPV6_NBR_STATE_STATIC) {
 			continue;
 		}
@@ -396,7 +401,7 @@ void net_ipv6_nbr_clear_cache(struct net_if *iface)
 		 * freed entry would be a use-after-free.
 		 */
 		net_ipaddr_copy(&addr, &net_ipv6_nbr_data(nbr)->addr);
-		net_ipv6_nbr_rm(iface, &addr);
+		net_ipv6_nbr_rm(nbr->iface, &addr);
 	}
 
 	net_ipv6_nbr_unlock();
@@ -2070,10 +2075,8 @@ static enum net_verdict handle_na_input(struct net_icmp_ctx *ctx,
 	net_ipv6_addr_copy_raw(na_tgt.s6_addr, na_hdr->tgt);
 	net_ipv6_addr_copy_raw(na_dst.s6_addr, ip_hdr->dst);
 
-	if (length < (sizeof(struct net_ipv6_hdr) +
-		      sizeof(struct net_icmp_hdr) +
-		      sizeof(struct net_icmpv6_na_hdr) +
-		      sizeof(struct net_icmpv6_nd_opt_hdr))) {
+	if (length < (sizeof(struct net_ipv6_hdr) + sizeof(struct net_icmp_hdr) +
+		      sizeof(struct net_icmpv6_na_hdr))) {
 		goto drop;
 	}
 
@@ -3221,10 +3224,8 @@ static enum net_verdict handle_ra_input(struct net_icmp_ctx *ctx,
 
 	net_ipv6_addr_copy_raw(ra_src.s6_addr, ip_hdr->src);
 
-	if (length < (sizeof(struct net_ipv6_hdr) +
-		      sizeof(struct net_icmp_hdr) +
-		      sizeof(struct net_icmpv6_ra_hdr) +
-		      sizeof(struct net_icmpv6_nd_opt_hdr))) {
+	if (length < (sizeof(struct net_ipv6_hdr) + sizeof(struct net_icmp_hdr) +
+		      sizeof(struct net_icmpv6_ra_hdr))) {
 		goto drop;
 	}
 
@@ -3268,7 +3269,7 @@ static enum net_verdict handle_ra_input(struct net_icmp_ctx *ctx,
 
 	if (retrans_timer) {
 		net_if_ipv6_set_retrans_timer(net_pkt_iface(pkt),
-					      ra_hdr->retrans_timer);
+					      retrans_timer);
 	}
 
 	net_pkt_set_ipv6_ext_opt_len(pkt, sizeof(struct net_icmpv6_ra_hdr));

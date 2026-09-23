@@ -658,6 +658,17 @@ Digital Microphone
   have been updated. Application code using :c:func:`dmic_configure`, :c:func:`dmic_trigger`, and
   :c:func:`dmic_read` is not impacted.
 
+Disk
+====
+
+* :kconfig:option:`CONFIG_NVME_REQUEST_TIMEOUT` is documented and ranged in
+  seconds. The NVMe request timeout path previously compared that value against
+  :c:func:`k_uptime_get_32` milliseconds without converting, so the default of
+  ``5`` expired after about 5 ms instead of 5 seconds. The driver now converts
+  with ``MSEC_PER_SEC`` before scheduling and expiry checks. Review any
+  non-default setting if the application depended on the former short timeout
+  behavior. (:github:`117809`)
+
 Display
 =======
 
@@ -1513,6 +1524,65 @@ STM32
   ``pinctrl-names``, ``mclk-enable``, ``mclk-divider``, ``synchronous``, and
   ``fifo-threshold``. (:github:`104423`)
 
+* :dtcompatible:`st,stm32-adc` binding has been restructured to reflect the ADC hardware
+  topology. A parent node now represents the ADC common block, which holds the clock and
+  the settings shared by all the ADC instances connected to it, while a new ``child-binding``
+  represents the ADC instances themselves.
+
+  The existing ``&adcN`` node labels still designate the ADC instances, which are now children
+  of a common block node labelled ``&adcN_common``, where ``N`` lists the instances sharing the
+  block (for example ``&adc1_common``, ``&adc12_common`` or ``&adc123_common``). The common block
+  node must be enabled in addition to the instance node.
+
+  The following properties shall be moved from the ``&adcN`` instance node to its ``&adcN_common``
+  parent node: ``clocks``, ``clock-names``, ``st,adc-clock-source``, ``st,adc-prescaler`` and
+  ``vref-mv``. Since the clock is now described once per common block, instances sharing it can
+  no longer be given conflicting clock settings.
+
+  .. tabs::
+
+    .. group-tab:: Before
+
+      .. code-block:: devicetree
+
+          &adc1 {
+            clocks = <&rcc STM32_CLOCK(AHB2, 13)>,
+                     <&rcc STM32_SRC_SYSCLK ADC_SEL(3)>;
+            clock-names = "adcx", "adc_ker";
+            st,adc-clock-source = "ASYNC";
+            st,adc-prescaler = <4>;
+            vref-mv = <3000>;
+            pinctrl-0 = <&adc1_in1_pa0>;
+            pinctrl-names = "default";
+            status = "okay";
+          };
+
+    .. group-tab:: After
+
+      .. code-block:: devicetree
+
+          &adc12_common {
+            clocks = <&rcc STM32_CLOCK(AHB2, 13)>,
+                     <&rcc STM32_SRC_SYSCLK ADC_SEL(3)>;
+            clock-names = "adcx", "adc_ker";
+            st,adc-clock-source = "ASYNC";
+            st,adc-prescaler = <4>;
+            vref-mv = <3000>;
+            status = "okay";
+          };
+
+          &adc1 {
+            pinctrl-0 = <&adc1_in1_pa0>;
+            pinctrl-names = "default";
+            status = "okay";
+          };
+
+  Note that ``vref-mv`` only needs to be set when it differs from its ``3300`` default value.
+
+  For :dtcompatible:`st,stm32f1-adc` and :dtcompatible:`st,stm32f4-adc`, each instance keeps its
+  own register clock, so ``clocks`` and ``clock-names`` stay on the ``&adcN`` node.
+  (:github:`117309`)
+
 * :dtcompatible:`st,hci-stm32wba` and :dtcompatible:`st,stm32wba-ieee802154` nodes
   (with nodelabels ``bt_hci_wba`` and ``ieee802154`` respectively) are now
   children of a top-level :dtcompatible:`st,stm32wba-radio` node with nodelabel
@@ -2079,6 +2149,23 @@ Bluetooth Host
   :c:func:`bt_le_ext_adv_update_param`. Previously it kept the value from
   :c:func:`bt_le_ext_adv_create` even though the controller applied the new one.
 
+* :c:func:`bt_addr_le_to_str` now formats LE addresses with a single-character type prefix,
+  ``P:`` for public and ``R:`` for random, directly followed by the address, e.g.
+  ``R:11:22:33:44:55:66``. The previous ``11:22:33:44:55:66 (random)`` form is no longer
+  produced, and address types carrying additional HCI-level bits, such as
+  ``BT_ADDR_LE_RANDOM_ID``, are formatted by their base type rather than as ``(random-id)`` or
+  a raw hex value. Code that parses Zephyr log or shell output to extract addresses must be
+  updated. :c:macro:`BT_ADDR_LE_STR_LEN` has shrunk from ``30`` to ``20`` accordingly.
+
+* :c:func:`bt_addr_le_from_str` no longer takes a separate address type string. It accepts only
+  the ``P:``/``R:`` prefixed format produced by :c:func:`bt_addr_le_to_str`; the previous
+  ``"XX:XX:XX:XX:XX:XX"`` + ``"public"``/``"random"`` form is not supported. All Bluetooth
+  shell commands that take an LE address (for example ``bt connect``, ``bt disconnect``,
+  ``bt clear``, ``bt fal-add``, ``bt per-adv-sync-create``, ``gatt resubscribe`` and
+  ``bap_broadcast_assistant add_src``) consequently take it as a single
+  ``P:XX:XX:XX:XX:XX:XX`` or ``R:XX:XX:XX:XX:XX:XX`` argument instead of an address followed
+  by a separate type argument.
+
 Bluetooth Mesh
 ==============
 
@@ -2252,6 +2339,9 @@ Modem
   :c:struct:`modem_cellular_vendor_config`, not :c:struct:`modem_cellular_data`.
 * Cellular modem instance PPP pointer is now automatically populated in
   :c:struct:`modem_cellular_config`. Assignment to :c:struct:`modem_cellular_data` must be removed.
+* Chat script callback argument types have been updated. A new
+  :c:struct:`modem_chat_script_completion_info` pointer is now inserted before the ``user_data``
+  argument.
 
 PTP
 ===

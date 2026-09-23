@@ -541,6 +541,10 @@ static void security_changed_cb(struct bt_conn *conn, bt_security_t level,
 	struct bt_conn_info conn_info;
 	__maybe_unused int err;
 
+	if (!bt_conn_is_type(conn, BT_CONN_TYPE_LE)) {
+		return;
+	}
+
 	/* If there doesn't exist a bond, then this function is a no-op: We either add the bonded
 	 * address or trigger notification work for bonded devices
 	 */
@@ -593,6 +597,10 @@ static void disconnected_cb(struct bt_conn *conn, uint8_t reason)
 	struct bt_conn_info conn_info;
 	__maybe_unused int err;
 
+	if (!bt_conn_is_type(conn, BT_CONN_TYPE_LE)) {
+		return;
+	}
+
 	if (!atomic_test_bit(scan_delegator_flags, SCAN_DELEGATOR_FLAG_REGISTERED)) {
 		/* Not yet registered, ignore callback */
 		return;
@@ -619,6 +627,10 @@ static void pairing_complete_cb(struct bt_conn *conn, bool bonded)
 {
 	struct bass_recv_state_internal *internal_state = &scan_delegator.recv_states[0];
 	__maybe_unused int err;
+
+	if (!bt_conn_is_type(conn, BT_CONN_TYPE_LE)) {
+		return;
+	}
 
 	LOG_DBG("%s paired (%sbonded)", bt_conn_dst_str(conn), bonded ? "" : "not ");
 
@@ -1149,15 +1161,6 @@ static int scan_delegator_mod_src(struct bt_conn *conn,
 			return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
 		}
 
-		/* If the BIS sync request is different than what was previously was requested, or
-		 * different than what we are current synced to, we set bis_sync_change_requested to
-		 * let the application know that the state may need a change
-		 */
-		if (internal_state->requested_bis_sync[i] != requested_bis_sync[i] ||
-		    internal_state->state.subgroups[i].bis_sync != requested_bis_sync[i]) {
-			bis_sync_change_requested = true;
-		}
-
 		if (!valid_bis_sync_request(requested_bis_sync[i], aggregated_bis_syncs)) {
 			err = k_mutex_unlock(&internal_state->mutex);
 			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
@@ -1166,6 +1169,16 @@ static int scan_delegator_mod_src(struct bt_conn *conn,
 			return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
 		}
 		aggregated_bis_syncs |= requested_bis_sync[i];
+
+		/* If the BIS sync request is different than what was previously was requested, or
+		 * different than what we are current synced to, we set bis_sync_change_requested to
+		 * let the application know that the state may need a change
+		 */
+		if (requested_bis_sync[i] == BT_BAP_BIS_SYNC_NO_PREF ||
+		    internal_state->requested_bis_sync[i] != requested_bis_sync[i] ||
+		    internal_state->state.subgroups[i].bis_sync != requested_bis_sync[i]) {
+			bis_sync_change_requested = true;
+		}
 
 		subgroup->metadata_len = net_buf_simple_pull_u8(buf);
 

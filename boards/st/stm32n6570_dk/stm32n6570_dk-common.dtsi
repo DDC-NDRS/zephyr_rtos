@@ -294,13 +294,17 @@
 	};
 };
 
+&adc12_common {
+	vref-mv = <1800>;
+	status = "okay";
+};
+
 &adc1 {
 	clocks = <&rcc STM32_CLOCK(AHB1, 5)>,
 		 <&rcc STM32_SRC_CKPER ADC12_SEL(1)>;
 	clock-names = "adcx", "adc_ker";
 	pinctrl-0 = <&adc1_inp10_pa9 &adc1_inp11_pa10>; /* Arduino A1 & A2 */
 	pinctrl-names = "default";
-	vref-mv = <1800>;
 	status = "okay";
 };
 
@@ -650,6 +654,10 @@ zephyr_jpegenc: &jpeg {
 &rtc {
 	clocks = <&rcc STM32_CLOCK(APB4, 16)>,
 		 <&rcc STM32_SRC_LSE RTC_SEL(1)>;
+	status = "okay";
+};
+
+&dma2d {
 	status = "okay";
 };
 
