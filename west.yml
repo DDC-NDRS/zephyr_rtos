@@ -185,7 +185,7 @@ manifest:
       groups:
         - hal
     - name: hal_gigadevice
-      revision: 44bc5a6aec1d70c74e58a7369e5152a6b6a1f989
+      revision: 804f92bf5794e403fab89178dcc6d775b9269c0d
       path: modules/hal/gigadevice
       groups:
         - hal
@@ -215,7 +215,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: 4d36746be1dcfb5223e2cef330e89121879320aa
+      revision: 38056601a687d5a3dfb81e6dbc4fc59139c73dda
       path: modules/hal/nxp
       groups:
         - hal

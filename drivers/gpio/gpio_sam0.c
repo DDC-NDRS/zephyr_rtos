@@ -81,6 +81,10 @@ static int gpio_sam0_config(const struct device* dev,
         }
 
         regs->DIRSET.reg = BIT(pin);
+
+        if ((flags & SAM0_GPIO_DRIVE_STRONG) != 0) {
+            pincfg.bit.DRVSTR = 1;
+        }
     }
     else {
         /* Not output, may be input */
