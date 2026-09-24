@@ -1421,11 +1421,12 @@ static enum net_verdict tcp_data_get(struct tcp* conn, struct net_pkt* pkt, size
         size_t tmp_len = *len;
 
         tmp_len += tcp_check_pending_data(conn, pkt, tmp_len);
+        *len = tmp_len;
 
         net_pkt_cursor_init(pkt);
         net_pkt_set_overwrite(pkt, true);
 
-        if (net_pkt_skip(pkt, net_pkt_get_len(pkt) - *len) < 0) {
+        if (net_pkt_skip(pkt, net_pkt_get_len(pkt) - tmp_len) < 0) {
             return (NET_DROP);
         }
 
@@ -1436,8 +1437,6 @@ static enum net_verdict tcp_data_get(struct tcp* conn, struct net_pkt* pkt, size
         else {
             conn->recv_win_sent -= (uint16_t)tmp_len;
         }
-
-        *len = tmp_len;
 
         /* Do not pass data to application with TCP conn
          * locked as there could be an issue when the app tries
@@ -3732,6 +3731,8 @@ data_recv :
                 else {
                     tcp_out(conn, ACK);
                 }
+
+                verdict = NET_OK;
             }
             else if (CONFIG_NET_TCP_RECV_QUEUE_TIMEOUT) {
                 tcp_out_of_order_data(conn, pkt, len, th_seq(th));

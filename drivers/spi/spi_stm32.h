@@ -307,6 +307,8 @@ static inline bool ll_are_int_disabled(SPI_TypeDef* spi) {
 static inline void ll_clear_txtf_ovr_eot_flag(SPI_TypeDef* spi) {
     #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
     LL_SPI_ClearFlag(spi, (SPI_IFCR_TXTFC | SPI_IFCR_OVRC | SPI_IFCR_EOTC));
+    #else
+    LL_SPI_ClearFlag_OVR(spi);
     #endif /* st_stm32h7_spi */
 }
 

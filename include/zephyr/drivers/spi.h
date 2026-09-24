@@ -1143,10 +1143,11 @@ static inline int spi_transceive_dt(const struct spi_dt_spec* spec,
 /**
  * @brief SPI transceive function for STPM3x devices.
  * @param[in] spec SPI specification from devicetree
- * @param[in] tx   Data to be sent
- * @param[out] rx  Data to be read or NULL if none
- * @return 0 if successful, -errno on failure
- * @note This function is not handle the CS line, it is expected to be handled by the caller.
+ * @param[in] tx   Data to be sent (4 bytes)
+ * @param[out] rx  Buffer for the received data (4 bytes) or NULL if none
+ * @retval 0 Transfer started
+ * @note This function does not handle the CS line, it is expected to be handled by the caller.
+ * @note The bus is assumed to be dedicated to the STPM3x: no SPI context lock is taken.
  */
 int spi_stpm3x_transceive_dt(struct spi_dt_spec const* spec,
                              uint8_t const tx[],

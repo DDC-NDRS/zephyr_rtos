@@ -1521,8 +1521,8 @@ static void stpm3x_hal_spi_cls_xfer(SPI_TypeDef* spi,
  * @param[in] data SPI device data structure
  * @return None
  */
-void stpm3x_hal_spi_irq_hndl_ll(SPI_TypeDef* spi,
-                                struct spi_stm32_data* data) {
+static void stpm3x_hal_spi_irq_hndl_ll(SPI_TypeDef* spi,
+                                       struct spi_stm32_data* data) {
     /* @see STPM3X_SPI::irq_hndl, HAL_SPI_IRQHandler */
     uint32_t itsource = spi->IER;
     uint32_t itflag   = spi->SR;
@@ -1626,9 +1626,9 @@ void stpm3x_hal_spi_irq_hndl_ll(SPI_TypeDef* spi,
  * @param[in] irq_n IRQ number
  * @return SPI event
  */
-uint32_t stpm3x_hal_spi_irq_hndl_asynch(SPI_TypeDef* spi,
-                                        struct spi_stm32_data* data,
-                                        IRQn_Type irq_n) {
+static uint32_t stpm3x_hal_spi_irq_hndl_asynch(SPI_TypeDef* spi,
+                                               struct spi_stm32_data* data,
+                                               IRQn_Type irq_n) {
     uint32_t event;
 
     stpm3x_hal_spi_irq_hndl_ll(spi, data);
@@ -2517,7 +2517,10 @@ static int spi_stm32_ll_transceive(const struct device* dev,
     #endif /* CONFIG_SPI_STM32_DMA */
 
     /* #CUSTOM@NDRS
-     * This is intentional; avoid an early return when both tx_bufs and rx_bufs are NULL.
+     * No early return for (tx_bufs == NULL) && (rx_bufs == NULL):
+     * no caller does this.
+     * If one does, it is handled by the "!spi_stm32_transfer_ongoing()" path;
+     * an async request is then never completed, so callers must not issue one.
      */
 
     #if defined(CONFIG_DCACHE) && defined(CONFIG_SPI_STM32_DMA) && !defined(CONFIG_SPI_RTIO)
@@ -2718,9 +2721,10 @@ static int spi_stm32_pm_action(const struct device* dev, enum pm_device_action a
              * When SPI master has to be disabled temporary for a specific configuration reason (e.g. CRC
              * reset, CPHA or HDDIR change) setting this bit prevents any glitches on the associated
              * outputs configured at alternate function mode by keeping them forced at state corresponding
-             * the current SPI configuration.
+             * the current SPI configuration. Only done when requested by st,gpio-control,
+             * consistent with spi_stm32_configure().
              */
-            if (DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)) {
+            if (DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) && config->gpio_control) {
                 LL_SPI_EnableGPIOControl(config->spi);          /* #CUSTOM@NDRS */
             }
 
@@ -2773,10 +2777,11 @@ static int spi_stm32_init(const struct device* dev) {
         }
     }
 
-    /* For easier access during operation,
-     * cache the overrun character in the runtime data structure.
+    /* For easier access during operation, cache the overrun character in the
+     * runtime data structure, replicated to every byte so that packed 16/32-bit
+     * FIFO writes and DMA dummy reads shift out ORC for each frame.
      */
-    data->orc = cfg->orc;
+    data->orc = (cfg->orc & 0xFFU) * 0x01010101U;
 
     #if defined(CONFIG_SPI_STM32_INTERRUPT)
     cfg->irq_config(dev);
