@@ -153,10 +153,6 @@ uint32_t lpuartdiv_calc(const uint64_t clock_rate, const uint32_t baud_rate) {
 #endif /* USART_PRESC_PRESCALER */
 #endif /* HAS_LPUART */
 
-#ifdef CONFIG_UART_ASYNC_API
-#define STM32_ASYNC_STATUS_TIMEOUT (DMA_STATUS_BLOCK + 1)
-#endif
-
 #if defined(CONFIG_PM) && defined(IS_UART_WAKEUP_FROMSTOP_INSTANCE)
 static void uart_stm32_pm_enable_wakeup_line(uint32_t wakeup_line) {
     #if defined(CONFIG_SOC_SERIES_STM32WB0X)
@@ -1337,79 +1333,48 @@ static inline void async_timer_start(struct k_work_delayable* work,
     }
 }
 
-static void uart_stm32_dma_rx_flush(struct device const* dev, int status) {
-    struct dma_status stat;
+/* Report everything the DMA has written since the previous flush.
+ *
+ * The write position is read from the DMA on every call, so it does not matter
+ * what woke us up - a half-transfer, a transfer completion or an RX timeout -
+ * nor how late that wakeup is. A stale wakeup simply reports no new data.
+ */
+static void uart_stm32_dma_rx_flush(const struct device* dev) {
     struct uart_stm32_data* data = dev->data;
     struct uart_dma_stream* dma_rx = &data->dma_rx;
-    size_t rx_rcv_len = 0;
-    uint32_t half_pos;
+    struct dma_status stat;
+    size_t rx_pos;
+    int ret;
 
-    switch (status) {
-        case DMA_STATUS_COMPLETE :
-            /* fully complete */
-
-            /* If offset is already at the end, just reset for next lap and return. */
-            if (dma_rx->offset >= dma_rx->buffer_length) {
-                dma_rx->offset = 0;
-                return;
-            }
-
-            dma_rx->counter = dma_rx->buffer_length;
-            break;
-
-        case DMA_STATUS_BLOCK :
-            /* half complete */
-            half_pos = dma_rx->buffer_length / 2;
-
-            /* Already handled by timeout path has already dealt with this data.
-             * Return immediately.
-             */
-            if (dma_rx->offset >= half_pos) {
-                return;
-            }
-
-            dma_rx->counter = half_pos;
-            break;
-
-        default : /* likely STM32_ASYNC_STATUS_TIMEOUT */
-            if (dma_get_status(dma_rx->dma_dev, dma_rx->dma_channel, &stat) == 0) {
-                rx_rcv_len = dma_rx->buffer_length - stat.pending_length;
-
-                /* If DMA wrapped: emit tail [offset..end), then head [0..counter). */
-                if (rx_rcv_len < dma_rx->offset) {
-                    /* tail end and emit*/
-                    dma_rx->counter = dma_rx->buffer_length;
-                    async_evt_rx_rdy(data);
-
-                    /* prepare head */
-                    dma_rx->offset = 0;
-                }
-
-                dma_rx->counter = rx_rcv_len;
-            }
-            break;
+    ret = dma_get_status(dma_rx->dma_dev, dma_rx->dma_channel, &stat);
+    if (ret != 0) {
+        LOG_ERR("Failed to read RX DMA status: %d", ret);
+        return;
     }
 
-    /* Emit contiguous segment if any (BLOCK/COMPLETE or non-wrapping TIMEOUT).*/
+    rx_pos = dma_rx->buffer_length - stat.pending_length;
+
+    /* The DMA wrapped around since the previous flush: report the tail
+     * [offset..end) of the finished lap before the head [0..rx_pos). There is
+     * no tail at all if the previous flush already ended at the end of the
+     * buffer, and reporting one anyway would be a zero-length event.
+     */
+    if (rx_pos < data->dma_rx.offset) {
+        if (dma_rx->offset < dma_rx->buffer_length) {
+            dma_rx->counter = dma_rx->buffer_length;
+            async_evt_rx_rdy(data);
+        }
+
+        dma_rx->offset = 0;
+    }
+
+    dma_rx->counter = rx_pos;
+
     if (dma_rx->counter > dma_rx->offset) {
         async_evt_rx_rdy(data);
     }
 
-    switch (status) { /* update offset*/
-        case DMA_STATUS_COMPLETE :
-            /* fully complete */
-            dma_rx->offset = 0;
-            break;
-
-        case DMA_STATUS_BLOCK :
-            /* half complete */
-            dma_rx->offset = dma_rx->buffer_length / 2;
-            break;
-
-        default : /* likely STM32_ASYNC_STATUS_TIMEOUT */
-            dma_rx->offset = rx_rcv_len;
-            break;
-    }
+    dma_rx->offset = rx_pos;
 }
 
 #endif /* CONFIG_UART_ASYNC_API */
@@ -1508,7 +1473,7 @@ static void uart_stm32_isr(struct device const* dev) {
         #endif
 
         if (data->dma_rx.timeout == 0) {
-            uart_stm32_dma_rx_flush(dev, STM32_ASYNC_STATUS_TIMEOUT);
+            uart_stm32_dma_rx_flush(dev);
         }
         else {
             /* Start the RX timer not null */
@@ -1547,7 +1512,7 @@ static void uart_stm32_isr(struct device const* dev) {
         uart_stm32_rx_wakeup_lock_put(dev);
         #endif
 
-        uart_stm32_dma_rx_flush(dev, STM32_ASYNC_STATUS_TIMEOUT);
+        uart_stm32_dma_rx_flush(dev);
     #endif /* HAS_RTO */
     }
 
@@ -1662,7 +1627,7 @@ static int uart_stm32_async_rx_disable(struct device const* dev) {
     /* Disable error interrupt to prevent spurious ISRs when async RX is disabled */
     LL_USART_DisableIT_ERROR(usart);
 
-    uart_stm32_dma_rx_flush(dev, STM32_ASYNC_STATUS_TIMEOUT);
+    uart_stm32_dma_rx_flush(dev);
 
     async_evt_rx_buf_release(data);
 
@@ -1804,7 +1769,7 @@ void uart_stm32_dma_rx_cb(const struct device* dma_dev, void* user_data,
     }
     else {
         /* CIRCULAR MODE */
-        uart_stm32_dma_rx_flush(data->uart_dev, status);
+        uart_stm32_dma_rx_flush(data->uart_dev);
     }
 }
 
@@ -2013,8 +1978,17 @@ static int uart_stm32_async_rx_enable(struct device const* dev,
         return (-EFAULT);
     }
 
-    dma_rx->offset = 0;
-    dma_rx->buffer = rx_buf;
+    /* A cyclic DMA is tracked by where its write position has got to, which
+     * cannot tell a full lap apart from no progress at all. One byte leaves no
+     * room between those two, so the position never reports anything.
+     */
+    if (dma_rx->dma_cfg.cyclic && (buf_size < 2)) {
+        LOG_ERR("Rx buffer must hold at least 2 bytes in cyclic DMA mode");
+        return (-EINVAL);
+    }
+
+    dma_rx->offset  = 0;
+    dma_rx->buffer  = rx_buf;
     dma_rx->buffer_length = buf_size;
     dma_rx->counter = 0;
     dma_rx->timeout = timeout;
@@ -2116,7 +2090,7 @@ static void uart_stm32_async_rx_timeout(struct k_work* work) {
         uart_stm32_async_rx_disable(dev);
     }
     else {
-        uart_stm32_dma_rx_flush(dev, STM32_ASYNC_STATUS_TIMEOUT);
+        uart_stm32_dma_rx_flush(dev);
     }
 
     irq_unlock(key);
@@ -2422,7 +2396,7 @@ static int uart_stm32_registers_configure(struct device const* dev) {
     if (config->de_enable) {
         if (!IS_UART_DRIVER_ENABLE_INSTANCE(usart)) {
             LOG_ERR("%s does not support driver enable", dev->name);
-            return -EINVAL;
+            return (-EINVAL);
         }
 
         uart_stm32_set_driver_enable(usart, true);
