@@ -578,6 +578,20 @@ New APIs and options
     * :kconfig:option:`CONFIG_BT_SMP_DERIVE_LK`
     * :c:func:`bt_sdp_unregister_service`
 
+  * HCI Drivers
+
+    * :c:macro:`BT_HCI_PKT_CMD_DEFINE`
+    * :c:macro:`BT_HCI_PKT_CMD_DEFINE_STATIC`
+    * :c:func:`bt_hci_pkt_reset_cmd`
+    * :c:func:`bt_hci_pkt_push_cmd_hdr`
+    * :c:func:`bt_hci_pkt_pull_cmd_complete`
+    * :c:func:`bt_hci_pkt_pull_cmd_status`
+    * :c:func:`bt_hci_pkt_parse_cmd_rsp`
+    * :c:func:`bt_hci_lockstep_cmd_send_sync`
+    * :c:func:`bt_hci_lockstep_reset`
+    * :c:func:`bt_hci_set_public_addr` and :c:func:`bt_hci_get_public_addr`
+    * :c:func:`bt_hci_can_close`
+
   * Host
 
     * :c:func:`bt_conn_take`
@@ -597,12 +611,6 @@ New APIs and options
     * :c:func:`bt_rfcomm_dlc_recv_complete` to return RX credits to the peer. Applications can
       return ``-EINPROGRESS`` from the :c:member:`bt_rfcomm_dlc_ops.recv` callback to defer buffer
       release and flow-control credit refill until processing is complete.
-    * HCI packet helpers (:c:macro:`BT_HCI_PKT_CMD_DEFINE`, :c:func:`bt_hci_pkt_push_cmd_hdr`,
-      :c:func:`bt_hci_pkt_parse_cmd_rsp` and friends) for framing HCI command packets and
-      parsing command responses independently of the Host.
-    * :c:func:`bt_hci_lockstep_cmd_send_sync`
-    * :c:func:`bt_hci_lockstep_reset`
-    * :c:func:`bt_hci_set_public_addr` and :c:func:`bt_hci_get_public_addr`
     * :c:func:`bt_le_bond_addr_res_support`, :c:enum:`bt_le_addr_res_support` and
       :c:member:`bt_conn_auth_info_cb.addr_res_support_read`
     * :c:enumerator:`BT_LE_SCAN_OPT_EXT_FILTER_POLICY`
@@ -648,6 +656,20 @@ New APIs and options
 
   * :c:enumerator:`PIXEL_FORMAT_YUYV`
   * :c:macro:`PANEL_PIXEL_FORMAT_YUYV`
+
+* FIDO2
+
+  * :c:func:`fido2_up_reset`
+  * :c:macro:`FIDO2_BLE_SERVICE_UUID_VAL`
+  * :c:macro:`FIDO2_BLE_SERVICE_DATA_PAIRING_MODE`
+  * :kconfig:option:`CONFIG_FIDO2_TRANSPORT_BLE`
+  * :kconfig:option:`CONFIG_FIDO2_BLE_REQUIRE_AUTHENTICATED_LINK`
+  * :kconfig:option:`CONFIG_FIDO2_BLE_RX_WORKQ_STACK_SIZE`
+  * :kconfig:option:`CONFIG_FIDO2_BLE_CONTROL_POINT_LENGTH`
+  * :kconfig:option:`CONFIG_FIDO2_BLE_RX_QUEUE_DEPTH`
+  * :kconfig:option:`CONFIG_FIDO2_BLE_TX_FRAME_COUNT`
+  * :kconfig:option:`CONFIG_FIDO2_BLE_KEEPALIVE_INTERVAL_MS`
+  * :kconfig:option:`CONFIG_FIDO2_BLE_RX_TIMEOUT_MS`
 
 * Fuel Gauge
 
@@ -792,6 +814,11 @@ New APIs and options
     Memberships still held when the socket is closed are dropped automatically,
     and :kconfig:option:`CONFIG_NET_SOCKETS_PACKET_MCAST_MEMBERSHIP_COUNT` sets
     how many memberships can be active at the same time.
+  * Add TCP selective acknowledgment of received data (:rfc:`2018`,
+    :kconfig:option:`CONFIG_NET_TCP_SACK`, enabled by default). Zephyr now
+    offers SACK in the handshake and reports out-of-order data held in the
+    receive queue, so that a sender which supports SACK can resend only the
+    missing data. Incoming SACK blocks are not yet used when retransmitting.
   * :kconfig:option:`CONFIG_PTP_NETWORK_MODE_HYBRID`
   * Add an SNTP server (:kconfig:option:`CONFIG_SNTP_SERVER`) that answers time
     queries on UDP port 123 on every enabled address family. The application
@@ -2037,6 +2064,13 @@ Libraries / Subsystems
     * The image management client now supports SHA-512 image digests. It can
       list and select images for testing or confirmation on targets built with
       :kconfig:option:`CONFIG_MCUBOOT_BOOTLOADER_USES_SHA512`.
+* Networking
+
+  * CoAP
+
+    * The CoAP server accepts an observe registration that carries an empty token, which
+      :rfc:`7641` allows, and keys the observer on the endpoint and that empty token.
+
 * Secure Storage
 
   * The ``psa_its_get*()`` functions now return ``PSA_ERROR_INVALID_SIGNATURE`` or
@@ -2150,6 +2184,13 @@ Other notable changes
     range handling. A driver reduces to a few cycle-domain primitives, a
     cycle-counter read plus an absolute-compare arm. See the
     :ref:`migration guide <migration_4.5>` for how to use it (:github:`115844`).
+
+* Networking
+
+  * The DHCPv4 client now takes the leased address, the lease's DNS servers and
+    the gateway it installed off the interface on every path that gives a lease
+    up, and waits about ten seconds before restarting after a refused request
+    or a declined address.
 
 * Wi-Fi
 

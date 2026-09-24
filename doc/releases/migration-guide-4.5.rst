@@ -367,6 +367,11 @@ Boards
 * The Silabs Kconfig option ``CONFIG_SOC_SILABS_PM_LOW_INTERRUPT_LATENCY``
   has been renamed to :kconfig:option:`CONFIG_SOC_VENDOR_SILABS_PM_LOW_INTERRUPT_LATENCY`.
 
+* The stm32h573i_dk and stm32h5f5j_dk disco kit are now adopting the mspi controller model.
+  This is the next step of the migration to mspi stm32 support. For both boards, declare the xspi
+  node as ``st,stm32-xspi-controller`` compatible. The stm32h5 device DTS will be updated
+  once all the target boards are changed.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -1267,6 +1272,28 @@ NXP
     /* After */
     #include <nxp/mcx/mcxc/nxp_mcxc242.dtsi>
 
+* The NXP MCXN series gained dedicated per-part composer DTSI files for
+  mcxn547, mcxn947 and mcxn236 (``nxp_mcxn547.dtsi``, ``nxp_mcxn947.dtsi``
+  and ``nxp_mcxn236.dtsi``), alongside the new mcxn546, mcxn946 and mcxn235
+  phantom parts added this release. Each of these files just includes the
+  existing series file (``nxp_mcxn54x.dtsi``, ``nxp_mcxn94x.dtsi`` and
+  ``nxp_mcxn23x.dtsi`` respectively) with no overrides, and in-tree boards
+  for mcxn547, mcxn947 and mcxn236 now include the new per-part file
+  instead. The series files themselves are unchanged and still work if
+  included directly, so this is not a required migration, but out-of-tree
+  boards for these three parts may want to switch to the new per-part
+  files for consistency with the rest of the series.
+
+  Example:
+
+  .. code-block:: dts
+
+    /* Before */
+    #include <nxp/mcx/mcxn/nxp_mcxn94x.dtsi>
+
+    /* After */
+    #include <nxp/mcx/mcxn/nxp_mcxn947.dtsi>
+
 * The NXP i.MX RT DTSI files were reorganized from the flat directory
   ``dts/arm/nxp/imxrt/`` into per-series subdirectories, Out-of-tree
   boards that include these files directly must update their includes.
@@ -2128,6 +2155,15 @@ Bluetooth HCI
   not exist in :c:struct:`bt_hci_driver_api` and the callback is not invoked. The address
   is now also available from the time the transport is opened, through
   :c:func:`bt_hci_get_public_addr`, allowing drivers to apply it during ``open()`` instead.
+* The :ref:`HCI driver API <bt_hci_drivers>` now documents its lifecycle contract.
+  For its user: :c:func:`bt_hci_open`, :c:func:`bt_hci_close` and :c:func:`bt_hci_send` are
+  not safe to call concurrently for the same device, :c:func:`bt_hci_send` is only valid on
+  an open transport, and :c:func:`bt_hci_close` is not called from the receive callback. For
+  a driver: a failed ``open()`` leaves the transport closed and is not followed by
+  ``close()``, a failed ``close()`` leaves it open, the receive callback is not called any
+  more once ``close()`` has succeeded, and the driver operations other than ``setup()`` do not
+  use the Host's HCI command APIs. Out-of-tree HCI drivers, and out-of-tree code that calls
+  the HCI driver API directly, may have to be changed to follow these rules.
 
 Bluetooth Host
 ==============
@@ -2353,6 +2389,13 @@ Networking
   and will be rejoined when the interface is brought back up.
   This allows applications to bring the interface down and up without losing the multicast
   addresses. (:github:`115307`)
+
+* The DHCPv4 client now raises ``NET_EVENT_IPV4_DHCP_STOP`` before it gives the
+  lease up, where it used to raise it last. An application that stops the client
+  and inspects the interface from that handler now sees the leased address and
+  the lease's DNS servers still installed; they are taken away after it returns,
+  the address last. Move such work to the handler for
+  ``NET_EVENT_IPV4_ADDR_DEL``, which is now the final event of a teardown.
 
 Ethernet
 ========
@@ -2601,6 +2644,21 @@ Other subsystems
   ``__ASSERT()`` or ``__ASSERT_NO_MSG()`` directly, as these macros already compile out when
   assertions are disabled.
   Mark values used only by assertions with ``__maybe_unused`` or ``ARG_UNUSED()`` as appropriate.
+
+FIDO2
+=====
+
+* The FIDO2 transport callback API has changed. The
+  :c:type:`fido2_transport_recv_cb_t` callback now returns an ``int`` to
+  indicate whether a received message was accepted by the FIDO2 core, and
+  :c:type:`fido2_transport_cancel_cb_t` now takes the
+  :c:struct:`fido2_transport` instance that received the cancel command.
+  Out-of-tree transports must be updated to handle the receive callback
+  return value and pass the transport instance when invoking the cancel
+  callback. (:github:`116552`)
+* Application-provided user-presence backends selected with
+  :kconfig:option:`CONFIG_FIDO2_UP_CUSTOM` must now implement
+  :c:func:`fido2_up_reset` to clear their state for each new request. (:github:`116552`)
 
 hawkBit
 =======

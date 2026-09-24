@@ -174,7 +174,7 @@ manifest:
       groups:
         - hal
     - name: hal_espressif
-      revision: dff4fbbdd48f017e25a8d9da80a75e0c2904a38d
+      revision: 064142dfcd63bf8348e029201711ed794e61f8d3
       path: modules/hal/espressif
       west-commands: west/west-commands.yml
       groups:
@@ -205,7 +205,7 @@ manifest:
       groups:
         - hal
     - name: hal_nordic
-      revision: 3e70869fbb57540b2454760934ab60903c3541db
+      revision: 153373591c84109bbca866381e213ec09809cdd2
       path: modules/hal/nordic
       groups:
         - hal
@@ -237,7 +237,7 @@ manifest:
         - hal
     - name: hal_renesas
       path: modules/hal/renesas
-      revision: 6371585791666cb8f8958e989e2e98519070c6b0
+      revision: 3d41a40a7d71849c67ccce16444f9783941c9f16
       groups:
         - hal
     - name: hal_rpi_pico

@@ -165,6 +165,23 @@ static inline uint32_t ll_get_transfer_direction(SPI_TypeDef* spi) {
     #endif /* CONFIG_STM32_HAL2 */
 }
 
+static inline void ll_set_transfer_size(SPI_TypeDef* spi, uint32_t size) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_SetTransferSize(spi, size);
+    #endif /* st_stm32h7_spi */
+}
+
+static inline uint32_t ll_get_transfer_size(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    return LL_SPI_GetTransferSize(spi);
+    #else
+    /* Series that don't support transfer sizes behave the same way as st_stm32h7_spi
+     * compatibles with a TSIZE set to 0.
+     */
+    return 0;
+    #endif /* st_stm32h7_spi */
+}
+
 static inline uint32_t ll_tx_is_not_full(SPI_TypeDef* spi) {
     #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
     return LL_SPI_IsActiveFlag_TXP(spi);
@@ -208,6 +225,18 @@ static inline void ll_enable_int_errors(SPI_TypeDef* spi) {
     #endif /* st_stm32h7_spi */
 }
 
+static inline void ll_enable_int_dxp(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_EnableIT_DXP(spi);
+    #endif /* st_stm32h7_spi */
+}
+
+static inline void ll_enable_int_eot(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_EnableIT_EOT(spi);
+    #endif /* st_stm32h7_spi */
+}
+
 /* #CUSTOM@NDRS */
 static inline void ll_disable_int_txe_rxne(SPI_TypeDef* spi) {
     #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
@@ -245,6 +274,25 @@ static inline void ll_disable_int_errors(SPI_TypeDef* spi) {
     #endif /* st_stm32h7_spi */
 }
 
+/* #CUSTOM@NDRS */
+static inline void ll_disable_int_eot_dxp(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_DisableIT(spi, (SPI_IER_EOTIE | SPI_IER_DXPIE));
+    #endif /* st_stm32h7_spi */
+}
+
+static inline void ll_disable_int_dxp(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_DisableIT_DXP(spi);
+    #endif /* st_stm32h7_spi */
+}
+
+static inline void ll_disable_int_eot(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_DisableIT_EOT(spi);
+    #endif /* st_stm32h7_spi */
+}
+
 static inline bool ll_are_int_disabled(SPI_TypeDef* spi) {
     #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
     return (spi->IER == 0U);
@@ -253,6 +301,25 @@ static inline bool ll_are_int_disabled(SPI_TypeDef* spi) {
            !LL_SPI_IsEnabledIT_RXNE(spi) &&
            !LL_SPI_IsEnabledIT_TXE(spi);
     #endif
+}
+
+/* #CUSTOM@NDRS */
+static inline void ll_clear_txtf_ovr_eot_flag(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_ClearFlag(spi, (SPI_IFCR_TXTFC | SPI_IFCR_OVRC | SPI_IFCR_EOTC));
+    #endif /* st_stm32h7_spi */
+}
+
+static inline void ll_clear_eot_flag(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_ClearFlag_EOT(spi);
+    #endif /* st_stm32h7_spi */
+}
+
+static inline void ll_clear_txtf_flag(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_ClearFlag_TXTF(spi);
+    #endif /* st_stm32h7_spi */
 }
 
 static inline uint32_t ll_spi_is_busy(SPI_TypeDef* spi) {

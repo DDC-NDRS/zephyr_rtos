@@ -225,6 +225,9 @@ enum coap_response_code {
 #define COAP_TOKEN_MAX_LEN 8UL
 #define COAP_FIXED_HEADER_SIZE 4UL
 
+/** Maximum length of the ETag option value (@rfc{7252,section-5.10.6}) */
+#define COAP_ETAG_MAX_LEN 8UL
+
 /* CoAP TCP header constants (RFC 8323) */
 /* Len/TKL + Code */
 #define COAP_TCP_BASIC_HEADER_SIZE        (2)
@@ -1106,11 +1109,14 @@ bool coap_remove_observer(struct coap_resource *resource,
  * @brief Returns the observer that matches address @a addr
  * and has token @a token.
  *
+ * An empty token is a valid token: the endpoint and an empty token
+ * together name one observer, as any other endpoint and token pair do.
+ *
  * @param observers Pointer to the array of observers
  * @param len Size of the array of observers
  * @param addr Address of the endpoint observing a resource
  * @param token Pointer to the token
- * @param token_len Length of valid bytes in the token
+ * @param token_len Length of valid bytes in the token, which may be zero
  *
  * @return A pointer to a observer if a match is found, NULL
  * otherwise.
