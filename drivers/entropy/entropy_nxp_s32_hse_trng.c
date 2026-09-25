@@ -8,6 +8,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <zephyr/cache.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/entropy.h>
 #include <zephyr/kernel.h>
@@ -18,8 +19,11 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(entropy_nxp_s32_hse_trng);
 
-#define ENTROPY_NXP_S32_HSE_SERVICE_TIMEOUT_TICKS 10000000
-#define ENTROPY_NXP_S32_HSE_INIT_TIMEOUT_MS 10000
+/* OSIF_COUNTER_DUMMY busy-loop iterations, not ticks. Matches cmd_hse, proven on the bench to cover
+ * a 53 ms HSE service; PTG.3 reseeds every 16 bytes and the first post-boot RNG call took 55 ms.
+ */
+#define ENTROPY_NXP_S32_HSE_SERVICE_TIMEOUT_TICKS 1000000
+#define ENTROPY_NXP_S32_HSE_INIT_TIMEOUT_MS 100
 #define ENTROPY_NXP_S32_HSE_CHUNK_SIZE 64
 
 /* Same MU-instance resolution trick as crypto_nxp_s32_hse.c: token-paste the devicetree
@@ -30,7 +34,7 @@ LOG_MODULE_REGISTER(entropy_nxp_s32_hse_trng);
 	((DT_INST_REG_ADDR(n) == IP_MU##indx##__MUB_BASE) ? indx : 0)
 
 #define ENTROPY_NXP_S32_HSE_MU_GET_INSTANCE(n)                                                    \
-	LISTIFY(__DEBRACKET HSE_IP_NUM_OF_MU_INSTANCES,                                            \
+	LISTIFY(__DEBRACKET HSE_IP_NUM_OF_MU_INSTANCES,                                           \
 		ENTROPY_NXP_S32_HSE_MU_INSTANCE_CHECK, (|), n)
 
 struct entropy_nxp_s32_hse_data {
@@ -64,9 +68,16 @@ static int entropy_nxp_s32_hse_get_entropy(const struct device *dev, uint8_t *bu
 	while (length > 0) {
 		uint16_t chunk = MIN(length, ENTROPY_NXP_S32_HSE_CHUNK_SIZE);
 
-		rng_serv->rngClass = HSE_RNG_CLASS_DRG3;
+		/* PTG.3 (AIS 31 / SP800-90B): reseeds from the physical source every 16 bytes. The
+		 * entropy API is the raw source CSPRNGs are seeded from, so it must not be a plain
+		 * DRBG output (DRG.3, no prediction resistance). Slowest class - see hse_srv_random.h.
+		 */
+		rng_serv->rngClass = HSE_RNG_CLASS_PTG3;
 		rng_serv->randomNumLength = chunk;
 		rng_serv->pRandomNum = HSE_PTR_TO_HOST_ADDR(entropy_nxp_s32_hse_chunk);
+
+		/* srv_desc lives in cacheable RAM and HSE reads it as an independent bus master */
+		(void) sys_cache_data_flush_range(&data->srv_desc, sizeof(data->srv_desc));
 
 		if (Hse_Ip_ServiceRequest(config->mu_instance, data->channel,
 					  &data->req_type, &data->srv_desc) != HSE_SRV_RSP_OK) {
@@ -92,14 +103,23 @@ static int entropy_nxp_s32_hse_init(const struct device *dev)
 	k_timeout_t timeout = K_MSEC(ENTROPY_NXP_S32_HSE_INIT_TIMEOUT_MS);
 	int64_t start_time = k_uptime_ticks();
 
+	/* Only INIT_OK (firmware running) and RNG_INIT_OK are needed. INSTALL_OK means the key
+	 * catalogs are formatted, which GET_RANDOM_NUM does not use - unlike crypto_nxp_s32_hse.c.
+	 */
 	do {
 		status = Hse_Ip_GetHseStatus(config->mu_instance);
-	} while (!(status & (HSE_STATUS_INIT_OK | HSE_STATUS_INSTALL_OK)) &&
+	} while (((status & (HSE_STATUS_INIT_OK | HSE_STATUS_RNG_INIT_OK)) !=
+		  (HSE_STATUS_INIT_OK | HSE_STATUS_RNG_INIT_OK)) &&
 		 (k_uptime_ticks() - start_time < timeout.ticks));
 
-	if (!(status & HSE_STATUS_INIT_OK) || !(status & HSE_STATUS_INSTALL_OK)) {
-		LOG_ERR("HSE initialization has not been completed or MU%d is not activated",
+	if (!(status & HSE_STATUS_INIT_OK)) {
+		LOG_ERR("HSE firmware not running (INIT_OK clear) or MU%d is not activated",
 			config->mu_instance);
+		return -EIO;
+	}
+
+	if (!(status & HSE_STATUS_RNG_INIT_OK)) {
+		LOG_ERR("HSE RNG not initialized (RNG_INIT_OK clear)");
 		return -EIO;
 	}
 
