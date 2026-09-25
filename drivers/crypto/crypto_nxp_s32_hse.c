@@ -22,22 +22,25 @@ LOG_MODULE_REGISTER(crypto_nxp_s32_hse);
 #error "CRYPTO_NXP_S32_HSE_AES_KEY_SIZE must be 128 or 256"
 #endif
 
-#define CRYPTO_NXP_S32_HSE_SERVICE_TIMEOUT_TICKS 10000
-#define CRYPTO_NXP_S32_HSE_INIT_TIMEOUT_MS 100
+#define CRYPTO_NXP_S32_HSE_SERVICE_TIMEOUT_TICKS    1000000
+#define CRYPTO_NXP_S32_HSE_INIT_TIMEOUT_MS          100
+
+/* Firmware running and key catalogs formatted - AES keys are imported into the RAM catalog */
+#define CRYPTO_NXP_S32_HSE_READY_STATUS             (HSE_STATUS_INIT_OK | HSE_STATUS_INSTALL_OK)
 
 /* The AES IV / counter block is always one AES block, independent of the key size */
 #define CRYPTO_NXP_S32_HSE_AES_IV_LEN HSE_AES_BLOCK_LEN
 
-#define CRYPTO_NXP_S32_HSE_CIPHER_CAPS                                                             \
+#define CRYPTO_NXP_S32_HSE_CIPHER_CAPS                          \
 	(CAP_RAW_KEY | CAP_SEPARATE_IO_BUFS | CAP_SYNC_OPS | CAP_NO_IV_PREFIX)
 
 #define CRYPTO_NXP_S32_HSE_HASH_CAPS (CAP_SEPARATE_IO_BUFS | CAP_SYNC_OPS)
 
-#define CRYPTO_NXP_S32_HSE_MU_INSTANCE_CHECK(indx, n)                                              \
+#define CRYPTO_NXP_S32_HSE_MU_INSTANCE_CHECK(indx, n)           \
 	((DT_INST_REG_ADDR(n) == IP_MU##indx##__MUB_BASE) ? indx : 0)
 
-#define CRYPTO_NXP_S32_HSE_MU_GET_INSTANCE(n)                                                      \
-	LISTIFY(__DEBRACKET HSE_IP_NUM_OF_MU_INSTANCES,                                            \
+#define CRYPTO_NXP_S32_HSE_MU_GET_INSTANCE(n)                   \
+	LISTIFY(__DEBRACKET HSE_IP_NUM_OF_MU_INSTANCES,         \
 		CRYPTO_NXP_S32_HSE_MU_INSTANCE_CHECK, (|), n)
 
 struct crypto_nxp_s32_hse_session {
@@ -103,10 +106,12 @@ static inline void free_session(const struct device *dev,
  * Outputs need no invalidate: they land in the __nocache out_buff / hash_len.
  */
 static int crypto_nxp_s32_hse_service_request(const struct crypto_nxp_s32_hse_config *config,
-					       struct crypto_nxp_s32_hse_session *session,
-					       const void *in, size_t in_len,
-					       const void *aux, size_t aux_len)
+					      struct crypto_nxp_s32_hse_session *session,
+					      const void *in, size_t in_len,
+					      const void *aux, size_t aux_len)
 {
+	hseSrvResponse_t rsp;
+
 	(void)sys_cache_data_flush_range(&session->crypto_serv_desc,
 					 sizeof(session->crypto_serv_desc));
 
@@ -118,9 +123,10 @@ static int crypto_nxp_s32_hse_service_request(const struct crypto_nxp_s32_hse_co
 		(void)sys_cache_data_flush_range((void *)aux, aux_len);
 	}
 
-	if (Hse_Ip_ServiceRequest(config->mu_instance, session->channel,
-				  (Hse_Ip_ReqType *)&session->req_type,
-				  (hseSrvDescriptor_t *)&session->crypto_serv_desc) != HSE_SRV_RSP_OK) {
+	rsp = Hse_Ip_ServiceRequest(config->mu_instance, session->channel,
+				    (Hse_Ip_ReqType *)&session->req_type,
+				    (hseSrvDescriptor_t *)&session->crypto_serv_desc);
+	if (rsp != HSE_SRV_RSP_OK) {
 		return -EIO;
 	}
 
@@ -132,6 +138,7 @@ static int crypto_nxp_s32_hse_aes_ecb_encrypt(struct cipher_ctx *ctx, struct cip
 	const struct crypto_nxp_s32_hse_config *config = ctx->device->config;
 	struct crypto_nxp_s32_hse_session *session = ctx->drv_sessn_state;
 	hseSymCipherSrv_t *cipher_serv = &(session->crypto_serv_desc.hseSrv.symCipherReq);
+	int ret;
 
 	__ASSERT_NO_MSG(pkt->in_len <= pkt->out_buf_max &&
 			pkt->out_buf_max <= CONFIG_CRYPTO_NXP_S32_HSE_OUTPUT_BUFFER_SIZE);
@@ -145,8 +152,9 @@ static int crypto_nxp_s32_hse_aes_ecb_encrypt(struct cipher_ctx *ctx, struct cip
 	cipher_serv->inputLength = pkt->in_len;
 	cipher_serv->pOutput = HSE_PTR_TO_HOST_ADDR(session->out_buff);
 
-	if (crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf, pkt->in_len,
-					       NULL, 0) != 0) {
+	ret = crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf, pkt->in_len,
+						 NULL, 0);
+	if (ret != 0) {
 		k_mutex_unlock(&session->crypto_lock);
 		return -EIO;
 	}
@@ -165,6 +173,7 @@ static int crypto_nxp_s32_hse_aes_ecb_decrypt(struct cipher_ctx *ctx, struct cip
 	const struct crypto_nxp_s32_hse_config *config = ctx->device->config;
 	struct crypto_nxp_s32_hse_session *session = ctx->drv_sessn_state;
 	hseSymCipherSrv_t *cipher_serv = &(session->crypto_serv_desc.hseSrv.symCipherReq);
+	int ret;
 
 	__ASSERT_NO_MSG(pkt->in_len <= pkt->out_buf_max &&
 			pkt->out_buf_max <= CONFIG_CRYPTO_NXP_S32_HSE_OUTPUT_BUFFER_SIZE);
@@ -178,8 +187,9 @@ static int crypto_nxp_s32_hse_aes_ecb_decrypt(struct cipher_ctx *ctx, struct cip
 	cipher_serv->inputLength = pkt->in_len;
 	cipher_serv->pOutput = HSE_PTR_TO_HOST_ADDR(session->out_buff);
 
-	if (crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf, pkt->in_len,
-					       NULL, 0) != 0) {
+	ret = crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf, pkt->in_len,
+						 NULL, 0);
+	if (ret != 0) {
 		k_mutex_unlock(&session->crypto_lock);
 		return -EIO;
 	}
@@ -200,6 +210,7 @@ static int crypto_nxp_s32_hse_aes_cbc_encrypt(struct cipher_ctx *ctx, struct cip
 	struct crypto_nxp_s32_hse_session *session = ctx->drv_sessn_state;
 	hseSymCipherSrv_t *cipher_serv = &(session->crypto_serv_desc.hseSrv.symCipherReq);
 	size_t iv_bytes;
+	int ret;
 
 	__ASSERT_NO_MSG(pkt->in_len <= pkt->out_buf_max &&
 			pkt->out_buf_max <= CONFIG_CRYPTO_NXP_S32_HSE_OUTPUT_BUFFER_SIZE);
@@ -221,8 +232,9 @@ static int crypto_nxp_s32_hse_aes_cbc_encrypt(struct cipher_ctx *ctx, struct cip
 	cipher_serv->inputLength = pkt->in_len;
 	cipher_serv->pOutput = HSE_PTR_TO_HOST_ADDR(session->out_buff);
 
-	if (crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf, pkt->in_len,
-					       iv, CRYPTO_NXP_S32_HSE_AES_IV_LEN) != 0) {
+	ret = crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf, pkt->in_len,
+						 iv, CRYPTO_NXP_S32_HSE_AES_IV_LEN);
+	if (ret != 0) {
 		k_mutex_unlock(&session->crypto_lock);
 		return -EIO;
 	}
@@ -243,6 +255,7 @@ static int crypto_nxp_s32_hse_aes_cbc_decrypt(struct cipher_ctx *ctx, struct cip
 	struct crypto_nxp_s32_hse_session *session = ctx->drv_sessn_state;
 	hseSymCipherSrv_t *cipher_serv = &(session->crypto_serv_desc.hseSrv.symCipherReq);
 	size_t iv_bytes;
+	int ret;
 
 	if (ctx->flags & CAP_NO_IV_PREFIX) {
 		iv_bytes = 0;
@@ -263,9 +276,10 @@ static int crypto_nxp_s32_hse_aes_cbc_decrypt(struct cipher_ctx *ctx, struct cip
 	cipher_serv->inputLength = pkt->in_len - iv_bytes;
 	cipher_serv->pOutput = HSE_PTR_TO_HOST_ADDR(session->out_buff);
 
-	if (crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf + iv_bytes,
-					       pkt->in_len - iv_bytes,
-					       iv, CRYPTO_NXP_S32_HSE_AES_IV_LEN) != 0) {
+	ret = crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf + iv_bytes,
+						 pkt->in_len - iv_bytes,
+						 iv, CRYPTO_NXP_S32_HSE_AES_IV_LEN);
+	if (ret != 0) {
 		k_mutex_unlock(&session->crypto_lock);
 		return -EIO;
 	}
@@ -288,6 +302,7 @@ static int crypto_nxp_s32_hse_aes_ctr_encrypt(struct cipher_ctx *ctx, struct cip
 	uint8_t iv_key[CRYPTO_NXP_S32_HSE_AES_IV_LEN] = {0};
 	int iv_len = CRYPTO_NXP_S32_HSE_AES_IV_LEN -
 		     HSE_BITS_TO_BYTES(ctx->mode_params.ctr_info.ctr_len);
+	int ret;
 
 	__ASSERT_NO_MSG(pkt->in_len <= pkt->out_buf_max &&
 			pkt->out_buf_max <= CONFIG_CRYPTO_NXP_S32_HSE_OUTPUT_BUFFER_SIZE);
@@ -307,8 +322,9 @@ static int crypto_nxp_s32_hse_aes_ctr_encrypt(struct cipher_ctx *ctx, struct cip
 	cipher_serv->inputLength = pkt->in_len;
 	cipher_serv->pOutput = HSE_PTR_TO_HOST_ADDR(session->out_buff);
 
-	if (crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf, pkt->in_len,
-					       iv_key, sizeof(iv_key)) != 0) {
+	ret = crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf, pkt->in_len,
+						 iv_key, sizeof(iv_key));
+	if (ret != 0) {
 		k_mutex_unlock(&session->crypto_lock);
 		return -EIO;
 	}
@@ -331,6 +347,7 @@ static int crypto_nxp_s32_hse_aes_ctr_decrypt(struct cipher_ctx *ctx, struct cip
 	uint8_t iv_key[CRYPTO_NXP_S32_HSE_AES_IV_LEN] = {0};
 	int iv_len = CRYPTO_NXP_S32_HSE_AES_IV_LEN -
 		     HSE_BITS_TO_BYTES(ctx->mode_params.ctr_info.ctr_len);
+	int ret;
 
 	__ASSERT_NO_MSG(pkt->in_len <= pkt->out_buf_max &&
 			pkt->out_buf_max <= CONFIG_CRYPTO_NXP_S32_HSE_OUTPUT_BUFFER_SIZE);
@@ -347,8 +364,9 @@ static int crypto_nxp_s32_hse_aes_ctr_decrypt(struct cipher_ctx *ctx, struct cip
 	cipher_serv->inputLength = pkt->in_len;
 	cipher_serv->pOutput = HSE_PTR_TO_HOST_ADDR(session->out_buff);
 
-	if (crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf, pkt->in_len,
-					       iv_key, sizeof(iv_key)) != 0) {
+	ret = crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf, pkt->in_len,
+						 iv_key, sizeof(iv_key));
+	if (ret != 0) {
 		k_mutex_unlock(&session->crypto_lock);
 		return -EIO;
 	}
@@ -368,6 +386,7 @@ static int crypto_nxp_s32_hse_cipher_key_element_set(const struct device *dev,
 {
 	const struct crypto_nxp_s32_hse_config *config = dev->config;
 	hseImportKeySrv_t *import_key_serv = &(session->crypto_serv_desc.hseSrv.importKeyReq);
+	int ret;
 
 	k_mutex_lock(&session->crypto_lock, K_FOREVER);
 
@@ -393,9 +412,9 @@ static int crypto_nxp_s32_hse_cipher_key_element_set(const struct device *dev,
 	import_key_serv->keyLen[2] = (uint16_t)ctx->keylen;
 	import_key_serv->targetKeyHandle = (hseKeyHandle_t)session->key_handle;
 
-	if (crypto_nxp_s32_hse_service_request(config, session, ctx->key.bit_stream, ctx->keylen,
-					       &session->key_info,
-					       sizeof(session->key_info)) != 0) {
+	ret = crypto_nxp_s32_hse_service_request(config, session, ctx->key.bit_stream, ctx->keylen,
+						 &session->key_info, sizeof(session->key_info));
+	if (ret != 0) {
 		k_mutex_unlock(&session->crypto_lock);
 		return -EIO;
 	}
@@ -410,6 +429,7 @@ static int crypto_nxp_s32_hse_cipher_begin_session(const struct device *dev, str
 						   enum cipher_op op_type)
 {
 	struct crypto_nxp_s32_hse_session *session;
+	int ret;
 
 	if (algo != CRYPTO_CIPHER_ALGO_AES) {
 		LOG_ERR("Unsupported algorithm");
@@ -470,7 +490,8 @@ static int crypto_nxp_s32_hse_cipher_begin_session(const struct device *dev, str
 	}
 
 	/* Load the key in plain */
-	if (crypto_nxp_s32_hse_cipher_key_element_set(dev, session, ctx)) {
+	ret = crypto_nxp_s32_hse_cipher_key_element_set(dev, session, ctx);
+	if (ret != 0) {
 		free_session(dev, session);
 		LOG_ERR("Failed to import key catalog");
 		return -EIO;
@@ -506,8 +527,9 @@ static int crypto_nxp_s32_hse_sha(struct hash_ctx *ctx, struct hash_pkt *pkt, bo
 	const struct crypto_nxp_s32_hse_config *config = ctx->device->config;
 	struct crypto_nxp_s32_hse_session *session = ctx->drv_sessn_state;
 	hseHashSrv_t *hash_serv = &(session->crypto_serv_desc.hseSrv.hashReq);
+	int ret;
 
-	if (!finish) {
+	if (finish == false) {
 		return -ENOTSUP;
 	}
 
@@ -517,8 +539,9 @@ static int crypto_nxp_s32_hse_sha(struct hash_ctx *ctx, struct hash_pkt *pkt, bo
 
 	k_mutex_lock(&session->crypto_lock, K_FOREVER);
 
-	if (crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf, pkt->in_len,
-					       NULL, 0) != 0) {
+	ret = crypto_nxp_s32_hse_service_request(config, session, pkt->in_buf, pkt->in_len,
+						 NULL, 0);
+	if (ret != 0) {
 		k_mutex_unlock(&session->crypto_lock);
 		return -EIO;
 	}
@@ -618,28 +641,29 @@ static int crypto_nxp_s32_hse_init(const struct device *dev)
 	struct crypto_nxp_s32_hse_data *data = dev->data;
 	struct crypto_nxp_s32_hse_session *session;
 	hseStatus_t status;
+	Hse_Ip_StatusType ip_status;
 
 	k_timeout_t timeout = K_MSEC(CRYPTO_NXP_S32_HSE_INIT_TIMEOUT_MS);
 	int64_t start_time = k_uptime_ticks();
 
 	do {
 		status = Hse_Ip_GetHseStatus(config->mu_instance);
-	} while (((status & (HSE_STATUS_INIT_OK | HSE_STATUS_INSTALL_OK)) !=
-		  (HSE_STATUS_INIT_OK | HSE_STATUS_INSTALL_OK)) &&
+	} while (((status & CRYPTO_NXP_S32_HSE_READY_STATUS) != CRYPTO_NXP_S32_HSE_READY_STATUS) &&
 		 (k_uptime_ticks() - start_time < timeout.ticks));
 
-	if (!(status & HSE_STATUS_INIT_OK)) {
+	if ((status & HSE_STATUS_INIT_OK) == 0U) {
 		LOG_ERR("HSE initialization has not been completed or "
 			 "MU%d is not activated", config->mu_instance);
 		return -EIO;
 	}
 
-	if (!(status & HSE_STATUS_INSTALL_OK)) {
+	if ((status & HSE_STATUS_INSTALL_OK) == 0U) {
 		LOG_ERR("Key catalogs has not been formatted");
 		return -EIO;
 	}
 
-	if (Hse_Ip_Init(config->mu_instance, &data->mu_state) != HSE_IP_STATUS_SUCCESS) {
+	ip_status = Hse_Ip_Init(config->mu_instance, &data->mu_state);
+	if (ip_status != HSE_IP_STATUS_SUCCESS) {
 		LOG_ERR("Failed to initialize MU%d", config->mu_instance);
 		return -EIO;
 	}
