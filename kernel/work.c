@@ -601,7 +601,7 @@ bool k_work_cancel_sync(struct k_work *work,
 }
 
 #if defined(CONFIG_WORKQUEUE_WORK_TIMEOUT)
-static void work_timeout_handler(struct _timeout *record)
+static void work_timeout_handler(const struct _timeout *record)
 {
 	struct k_work_q *queue = CONTAINER_OF(record, struct k_work_q, work_timeout_record);
 	struct k_work *work = NULL;

@@ -526,7 +526,8 @@ static int stm32_clock_control_configure(const struct device* dev,
 
     z_stm32_hsem_lock(CFG_HW_RCC_SEMID, HSEM_LOCK_DEFAULT_RETRY);
 
-    stm32_reg_modify_bits((uint32_t *)(STM32H7_BUS_CLK_REG + reg),
+    /* DxCCIPR registers are shared by both cores: no per-core offset */
+    stm32_reg_modify_bits((uint32_t*)(rcc_dt_reg_addr + reg),
                           STM32_DT_CLKSEL_MASK_GET(enr) << shift,
                           STM32_DT_CLKSEL_VAL_GET(enr)  << shift);
 

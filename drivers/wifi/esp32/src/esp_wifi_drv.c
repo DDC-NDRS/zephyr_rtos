@@ -1718,7 +1718,7 @@ static int esp32_wifi_ap_sta_disconnect(const struct device* dev, struct net_if*
     ARG_UNUSED(iface);
 
     err = esp_wifi_ap_get_sta_aid(mac, &aid);
-    if (err) {
+    if (err != ESP_OK) {
         LOG_ERR("Failed to get station's AID: (%d)", err);
         return (-EIO);
     }
@@ -1958,7 +1958,23 @@ static int esp32_wifi_channel(struct device const* dev, struct net_if* iface,
         (void) second_chan;
     }
     else { /* WIFI_MGMT_SET */
+        struct esp32_wifi_runtime const* data = esp32_wifi_data_get(iface);
+
+        /* Changing channel would drop the ongoing STA association */
+        if ((data->state == ESP32_STA_CONNECTING) || (data->state == ESP32_STA_CONNECTED)) {
+            return (-EBUSY);
+        }
+
+        if ((channel->channel == 0U) || (channel->channel >= WIFI_CHANNEL_ANY)) {
+            return (-EINVAL);
+        }
+
+        /* Range is validated by the driver against the current country */
         err = esp_wifi_set_channel(channel->channel, WIFI_SECOND_CHAN_NONE);
+        if (err == ESP_ERR_INVALID_ARG) {
+            return (-EINVAL);
+        }
+
         if (err != ESP_OK) {
             return (-EIO);
         }
@@ -1967,99 +1983,62 @@ static int esp32_wifi_channel(struct device const* dev, struct net_if* iface,
     return (0);
 }
 
-int esp32_wifi_ap_config_params(const struct device* dev, struct net_if* iface,
-                                struct wifi_ap_config_params* params) {
+static int esp32_wifi_ap_config_params(const struct device* dev, struct net_if* iface,
+                                       struct wifi_ap_config_params* params) {
     wifi_config_t wifi_config;
     esp_err_t err;
 
     ARG_UNUSED(dev);
     ARG_UNUSED(iface);
 
+    /* Bandwidth and HT/VHT capabilities are not configurable here */
+    if ((params->type & ~(WIFI_AP_CONFIG_PARAM_MAX_INACTIVITY |
+                          WIFI_AP_CONFIG_PARAM_MAX_NUM_STA)) != 0) {
+        return (-ENOTSUP);
+    }
+
+    if (((params->type & WIFI_AP_CONFIG_PARAM_MAX_INACTIVITY) != 0) &&
+        (params->max_inactivity > UINT16_MAX)) {
+        return (-EINVAL);
+    }
+
+    if (((params->type & WIFI_AP_CONFIG_PARAM_MAX_NUM_STA) != 0) &&
+        (params->max_num_sta > UINT8_MAX)) {
+        return (-EINVAL);
+    }
+
     err = esp_wifi_get_config(WIFI_IF_AP, &wifi_config);
     if (err != ESP_OK) {
         return (-EIO);
     }
 
-    if (params->type & WIFI_AP_CONFIG_PARAM_MAX_INACTIVITY) {
+    if ((params->type & WIFI_AP_CONFIG_PARAM_MAX_INACTIVITY) != 0) {
         err = esp_wifi_set_inactive_time(WIFI_IF_AP, (uint16_t)params->max_inactivity);
+        if (err == ESP_ERR_INVALID_ARG) {
+            return (-EINVAL);
+        }
+
         if (err != ESP_OK) {
             return (-EIO);
         }
     }
 
-    if (params->type & WIFI_AP_CONFIG_PARAM_MAX_NUM_STA) {
+    if ((params->type & WIFI_AP_CONFIG_PARAM_MAX_NUM_STA) != 0) {
         wifi_config.ap.max_connection = (uint8_t)params->max_num_sta;
-    }
 
-    err = esp_wifi_set_config(WIFI_IF_AP, &wifi_config);
-    if (err != ESP_OK) {
-        return (-EIO);
+        /* The driver rejects values above the chip's soft-AP limit */
+        err = esp_wifi_set_config(WIFI_IF_AP, &wifi_config);
+        if (err == ESP_ERR_INVALID_ARG) {
+            return (-EINVAL);
+        }
+
+        if (err != ESP_OK) {
+            return (-EIO);
+        }
     }
 
     return (0);
 }
-
-#define ESP32_WIFI_DPP_CMD_BUF_SIZE 384
-#define STR_CUR_TO_END(cur) (cur) = (&(cur)[0] + strlen((cur)))
-
-#ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_DPP
-int esp32_wifi_dpp_dispatch(const struct device* dev, struct net_if* iface,
-                            struct wifi_dpp_params* params) {
-    char* pos;
-    static char dpp_cmd_buf[ESP32_WIFI_DPP_CMD_BUF_SIZE] = {0};
-    char* end = &dpp_cmd_buf[ESP32_WIFI_DPP_CMD_BUF_SIZE - 2];
-
-    memset(dpp_cmd_buf, 0x0, ESP32_WIFI_DPP_CMD_BUF_SIZE);
-
-    pos = &dpp_cmd_buf[0];
-
-    switch (params->action) {
-        case WIFI_DPP_CONFIGURATOR_ADD :
-            /* pass */
-            break;
-
-        case WIFI_DPP_AUTH_INIT :
-            /* pass */
-            // esp_supp_dpp_init
-            break;
-
-        case WIFI_DPP_QR_CODE :
-            /* pass */
-            break;
-
-        case WIFI_DPP_CHIRP :
-            /* pass */
-            break;
-
-        case WIFI_DPP_LISTEN :
-            /* pass */
-            // esp_supp_dpp_start_listen
-            break;
-
-        case WIFI_DPP_BOOTSTRAP_GEN :
-            /* pass */
-            // esp_supp_dpp_bootstrap_gen
-            break;
-
-        case WIFI_DPP_BOOTSTRAP_GET_URI :
-            /* pass */
-            break;
-
-        case WIFI_DPP_SET_CONF_PARAM :
-            /* pass */
-            break;
-
-        case WIFI_DPP_SET_WAIT_RESP_TIME :
-            /* pass */
-            break;
-
-        default :
-            return (-EINVAL);
-    }
-
-    return (-ENOTSUP);
-}
-#endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_DPP */
 
 static int esp32_wifi_set_power_save(const struct device* dev __unused,
                                      struct net_if* iface __unused,
@@ -2201,7 +2180,7 @@ static int esp32_wifi_pm_action(const struct device* dev, enum pm_device_action 
             #endif
             break;
 
-        case PM_DEVICE_ACTION_TURN_ON :
+        case PM_DEVICE_ACTION_TURN_ON : {
             #if defined(CONFIG_PM)
             /* Register the Wi-Fi modem sleep configuration. Advanced DTIM
              * sleep (ESP32_WIFI_ENHANCED_LIGHT_SLEEP) and default sleep
@@ -2214,6 +2193,7 @@ static int esp32_wifi_pm_action(const struct device* dev, enum pm_device_action 
             sleep_modem_configure(cpu_freq_mhz, cpu_freq_mhz, true);
             #endif
             break;
+        }
 
         case PM_DEVICE_ACTION_TURN_OFF :
             break;
@@ -2485,10 +2465,6 @@ static const struct wifi_mgmt_ops esp32_wifi_mgmt = {
     .channel    = esp32_wifi_channel,
 
     .ap_config_params = esp32_wifi_ap_config_params,
-
-    #if defined(CONFIG_WIFI_NM_WPA_SUPPLICANT_DPP)
-    .dpp_dispatch = esp32_wifi_dpp_dispatch
-    #endif
 };
 
 static const struct net_wifi_mgmt_offload esp32_api = {

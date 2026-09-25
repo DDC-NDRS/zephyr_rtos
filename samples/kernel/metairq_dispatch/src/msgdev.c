@@ -51,7 +51,7 @@ static uint32_t rand32(void)
  * (by the MetaIRQ) to a random thread, with a random argument
  * indicating how long the thread should "process" the message.
  */
-static void dev_timer_expired(struct _timeout *t)
+static void dev_timer_expired(const struct _timeout *t)
 {
 	__ASSERT_NO_MSG(t == &timeout);
 	uint32_t timestamp = k_cycle_get_32();
