@@ -39,7 +39,7 @@ manifest:
       remote: babblesim
       repo-path: base
       path: tools/bsim/components
-      revision: 122b0d6fc1b23b3d678bfbaedb68c53d64b3f3bd
+      revision: 68baf150660213d67c29acb14bf9fccecf4612eb
       groups:
         - babblesim
     - name: babblesim_ext_2G4_channel_NtNcable
@@ -81,7 +81,7 @@ manifest:
       remote: babblesim
       repo-path: ext_2G4_libPhyComv1
       path: tools/bsim/components/ext_2G4_libPhyComv1
-      revision: 23e7a84f5bc452a361ab30acf3abb9dbdb57e9a8
+      revision: 27eb408f952182a646eac1abb7dc12b7b565655b
       groups:
         - babblesim
     - name: babblesim_ext_2G4_modem_BLE_simple
@@ -114,7 +114,7 @@ manifest:
         - babblesim
     - name: bsim
       repo-path: babblesim-manifest
-      revision: 9fce3723520edcdfddcfa0f1162b45c80d3da527
+      revision: 0673623452f0a3cb50b7563c32ac7683304cb6fc
       path: tools/bsim
       groups:
         - babblesim
@@ -200,7 +200,7 @@ manifest:
       groups:
         - hal
     - name: hal_microchip
-      revision: 24c37101ab49a792ce2e70844abc46e1f62d6c5d
+      revision: d4d40cc83fe2582b6f6c8e9d61498ea6afcb8577
       path: modules/hal/microchip
       groups:
         - hal
@@ -261,7 +261,7 @@ manifest:
       groups:
         - hal
     - name: hal_stm32
-      revision: 1719d429f64630a394fc710760d78eb5aa8a3181
+      revision: 09046a58d4c74895c434f29931b39c29c5f2b347
       path: modules/hal/stm32
       groups:
         - hal

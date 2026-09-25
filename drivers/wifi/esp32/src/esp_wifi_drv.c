@@ -25,6 +25,7 @@ LOG_MODULE_REGISTER(esp32_wifi, CONFIG_WIFI_LOG_LEVEL);
 #include <zephyr/device.h>
 #include <zephyr/pm/device.h>
 #include <soc.h>
+#include <esp_private/esp_clk.h>
 #include <esp_private/sleep_modem.h>
 #include <esp_private/wifi.h>
 #include <esp_event.h>
@@ -127,7 +128,7 @@ struct esp32_wifi_runtime {
 #define ESP32_WIFI_DFS_CHAN_LO  52
 #define ESP32_WIFI_DFS_CHAN_HI  144
 
-#if defined(CONFIG_SOC_WIFI_SUPPORT_5G)
+#if defined(CONFIG_SOC_ESP32_WIFI_SUPPORT_5G)
 /* Channel number for each bit of wifi_5g_channel_bit_t, which starts at BIT(1). */
 static const uint8_t esp32_wifi_5g_chan[] = {
     36,  40,  44,  48,  52,  56,  60,  64,  100, 104, 108, 112, 116, 120,
@@ -2204,11 +2205,13 @@ static int esp32_wifi_pm_action(const struct device* dev, enum pm_device_action 
             #if defined(CONFIG_PM)
             /* Register the Wi-Fi modem sleep configuration. Advanced DTIM
              * sleep (ESP32_WIFI_ENHANCED_LIGHT_SLEEP) and default sleep
-             * timing parameters (SOC_ESP32_PM_SLP_DEFAULT_PARAMS_OPT) are
+             * timing parameters (PM_SLP_DEFAULT_PARAMS_OPT) are
              * applied inside when those options are enabled.
              */
-            sleep_modem_configure(CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ,
-                                  CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ, true);
+            int cpu_freq_mhz;
+
+            cpu_freq_mhz = esp_clk_cpu_freq() / MHZ(1);
+            sleep_modem_configure(cpu_freq_mhz, cpu_freq_mhz, true);
             #endif
             break;
 
@@ -2336,7 +2339,7 @@ static void esp32_wifi_fill_chan_info(struct wifi_reg_chan_info* info, uint8_t c
 
 static unsigned int esp32_wifi_fill_5g(struct wifi_reg_domain* reg_domain, unsigned int written,
                                        const wifi_country_t* country) {
-    #if defined(CONFIG_SOC_WIFI_SUPPORT_5G)
+    #if defined(CONFIG_SOC_ESP32_WIFI_SUPPORT_5G)
     /* An all-zero mask means every channel allowed by the regulatory rules. */
     uint32_t mask =
         (country->wifi_5g_channel_mask == 0U) ? UINT32_MAX : country->wifi_5g_channel_mask;
@@ -2363,7 +2366,7 @@ static unsigned int esp32_wifi_fill_5g(struct wifi_reg_domain* reg_domain, unsig
 }
 
 static unsigned int esp32_wifi_count_5g(const wifi_country_t* country) {
-    #if defined(CONFIG_SOC_WIFI_SUPPORT_5G)
+    #if defined(CONFIG_SOC_ESP32_WIFI_SUPPORT_5G)
     uint32_t mask =
         (country->wifi_5g_channel_mask == 0U) ? UINT32_MAX : country->wifi_5g_channel_mask;
     unsigned int count = 0;

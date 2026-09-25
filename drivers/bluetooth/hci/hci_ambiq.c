@@ -426,17 +426,24 @@ static int bt_apollo_open(const struct device *dev)
 
 	ret = bt_apollo_controller_init(spi_send_packet);
 	if (ret == 0) {
+		/* The controller has been reset and loaded outside the helper,
+		 * and allows one command again without announcing it.
+		 */
+		bt_hci_lockstep_reset(&data->lockstep);
 		ret = bt_apollo_vnd_setup(&data->lockstep);
 	}
 
 	if (ret != 0) {
 		/* A failed open() is not followed by close(), so undo what this
-		 * function started. The SPI semaphore is held across the abort
-		 * so that the RX thread cannot be stopped while it owns it, and
-		 * the caller may try again: k_thread_create() on a thread that
-		 * is still running is a fault of its own.
+		 * function started, as close() does. The SPI semaphore is held
+		 * across the abort so that the RX thread cannot be stopped while
+		 * it owns it, and the caller may try again: k_thread_create() on
+		 * a thread that is still running is a fault of its own. The
+		 * semaphore is never reset, so the take cannot fail.
 		 */
-		k_sem_take(&sem_spi_available, K_FOREVER);
+		(void)k_sem_take(&sem_spi_available, K_FOREVER);
+		transport_open = false;
+		(void)atomic_inc(&transport_session);
 		k_thread_abort(&spi_rx_thread_data);
 		(void)bt_apollo_controller_deinit();
 		k_sem_give(&sem_spi_available);

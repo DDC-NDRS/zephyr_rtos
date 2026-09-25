@@ -14,6 +14,7 @@
 #include <zephyr/device.h>
 #include <soc.h>
 #include <stm32_bitops.h>
+#include <stm32_common.h>
 #include <stm32_ll_bus.h>
 #include <stm32_ll_exti.h>
 #include <stm32_ll_gpio.h>
@@ -332,7 +333,6 @@ static int gpio_stm32_config(const struct device* dev,
 
     #ifdef CONFIG_STM32_WKUP_PINS
     if (flags & STM32_GPIO_WKUP) {
-        #ifdef CONFIG_POWEROFF
         struct gpio_stm32_config const* cfg = dev->config;
 
         /*
@@ -353,7 +353,7 @@ static int gpio_stm32_config(const struct device* dev,
             return (-EINVAL);
         }
 
-        err = stm32_gpiomgr_enable_wakeup_pin(cfg->port, pin, flags);
+        err = stm32_pwrc_enable_wakeup_pin(cfg->port, pin, flags);
         if (err == -ENODEV) {
             LOG_ERR("No wake-up pin found associated to GPIO%c pin %d",
                     ('A' + cfg->port), pin);
@@ -364,9 +364,6 @@ static int gpio_stm32_config(const struct device* dev,
                     ('A' + cfg->port), pin);
             return (err);
         }
-        #else /* CONFIG_POWEROFF */
-        LOG_DBG("STM32_GPIO_WKUP flag has no effect when CONFIG_POWEROFF=n");
-        #endif /* CONFIG_POWEROFF */
     }
     #endif /* CONFIG_STM32_WKUP_PINS */
 
