@@ -259,7 +259,7 @@ static inline GPIO_PRT_Type* gpio_ifx_int_base(const struct gpio_ifx_config* con
 
 static uint32_t gpio_ifx_get_pending_int(const struct device* dev) {
     const struct gpio_ifx_config* const cfg = dev->config;
-    GPIO_PRT_Type* const base = cfg->regs;
+    GPIO_PRT_Type* const base = gpio_ifx_int_base(cfg);
 
     #if defined(CONFIG_SOC_FAMILY_INFINEON_PSOC4)
     return (base->INTR & gpio_ifx_valid_mask(cfg->ngpios));
@@ -279,7 +279,7 @@ static void __maybe_unused gpio_ifx_isr(const struct device* dev) {
     const struct gpio_ifx_config* const cfg = dev->config;
     GPIO_PRT_Type* int_base = gpio_ifx_int_base(cfg);
     struct gpio_ifx_data* const data = dev->data;
-    uint32_t pending = gpio_get_pending_pins(cfg, cfg->regs);
+    uint32_t pending = gpio_get_pending_pins(cfg, int_base);
 
     if (pending == 0U) {
         return;
@@ -334,7 +334,10 @@ static int gpio_ifx_pin_interrupt_configure(const struct device* dev, gpio_pin_t
     }
 
     #if defined(CY_MMIO_SMIF0_PERI_NR)
+    uint32_t sec_prev = 0U;
+
     if (int_base != base) {
+        sec_prev = Cy_GPIO_GetHSIOM_SecPin(int_base, pin);
         Cy_GPIO_SetHSIOM_SecPin(int_base, pin, CY_GPIO_HSIOM_SECURE_ACCESS);
     }
     #endif
@@ -351,7 +354,7 @@ static int gpio_ifx_pin_interrupt_configure(const struct device* dev, gpio_pin_t
 
     #if defined(CY_MMIO_SMIF0_PERI_NR)
     if (int_base != base) {
-        Cy_GPIO_SetHSIOM_SecPin(int_base, pin, 1U);
+        Cy_GPIO_SetHSIOM_SecPin(int_base, pin, sec_prev);
     }
     #endif
 

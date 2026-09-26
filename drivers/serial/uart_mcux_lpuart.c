@@ -1485,9 +1485,9 @@ static int mcux_lpuart_configure(struct device const* dev,
     }
 
     /* wait for hardware init */
-    if (__GTEST == 0) {
-        k_sleep(K_MSEC(1));
-    }
+    #if (__GTEST == 0)
+    k_sleep(K_MSEC(1));
+    #endif
 
     return (0);
 }

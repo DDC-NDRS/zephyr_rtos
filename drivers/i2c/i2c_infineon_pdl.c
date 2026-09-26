@@ -92,7 +92,6 @@ struct ifx_cat1_i2c_config {
     const struct pinctrl_dev_config* pcfg;
     uint16_t irq_num;
     uint8_t  irq_priority;
-    uint8_t  scb_num;
     en_clk_dst_t clk_dst;
     void (*irq_config_func)(struct device const* dev);
     cy_cb_scb_i2c_handle_events_t i2c_handle_events_func;
@@ -579,8 +578,11 @@ static int ifx_cat1_i2c_configure(struct device const* dev, uint32_t dev_config)
     Cy_SCB_I2C_Disable(config->base, &data->context);
     Cy_SCB_I2C_DeInit(config->base);
 
-    /* Configure the I2C resource */
-    Cy_SCB_I2C_Init(config->base, &data->scb_config, &data->context);
+    /* Configure the I2C resource.
+     * #CUSTOM@NDRS: the Cy_SCB_I2C_Init() status is intentionally not checked
+     * here; upstream logs, releases operation_sem and returns -EIO on failure.
+     */
+    (void) Cy_SCB_I2C_Init(config->base, &data->scb_config, &data->context);
 
     /* Program the SCB oversampling clock divider for the requested speed */
     if (_i2c_set_peri_divider(dev, data->frequencyhal_hz, is_target_mode) != 0) {
@@ -1430,7 +1432,6 @@ static DEVICE_API(i2c, i2c_cat1_driver_api) = {
         .irq_priority           = DT_INST_IRQ(n, priority),     \
         .irq_num                = DT_INST_IRQN(n),              \
         .clk_dst                = DT_INST_PROP(n, clk_dst),     \
-        .scb_num                = DT_INST_PROP(n, scb_index),   \
         .irq_config_func        = ifx_cat1_i2c_irq_config_func_##n, \
         .i2c_handle_events_func = i2c_handle_events_func_##n,   \
         .transfer_timeout       = I2C_DT_INST_TRANSFER_TIMEOUT(n), \

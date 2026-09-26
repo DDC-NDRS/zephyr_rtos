@@ -757,7 +757,12 @@ static int ifx_cat1_uart_irq_rx_ready(const struct device* dev) {
     uint32_t number_available = Cy_SCB_UART_GetNumInRxFifo(config->reg_addr);
 
     if (data->context.rxRingBuf != NULL) {
+        /* Cy_SCB_UART_GetNumInRingBufferFast() exists only in the PSE8xx PDL */
+        #if defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
         number_available += Cy_SCB_UART_GetNumInRingBufferFast(&data->context);
+        #else
+        number_available += Cy_SCB_UART_GetNumInRingBuffer(config->reg_addr, &data->context);
+        #endif
     }
 
     return (number_available) ? 1 : 0;
@@ -1544,7 +1549,10 @@ static int ifx_cat1_uart_init(const struct device* dev) {
         return (-EIO);
     }
 
-    Cy_SCB_UART_Init(config->reg_addr, &data->scb_config, &data->context);
+    /* #CUSTOM@NDRS: the Cy_SCB_UART_Init() status is intentionally not checked here;
+     * upstream skips irq_enable()/Cy_SCB_UART_Enable() and returns  -ENOTSUP on failure.
+     */
+    (void) Cy_SCB_UART_Init(config->reg_addr, &data->scb_config, &data->context);
     irq_enable(config->irq_num);
     Cy_SCB_UART_Enable(config->reg_addr);
     #endif /* CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2 */
