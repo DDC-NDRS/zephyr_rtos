@@ -365,6 +365,19 @@ Boards
   ``enet_ptp_clock`` (:dtcompatible:`nxp,enet-ptp-clock`) are now ``disabled`` by default instead
   of ``okay``. Out-of-tree boards that use Ethernet must set ``status = "okay"`` on these nodes.
 
+* The ``mimxrt1170_evk`` and ``mimxrt1160_evk`` cm7 targets and ``frdm_imxrt1152`` now ship a static
+  Arm MPU region table and enable :kconfig:option:`CONFIG_ARM_MPU_CM7_UNMAPPED_REGION` by default.
+  The MPU therefore no longer falls back to the ``PRIVDEFENA`` background map, and addresses outside
+  that table are no longer reachable. The table covers ITCM, DTCM, the CM4-shared OCRAM image region
+  on the dual-core boards, the RAM backing the ``zephyr,sram`` chosen node, the FlexSPI NOR window
+  and the peripheral aperture, but not the remaining on-chip banks: ``ocram1`` and ``ocram2`` on
+  ``mimxrt1170_evk`` and ``frdm_imxrt1152``, and ``ocram_combined`` on ``mimxrt1160_evk``.
+
+  Applications that place data in one of those banks must claim it explicitly with a
+  ``zephyr,memory-attr`` node, which is then given an MPU region of its own, as the in-tree
+  :file:`samples/subsys/ipc` samples do for the memory they share with the CM4. Setting
+  :kconfig:option:`CONFIG_ARM_MPU_CM7_UNMAPPED_REGION` to ``n`` restores the previous behavior.
+
 * The Silabs Kconfig option ``CONFIG_SOC_SILABS_IMAGE_PROPERTIES``
   has been renamed to :kconfig:option:`CONFIG_SOC_VENDOR_SILABS_IMAGE_PROPERTIES`.
 
@@ -375,6 +388,11 @@ Boards
   This is the next step of the migration to mspi stm32 support. For both boards, declare the xspi
   node as ``st,stm32-xspi-controller`` compatible. The stm32h5 device DTS will be updated
   once all the target boards are changed.
+
+* The stm32l562e disco kit is now adopting the mspi controller model.
+  This is the next step of the migration to mspi stm32 support.
+  For that board, declare the ospi node as ``st,stm32-ospi-controller`` compatible.
+  The stm32l5 device DTS will be updated once all the target boards are changed.
 
 Device Drivers and Devicetree
 *****************************
@@ -1566,6 +1584,13 @@ STM32
   is present in Devicetree with value ``"none"`` or ``"full-disconnect"``. Refer to the migration
   guide entry related to this binding for more details. (:github:`104690` / :github:`108294`)
 
+* The STM32MP13 SoC DTSI files have been split per part number so that crypto peripherals (the
+  ``hash`` node) are only described on the variants that provide them. Board device trees must now
+  include the DTSI matching their exact SoC part number instead of the generic
+  ``stm32mp135.dtsi``. For example, ``stm32mp135f_dk`` now includes
+  ``<st/mp13/stm32mp135f.dtsi>`` instead of ``<st/mp13/stm32mp135.dtsi>``. Out-of-tree boards
+  based on an STM32MP13 SoC must update their ``#include`` accordingly. (:github:`120085`)
+
 * SoC DTSI files now consistently use interrupt priority zero for all peripherals.
   Applications must now explicitly configure interrupt priorities using Devicetree
   if they previously relied on the values found in SoC DTSI files. (:github:`106188`)
@@ -1909,6 +1934,11 @@ USB
 * The ``get_desc`` callback in :c:struct:`usbd_class_api` now returns ``const void *`` instead of
   ``void *``, so that a class can keep its array of descriptor pointers in ROM. Out-of-tree
   classes must update the return type of their handler. (:github:`118251`)
+
+* ``CONFIG_USBD_CDC_ACM_BUF_POOL`` has been removed. The CDC ACM implementation
+  now allocates bulk IN and OUT transfer buffers from per-instance pools. The
+  device tree properties ``tx-fifo-size`` or ``rx-fifo-size`` determine the
+  pool sizes.
 
 Video
 =====
@@ -2649,6 +2679,32 @@ Other subsystems
   assertions are disabled.
   Mark values used only by assertions with ``__maybe_unused`` or ``ARG_UNUSED()`` as appropriate.
 
+* Several legacy assertion Kconfig options are deprecated in favor of the per-module ZASSERT
+  levels (``CONFIG_ASSERT_MODULE_<module>_LEVEL``, defaulting through the ``DEFAULT`` module):
+
+  * :kconfig:option:`CONFIG_ASSERT_VERBOSE` maps to
+    :kconfig:option:`CONFIG_ASSERT_MODULE_DEFAULT_LEVEL_VERBOSE`.
+  * :kconfig:option:`CONFIG_ASSERT_NO_COND_INFO`, :kconfig:option:`CONFIG_ASSERT_NO_MSG_INFO` and
+    :kconfig:option:`CONFIG_ASSERT_NO_FILE_INFO` map to
+    :kconfig:option:`CONFIG_ASSERT_MODULE_DEFAULT_LEVEL_TERSE`.
+  * ``CONFIG_FORCE_NO_ASSERT`` is replaced by setting :kconfig:option:`CONFIG_ASSERT` to ``n``.
+  * ``CONFIG_ASSERT_LEVEL`` is replaced by the ``DEFAULT`` module level; a level of ``0`` maps to
+    :kconfig:option:`CONFIG_ASSERT_MODULE_DEFAULT_LEVEL_OFF`.
+
+* The assertion hooks ``assert_post_action`` and ``assert_print`` have been removed.
+  Use the new ``zassert_post_action`` and ``zassert_vprint`` hooks to achieve equivalent functionality.
+  Note: The ``zassert_post_action`` hook is a terminal function, returning to the caller is not supported.
+  If the application needs to return to the caller, enabling :kconfig:option:`CONFIG_ASSERT_TEST` will
+  declare the ``zassert_post_action`` hook as a non-terminal function, allowing
+  execution to continue after the hook runs.
+
+* :kconfig:option:`CONFIG_ASSERT_NO_FILE_INFO` does not change the ``zassert_post_action`` hook
+  signature like the old ``assert_post_action`` hook did.
+
+* The zassert hook ``zassert_vprint``, the replacement for ``assert_print``, is now called with a
+  ``va_list`` argument instead of a variable number of arguments. Out-of-tree code that implements
+  this hook must be updated.
+
 FIDO2
 =====
 
@@ -2716,6 +2772,11 @@ MCUmgr
     ``hash`` buffer is :c:macro:`IMG_MGMT_CLIENT_HASH_MAX_LEN` (64) bytes, and
     the new ``hash_len`` field holds the actual length. Code that reads ``hash``
     must use ``hash_len`` instead of assuming :c:macro:`IMG_MGMT_DATA_SHA_LEN`.
+
+* :kconfig:option:`CONFIG_MCUMGR_TRANSPORT_UDP_MTU` can no longer exceed
+  :kconfig:option:`CONFIG_MCUMGR_TRANSPORT_NETBUF_SIZE`, and a larger value now fails at
+  configuration time. When the buffer is smaller than 1500 bytes, the MTU now defaults to the
+  buffer size instead of 1500.
 
 Network buffers
 ===============

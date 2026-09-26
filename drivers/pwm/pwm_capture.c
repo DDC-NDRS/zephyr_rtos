@@ -39,7 +39,12 @@ int z_impl_pwm_capture_cycles(const struct device* dev, uint32_t channel,
 
     if ((flags & PWM_CAPTURE_MODE_MASK) == PWM_CAPTURE_MODE_CONTINUOUS) {
         LOG_ERR("continuous capture mode only supported via callback");
-        return -ENOTSUP;
+        return (-ENOTSUP);
+    }
+
+    if (K_TIMEOUT_EQ(timeout, K_NO_WAIT)) {
+        LOG_ERR("capture cannot complete without waiting");
+        return (-EINVAL);
     }
 
     flags |= PWM_CAPTURE_MODE_SINGLE;

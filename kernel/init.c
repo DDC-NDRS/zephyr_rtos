@@ -176,7 +176,12 @@ extern volatile uintptr_t __stack_chk_guard;
 #endif /* CONFIG_STACK_CANARIES_TLS */
 #endif /* CONFIG_REQUIRES_STACK_CANARIES */
 
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+/* __GTEST never runs bg_thread_main(): unit tests execute as post-kernel code */
+bool z_sys_post_kernel = true;
+#else
 bool z_sys_post_kernel;
+#endif
 
 /* defined in device.c */
 extern int do_device_init(const struct device* dev);

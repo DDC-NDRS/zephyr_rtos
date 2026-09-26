@@ -501,7 +501,7 @@ static int gpio_ifx_init(const struct device* dev) {
     static struct gpio_ifx_data gpio_ifx_data_##n;                      \
     DEVICE_DT_INST_DEFINE(n, gpio_ifx_init, NULL, &gpio_ifx_data_##n,   \
                           &gpio_ifx_config_##n, POST_KERNEL,            \
-                          CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &gpio_ifx_api);
+                          CONFIG_GPIO_INIT_PRIORITY, &gpio_ifx_api);
 
 #define GPIO_SHARED_PORT_DEFINE(n)                                      \
     static struct gpio_ifx_config DT_CONST gpio_ifx_config_##n = {      \
@@ -513,7 +513,7 @@ static int gpio_ifx_init(const struct device* dev) {
     static struct gpio_ifx_data gpio_ifx_data_##n;                      \
     DEVICE_DT_INST_DEFINE(n, gpio_ifx_init, NULL, &gpio_ifx_data_##n,   \
                           &gpio_ifx_config_##n, POST_KERNEL,            \
-                          CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &gpio_ifx_api);
+                          CONFIG_GPIO_INIT_PRIORITY, &gpio_ifx_api);
 
 /*
  * A few variants of this define are required due to interrupt connectivity variations.
@@ -564,7 +564,7 @@ static __maybe_unused void gpio_shared_isr(const struct device* dev) {
     }                                                           \
                                                                 \
     DEVICE_DT_INST_DEFINE(n, gpio_shared##n##_init, NULL, NULL, &gpio_shared##n##_cfg, \
-                          POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE, NULL);
+                          POST_KERNEL, CONFIG_GPIO_INIT_PRIORITY, NULL);
 
 DT_INST_FOREACH_STATUS_OKAY(GPIO_SHARED_INIT)
 

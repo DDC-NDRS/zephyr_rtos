@@ -17,14 +17,29 @@
 #if defined(__GNUC__) || defined(__ICCARM__)
 #include <zephyr/arch/arm/asm_inline_gcc.h>
 #elif defined(_MSC_VER)                     /* #CUSTOM@NDRS */
-/* @note Dummy function for __GTEST */
+/* @note Emulated PRIMASK for __GTEST: one flag shared by every TU (selectany),
+ *       so z_spin_is_locked() / sys_clock_is_locked() see the real lock state.
+ */
+#ifdef __cplusplus
+extern "C" {
+#endif
+__declspec(selectany) unsigned int z_msvc_irq_locked = 0U;
+#ifdef __cplusplus
+}
+#endif
+
 static ALWAYS_INLINE void arch_irq_unlock(unsigned int key) {
-    (void) key;
+    if (key == 0U) {
+        z_msvc_irq_locked = 0U;
+    }
 }
 
-/* @note Dummy function for __GTEST */
 static ALWAYS_INLINE unsigned int arch_irq_lock(void) {
-    return (0U);
+    unsigned int key = z_msvc_irq_locked;
+
+    z_msvc_irq_locked = 1U;
+
+    return (key);
 }
 
 #else

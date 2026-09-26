@@ -50,8 +50,10 @@ extern "C" {
 
 #if defined(_MSC_VER)                       /* #CUSTOM@NDRS */
 #include <stdio.h>
-#define printk          printf
-#define vprintk         vprintf
+#define printk            printf
+#define vprintk           vprintf
+#define printk_unlocked   printf
+#define vprintk_unlocked  vprintf
 #else
 #ifdef CONFIG_LOG_PRINTK_STATIC
 /* If printk is redirected to the logging use the macro which allow build time
@@ -72,7 +74,6 @@ __printf_like(1, 2) void printk(const char *fmt, ...);
  * @param ap Format arguments.
  */
 __printf_like(1, 0) void vprintk(const char *fmt, va_list ap);
-#endif
 
 /**
  * @brief Output a string without taking the printk lock
@@ -102,6 +103,7 @@ __printf_like(1, 2) void printk_unlocked(const char *fmt, ...);
  * @param ap Format arguments.
  */
 __printf_like(1, 0) void vprintk_unlocked(const char *fmt, va_list ap);
+#endif /* defined(_MSC_VER) */
 
 /**
  * @brief Stop printk() taking its lock, for crash reporting
@@ -143,6 +145,7 @@ static inline __printf_like(1, 0) void vprintk_unlocked(const char *fmt, va_list
 
 static inline void printk_panic(void)
 {
+	/* pass */
 }
 #endif /* defined(CONFIG_PRINTK) || defined(__DOXYGEN__) */
 

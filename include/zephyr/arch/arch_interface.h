@@ -368,8 +368,17 @@ static inline bool arch_irq_unlocked(unsigned int key) {
 static inline bool arch_cpu_irqs_are_enabled(void);
 
 #if defined(_MSC_VER) /* #CUSTOM@NDRS */
+/* Emulated PRIMASK, defined in arch/arm/asm_inline.h */
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern unsigned int z_msvc_irq_locked;
+#ifdef __cplusplus
+}
+#endif
+
 static inline bool arch_cpu_irqs_are_enabled(void) {
-	return (true);
+    return (z_msvc_irq_locked == 0U);
 }
 #endif
 

@@ -2377,6 +2377,28 @@ Documentation Infrastructure:
     - drivers.led_strip
     - sample.drivers.led_strip
 
+"Drivers: LIN":
+  status: maintained
+  maintainers:
+    - thenguyenyf
+  collaborators:
+    - henrikbrixandersen
+  files:
+    - boards/shields/mikroe_lin_click/
+    - doc/hardware/peripherals/lin.rst
+    - drivers/lin/
+    - dts/bindings/lin/
+    - dts/bindings/phy/lin-transceiver*
+    - include/zephyr/drivers/lin.h
+    - include/zephyr/drivers/lin/
+    - samples/drivers/lin/
+    - tests/drivers/lin/
+  labels:
+    - "area: LIN"
+  tests:
+    - drivers.lin
+    - sample.drivers.lin
+
 "Drivers: MEMC":
   status: odd fixes
   files:
@@ -4072,6 +4094,29 @@ MIPS arch:
     - arch
     - kernel
 
+MediaTek Platforms:
+  status: maintained
+  maintainers:
+    - aary-p
+  collaborators:
+    - andrew-mtk
+    - ffreimann-mtk
+  files:
+    - boards/mediatek/
+    - soc/mediatek/
+    - drivers/*/*mt8*
+    - drivers/*/*mtk*
+    - dts/arm64/mediatek/
+    - dts/bindings/*/mediatek,*
+    - include/zephyr/dt-bindings/*/mt8*
+    - include/zephyr/dt-bindings/*/mtk*
+  labels:
+    - "platform: MediaTek"
+  description: >-
+    MediaTek MT8xxx SoCs and boards, covering both the Xtensa audio DSPs
+    found in Chromebook-class parts and the Arm application processors on
+    Genio development boards, together with MediaTek-specific drivers.
+
 Memory Management:
   status: maintained
   maintainers:
@@ -4278,6 +4323,8 @@ Multimedia Pipeline:
   status: maintained
   maintainers:
     - ngphibang
+  collaborators:
+    - josuah
   files:
     - doc/services/mpipe/
     - include/zephyr/mpipe/
@@ -7752,6 +7799,7 @@ West:
   maintainers:
     - d3zd3z
   collaborators:
+    - felipebalbi
     - kurtjd
     - jerrysxie
   files: []

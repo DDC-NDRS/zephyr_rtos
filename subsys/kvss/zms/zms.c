@@ -2366,7 +2366,7 @@ static int zms_iter_filter_common(struct zms_fs *fs, struct zms_iter *iter,
 	if (rc) {
 		return rc;
 	}
-	*previous_sector_num = SECTOR_NUM(ate_addr);
+	*previous_sector_num = (int)SECTOR_NUM(ate_addr);
 
 	if (!zms_ate_valid_different_sector(fs, ate, *current_cycle)) {
 		return 0;
