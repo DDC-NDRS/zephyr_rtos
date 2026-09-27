@@ -59,7 +59,7 @@ struct ifx_cat1_dma_config_t {
 };
 
 int ifx_cat1_dma_trig(const struct device* dev, uint32_t channel) {
-    const struct ifx_cat1_dma_config_t* const cfg = dev->config;
+    struct ifx_cat1_dma_config_t const* const cfg = dev->config;
     struct ifx_cat1_dma_data_t* data = dev->data;
 
     /* Set SW trigger for the channel */
@@ -110,7 +110,7 @@ static int convert_dma_xy_increment_z_to_pdl(uint32_t addr_adj) {
 static int ifx_cat1_dma_config(const struct device* dev, uint32_t channel,
                                struct dma_config* config) {
     struct ifx_cat1_dma_data_t* data = dev->data;
-    const struct ifx_cat1_dma_config_t* const cfg = dev->config;
+    struct ifx_cat1_dma_config_t const* const cfg = dev->config;
     cy_stc_dma_channel_config_t channel_config = {0u};
     cy_stc_dma_descriptor_config_t descriptor_config = {0u};
     cy_en_dma_status_t dma_status;
@@ -270,14 +270,15 @@ static int ifx_cat1_dma_config(const struct device* dev, uint32_t channel,
         }
         else {
             if (cfg->enable_chaining) {
-                descriptor_config.nextDescriptor = descriptor;
+                /* Circular: link the last descriptor back to the head */
+                descriptor_config.nextDescriptor = &channels->descr[0];
             }
             else {
                 descriptor_config.nextDescriptor = NULL;
             }
         }
 
-        /* initialize descriptor */
+        /* Initialize descriptor */
         dma_status = Cy_DMA_Descriptor_Init(descriptor, &descriptor_config);
         if (dma_status != CY_DMA_SUCCESS) {
             return -EIO;
@@ -309,7 +310,7 @@ static int ifx_cat1_dma_config(const struct device* dev, uint32_t channel,
 }
 
 static int ifx_cat1_dma_start(const struct device* dev, uint32_t channel) {
-    const struct ifx_cat1_dma_config_t* const cfg = dev->config;
+    struct ifx_cat1_dma_config_t const* const cfg = dev->config;
 
     if (channel >= cfg->num_channels) {
         LOG_ERR("Unsupported channel");
@@ -332,7 +333,7 @@ static int ifx_cat1_dma_start(const struct device* dev, uint32_t channel) {
 }
 
 static int ifx_cat1_dma_stop(const struct device* dev, uint32_t channel) {
-    const struct ifx_cat1_dma_config_t* const cfg = dev->config;
+    struct ifx_cat1_dma_config_t const* const cfg = dev->config;
 
     if (channel >= cfg->num_channels) {
         LOG_ERR("Unsupported channel");
@@ -348,7 +349,7 @@ static int ifx_cat1_dma_stop(const struct device* dev, uint32_t channel) {
 int ifx_cat1_dma_reload(const struct device* dev, uint32_t channel, uint32_t src, uint32_t dst,
                         size_t size) {
     struct ifx_cat1_dma_data_t* data = dev->data;
-    const struct ifx_cat1_dma_config_t* const cfg = dev->config;
+    struct ifx_cat1_dma_config_t const* const cfg = dev->config;
     cy_stc_dma_descriptor_t* descriptor = &data->channels[channel].descr[0];
 
     if (channel >= cfg->num_channels) {
@@ -379,7 +380,7 @@ int ifx_cat1_dma_reload(const struct device* dev, uint32_t channel, uint32_t src
 
 static uint32_t get_total_size(const struct device* dev, uint32_t channel) {
     struct ifx_cat1_dma_data_t* data = dev->data;
-    const struct ifx_cat1_dma_config_t* const cfg = dev->config;
+    struct ifx_cat1_dma_config_t const* const cfg = dev->config;
     uint32_t total_size = 0;
     cy_stc_dma_descriptor_t* curr_descr;
     uint32_t x_size = 0;
@@ -402,13 +403,18 @@ static uint32_t get_total_size(const struct device* dev, uint32_t channel) {
         }
         total_size += (y_size != 0) ? (x_size * y_size) : x_size;
         curr_descr = Cy_DMA_Descriptor_GetNextDescriptor(curr_descr);
+
+        /* Circular chain: stop after one pass */
+        if (curr_descr == &data->channels[channel].descr[0]) {
+            break;
+        }
     }
 
     return total_size;
 }
 
 static uint32_t get_transferred_size(const struct device* dev, uint32_t channel) {
-    const struct ifx_cat1_dma_config_t* const cfg = dev->config;
+    struct ifx_cat1_dma_config_t const* const cfg = dev->config;
     struct ifx_cat1_dma_data_t* data = dev->data;
     struct ifx_cat1_dma_channel_t* channels = &data->channels[channel];
     uint32_t transferred_data_size = 0;
@@ -429,7 +435,14 @@ static uint32_t get_transferred_size(const struct device* dev, uint32_t channel)
     /* Count fully processed descriptors */
     while ((next_descr != NULL) && (next_descr != curr_descr)) {
         x_size = Cy_DMA_Descriptor_GetXloopDataCount(next_descr);
-        y_size = Cy_DMA_Descriptor_GetYloopDataCount(next_descr);
+
+        /* 1D descriptors have no Y loop; their Y slot holds the next pointer */
+        if (Cy_DMA_Descriptor_GetDescriptorType(next_descr) == CY_DMA_2D_TRANSFER) {
+            y_size = Cy_DMA_Descriptor_GetYloopDataCount(next_descr);
+        }
+        else {
+            y_size = 0;
+        }
         transferred_data_size += (y_size != 0U) ? (x_size * y_size) : x_size;
         next_descr = Cy_DMA_Descriptor_GetNextDescriptor(next_descr);
     }
@@ -446,7 +459,7 @@ static uint32_t get_transferred_size(const struct device* dev, uint32_t channel)
 static int ifx_cat1_dma_get_status(const struct device* dev, uint32_t channel,
                                    struct dma_status* stat) {
     struct ifx_cat1_dma_data_t* data = dev->data;
-    const struct ifx_cat1_dma_config_t* const cfg = dev->config;
+    struct ifx_cat1_dma_config_t const* const cfg = dev->config;
 
     if (channel >= cfg->num_channels) {
         LOG_ERR("Unsupported channel");
@@ -486,7 +499,7 @@ static int ifx_cat1_dma_get_status(const struct device* dev, uint32_t channel,
 }
 
 static int ifx_cat1_dma_init(const struct device* dev) {
-    const struct ifx_cat1_dma_config_t* const cfg = dev->config;
+    struct ifx_cat1_dma_config_t const* const cfg = dev->config;
 
     /* Enable DMA block to start descriptor execution process */
     Cy_DMA_Enable(cfg->regs);
@@ -499,7 +512,7 @@ static int ifx_cat1_dma_init(const struct device* dev) {
 
 #ifdef CONFIG_PM_DEVICE
 static int ifx_cat1_dma_pm_action(const struct device* dev, enum pm_device_action action) {
-    struct ifx_cat1_dma_config const* const cfg = dev->config;
+    struct ifx_cat1_dma_config_t const* const cfg = dev->config;
 
     switch (action) {
         case PM_DEVICE_ACTION_SUSPEND :
@@ -609,8 +622,8 @@ static void ifx_cat1_dma_isr(struct ifx_cat1_dma_irq_context* irq_context) {
         return;
     }
 
-    /* Give callback with error status only if enabled */
-    if (status != 0 && !channels->error_callback_dis) {
+    /* Suppress error-status callbacks when error_callback_dis is set */
+    if ((status != 0) && (channels->error_callback_dis != 0U)) {
         return;
     }
 
