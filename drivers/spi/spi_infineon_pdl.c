@@ -293,13 +293,25 @@ static void spi_ifx_dma_callback(const struct device* dma_dev, void* arg,
     struct spi_context* ctx = &data->ctx;
 
     if (channel == data->dma_rx.dma_channel) {
-        spi_context_update_tx(ctx, get_dfs_value(ctx), data->chunk_len);
-        spi_context_update_rx(ctx, get_dfs_value(ctx), data->chunk_len);
+        if (status == 0) {
+            spi_context_update_tx(ctx, get_dfs_value(ctx), data->chunk_len);
+            spi_context_update_rx(ctx, get_dfs_value(ctx), data->chunk_len);
 
-        spi_ifx_transfer_chunk(dev);
+            spi_ifx_transfer_chunk(dev);
+        }
+        else {
+            /* Chunk data is invalid: abort the transfer instead of advancing */
+            dma_stop(data->dma_tx.dev_dma, data->dma_tx.dma_channel);
+            dma_stop(data->dma_rx.dev_dma, data->dma_rx.dma_channel);
+
+            spi_context_cs_control(ctx, false);
+            spi_context_complete(ctx, dev, status);
+        }
     }
     else if (channel == data->dma_tx.dma_channel) {
-        /* pass */
+        /* Completion is driven by RX. A TX error stalls RX, which then ends
+         * via the SPI timeout; completing here could race a late RX callback.
+         */
     }
     else {
         LOG_ERR("Unknown\n");
