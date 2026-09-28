@@ -335,8 +335,8 @@ static int cmd_flash_shell_test(const struct shell* sh, size_t argc, char* argv[
 }
 
 #ifdef CONFIG_FLASH_SHELL_TEST_COMMANDS
-const static uint8_t speed_types[][4] = { "B", "KiB", "MiB", "GiB" };
-const static uint32_t speed_divisor = 1024;
+static const uint8_t speed_types[][4] = { "B", "KiB", "MiB", "GiB" };
+static const uint32_t speed_divisor = 1024;
 
 static int read_write_erase_validate(const struct shell* sh, size_t argc, char* argv[],
                                      uint32_t* size, uint32_t* repeat) {

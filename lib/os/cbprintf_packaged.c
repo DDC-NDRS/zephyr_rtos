@@ -694,7 +694,8 @@ process_string:
 				*(int *)buf = v;
 			}
 			buf += sizeof(int);
-		} else if (size == sizeof(long)) {
+		} else if ((sizeof(long) != sizeof(int)) && (size == sizeof(long))) {
+			/* Folds away where long is int-sized (ILP32); the int branch covers it there */
 			long v = va_arg(ap, long);
 
 			if (buf0 != NULL) {

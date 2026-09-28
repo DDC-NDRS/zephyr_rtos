@@ -111,13 +111,18 @@ static int cmd_crc(const struct shell* sh, size_t argc, char** argv) {
                 }
                 break;
 
-            case 't' :
-                type = string_to_crc_type(state->optarg);
-                if (type == -1) {
+            case 't' : {
+                /* Check the int result before narrowing: enum crc_type is unsigned, so it can never be -1 */
+                int const type_idx = string_to_crc_type(state->optarg);
+
+                if (type_idx < 0) {
                     shell_error(sh, "invalid type '%s'", state->optarg);
                     return (-EINVAL);
                 }
+
+                type = (enum crc_type)type_idx;
                 break;
+            }
 
             case '?' :
             default :

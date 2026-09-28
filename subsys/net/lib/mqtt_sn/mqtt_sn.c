@@ -648,6 +648,7 @@ static void mqtt_sn_do_ping(struct mqtt_sn_client *client)
 		 */
 		p.params.pingreq.client_id.data = client->client_id.data;
 		p.params.pingreq.client_id.size = client->client_id.size;
+		__fallthrough;
 	case MQTT_SN_CLIENT_ACTIVE:
 		encode_and_send(client, &p, 0);
 		break;

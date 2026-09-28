@@ -132,12 +132,14 @@ int timeutil_sync_ref_from_local(const struct timeutil_sync_state* tsp,
     if ((tsp->skew > 0) && (tsp->base.ref > 0) && (refp != NULL)) {
         const struct timeutil_sync_config* cfg = tsp->cfg;
         int64_t local_delta = local - tsp->base.local;
+        /* skew != 1.0f without -Wfloat-equal; skew > 0 above already rules out NaN */
+        bool const skewed = (tsp->skew < 1.0f) || (tsp->skew > 1.0f);
 
         #ifdef CONFIG_TIMEUTIL_APPLY_SKEW
         /* (x * 1.0) != x for large values of x.
          * Therefore only apply the multiplication if the skew is not one.
          */
-        if (tsp->skew != 1.0f) {
+        if (skewed) {
             local_delta = (int64_t)((double)local_delta * (double)tsp->skew);
         }
         #endif /* CONFIG_TIMEUTIL_APPLY_SKEW */
@@ -150,7 +152,7 @@ int timeutil_sync_ref_from_local(const struct timeutil_sync_state* tsp,
         }
         else {
             *refp = ref_abs;
-            rv = (tsp->skew != 1.0f) ? 1 : 0;
+            rv = skewed ? 1 : 0;
         }
     }
 
@@ -165,12 +167,14 @@ int timeutil_sync_local_from_ref(const struct timeutil_sync_state* tsp,
         const struct timeutil_sync_config* cfg = tsp->cfg;
         int64_t ref_delta = (int64_t)(ref - tsp->base.ref);
         int64_t local_delta = (ref_delta * cfg->local_Hz) / cfg->ref_Hz;
+        /* skew != 1.0f without -Wfloat-equal; skew > 0 above already rules out NaN */
+        bool const skewed = (tsp->skew < 1.0f) || (tsp->skew > 1.0f);
 
         #ifdef CONFIG_TIMEUTIL_APPLY_SKEW
         /* (x / 1.0) != x for large values of x.
          * Therefore only apply the division if the skew is not one.
          */
-        if (tsp->skew != 1.0f) {
+        if (skewed) {
             local_delta = (int64_t)((double)local_delta / (double)tsp->skew);
         }
         #endif /* CONFIG_TIMEUTIL_APPLY_SKEW */
@@ -178,7 +182,7 @@ int timeutil_sync_local_from_ref(const struct timeutil_sync_state* tsp,
         int64_t local_abs = (int64_t)tsp->base.local + (int64_t)local_delta;
 
         *localp = local_abs;
-        rv = (tsp->skew != 1.0f) ? 1 : 0;
+        rv = skewed ? 1 : 0;
     }
 
     return (rv);

@@ -413,7 +413,7 @@ manifest:
       revision: dc0ab6345450668de3f9597320a48c5a2d409bb6
       path: modules/lib/uoscore-uedhoc
     - name: zcbor
-      revision: 0d1452440356637a0a727f7f10b442b60977e930
+      revision: 1189c5c9f5acad9ce750e41dbb571cca20eb5a9a
       path: modules/lib/zcbor
     - name: zephyr-xenlib
       revision: 7f0884563f865a2a223f26dd0d847fb0faad397d
