@@ -166,6 +166,14 @@ Boards
   ``SOC_RP2350[AB]_HAZARD3``/``_M33`` Kconfig symbols are deprecated and will both be removed in a
   future release.
 
+* :zephyr:board:`rak4631` now supports the WisBlock ecosystem. A WisBlock Base
+  Board shield (e.g. :ref:`rakwireless_rak19007`) is required to expose the
+  sensor and IO slots:
+
+  .. code-block:: shell
+
+     west build -b rak4631/nrf52840 --shield rakwireless_rak19007
+
 * The Kconfig options :kconfig:option:`CONFIG_SRAM_SIZE` and
   :kconfig:option:`CONFIG_SRAM_BASE_ADDRESS` have been deprecated, boards should instead use the
   devicetree ``zephyr.sram`` chosen node to specify the RAM node which will be used (whose values
@@ -2192,6 +2200,24 @@ Bluetooth HCI
 * Bluetooth HCI drivers now have to provide a mandatory common struct as the first field of
   their data (:c:struct:`bt_hci_driver_data`) and config (:c:struct:`bt_hci_driver_config`)
   structs.
+
+* The HCI driver ``setup()`` op, :c:func:`bt_hci_setup`, :c:struct:`bt_hci_setup_params`,
+  :kconfig:option:`CONFIG_BT_HCI_SETUP` and the ``bt_h4_vnd_setup()`` hook of the H:4 driver are
+  deprecated and will be removed two releases from now. A driver that implements ``setup()``
+  moves that work into :c:member:`bt_hci_driver_api.open`:
+
+  * Send the vendor-specific commands with :c:func:`bt_hci_lockstep_cmd_send_sync`, over the
+    driver's own transport, instead of with the Host's command APIs, and feed every received
+    packet to :c:func:`bt_hci_lockstep_feed`. The helpers of
+    :file:`include/zephyr/bluetooth/hci_pkt.h` frame the commands. After resetting the
+    controller by other means than an HCI command, call :c:func:`bt_hci_lockstep_reset`.
+  * Read the public address with :c:func:`bt_hci_get_public_addr` instead of taking it from
+    :c:member:`bt_hci_setup_params.public_addr`. As there, it is ``BT_ADDR_ANY``, and not
+    ``BT_ADDR_NONE``, when no public address was set.
+  * Remove ``select BT_HCI_SETUP`` from the driver's Kconfig.
+
+  The initialization then also runs in a build without a Host, where ``setup()`` was never
+  called.
 
 * The HCI driver :c:member:`bt_hci_driver_api.open` callback no longer has a ``recv`` parameter;
   rather the common HCI driver layer code takes care of managing this as part of the common

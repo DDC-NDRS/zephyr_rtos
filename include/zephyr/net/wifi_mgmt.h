@@ -68,7 +68,11 @@ extern "C" {
 #ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_NAN
 #define WIFI_NAN_MAX_SSI_LEN            CONFIG_WIFI_NAN_MAX_SSI_LEN
 #define WIFI_NAN_MAX_SERVICE_NAME_LEN   64
-#define WIFI_NAN_RESP_SIZE              64
+
+/* Holds multi-line NAN_STATUS output from hostap. */
+#define WIFI_NAN_RESP_SIZE              512
+#define WIFI_NAN_MAX_SET_PARAM_LEN      32
+#define WIFI_NAN_MAX_SET_VALUE_LEN      256
 #endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_NAN */
 /** @endcond */
 
@@ -1879,6 +1883,11 @@ struct wifi_dpp_params {
 #ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_NAN
 /** NAN operation */
 enum wifi_nan_operation {
+    WIFI_NAN_OP_START,
+    WIFI_NAN_OP_STOP,
+    WIFI_NAN_OP_SET,
+    WIFI_NAN_OP_UPDATE_CONF,
+    WIFI_NAN_OP_STATUS,
     WIFI_NAN_OP_PUBLISH,
     WIFI_NAN_OP_CANCEL_PUBLISH,
     WIFI_NAN_OP_UPDATE_PUBLISH,
@@ -1985,6 +1994,15 @@ struct wifi_nan_transmit_params {
     uint16_t ssi_len;
 };
 
+/** This structure is used to configure a NAN_SET parameter. */
+struct wifi_nan_set_params {
+    /** NAN configuration parameter name. */
+    char param[WIFI_NAN_MAX_SET_PARAM_LEN];
+
+    /** NAN configuration parameter value. */
+    char value[WIFI_NAN_MAX_SET_VALUE_LEN];
+};
+
 /** @brief Wi-Fi NAN parameters */
 struct wifi_nan_params {
     /** NAN operation */
@@ -2004,11 +2022,14 @@ struct wifi_nan_params {
         /** Transmit parameters */
         struct wifi_nan_transmit_params transmit;
 
+        /** NAN_SET parameter and value */
+        struct wifi_nan_set_params set;
+
         /** For cancel operations */
         uint8_t cancel_id;
     };
 
-    /* Save the returned ID */
+    /* Operation response */
     char resp[WIFI_NAN_RESP_SIZE];
 };
 

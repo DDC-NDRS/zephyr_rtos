@@ -170,7 +170,7 @@ manifest:
         - hal
     - name: hal_bouffalolab
       path: modules/hal/bouffalolab
-      revision: 15b8a5f64cea87dcd247a2a5edd8b2ed51fa8ff4
+      revision: 577b219696191f7715ac772e265b14108ecc49a5
       groups:
         - hal
     - name: hal_espressif
@@ -237,7 +237,7 @@ manifest:
         - hal
     - name: hal_renesas
       path: modules/hal/renesas
-      revision: d1496ef55a3f7f8cbe60f32676ce3b152bff619e
+      revision: a843129f7cb8d048bcb9bcd46bbfebf66b9cbe7c
       groups:
         - hal
     - name: hal_rpi_pico
@@ -364,7 +364,7 @@ manifest:
       revision: 01032a8a7bdfdd541686f5dfa3671e602b9fcbff
       path: modules/lib/open-amp
     - name: openthread
-      revision: e4d97681c53ec1cc34af1404ad2960adda4ba691
+      revision: 4a8d33459567cc611bf9d4d810c2201a24a64d84
       path: modules/lib/openthread
     - name: percepio
       path: modules/debug/percepio
@@ -405,7 +405,7 @@ manifest:
       groups:
         - tee
     - name: trusted-firmware-m
-      revision: 887ce63ea249036ea87f37f0313364332bb55fae
+      revision: b01f190e46afcb02b7f240d2b3ab961d6bca6c24
       path: modules/tee/tf-m/trusted-firmware-m
       groups:
         - tee
@@ -416,7 +416,7 @@ manifest:
       revision: 1189c5c9f5acad9ce750e41dbb571cca20eb5a9a
       path: modules/lib/zcbor
     - name: zephyr-xenlib
-      revision: 7f0884563f865a2a223f26dd0d847fb0faad397d
+      revision: 8b13d0b709314b7de6cb5877c286d52e71095cc8
       path: modules/lib/zephyr-xenlib
   # zephyr-keep-sorted-stop
     - name: thingset

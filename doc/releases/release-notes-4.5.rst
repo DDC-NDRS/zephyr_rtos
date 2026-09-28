@@ -344,6 +344,12 @@ Deprecated APIs and options
     :kconfig:option:`CONFIG_BT_HCI`, is the only selection left in the tree; the choice itself
     stays as the extension point for out-of-tree stacks.
 
+  * The HCI driver ``setup()`` op, :c:func:`bt_hci_setup`,
+    :c:struct:`bt_hci_setup_params` and :kconfig:option:`CONFIG_BT_HCI_SETUP` have
+    been deprecated. A driver performs its vendor-specific initialization inside
+    :c:member:`bt_hci_driver_api.open` instead, over its own transport. See the
+    migration guide.
+
 * Build system
 
   * The ``zephyr_file_copy()`` CMake function has been deprecated. Use the native
@@ -1305,6 +1311,7 @@ New Shields
 * :ref:`NXP MX8 DSI OLED1A Panel <nxp_mx8_dsi_oled1a>`
 * :ref:`NXP MX9 DSI OLED Panel <nxp_mx9_dsi_oled>`
 * :ref:`OD-6010 SLCD Panel Shield <od_6010_shield>`
+* :ref:`RAK19007 WisBlock Base Board 2nd Gen <rakwireless_rak19007>`
 * :ref:`Seeed Studio COB LED Driver Board for XIAO <seeed_xiao_cob_led>`
 * :ref:`ST B-M2MEM-PACK1 M.2 serial memory pack <st_b_m2mem_pack1_shield>`
 * :ref:`X-NUCLEO-67W61M1: Wi-Fi 6 expansion board <x_nucleo_67w61m1>`
@@ -2044,6 +2051,7 @@ New Samples
 * :zephyr:code-sample:`espnow`
 * :zephyr:code-sample:`fido2`
 * :zephyr:code-sample:`flow-meter`
+* :zephyr:code-sample:`fota-http`
 * :zephyr:code-sample:`frdm-mcxe31b-system-off`
 * :zephyr:code-sample:`i2c-tiny-usb`
 * :zephyr:code-sample:`logging_multidomain`
@@ -2118,6 +2126,13 @@ Libraries / Subsystems
 
   * Added :kconfig:option:`CONFIG_IMG_CUSTOM_SECTOR_SIZE` to allow MCUboot to use a different
     sector size for reducing the swap-using-offset status area size.
+
+* Management
+
+  * Added the :ref:`fota_http` library, a firmware-over-the-air client that
+    downloads an MCUboot image over HTTP or HTTPS straight into the secondary
+    slot, with optional resume, redirect following, SHA-256 verification and a
+    ``fota`` shell command.
 
 * LoRa / LoRaWAN
 
