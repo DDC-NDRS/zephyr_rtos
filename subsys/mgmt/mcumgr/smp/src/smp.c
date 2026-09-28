@@ -94,7 +94,7 @@ static void smp_make_rsp_hdr(const struct smp_hdr* req_hdr, struct smp_hdr* rsp_
 
 static int smp_read_hdr(const struct net_buf* nb, struct smp_hdr* dst_hdr) {
     if (nb->len < sizeof(*dst_hdr)) {
-        return MGMT_ERR_EINVAL;
+        return (MGMT_ERR_EINVAL);
     }
 
     memcpy(dst_hdr, nb->data, sizeof(*dst_hdr));
@@ -150,8 +150,8 @@ static int smp_build_err_rsp(struct smp_streamer* streamer, const struct smp_hdr
  * response gets written; the caller is expected to build an error response
  * from the return code.
  *
- * @param cbuf        A cbuf containing the request and response buffer.
- * @param req_hdr    The management header belonging to the incoming request (host-byte order).
+ * @param cbuf A cbuf containing the request and response buffer.
+ * @param req_hdr The management header belonging to the incoming request (host-byte order).
  *
  * @return A MGMT_ERR_[...] error code.
  */
@@ -266,8 +266,8 @@ end :
  * streamer but not transmitted.  On failure, no error response gets written;
  * the caller is expected to build an error response from the return code.
  *
- * @param streamer    The SMP streamer to use for reading the request and writing the response.
- * @param req_hdr    The management header belonging to the incoming request (host-byte order).
+ * @param streamer The SMP streamer to use for reading the request and writing the response.
+ * @param req_hdr  The management header belonging to the incoming request (host-byte order).
  *
  * @return A MGMT_ERR_[...] error code.
  */
@@ -303,7 +303,7 @@ static int smp_handle_single_req(struct smp_streamer* streamer, const struct smp
     #ifdef CONFIG_MCUMGR_SMP_SUPPORT_ORIGINAL_PROTOCOL
     /* If using the legacy protocol, translate the error code to a return code */
     if (nbw->error_ret != 0 && req_hdr->nh_version == 0) {
-        rc   = smp_translate_error_code(nbw->error_group, nbw->error_ret);
+        rc = smp_translate_error_code(nbw->error_group, nbw->error_ret);
         *rsn = MGMT_CTXT_RC_RSN(streamer);
         return (rc);
     }
@@ -373,8 +373,8 @@ static void smp_on_err(struct smp_streamer* streamer, const struct smp_hdr* req_
  * processing of the input stream, it is callers fault that an empty stream has
  * been passed to the function.
  *
- * @param streamer    The streamer to use for reading, writing, and transmitting.
- * @param req        A buffer containing the request packet.
+ * @param streamer The streamer to use for reading, writing, and transmitting.
+ * @param req A buffer containing the request packet.
  *
  * @return 0 on success or when input stream is empty;
  *         MGMT_ERR_ECORRUPT if buffer starts with non SMP data header or there
@@ -419,52 +419,52 @@ int smp_process_request_packet(struct smp_streamer* streamer, void* vreq) {
         }
 
         if (req_hdr.nh_op == MGMT_OP_READ || req_hdr.nh_op == MGMT_OP_WRITE) {
-#ifdef CONFIG_MCUMGR_GRP_TRANSPORT
-			if (req_hdr.nh_group != transport_mgmt_group_id()) {
-				transport_mgmt_lock();
+            #ifdef CONFIG_MCUMGR_GRP_TRANSPORT
+            if (req_hdr.nh_group != transport_mgmt_group_id()) {
+                transport_mgmt_lock();
 
-				if (transport_mgmt_is_bridged_internal(streamer->smpt,
-						TRANSPORT_MGMT_DIRECTION_INCOMING)) {
-					const struct smp_transport_bridge *bridge =
-						transport_mgmt_get_bridge_internal(streamer->smpt,
-								TRANSPORT_MGMT_DIRECTION_INCOMING);
-					uint32_t orig_packet_size = req->len;
+                if (transport_mgmt_is_bridged_internal(streamer->smpt,
+                        TRANSPORT_MGMT_DIRECTION_INCOMING)) {
+                    const struct smp_transport_bridge *bridge =
+                        transport_mgmt_get_bridge_internal(streamer->smpt,
+                                TRANSPORT_MGMT_DIRECTION_INCOMING);
+                    uint32_t orig_packet_size = req->len;
 
-					req->len = sizeof(struct smp_hdr) + req_hdr.nh_len;
-					req->data -= sizeof(struct smp_hdr);
+                    req->len = sizeof(struct smp_hdr) + req_hdr.nh_len;
+                    req->data -= sizeof(struct smp_hdr);
 
-					rc = bridge->outgoing_transport->functions.bridge_output(
-								bridge, net_buf_ref(req), true);
-					req->len = orig_packet_size - req_hdr.nh_len;
-					req->data += sizeof(struct smp_hdr) + req_hdr.nh_len;
+                    rc = bridge->outgoing_transport->functions.bridge_output(
+                                bridge, net_buf_ref(req), true);
+                    req->len = orig_packet_size - req_hdr.nh_len;
+                    req->data += sizeof(struct smp_hdr) + req_hdr.nh_len;
 
-					transport_mgmt_unlock();
+                    transport_mgmt_unlock();
 
-					if (rc == 0) {
-						/* Server should not send an error response */
-						valid_hdr = false;
-						continue;
-					}
+                    if (rc == 0) {
+                        /* Server should not send an error response */
+                        valid_hdr = false;
+                        continue;
+                    }
 
-					rsp = smp_alloc_rsp(req, streamer->smpt);
-					if (rsp == NULL) {
-						rc = MGMT_ERR_ENOMEM;
-						break;
-					}
+                    rsp = smp_alloc_rsp(req, streamer->smpt);
+                    if (rsp == NULL) {
+                        rc = MGMT_ERR_ENOMEM;
+                        break;
+                    }
 
-					cbor_nb_writer_init(streamer->writer, rsp);
-					break;
-				}
+                    cbor_nb_writer_init(streamer->writer, rsp);
+                    break;
+                }
 
-				transport_mgmt_unlock();
-			}
-#endif
+                transport_mgmt_unlock();
+            }
+            #endif
 
-			rsp = smp_alloc_rsp(req, streamer->smpt);
-			if (rsp == NULL) {
-				rc = MGMT_ERR_ENOMEM;
-				break;
-			}
+            rsp = smp_alloc_rsp(req, streamer->smpt);
+            if (rsp == NULL) {
+                rc = MGMT_ERR_ENOMEM;
+                break;
+            }
 
             cbor_nb_reader_init(streamer->reader, req);
             cbor_nb_writer_init(streamer->writer, rsp);
@@ -479,48 +479,50 @@ int smp_process_request_packet(struct smp_streamer* streamer, void* vreq) {
             /* Send the response. */
             rc  = streamer->smpt->functions.output(rsp);
             rsp = NULL;
-		} else if ((IS_ENABLED(CONFIG_MCUMGR_GRP_TRANSPORT) ||
-			    IS_ENABLED(CONFIG_SMP_CLIENT)) && (req_hdr.nh_op == MGMT_OP_READ_RSP ||
-			     req_hdr.nh_op == MGMT_OP_WRITE_RSP)) {
-#ifdef CONFIG_MCUMGR_GRP_TRANSPORT
-			transport_mgmt_lock();
+        }
+        else if ((IS_ENABLED(CONFIG_MCUMGR_GRP_TRANSPORT) ||
+                IS_ENABLED(CONFIG_SMP_CLIENT)) && (req_hdr.nh_op == MGMT_OP_READ_RSP ||
+                 req_hdr.nh_op == MGMT_OP_WRITE_RSP)) {
+            #ifdef CONFIG_MCUMGR_GRP_TRANSPORT
+            transport_mgmt_lock();
 
-			if (transport_mgmt_is_bridged_internal(streamer->smpt,
-						TRANSPORT_MGMT_DIRECTION_OUTGOING)) {
-				const struct smp_transport_bridge *bridge =
-						transport_mgmt_get_bridge_internal(streamer->smpt,
-								TRANSPORT_MGMT_DIRECTION_OUTGOING);
-				uint32_t orig_packet_size = req->len;
+            if (transport_mgmt_is_bridged_internal(streamer->smpt,
+                        TRANSPORT_MGMT_DIRECTION_OUTGOING)) {
+                const struct smp_transport_bridge *bridge =
+                        transport_mgmt_get_bridge_internal(streamer->smpt,
+                                TRANSPORT_MGMT_DIRECTION_OUTGOING);
+                uint32_t orig_packet_size = req->len;
 
-				req->len = sizeof(struct smp_hdr) + req_hdr.nh_len;
-				req->data -= sizeof(struct smp_hdr);
-				(void)bridge->incoming_transport->functions.bridge_output(bridge,
-							net_buf_ref(req), false);
-				req->len = orig_packet_size - req_hdr.nh_len;
-				req->data += sizeof(struct smp_hdr) + req_hdr.nh_len;
+                req->len = sizeof(struct smp_hdr) + req_hdr.nh_len;
+                req->data -= sizeof(struct smp_hdr);
+                (void)bridge->incoming_transport->functions.bridge_output(bridge,
+                            net_buf_ref(req), false);
+                req->len = orig_packet_size - req_hdr.nh_len;
+                req->data += sizeof(struct smp_hdr) + req_hdr.nh_len;
 
-				transport_mgmt_unlock();
+                transport_mgmt_unlock();
 
-				/* Server should not send error response for response */
-				valid_hdr = false;
-				continue;
-			}
+                /* Server should not send error response for response */
+                valid_hdr = false;
+                continue;
+            }
 
-			transport_mgmt_unlock();
-#endif
+            transport_mgmt_unlock();
+            #endif
 
-#if defined(CONFIG_SMP_CLIENT)
-            rc = smp_client_single_response(req, &req_hdr);
+            #if defined(CONFIG_SMP_CLIENT)
+            rc = smp_client_single_response(streamer->smpt, req, &req_hdr);
 
             if (rc == MGMT_ERR_EOK) {
                 handler_found = true;
             }
             else {
-				/* Server should not send error response for response */
+                /* Server should not send error response for response */
                 valid_hdr = false;
             }
-#endif
-		} else {
+            #endif
+        }
+        else {
             rc = MGMT_ERR_ENOTSUP;
         }
 

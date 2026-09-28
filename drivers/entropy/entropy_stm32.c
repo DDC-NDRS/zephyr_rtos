@@ -308,10 +308,11 @@ static void release_rng(void)
 			(clock_control_subsys_t) &dev_cfg->pclken[0],
 			&rng_rate);
 	if (res == 0) {
-	wait_cycles = SystemCoreClock / rng_rate * 2;
+		wait_cycles = SystemCoreClock / rng_rate * 2;
 
-	for (int i = wait_cycles; i >= 0; i--) {
-	}
+		for (int i = wait_cycles; i >= 0; i--) {
+			/* pass */
+		}
 	}
 
 	/* STM32WBAX contrainsts prevent to disable the clock unless a few
@@ -322,8 +323,8 @@ static void release_rng(void)
 
 	if (res == 0) {
 		/* Disabling the RNG clock is not expected to fail */
-	res = clock_control_off(dev_cfg->clock,
-			(clock_control_subsys_t)&dev_cfg->pclken[0]);
+		res = clock_control_off(dev_cfg->clock,
+					(clock_control_subsys_t)&dev_cfg->pclken[0]);
 		__ASSERT_NO_MSG(res == 0);
 	}
 
@@ -599,9 +600,9 @@ static int start_pool_filling(bool wait)
 
 	if (!wait) {
 		if (entropy_stm32_hsem_try_acquire() != 0) {
-		/* In non-blocking mode, return immediately if the RNG is not available */
-		return -EAGAIN;
-	}
+			/* In non-blocking mode, return immediately if the RNG is not available */
+			return -EAGAIN;
+		}
 		entropy_stm32_hsem_release();
 	}
 
@@ -1077,7 +1078,7 @@ static int entropy_stm32_rng_pm_action(const struct device *dev,
 			struct entropy_stm32_rng_dev_data *dev_data = dev->data;
 
 			ASSERT_RNG_HSEM_NOT_OWNED();
-				entropy_stm32_hsem_acquire();
+			entropy_stm32_hsem_acquire();
 
 			res = entropy_stm32_init_hw_rng(dev_cfg, dev_data);
 			if (res < 0) {
@@ -1085,8 +1086,9 @@ static int entropy_stm32_rng_pm_action(const struct device *dev,
 			}
 
 			entropy_stm32_hsem_release();
-			}
+		}
 		break;
+
 	default:
 		return -ENOTSUP;
 	}

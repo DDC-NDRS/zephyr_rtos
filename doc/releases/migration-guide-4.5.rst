@@ -1662,6 +1662,24 @@ STM32
   own register clock, so ``clocks`` and ``clock-names`` stay on the ``&adcN`` node.
   (:github:`117309`)
 
+* STM32 ADC (:dtcompatible:`st,stm32-adc`): when
+  :kconfig:option:`CONFIG_ADC_STM32_VREFINT_CALIBRATE` is enabled (default
+  whenever an okay :dtcompatible:`st,stm32-vref` node exists),
+  :c:func:`adc_ref_internal` and INTERNAL :c:func:`adc_raw_to_millivolts_dt`
+  results may no longer match DT ``vref-mv`` / 3300 exactly. Disable the
+  Kconfig to keep the previous static DT-only scale.
+
+  ``adc_ref_internal()`` no longer reports the first common block's
+  ``vref-mv`` for every STM32 ADC child. Each child uses its parent common
+  block's ``vref-mv`` (optional, default 3300). This only affects multi-common
+  DTs that set divergent ``vref-mv`` values and relied on the old shared
+  ``DEVICE_API``.
+
+  VREFINT measurement is no longer tied to the first okay
+  :dtcompatible:`st,stm32-vref` node. Any enabled ADC child named by a vref
+  node's ``io-channels`` (including disabled vref nodes) can refresh the
+  shared rail cache. (:github:`117114`)
+
 * :dtcompatible:`st,hci-stm32wba` and :dtcompatible:`st,stm32wba-ieee802154` nodes
   (with nodelabels ``bt_hci_wba`` and ``ieee802154`` respectively) are now
   children of a top-level :dtcompatible:`st,stm32wba-radio` node with nodelabel
@@ -2198,6 +2216,15 @@ Bluetooth HCI
   more once ``close()`` has succeeded, and the driver operations other than ``setup()`` do not
   use the Host's HCI command APIs. Out-of-tree HCI drivers, and out-of-tree code that calls
   the HCI driver API directly, may have to be changed to follow these rules.
+
+* An H:4 vendor extension configures its controller from :c:func:`bt_h4_vnd_open`, declared in
+  :zephyr_file:`include/zephyr/drivers/bluetooth/h4.h`, which the H:4 driver calls at the end of
+  its ``open()`` with a lockstep helper for the extension's commands, instead of from
+  ``bt_h4_vnd_setup()`` and the ``setup()`` op. The extension selects
+  :kconfig:option:`CONFIG_BT_H4_VND_OPEN` in place of :kconfig:option:`CONFIG_BT_HCI_SETUP` and
+  reads the public address with :c:func:`bt_hci_get_public_addr` instead of taking it from the
+  setup parameters. ``bt_h4_vnd_setup()`` is still called through the ``setup()`` op by an
+  extension that keeps selecting :kconfig:option:`CONFIG_BT_HCI_SETUP`.
 
 Bluetooth Host
 ==============
@@ -2777,6 +2804,12 @@ MCUmgr
   :kconfig:option:`CONFIG_MCUMGR_TRANSPORT_NETBUF_SIZE`, and a larger value now fails at
   configuration time. When the buffer is smaller than 1500 bytes, the MTU now defaults to the
   buffer size instead of 1500.
+
+* :c:func:`smp_client_single_response` takes the SMP transport the response was received on as
+  a new first argument, and ``res_hdr`` must be in host byte order. A response now only
+  completes a pending command that was sent on that transport and has the same group and
+  command ID. Responses from a server that does not echo the group and command ID are ignored,
+  and the command is retried until it times out.
 
 Network buffers
 ===============

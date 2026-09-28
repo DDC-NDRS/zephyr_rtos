@@ -41,11 +41,14 @@ Major enhancements with this release include:
   Zephyr 4.5 adds several new driver APIs, including:
 
   - :ref:`Clock Monitor <clock_monitor_api>` for runtime observation of clock frequency
+  - :ref:`LIN <lin>` for the Local Interconnect Network automotive serial bus
 
 **New subsystems**
 
   Zephyr 4.5 adds several new subsystem APIs, including:
 
+  - :ref:`Precision timing <precision_timing>` for shared checked time arithmetic, clock operations,
+    and PI control
   - :ref:`Video <video_api>` for controlling video drivers
 
 An overview of the changes required or recommended when migrating your application from Zephyr
@@ -526,6 +529,8 @@ New APIs and options
     :c:enumerator:`ADC_REF_INTERNAL` when the callback is NULL.
     :c:func:`adc_raw_to_millivolts_dt` falls back to channel DT
     ``zephyr,vref-mv`` when :c:func:`adc_ref_get` fails.
+  * :kconfig:option:`CONFIG_ADC_STM32_VREFINT_CALIBRATE` (measure VREF+ from
+    VREFINT at init and on ``sequence.calibrate``)
 
 * Architectures
 
@@ -746,6 +751,22 @@ New APIs and options
     :c:func:`k_irq_disable`, :c:func:`k_irq_is_enabled`,
     :c:func:`k_irq_connect_dynamic` and :c:func:`k_irq_disconnect_dynamic`
 
+* LIN
+
+  * :c:func:`lin_start`
+  * :c:func:`lin_stop`
+  * :c:func:`lin_configure`
+  * :c:func:`lin_get_config`
+  * :c:func:`lin_send`
+  * :c:func:`lin_receive`
+  * :c:func:`lin_response`
+  * :c:func:`lin_read`
+  * :c:func:`lin_wakeup_send`
+  * :c:func:`lin_set_event_callback`
+  * :c:func:`lin_set_rx_filter`
+  * :c:func:`lin_get_transceiver`
+  * :kconfig:option:`CONFIG_LIN`
+
 * LoRa
 
   * :c:func:`lora_recv_duty_cycle`
@@ -848,6 +869,10 @@ New APIs and options
     receive queue, so that a sender which supports SACK can resend only the
     missing data. Incoming SACK blocks are not yet used when retransmitting.
   * :kconfig:option:`CONFIG_PTP_NETWORK_MODE_HYBRID`
+  * Add experimental iperf3 support to zperf
+    (:kconfig:option:`CONFIG_NET_ZPERF_IPERF3`), chosen in place of iPerf 2
+    (:kconfig:option:`CONFIG_NET_ZPERF_IPERF2`). The zperf API and shell commands are the
+    same for both. See :ref:`zperf_iperf3`.
   * Add an SNTP server (:kconfig:option:`CONFIG_SNTP_SERVER`) that answers time
     queries on UDP port 123 on every enabled address family. The application
     sets the system clock and then tells the server about its clock source with
@@ -857,6 +882,11 @@ New APIs and options
     :kconfig:option:`CONFIG_SNTP_LIB`.
   * Add :c:func:`dns_resolve_is_active` to check whether a DNS resolving
     context is active without reading the context internals.
+
+* POSIX
+
+  * :kconfig:option:`CONFIG_POSIX_AEP_CHOICE_NETAPP`, a Zephyr-specific subprofile with the
+    features of PSE52 plus the networking interfaces of PSE53, without multi-process support.
 
 * Power Management
 
@@ -1683,6 +1713,10 @@ New Drivers
   * :dtcompatible:`worldsemi,ws2812-bflb-wo` (:github:`105325`)
   * :dtcompatible:`worldsemi,ws2812-pulse-io` (:github:`110466`)
 
+* LIN
+
+  * :dtcompatible:`renesas,ra-lin-sci-b`
+
 * LoRa
 
   * :dtcompatible:`semtech,lr1121` (:github:`109912`)
@@ -1798,6 +1832,7 @@ New Drivers
 
 * PHY
 
+  * :dtcompatible:`lin-transceiver-gpio`
   * :dtcompatible:`st,stm32f7-usbphyc` (:github:`114696`)
   * :dtcompatible:`st,stm32n6-usbphyc` (:github:`114696`)
 
@@ -1953,6 +1988,10 @@ New Drivers
   * :dtcompatible:`infineon,usbhs` (:github:`106841`)
   * :dtcompatible:`microchip,udphs-g1-udc` (:github:`99620`)
   * :dtcompatible:`nordic,nrf-usbhs-bc12` (:github:`106759`)
+
+* Video
+
+  * :dtcompatible:`zephyr,native-sim-video-fifo` (:github:`119658`)
 
 * Wakeup Controller
 
@@ -2167,6 +2206,20 @@ Devicetree
 
 Other notable changes
 *********************
+
+* ADC
+
+  * STM32 ADC driver (:dtcompatible:`st,stm32-adc`): when
+    :kconfig:option:`CONFIG_ADC_STM32_VREFINT_CALIBRATE` is enabled,
+    :c:func:`adc_ref_internal` may return a measured scale instead of DT
+    ``vref-mv``. Any ADC named by an :dtcompatible:`st,stm32-vref`
+    ``io-channels`` property can take that measurement; the result is
+    cached SoC-wide. See the :ref:`migration guide<migration_4.5>` ADC section.
+
+  * STM32G4 SoC dtsi files now describe the extra VREFINT inputs that exist in
+    silicon: :dtcompatible:`st,stm32-vref` ``vref3`` (ADC3, G491 and up),
+    ``vref4`` and ``vref5`` (ADC4/ADC5, G473 and up). Nodes stay disabled;
+    boards enable the instance they use. ADC2 has no VREFINT mux.
 
 * Bluetooth
 
