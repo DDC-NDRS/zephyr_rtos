@@ -332,7 +332,7 @@ manifest:
       groups:
         - crypto
     - name: mcuboot
-      revision: c05e2bb55ff202c217c915b4a21ae5105bfa2738
+      revision: 1e7cf3ff00752837149de1d0d3a36dedf2349ae3
       path: bootloader/mcuboot
       groups:
         - bootloader
@@ -350,7 +350,7 @@ manifest:
       revision: 0f6d088e777a33dd7b54297f137ef10d745c5da8
       path: modules/lib/nanopb
     - name: net-tools
-      revision: a1a894b4394263c49b786c2504e45080717d869c
+      revision: 6a7baee0a2bb60d56523277ddee2c4846ea2b62f
       path: tools/net-tools
       groups:
         - tools

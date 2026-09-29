@@ -1532,11 +1532,12 @@ Documentation Infrastructure:
     - "area: Documentation Infrastructure"
 
 "Drivers: ADC":
-  status: odd fixes
+  status: maintained
+  maintainers:
+    - jsbatch
   collaborators:
     - anangl
     - ZhaoxiangJin
-    - jsbatch
   files:
     - drivers/adc/
     - include/zephyr/drivers/adc.h
@@ -2669,12 +2670,13 @@ Documentation Infrastructure:
     - "area: Clocks"
 
 "Drivers: PWM":
-  status: odd fixes
+  status: maintained
+  maintainers:
+    - jsbatch
   collaborators:
     - anangl
     - henrikbrixandersen
     - FelixWang47831
-    - jsbatch
   files:
     - drivers/pwm/
     - dts/bindings/pwm/
@@ -4218,7 +4220,7 @@ Microchip RISC-V Platforms:
   labels:
     - "platform: Microchip RISC-V"
 
-Microchip SAM Platforms:
+Microchip SAM MCU Platforms:
   status: maintained
   maintainers:
     - nandojve
@@ -4231,17 +4233,33 @@ Microchip SAM Platforms:
     - stephanosio
   files:
     - boards/atmel/
-    - boards/microchip/sam/
+    - boards/microchip/sam/sam_*/
     - dts/arm/atmel/
-    - dts/arm/microchip/sam/
+    - dts/arm/microchip/sam/sam_*/
     - soc/atmel/
-    - soc/microchip/sam/sama*/
+    - soc/microchip/sam/sam_*/
     - drivers/*/*sam*
     - dts/bindings/*/atmel,*
     - include/zephyr/*/*/*sam*
     - include/zephyr/*/*/*atmel*
   labels:
-    - "platform: Microchip SAM"
+    - "platform: Microchip SAM MCU"
+
+Microchip SAM MPU Platforms:
+  status: maintained
+  maintainers:
+    - TonyHan11
+  collaborators:
+    - MCHP-MPU-Solutions-SHA
+    - nandojve
+  files:
+    - boards/microchip/sam/sama*/
+    - dts/arm/microchip/sam/sam9/
+    - dts/arm/microchip/sam/sama*/
+    - soc/microchip/sam/common/
+    - soc/microchip/sam/sama*/
+  labels:
+    - "platform: Microchip SAM MPU"
 
 Microchip SmartFusion2 platform:
   status: maintained
@@ -5977,6 +5995,11 @@ Security:
     - valeriosetti
   files:
     - doc/security/
+    - scripts/kconfig/hardenconfig.py
+    - scripts/kconfig/hardening.yaml
+    - scripts/kconfig/hardeninglib.py
+    - scripts/schemas/hardening-schema.yaml
+    - scripts/tests/hardenconfig/
   labels:
     - "area: Security"
 

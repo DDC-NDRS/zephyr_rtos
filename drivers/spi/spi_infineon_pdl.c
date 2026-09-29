@@ -1039,7 +1039,7 @@ static cy_rslt_t spi_ifx_int_frequency(const struct device* dev, uint32_t hz,
                 continue;
             }
 
-            divider_value = ((peri_freq + (oversampled_freq / 2)) / oversampled_freq);
+            divider_value = (peri_freq + (oversampled_freq / 2)) / oversampled_freq;
             divided_freq  = peri_freq / divider_value;
 
             if (oversampled_freq > divided_freq) {
