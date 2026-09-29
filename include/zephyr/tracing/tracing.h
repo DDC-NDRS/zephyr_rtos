@@ -14,7 +14,7 @@
 #ifndef ZEPHYR_INCLUDE_TRACING_TRACING_H_
 #define ZEPHYR_INCLUDE_TRACING_TRACING_H_
 
-#include "tracking.h"
+#include <zephyr/kernel.h>
 
 #if (defined(CONFIG_SEGGER_SYSTEMVIEW) && !defined(_MSC_VER)) /* #CUSTOM@NDRS */
 #include "tracing_sysview.h"

@@ -21,6 +21,7 @@
 		zephyr,bt-c2h-uart = &uart20;
 		zephyr,flash = &cpuapp_mram;
 		zephyr,ieee802154 = &ieee802154;
+		zephyr,usb-bc12 = &usbhs_bc12;
 		zephyr,wifi = &wlan0;
 		nordic,vtf-region = &vtf_region_default;
 	};
@@ -68,6 +69,7 @@
 
 &wicr {
 	status = "okay";
+	data-vtfaddress = <&vtf_region_default>;
 	firmware-lmacinitpc = <&wifi_lmac_rom>;
 	firmware-umacinitpc = <&wifi_umac_rom>;
 	firmware-lmacrompatchaddr = <&wifi_lmac_rom_entry>;
@@ -134,6 +136,10 @@
 };
 
 &temp {
+	status = "okay";
+};
+
+&vregusb {
 	status = "okay";
 };
 
@@ -209,6 +215,22 @@
 };
 
 &wifi_bellboard {
+	status = "okay";
+};
+
+&usbhs_wrapper {
+	status = "okay";
+};
+
+zephyr_udc0: &usbhs {
+	status = "okay";
+};
+
+zephyr_uhc0: &usbhs {
+	status = "okay";
+};
+
+&usbhs_bc12 {
 	status = "okay";
 };
 
