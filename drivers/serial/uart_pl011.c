@@ -37,10 +37,22 @@
 
 #include "uart_pl011_registers.h"
 
+/* Async API is built: CONFIG_UART_ASYNC_API is set and an arm,pl011 node has dmas */
+#define PL011_HAS_ASYNC_DMA                                                                        \
+	UTIL_AND(IS_ENABLED(CONFIG_UART_ASYNC_API),                                                \
+		 DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(arm_pl011, dmas))
+
+/* An enabled API needs the UART ISR (pl011_isr(), not the DMA controller's) */
+#define PL011_NEED_UART_ISR UTIL_OR(IS_ENABLED(CONFIG_UART_INTERRUPT_DRIVEN), PL011_HAS_ASYNC_DMA)
+
+/* The UART ISR is needed and a node has interrupts, so it is built and connected */
 #define PL011_USE_IRQ                                                                              \
-	(CONFIG_UART_INTERRUPT_DRIVEN &&                                                           \
+	(PL011_NEED_UART_ISR &&                                                                    \
 	 (DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(arm_pl011, interrupts) ||                             \
 	  DT_ANY_COMPAT_HAS_PROP_STATUS_OKAY(arm_sbsa_uart, interrupts)))
+
+/* The uart_irq_*() ops are built: the UART ISR is used and INTERRUPT_DRIVEN is set */
+#define PL011_HAS_UART_IRQ_API (PL011_USE_IRQ && IS_ENABLED(CONFIG_UART_INTERRUPT_DRIVEN))
 
 struct pl011_config {
 	DEVICE_MMIO_ROM;
@@ -62,7 +74,7 @@ struct pl011_config {
 	int (*pwr_on_func)(const struct device *dev);
 };
 
-#ifdef CONFIG_UART_ASYNC_API
+#if PL011_HAS_ASYNC_DMA
 struct pl011_dma_stream {
 	const struct device *dma_dev;
 	uint32_t dma_channel;
@@ -92,7 +104,7 @@ struct pl011_data {
 	void *irq_cb_data;
 #endif
 
-#ifdef CONFIG_UART_ASYNC_API
+#if PL011_HAS_ASYNC_DMA
 	uart_callback_t async_cb;
 	void *async_cb_data;
 	const struct device *dev;
@@ -100,6 +112,8 @@ struct pl011_data {
 	struct pl011_dma_stream rx_dma;
 	uint8_t *rx_next_buffer;
 	size_t rx_next_buffer_len;
+	/* RX DMA completed its buffer and is stopped until a next buffer is loaded */
+	bool rx_wait_buf;
 	struct k_spinlock async_lock;
 #endif
 };
@@ -409,7 +423,7 @@ static int pl011_runtime_config_get(const struct device *dev,
 
 #endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
-#if PL011_USE_IRQ
+#if PL011_HAS_UART_IRQ_API
 static int pl011_fifo_fill(const struct device *dev,
 			   const uint8_t *tx_data, int len)
 {
@@ -566,10 +580,14 @@ static void pl011_irq_callback_set(const struct device *dev,
 
 	data->irq_cb = cb;
 	data->irq_cb_data = cb_data;
+#if defined(CONFIG_UART_EXCLUSIVE_API_CALLBACKS) && PL011_HAS_ASYNC_DMA
+	data->async_cb = NULL;
+	data->async_cb_data = NULL;
+#endif
 }
-#endif /* PL011_USE_IRQ */
+#endif /* PL011_HAS_UART_IRQ_API */
 
-#ifdef CONFIG_UART_ASYNC_API
+#if PL011_HAS_ASYNC_DMA
 static void pl011_async_user_callback(struct pl011_data *data, struct uart_event *evt)
 {
 	if (data->async_cb) {
@@ -708,43 +726,83 @@ static inline void pl011_dma_rx_req_disable(const struct device *dev)
 	data->rx_dma.enabled = false;
 }
 
-static void pl011_dma_rx_flush(const struct device *dev)
+/* Refresh the RX counter from the DMA channel, return true on success */
+static bool pl011_dma_rx_counter_update(const struct device *dev)
 {
 	struct pl011_data *data = dev->data;
 	struct dma_status stat;
 
 	if ((data->rx_dma.dma_dev == NULL) || (data->rx_dma.buffer == NULL)) {
-		return;
+		return false;
 	}
 
-	if (dma_get_status(data->rx_dma.dma_dev, data->rx_dma.dma_channel, &stat) == 0) {
-		data->rx_dma.counter = data->rx_dma.buffer_length - stat.pending_length;
-		if (data->rx_dma.counter > data->rx_dma.offset) {
-			pl011_async_evt_rx_rdy(data);
-		}
+	if (dma_get_status(data->rx_dma.dma_dev, data->rx_dma.dma_channel, &stat) != 0) {
+		return false;
+	}
+
+	data->rx_dma.counter = data->rx_dma.buffer_length - stat.pending_length;
+
+	return true;
+}
+
+static void pl011_dma_rx_flush(const struct device *dev)
+{
+	struct pl011_data *data = dev->data;
+
+	if (pl011_dma_rx_counter_update(dev)) {
+		pl011_async_evt_rx_rdy(data);
 	}
 }
 
 static int pl011_async_tx_abort(const struct device *dev);
 static int pl011_async_rx_disable(const struct device *dev);
 static void pl011_async_rx_disable_finalize(const struct device *dev);
+static void pl011_dma_rx_reload(const struct device *dev);
 
+/*
+ * Runs every timeout_us while RX is enabled. Received data is reported once
+ * the DMA counter has not moved for a full period. Also completes a buffer
+ * switch that pl011_dma_rx_cb() could not do for lack of a next buffer.
+ */
 static void pl011_async_rx_timeout(struct k_work *work)
 {
 	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
 	struct pl011_dma_stream *rx_dma = CONTAINER_OF(dwork, struct pl011_dma_stream, timeout_work);
 	struct pl011_data *data = CONTAINER_OF(rx_dma, struct pl011_data, rx_dma);
+	bool wait_buf;
+	bool has_next;
+	size_t prev;
 	unsigned int key;
 
 	key = irq_lock();
-	if (data->rx_dma.enabled &&
-	    (data->rx_dma.counter >= data->rx_dma.buffer_length) &&
-	    (data->rx_next_buffer == NULL)) {
+	if (!data->rx_dma.enabled) {
 		irq_unlock(key);
-		(void)pl011_async_rx_disable(data->dev);
 		return;
 	}
-	pl011_dma_rx_flush(data->dev);
+
+	wait_buf = data->rx_wait_buf;
+	has_next = (data->rx_next_buffer != NULL);
+	if (wait_buf) {
+		data->rx_wait_buf = false;
+		irq_unlock(key);
+
+		if (has_next) {
+			pl011_dma_rx_reload(data->dev);
+		} else {
+			(void)pl011_async_rx_disable(data->dev);
+		}
+		return;
+	}
+
+	/*
+	 * IRQs stay locked so that a DMA completion cannot report the tail of
+	 * the buffer ahead of this chunk.
+	 */
+	prev = data->rx_dma.counter;
+	if (pl011_dma_rx_counter_update(data->dev) && (data->rx_dma.counter == prev)) {
+		pl011_async_evt_rx_rdy(data);
+	}
+	pl011_async_timer_start(&data->rx_dma.timeout_work, data->rx_dma.timeout_us);
 	irq_unlock(key);
 }
 
@@ -804,7 +862,7 @@ static void pl011_dma_rx_reload(const struct device *dev)
 
 	pl011_async_evt_rx_buf_rel(data, released);
 
-	rx_dma->blk_cfg.dest_address = (uint32_t)rx_dma->buffer;
+	rx_dma->blk_cfg.dest_address = (uintptr_t)rx_dma->buffer;
 	rx_dma->blk_cfg.block_size = rx_dma->buffer_length;
 
 	ret = dma_reload(rx_dma->dma_dev, rx_dma->dma_channel,
@@ -816,12 +874,15 @@ static void pl011_dma_rx_reload(const struct device *dev)
 	}
 
 	if (ret != 0) {
-		pl011_async_evt_rx_stopped(data, ret);
-		pl011_async_rx_disable_finalize(dev);
+		if (rx_dma->enabled) {
+			pl011_async_evt_rx_stopped(data, ret);
+			pl011_async_rx_disable_finalize(dev);
+		}
 		return;
 	}
 
 	pl011_async_evt_rx_buf_req(data);
+	pl011_async_timer_start(&rx_dma->timeout_work, rx_dma->timeout_us);
 }
 
 static void pl011_dma_rx_cb(const struct device *dma_dev, void *user_data,
@@ -834,6 +895,11 @@ static void pl011_dma_rx_cb(const struct device *dma_dev, void *user_data,
 
 	ARG_UNUSED(dma_dev);
 	ARG_UNUSED(channel);
+
+	/* Completion or error racing with rx_disable(): already finalized */
+	if (!data->rx_dma.enabled) {
+		return;
+	}
 
 	(void)k_work_cancel_delayable(&data->rx_dma.timeout_work);
 
@@ -848,13 +914,17 @@ static void pl011_dma_rx_cb(const struct device *dma_dev, void *user_data,
 
 	key = irq_lock();
 	has_next = (data->rx_next_buffer != NULL);
+	data->rx_wait_buf = !has_next;
 	irq_unlock(key);
 
 	if (has_next) {
 		pl011_dma_rx_reload(dev);
 	} else {
-		/* Buffer full, no next buffer — defer disable to avoid calling
-		 * pl011_async_rx_disable from DMA ISR context. */
+		/*
+		 * Buffer full, no next buffer. The work item reloads if
+		 * rx_buf_rsp() arrives in time, otherwise disables RX outside
+		 * of DMA ISR context.
+		 */
 		(void)k_work_reschedule(&data->rx_dma.timeout_work, K_TICKS(1));
 	}
 }
@@ -910,7 +980,7 @@ static int pl011_async_tx(const struct device *dev, const uint8_t *buf,
 	data->tx_dma.timeout_us = timeout;
 	k_spin_unlock(&data->async_lock, key);
 
-	data->tx_dma.blk_cfg.source_address = (uint32_t)data->tx_dma.buffer;
+	data->tx_dma.blk_cfg.source_address = (uintptr_t)data->tx_dma.buffer;
 	data->tx_dma.blk_cfg.block_size = len;
 
 	ret = dma_config(data->tx_dma.dma_dev, data->tx_dma.dma_channel,
@@ -994,8 +1064,9 @@ static int pl011_async_rx_enable(const struct device *dev, uint8_t *buf,
 	data->rx_dma.timeout_us = timeout;
 	data->rx_next_buffer = NULL;
 	data->rx_next_buffer_len = 0U;
+	data->rx_wait_buf = false;
 
-	data->rx_dma.blk_cfg.dest_address = (uint32_t)buf;
+	data->rx_dma.blk_cfg.dest_address = (uintptr_t)buf;
 	data->rx_dma.blk_cfg.block_size = len;
 
 	ret = dma_config(data->rx_dma.dma_dev, data->rx_dma.dma_channel,
@@ -1039,6 +1110,10 @@ static int pl011_async_rx_buf_rsp(const struct device *dev, uint8_t *buf, size_t
 		data->rx_next_buffer = buf;
 		data->rx_next_buffer_len = len;
 		ret = 0;
+		if (data->rx_wait_buf) {
+			/* DMA is stopped on a full buffer: switch without waiting */
+			(void)k_work_reschedule(&data->rx_dma.timeout_work, K_NO_WAIT);
+		}
 	}
 
 	irq_unlock(key);
@@ -1048,9 +1123,9 @@ static int pl011_async_rx_buf_rsp(const struct device *dev, uint8_t *buf, size_t
 
 /*
  * Shared cleanup path called after UART_RX_STOPPED (DMA error, UART
- * error interrupt) or as the tail of pl011_async_rx_disable.  Must NOT be
- * called when rx_dma.enabled is already false — callers are responsible for
- * the enabled guard.  Safe from DMA-callback and UART-ISR contexts.
+ * error interrupt). Callers check rx_dma.enabled before reporting
+ * UART_RX_STOPPED; this function returns without events if RX was
+ * disabled in the meantime. Safe from DMA-callback and UART-ISR contexts.
  */
 static void pl011_async_rx_disable_finalize(const struct device *dev)
 {
@@ -1058,12 +1133,20 @@ static void pl011_async_rx_disable_finalize(const struct device *dev)
 	uint8_t *next;
 	unsigned int key;
 
+	/* Clear the enabled flag and DMACR bit atomically */
+	key = irq_lock();
+	if (!data->rx_dma.enabled) {
+		irq_unlock(key);
+		return;
+	}
+	pl011_dma_rx_req_disable(dev);
+	data->rx_wait_buf = false;
+	irq_unlock(key);
+
 	(void)k_work_cancel_delayable(&data->rx_dma.timeout_work);
 	get_uart(dev)->imsc &= ~(PL011_IMSC_RTIM | PL011_IMSC_ERROR_MASK);
 
-	/* Clear the enabled flag and DMACR bit atomically */
 	key = irq_lock();
-	pl011_dma_rx_req_disable(dev);
 	next = data->rx_next_buffer;
 	data->rx_next_buffer = NULL;
 	data->rx_next_buffer_len = 0U;
@@ -1093,10 +1176,10 @@ static int pl011_async_rx_disable(const struct device *dev)
 	key = irq_lock();
 	if (!data->rx_dma.enabled) {
 		irq_unlock(key);
-		pl011_async_evt_rx_disabled(data);
 		return -EFAULT;
 	}
 	pl011_dma_rx_req_disable(dev); /* Clears DMACR.RXDMAE + sets enabled=false */
+	data->rx_wait_buf = false;
 	irq_unlock(key);
 
 	(void)k_work_cancel_delayable(&data->rx_dma.timeout_work);
@@ -1132,8 +1215,8 @@ static int pl011_async_init(const struct device *dev)
 	volatile struct pl011_regs *uart = get_uart(dev);
 	struct pl011_data *data = dev->data;
 
-	BUILD_ASSERT(sizeof(uintptr_t) <= sizeof(uint32_t),
-		     "PL011 async DMA requires a 32-bit address space");
+	BUILD_ASSERT(sizeof(uintptr_t) <= sizeof(data->rx_dma.blk_cfg.source_address),
+		     "PL011 async DMA on a 64-bit target requires CONFIG_DMA_64BIT");
 
 	data->dev = dev;
 
@@ -1152,7 +1235,7 @@ static int pl011_async_init(const struct device *dev)
 
 	if (data->rx_dma.dma_dev != NULL) {
 		memset(&data->rx_dma.blk_cfg, 0, sizeof(data->rx_dma.blk_cfg));
-		data->rx_dma.blk_cfg.source_address = (uint32_t)&uart->dr;
+		data->rx_dma.blk_cfg.source_address = (uintptr_t)&uart->dr;
 		data->rx_dma.blk_cfg.source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 		data->rx_dma.blk_cfg.dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
 		data->rx_dma.dma_cfg.head_block = &data->rx_dma.blk_cfg;
@@ -1168,7 +1251,7 @@ static int pl011_async_init(const struct device *dev)
 
 	if (data->tx_dma.dma_dev != NULL) {
 		memset(&data->tx_dma.blk_cfg, 0, sizeof(data->tx_dma.blk_cfg));
-		data->tx_dma.blk_cfg.dest_address = (uint32_t)&uart->dr;
+		data->tx_dma.blk_cfg.dest_address = (uintptr_t)&uart->dr;
 		data->tx_dma.blk_cfg.source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
 		data->tx_dma.blk_cfg.dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 		data->tx_dma.dma_cfg.head_block = &data->tx_dma.blk_cfg;
@@ -1184,7 +1267,7 @@ static int pl011_async_init(const struct device *dev)
 
 	return 0;
 }
-#endif /* CONFIG_UART_ASYNC_API */
+#endif /* PL011_HAS_ASYNC_DMA */
 
 static __maybe_unused DEVICE_API(uart, pl011_driver_api_noirq) = {
 	.poll_in = pl011_poll_in,
@@ -1196,7 +1279,7 @@ static __maybe_unused DEVICE_API(uart, pl011_driver_api_noirq) = {
 	.config_get = pl011_runtime_config_get,
 #endif
 
-#ifdef CONFIG_UART_ASYNC_API
+#if PL011_HAS_ASYNC_DMA
 	.callback_set = pl011_async_callback_set,
 	.tx = pl011_async_tx,
 	.tx_abort = pl011_async_tx_abort,
@@ -1217,6 +1300,7 @@ static DEVICE_API(uart, pl011_driver_api) = {
 	.config_get = pl011_runtime_config_get,
 #endif
 
+#if PL011_HAS_UART_IRQ_API
 	.fifo_fill = pl011_fifo_fill,
 	.fifo_read = pl011_fifo_read,
 	.irq_tx_enable = pl011_irq_tx_enable,
@@ -1230,8 +1314,9 @@ static DEVICE_API(uart, pl011_driver_api) = {
 	.irq_err_disable = pl011_irq_err_disable,
 	.irq_is_pending = pl011_irq_is_pending,
 	.irq_callback_set = pl011_irq_callback_set,
+#endif
 
-#ifdef CONFIG_UART_ASYNC_API
+#if PL011_HAS_ASYNC_DMA
 	.callback_set = pl011_async_callback_set,
 	.tx = pl011_async_tx,
 	.tx_abort = pl011_async_tx_abort,
@@ -1329,7 +1414,7 @@ static int pl011_init(const struct device *dev)
 	}
 #endif
 
-#ifdef CONFIG_UART_ASYNC_API
+#if PL011_HAS_ASYNC_DMA
 	if (!data->sbsa) {
 		ret = pl011_async_init(dev);
 		if (ret != 0) {
@@ -1390,13 +1475,16 @@ static int pl011_init(const struct device *dev)
 #define IRQ_CONFIG_FUNC_INIT(n)                                                                    \
 	IF_ENABLED(PL011_NODE_USE_IRQ(n), (.irq_config_func = pl011_irq_config_func_##n,))
 
-#ifdef CONFIG_UART_ASYNC_API
+#if PL011_HAS_ASYNC_DMA
 #define PL011_DMA_CHANNEL_INIT(n, name, direction)                                                 \
 	.name##_dma = {                                                                            \
 		COND_CODE_1(DT_INST_DMAS_HAS_NAME(n, name),                                        \
 			(.dma_dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(n, name)),             \
 			 .dma_channel = DT_DMAS_CELL_BY_NAME_OR(DT_DRV_INST(n), name, channel, 0), \
-			 .dma_cfg = {.channel_direction = direction, .complete_callback_en = 1}),  \
+			 .dma_cfg = {.dma_slot = DT_DMAS_CELL_BY_NAME_OR(DT_DRV_INST(n), name,     \
+									 slot, 0),         \
+				     .channel_direction = direction,                               \
+				     .complete_callback_en = 1}),                                  \
 			(.dma_dev = NULL))                                                         \
 	},
 #else
@@ -1409,7 +1497,7 @@ void pl011_isr(const struct device *dev)
 	struct pl011_data *data = dev->data;
 	volatile struct pl011_regs *uart = get_uart(dev);
 
-#ifdef CONFIG_UART_ASYNC_API
+#if PL011_HAS_ASYNC_DMA
 	if (data->async_cb &&
 	    (data->irq_cb == NULL) &&
 	    data->rx_dma.enabled) {
@@ -1466,13 +1554,10 @@ void pl011_isr(const struct device *dev)
 	}
 
 #define PL011_NODE_USE_IRQ(n)                                                                      \
-	COND_CODE_1(CONFIG_UART_INTERRUPT_DRIVEN, (DT_INST_NODE_HAS_PROP(n, interrupts)), (0))
+	COND_CODE_1(PL011_NEED_UART_ISR, (DT_INST_NODE_HAS_PROP(n, interrupts)), (0))
 
 #define PL011_DEVICE_API(n)                                                                        \
-	COND_CODE_1(CONFIG_UART_INTERRUPT_DRIVEN,                                                  \
-		    (COND_CODE_1(DT_INST_NODE_HAS_PROP(n, interrupts),                             \
-				 (&pl011_driver_api), (&pl011_driver_api_noirq))),                 \
-		    (&pl011_driver_api_noirq))
+	COND_CODE_1(PL011_NODE_USE_IRQ(n), (&pl011_driver_api), (&pl011_driver_api_noirq))
 
 #define PL011_CONFIG_PORT(n)                                                                       \
 	IF_ENABLED(PL011_NODE_USE_IRQ(n), (                                                        \
