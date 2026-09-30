@@ -29,6 +29,7 @@
 /* Default format of the driver, RGB565 */
 #define DEFAULT_WIDTH  320
 #define DEFAULT_HEIGHT 240
+#define DEFAULT_SIZE   (DEFAULT_WIDTH * 2 * DEFAULT_HEIGHT)
 
 /* Smaller RGB565 format selected by the streaming tests */
 #define FIFO_WIDTH  64
@@ -45,6 +46,7 @@ static const struct device *const fifo_dev = DEVICE_DT_GET(VIDEO_FIFO_NODE);
 
 /* Frames are staged here rather than on a thread stack: they are too large */
 static uint8_t test_frame[FIFO_SIZE];
+static uint8_t test_default_frame[DEFAULT_SIZE];
 
 /* Writer left open by the running test, closed by the teardown hook */
 static int test_writer_fd = -1;
@@ -295,6 +297,35 @@ ZTEST(video_native_sim_fifo, test_frame_from_a_host_writer)
 	zassert_ok(video_buffer_release(vbuf));
 }
 
+ZTEST(video_native_sim_fifo, test_frame_written_in_pieces)
+{
+	const int half = FIFO_SIZE / 2;
+	struct video_buffer *vbuf = NULL;
+
+	test_stream_start_with_one_buffer();
+
+	test_writer_fd = video_fifo_test_open_writer(FIFO_PATH);
+	zassert_true(test_writer_fd >= 0, "could not attach a host writer to %s", FIFO_PATH);
+
+	/* The host pauses in the middle of a frame, leaving the pipe empty for a few polls */
+	test_frame_fill(0x66);
+	zassert_equal(video_fifo_test_write(test_writer_fd, test_frame, half), half,
+		      "the host writer could not write half a frame");
+	k_sleep(K_MSEC(50));
+	zassert_equal(video_dequeue(fifo_dev, &vbuf, K_NO_WAIT), -EAGAIN,
+		      "half a frame was delivered");
+
+	zassert_equal(video_fifo_test_write(test_writer_fd, &test_frame[half], half), half,
+		      "the host writer could not finish the frame");
+
+	zassert_ok(video_dequeue(fifo_dev, &vbuf, K_MSEC(1000)), "no frame was delivered");
+	zassert_equal(vbuf->bytesused, FIFO_SIZE, "the frame is not a whole frame");
+	zassert_mem_equal(vbuf->buffer, test_frame, FIFO_SIZE,
+			  "the frame was not resumed where the host paused");
+
+	zassert_ok(video_buffer_release(vbuf));
+}
+
 ZTEST(video_native_sim_fifo, test_frame_in_the_selected_format)
 {
 	struct video_buffer *vbuf;
@@ -477,6 +508,35 @@ ZTEST(video_native_sim_fifo, test_partial_frame_is_discarded)
 			  "the frame is misaligned, the partial frame was not discarded");
 
 	zassert_ok(video_buffer_release(vbuf));
+}
+
+ZTEST(video_native_sim_fifo, test_pipe_holds_two_frames)
+{
+	int ret;
+
+	/* No buffer is queued, so the driver leaves in the pipe what the host writes */
+	zassert_ok(video_stream_start(fifo_dev, VIDEO_BUF_TYPE_OUTPUT));
+
+	test_writer_fd = video_fifo_test_open_writer(FIFO_PATH);
+	zassert_true(test_writer_fd >= 0, "could not attach a host writer to %s", FIFO_PATH);
+
+	/*
+	 * Two frames of the default format do not fit in the 64 KiB of a new host pipe.
+	 * The host may refuse to enlarge it, e.g. on a busy runner, so skip rather than fail.
+	 */
+	for (int i = 0; i < 2; i++) {
+		ret = video_fifo_test_write(test_writer_fd, test_default_frame, DEFAULT_SIZE);
+		zassume_equal(ret, DEFAULT_SIZE,
+			      "the pipe cannot hold two frames, the host may limit pipe sizes");
+	}
+
+	/* Twice as large a format selected while streaming: each frame takes two writes */
+	zassert_ok(test_set_format(VIDEO_PIX_FMT_RGB565, DEFAULT_WIDTH * 2, DEFAULT_HEIGHT));
+	for (int i = 0; i < 4; i++) {
+		ret = video_fifo_test_write(test_writer_fd, test_default_frame, DEFAULT_SIZE);
+		zassume_equal(ret, DEFAULT_SIZE,
+			      "the pipe cannot hold two frames of the new format");
+	}
 }
 
 static void video_native_sim_fifo_after(void *fixture)

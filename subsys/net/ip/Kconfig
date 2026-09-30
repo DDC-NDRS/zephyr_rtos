@@ -712,6 +712,7 @@ config NET_SLIP_TAP
 	select UART_INTERRUPT_DRIVEN
 	select SLIP_TAP
 	select NET_L2_ETHERNET
+	imply ETH_DRIVER
 	default y if (QEMU_TARGET && !NET_TEST)
 	help
 	  SLIP TAP support is necessary when testing with QEMU. The host
@@ -953,6 +954,7 @@ config NET_PKT_TIMESTAMP_THREAD
 
 config NET_PKT_TIMESTAMP_STACK_SIZE
 	int "Timestamp thread stack size"
+	default 2048 if 64BIT
 	default 1024
 	depends on NET_PKT_TIMESTAMP_THREAD
 	help

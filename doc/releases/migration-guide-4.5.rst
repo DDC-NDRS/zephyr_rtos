@@ -242,6 +242,13 @@ Boards
 
 * Aesc Silicon ``elemrv`` board is renamed to ``elemrv_flask_n``.
 
+* The STMicroelectronics ``stm32mp157c_dk2`` board has been renamed to
+  ``stm32mp157x_dk2`` and now references both SoC variants. Build for the
+  STM32MP157C-DK2 with ``-b stm32mp157x_dk2/stm32mp157cxx`` and for the
+  STM32MP157F-DK2 with ``-b stm32mp157x_dk2/stm32mp157fxx``. The previous
+  ``-b stm32mp157c_dk2`` is deprecated and now maps to
+  ``stm32mp157x_dk2/stm32mp157cxx``.
+
 * The Nordic sysbuild Kconfig option ``SB_CONFIG_NRF_HALTIUM_GENERATE_UICR``
   has been renamed to :kconfig:option:`SB_CONFIG_NRF_GENERATE_UICR`.
   Update sysbuild configurations to use the new name.
@@ -1580,6 +1587,10 @@ Serial
   The dedicated BCM2711 auxiliary UART driver has been removed in favour of the generic NS16550
   driver, which now provides support for the Broadcom BCM283x auxiliary UART through vendor-specific
   extensions. (:github:`115112`)
+
+* :kconfig:option:`CONFIG_UART_NS16550_DW8250_DW_APB` now follows devicetree: it is
+  enabled for :dtcompatible:`snps,dw-apb-uart` nodes and cannot be set otherwise. Add that
+  compatible to the UART nodes instead of setting the option in Kconfig. (:github:`120368`)
 
 SPI
 ===

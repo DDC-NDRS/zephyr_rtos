@@ -2093,6 +2093,12 @@ enum wifi_p2p_op {
 
     /** P2P remove persistent network(s) */
     WIFI_P2P_PERSISTENT_REMOVE,
+
+    /** P2P set device name */
+    WIFI_P2P_SET_DEV_NAME,
+
+    /** P2P status */
+    WIFI_P2P_STATUS,
 };
 
 /** Wi-Fi P2P discovery type */
@@ -2122,11 +2128,15 @@ enum wifi_p2p_connection_method {
 /** Maximum number of P2P peers that can be returned in a single query */
 #define WIFI_P2P_MAX_PEERS CONFIG_WIFI_P2P_MAX_PEERS
 #define WIFI_P2P_LIST_NETWORKS_BUF_SIZE 2048
+#define WIFI_P2P_STATUS_BUF_SIZE 512
 
 /** Wi-Fi P2P parameters */
 struct wifi_p2p_params {
     /** P2P operation */
     enum wifi_p2p_op oper;
+
+    /** P2P device name */
+    char device_name[WIFI_P2P_DEVICE_NAME_MAX_LEN + 1];
 
     /** Discovery type (for find operation) */
     enum wifi_p2p_discovery_type discovery_type;
@@ -2253,6 +2263,15 @@ struct wifi_p2p_params {
          */
         int id;
     } persistent_remove;
+
+    /** Status specific parameters */
+    struct {
+        /** Buffer to hold the STATUS response. */
+        char* buf;
+
+        /** Size of the allocated buffer in bytes */
+        size_t buf_size;
+    } status;
 };
 #endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_P2P */
 

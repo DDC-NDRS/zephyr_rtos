@@ -621,6 +621,8 @@ New APIs and options
 
   * Host
 
+    * :c:func:`bt_att_get_max_notify_size`
+    * :c:func:`bt_att_get_max_indicate_size`
     * :c:func:`bt_conn_take`
     * :c:func:`bt_conn_drop`
     * :c:func:`bt_id_reset_irk`
@@ -900,6 +902,8 @@ New APIs and options
     context is active without reading the context internals.
   * Add :c:func:`coap_client_reregister_observe` to refresh an ongoing CoAP
     observation (:rfc:`7641` re-registration) without tearing it down.
+  * :c:func:`net_config_init_clock_via_sntp` to set system clock via SNTP.
+  * :c:func:`net_config_sntp_set_server`
 
 * POSIX
 
@@ -2339,12 +2343,29 @@ Other notable changes
     behind the failure. The supplicant fills these in, and the Wi-Fi shell prints
     them with the connection and disconnection results. (:github:`116704`)
 
+  * The ESP32 Wi-Fi driver gained 802.11k/v/r and MBO support, all off by
+    default. :kconfig:option:`CONFIG_ESP32_WIFI_11KV_SUPPORT` turns on 802.11k
+    and 802.11v, :kconfig:option:`CONFIG_ESP32_WIFI_MBO_SUPPORT` turns on MBO
+    on top of them, and :kconfig:option:`CONFIG_ESP32_WIFI_11R_SUPPORT` turns
+    on 802.11r. The ``wifi 11k`` and ``wifi 11v_btm_query`` shell commands now
+    work on ESP32 while the station is associated, and
+    :kconfig:option:`CONFIG_ESP32_WIFI_SIGNAL_CHANGE_EVENT` raises
+    :c:macro:`NET_EVENT_WIFI_SIGNAL_CHANGE` when the signal of the connected
+    access point weakens, for an application that decides when to roam.
+
   * The transmit power ceiling properties in ``wifi-tx-power-2g.yaml`` and
     ``wifi-tx-power-5g.yaml`` are no longer ``required`` and now carry
     conservative defaults, so a board that has not been characterised errs on
     the side of transmitting too little rather than exceeding a regulatory
     limit. Boards that have measured their own limits continue to state them
     explicitly, so no board changes behaviour.
+
+  * P2P gained shell commands to set the local device name and to query the
+    current P2P status, backed by the new :c:enumerator:`WIFI_P2P_SET_DEV_NAME`
+    and :c:enumerator:`WIFI_P2P_STATUS` :c:enum:`wifi_p2p_op` operations. The
+    corresponding ``device_name`` and ``status`` members were added to
+    :c:struct:`wifi_p2p_params`, along with the new
+    :c:macro:`WIFI_P2P_STATUS_BUF_SIZE` buffer-size macro.
 
 * MCUboot
 

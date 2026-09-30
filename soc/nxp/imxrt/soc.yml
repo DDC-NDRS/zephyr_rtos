@@ -9,6 +9,7 @@ family:
     - name: mimxrt1024
     - name: mimxrt1041
     - name: mimxrt1042
+    - name: mimxrt1051
     - name: mimxrt1052
     - name: mimxrt1062
     - name: mimxrt1064
@@ -17,6 +18,10 @@ family:
     - name: mimxrt1151
     - name: mimxrt1152
     - name: mimxrt1166
+      cpuclusters:
+      - name: cm7
+      - name: cm4
+    - name: mimxrt1175
       cpuclusters:
       - name: cm7
       - name: cm4
@@ -111,6 +116,9 @@ runners:
         - mimxrt1166/cm7
         - mimxrt1166/cm4
       - qualifiers:
+        - mimxrt1175/cm7
+        - mimxrt1175/cm4
+      - qualifiers:
         - mimxrt1176/cm7
         - mimxrt1176/cm4
       - qualifiers:
@@ -162,6 +170,9 @@ runners:
       - qualifiers:
         - mimxrt1166/cm7
         - mimxrt1166/cm4
+      - qualifiers:
+        - mimxrt1175/cm7
+        - mimxrt1175/cm4
       - qualifiers:
         - mimxrt1176/cm7
         - mimxrt1176/cm4

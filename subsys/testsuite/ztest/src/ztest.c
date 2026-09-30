@@ -1598,7 +1598,9 @@ int ztest_main(void) /* #CUSTOM@NDRS */ {
 	k_mem_domain_add_partition(&k_mem_domain_default, &ztest_mem_partition);
 #ifdef Z_MALLOC_PARTITION_EXISTS
 	/* Allow access to malloc() memory */
-	k_mem_domain_add_partition(&k_mem_domain_default, &z_malloc_partition);
+	if (z_malloc_partition.size != 0U) {
+		k_mem_domain_add_partition(&k_mem_domain_default, &z_malloc_partition);
+	}
 #endif
 #endif /* CONFIG_USERSPACE */
 
