@@ -432,7 +432,7 @@ cy_rslt_t ifx_cat1_uart_set_baud(struct device const* dev, uint32_t baudrate) {
         (void) ifx_cat1_utils_peri_pclk_enable_divider(config->clk_dst, &data->clock);
     }
 
-    if (status >= 0) {
+    if (status == CY_RSLT_SUCCESS) {
         /* Configure the UART interface */
         #if ((CY_IP_MXSCB_VERSION >= 2) || (CY_IP_MXS22SCB_VERSION >= 1))
         SCB_CTRL(base) =

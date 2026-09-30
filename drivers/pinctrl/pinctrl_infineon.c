@@ -34,6 +34,12 @@
 #if defined(CONFIG_SOC_SERIES_PSE84)
 #include <zephyr/dt-bindings/pinctrl/ifx_cat1-pinctrl.h>
 
+/* PSE84 has gpio_prt0..gpio_prt21 only; the SMIF slots start right after them. */
+#define IFX_PINCTRL_GPIO_PORT_COUNT 22
+
+BUILD_ASSERT(IFX_PINCTRL_GPIO_PORT_COUNT == IFX_SMIF0_PORT0,
+             "SMIF slots must directly follow the GPIO port slots");
+
 #define IFX_PINCTRL_SMIF_PORT_ENTRIES                           \
     [IFX_SMIF0_PORT0] = (GPIO_PRT_Type*)SMIF_INST0_PRT0,        \
     [IFX_SMIF0_PORT1] = (GPIO_PRT_Type*)SMIF_INST0_PRT1,        \
@@ -42,6 +48,7 @@
     [IFX_SMIF1_PORT1] = (GPIO_PRT_Type*)SMIF_INST1_PRT1,        \
     [IFX_SMIF1_PORT2] = (GPIO_PRT_Type*)SMIF_INST1_PRT2,
 #else
+#define IFX_PINCTRL_GPIO_PORT_COUNT   31
 #define IFX_PINCTRL_SMIF_PORT_ENTRIES
 #endif
 
@@ -51,7 +58,7 @@
  */
 #if (__GTEST == 0) /* #CUSTOM@NDRS */
 static GPIO_PRT_Type* const gpio_ports[] = {
-    LISTIFY(31, GPIO_PORT_ENTRY, (,)),
+    LISTIFY(IFX_PINCTRL_GPIO_PORT_COUNT, GPIO_PORT_ENTRY, (,)),
     IFX_PINCTRL_SMIF_PORT_ENTRIES
 };
 #else

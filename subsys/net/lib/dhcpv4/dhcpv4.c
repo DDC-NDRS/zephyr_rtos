@@ -2030,7 +2030,7 @@ const char *net_dhcpv4_state_name(enum net_dhcpv4_state state)
 		"decline,"
 	};
 
-	__ASSERT_NO_MSG(state >= 0 && state < ARRAY_SIZE(name));
+	__ASSERT_NO_MSG(state < ARRAY_SIZE(name));
 	return name[state];
 }
 
