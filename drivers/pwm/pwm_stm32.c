@@ -943,41 +943,55 @@ DT_INST_FOREACH_STATUS_OKAY(PWM_DEVICE_INIT)
 #if (__GTEST == 1) /* #CUSTOM@NDRS */
 #include "mcu_reg_stub.h"
 
-#define STM32_PWR_CFG_REG_INIT(index)       \
-    zephyr_pwm_cfg_reg_init(&pwm_stm32_config_##index);
+#define STM32_PWM_CFG_REG_INIT(index)       \
+    zephyr_pwm_cfg_reg_init((struct pwm_stm32_config*)&pwm_stm32_config_##index);
 
 void zephyr_pwm_cfg_reg_init(struct pwm_stm32_config* cfg) {
+    #if defined(TIM1_BASE)
     if (cfg->timer == (TIM_TypeDef*)TIM1_BASE) {
         cfg->timer = (TIM_TypeDef*)ut_mcu_tim1_ptr;
     }
+    #endif
 
+    #if defined(TIM2_BASE)
     if (cfg->timer == (TIM_TypeDef*)TIM2_BASE) {
         cfg->timer = (TIM_TypeDef*)ut_mcu_tim2_ptr;
     }
+    #endif
 
+    #if defined(TIM3_BASE)
     if (cfg->timer == (TIM_TypeDef*)TIM3_BASE) {
         cfg->timer = (TIM_TypeDef*)ut_mcu_tim3_ptr;
     }
+    #endif
 
+    #if defined(TIM4_BASE)
     if (cfg->timer == (TIM_TypeDef*)TIM4_BASE) {
         cfg->timer = (TIM_TypeDef*)ut_mcu_tim4_ptr;
     }
+    #endif
 
+    #if defined(TIM5_BASE)
     if (cfg->timer == (TIM_TypeDef*)TIM5_BASE) {
         cfg->timer = (TIM_TypeDef*)ut_mcu_tim5_ptr;
     }
+    #endif
 
+    #if defined(TIM6_BASE)
     if (cfg->timer == (TIM_TypeDef*)TIM6_BASE) {
         cfg->timer = (TIM_TypeDef*)ut_mcu_tim6_ptr;
     }
+    #endif
 
+    #if defined(TIM7_BASE)
     if (cfg->timer == (TIM_TypeDef*)TIM7_BASE) {
         cfg->timer = (TIM_TypeDef*)ut_mcu_tim7_ptr;
     }
+    #endif
 }
 
 void zephyr_gtest_pwm_stm32(void) {
-    DT_INST_FOREACH_STATUS_OKAY(STM32_PWR_CFG_REG_INIT)
+    DT_INST_FOREACH_STATUS_OKAY(STM32_PWM_CFG_REG_INIT)
 }
 
 #endif
