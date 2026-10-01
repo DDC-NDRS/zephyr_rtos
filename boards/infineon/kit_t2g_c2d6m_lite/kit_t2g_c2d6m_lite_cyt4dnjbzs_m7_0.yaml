@@ -17,6 +17,7 @@ supported:
   - adc
   - can
   - gpio
+  - netif:eth
   - i2c
   - pwm
   - uart
