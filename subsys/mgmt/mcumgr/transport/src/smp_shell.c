@@ -47,11 +47,11 @@ static const struct shell_uart_common *shell_uart;
 
 #if defined(CONFIG_SMP_CLIENT) || defined(CONFIG_MCUMGR_GRP_TRANSPORT)
 static struct smp_client_transport_entry smp_client_transport = {
-	.smpt = &smp_shell_transport,
-	.smpt_type = SMP_SHELL_TRANSPORT,
-#ifdef CONFIG_MCUMGR_GRP_TRANSPORT_INFO_FUNCTIONS
-	.name = "Shell",
-#endif
+    .smpt = &smp_shell_transport,
+    .smpt_type = SMP_SHELL_TRANSPORT,
+    #ifdef CONFIG_MCUMGR_GRP_TRANSPORT_INFO_FUNCTIONS
+    .name = "Shell",
+    #endif
 };
 #endif
 
@@ -242,103 +242,100 @@ static int smp_shell_tx_pkt(struct net_buf* nb) {
 }
 
 #ifdef CONFIG_MCUMGR_GRP_TRANSPORT
-static bool smp_shell_bridge_connect(struct smp_transport_bridge *bridge, bool direction,
-				     uint32_t mode, bool same_transport,
-				     zcbor_state_t *input_data, zcbor_state_t *output_data)
-{
-	ARG_UNUSED(bridge);
-	ARG_UNUSED(input_data);
-	ARG_UNUSED(output_data);
+static bool smp_shell_bridge_connect(struct smp_transport_bridge* bridge, bool direction,
+                                     uint32_t mode, bool same_transport,
+                                     zcbor_state_t* input_data, zcbor_state_t* output_data) {
+    ARG_UNUSED(bridge);
+    ARG_UNUSED(input_data);
+    ARG_UNUSED(output_data);
 
-	if (mode != 0) {
-		smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT,
-				TRANSPORT_MGMT_ERR_INVALID_MODE);
+    if (mode != 0) {
+        smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT,
+                        TRANSPORT_MGMT_ERR_INVALID_MODE);
 
-		return false;
-	}
+        return (false);
+    }
 
-	if (same_transport) {
-		smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT,
-				TRANSPORT_MGMT_ERR_SAME_BRIDGE_DEVICE_DISALLOWED);
-		return false;
-	}
+    if (same_transport) {
+        smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT,
+                        TRANSPORT_MGMT_ERR_SAME_BRIDGE_DEVICE_DISALLOWED);
+        return (false);
+    }
 
-	if (direction == TRANSPORT_MGMT_DIRECTION_OUTGOING) {
-		smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT,
-				TRANSPORT_MGMT_ERR_TRANSPORT_OUTGOING_NOT_SUPPORTED);
-		return false;
-	}
+    if (direction == TRANSPORT_MGMT_DIRECTION_OUTGOING) {
+        smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT,
+                        TRANSPORT_MGMT_ERR_TRANSPORT_OUTGOING_NOT_SUPPORTED);
+        return (false);
+    }
 
-	return true;
+    return (true);
 }
 
-static void smp_shell_bridge_disconnect(struct smp_transport_bridge *bridge, bool direction)
-{
-	ARG_UNUSED(bridge);
-	ARG_UNUSED(direction);
+static void smp_shell_bridge_disconnect(struct smp_transport_bridge* bridge, bool direction) {
+    ARG_UNUSED(bridge);
+    ARG_UNUSED(direction);
 }
 
-static int smp_shell_bridge_tx(const struct smp_transport_bridge *bridge, struct net_buf *nb,
-			       bool direction)
-{
-	ARG_UNUSED(bridge);
-	ARG_UNUSED(direction);
+static int smp_shell_bridge_tx(const struct smp_transport_bridge* bridge, struct net_buf* nb,
+                               bool direction) {
+    ARG_UNUSED(bridge);
+    ARG_UNUSED(direction);
 
-	return smp_shell_tx_pkt(nb);
+    return smp_shell_tx_pkt(nb);
 }
 
 #if defined(CONFIG_MCUMGR_GRP_TRANSPORT_INFO_FUNCTIONS)
-static bool smp_shell_bridge_modes(zcbor_state_t *output_data, int *rc)
-{
-	bool ok;
+static bool smp_shell_bridge_modes(zcbor_state_t* output_data, int* rc) {
+    bool ok;
 
-	ok = zcbor_map_start_encode(output_data, 3) &&
-	     zcbor_tstr_put_lit(output_data, "id") &&
-	     zcbor_uint32_put(output_data, 0) &&
-	     zcbor_tstr_put_lit(output_data, "description") &&
-	     zcbor_tstr_put_lit(output_data, "Shell") &&
-	     zcbor_tstr_put_lit(output_data, "incoming") &&
-	     zcbor_bool_put(output_data, true) &&
-	     zcbor_map_end_encode(output_data, 3);
+    ok = zcbor_map_start_encode(output_data, 3) &&
+         zcbor_tstr_put_lit(output_data, "id") &&
+         zcbor_uint32_put(output_data, 0) &&
+         zcbor_tstr_put_lit(output_data, "description") &&
+         zcbor_tstr_put_lit(output_data, "Shell") &&
+         zcbor_tstr_put_lit(output_data, "incoming") &&
+         zcbor_bool_put(output_data, true) &&
+         zcbor_map_end_encode(output_data, 3);
 
-	*rc = MGMT_RETURN_CHECK(ok);
-	return ok;
+    *rc = MGMT_RETURN_CHECK(ok);
+
+    return (ok);
 }
 
-static bool smp_shell_bridge_config_details(uint32_t mode, zcbor_state_t *output_data, int *rc)
-{
-	if (mode == 0) {
-		return true;
-	}
+static bool smp_shell_bridge_config_details(uint32_t mode, zcbor_state_t* output_data, int* rc) {
+    if (mode == 0) {
+        return (true);
+    }
 
-	smp_mgmt_reset_writer(output_data);
-	smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT, TRANSPORT_MGMT_ERR_INVALID_MODE);
-	*rc = 0;
+    smp_mgmt_reset_writer(output_data);
+    smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT, TRANSPORT_MGMT_ERR_INVALID_MODE);
+    *rc = 0;
 
-	return false;
+    return (false);
 }
 #endif
 #endif
 
-int smp_shell_init(void)
-{
+int smp_shell_init(void) {
     int rc;
 
     smp_shell_transport.functions.output  = smp_shell_tx_pkt;
+    TOOLCHAIN_DISABLE_WARNING(TOOLCHAIN_WARNING_DEPRECATED_DECLARATIONS);
     smp_shell_transport.functions.get_mtu = smp_shell_get_mtu;
+    TOOLCHAIN_ENABLE_WARNING(TOOLCHAIN_WARNING_DEPRECATED_DECLARATIONS);
 
-#ifdef CONFIG_MCUMGR_GRP_TRANSPORT
-	smp_shell_transport.functions.bridge_connect = smp_shell_bridge_connect;
-	smp_shell_transport.functions.bridge_disconnect = smp_shell_bridge_disconnect;
-	smp_shell_transport.functions.bridge_output = smp_shell_bridge_tx;
-#if defined(CONFIG_MCUMGR_GRP_TRANSPORT_INFO_FUNCTIONS)
-	smp_shell_transport.functions.bridge_modes = smp_shell_bridge_modes;
-	smp_shell_transport.functions.bridge_config_details = smp_shell_bridge_config_details;
-#endif
-#endif
+    #ifdef CONFIG_MCUMGR_GRP_TRANSPORT
+    smp_shell_transport.functions.bridge_connect = smp_shell_bridge_connect;
+    smp_shell_transport.functions.bridge_disconnect = smp_shell_bridge_disconnect;
+    smp_shell_transport.functions.bridge_output = smp_shell_bridge_tx;
+    #if defined(CONFIG_MCUMGR_GRP_TRANSPORT_INFO_FUNCTIONS)
+    smp_shell_transport.functions.bridge_modes = smp_shell_bridge_modes;
+    smp_shell_transport.functions.bridge_config_details = smp_shell_bridge_config_details;
+    #endif
+    #endif
 
     rc = smp_transport_init(&smp_shell_transport);
-#if defined(CONFIG_SMP_CLIENT) || defined(CONFIG_MCUMGR_GRP_TRANSPORT)
+    #if defined(CONFIG_SMP_CLIENT) || defined(CONFIG_MCUMGR_GRP_TRANSPORT)
     if (rc == 0) {
         smp_client_transport_register(&smp_client_transport);
     }

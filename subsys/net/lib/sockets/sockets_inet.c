@@ -47,7 +47,7 @@ BUILD_ASSERT(NET_IPPROTO_IP == 0, "Wildcard IPPROTO_IP must equal 0.");
 BUILD_ASSERT(sizeof(net_socklen_t) == sizeof(uint32_t),
 	     "net_socklen_t must be 32-bit wide");
 
-static struct socket_op_vtable const sock_fd_op_vtable;
+struct socket_op_vtable const sock_fd_op_vtable;
 
 static void zsock_received_cb(struct net_context *ctx,
 			      struct net_pkt *pkt,
@@ -3614,7 +3614,7 @@ static int sock_getsockname_vmeth(void *obj, struct net_sockaddr *addr,
 	return zsock_getsockname_ctx(obj, addr, addrlen);
 }
 
-static struct socket_op_vtable const sock_fd_op_vtable = {
+struct socket_op_vtable const sock_fd_op_vtable = {
 	.fd_vtable = {
 		.read = sock_read_vmeth,
 		.write = sock_write_vmeth,

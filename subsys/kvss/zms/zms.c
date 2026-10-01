@@ -25,7 +25,7 @@ static int zms_ate_valid(struct zms_fs *fs, const struct zms_ate *entry);
 static int zms_add_empty_ate(struct zms_fs *fs, uint64_t addr, uint32_t prev_cycle_cnt);
 static int zms_get_full_sector_cycle(struct zms_fs *fs, uint64_t addr, uint32_t *cycle_cnt);
 static int zms_get_sector_cycle(struct zms_fs *fs, uint64_t addr, uint8_t *cycle_cnt);
-static int zms_get_sector_header(struct zms_fs *fs, uint64_t addr, struct zms_ate *empty_ate,
+static int zms_get_sector_header(const struct zms_fs *fs, uint64_t addr, struct zms_ate *empty_ate,
 				 struct zms_ate *close_ate);
 static int zms_ate_valid_different_sector(struct zms_fs *fs, const struct zms_ate *entry,
 					  uint8_t cycle_cnt);
@@ -34,7 +34,7 @@ static int zms_find_ate_with_id(struct zms_fs *fs, zms_id_t id, uint64_t start_a
 
 #ifdef CONFIG_ZMS_LOOKUP_CACHE
 
-static inline size_t zms_lookup_cache_size(struct zms_fs *fs __unused)
+static inline size_t zms_lookup_cache_size(const struct zms_fs *fs __unused)
 {
 #if CONFIG_ZMS_LOOKUP_CACHE_MANUAL
 	return fs->lookup_cache_size;
@@ -211,26 +211,26 @@ static void zms_lookup_cache_invalidate(struct zms_fs *fs, uint32_t sector)
 #endif /* CONFIG_ZMS_LOOKUP_CACHE */
 
 /* Helper to compute offset given the address */
-static inline off_t zms_addr_to_offset(struct zms_fs *fs, uint64_t addr)
+static inline off_t zms_addr_to_offset(const struct zms_fs *fs, uint64_t addr)
 {
 	return fs->offset + (fs->sector_size * (uint32_t)SECTOR_NUM(addr)) + SECTOR_OFFSET(addr);
 }
 
 /* Helper to round down len to the closest multiple of write_block_size  */
-static inline size_t zms_round_down_write_block_size(struct zms_fs *fs, size_t len)
+static inline size_t zms_round_down_write_block_size(const struct zms_fs *fs, size_t len)
 {
 	return len & ~(fs->flash_parameters->write_block_size - 1U);
 }
 
 /* Helper to round up len to multiple of write_block_size */
-static inline size_t zms_round_up_write_block_size(struct zms_fs *fs, size_t len)
+static inline size_t zms_round_up_write_block_size(const struct zms_fs *fs, size_t len)
 {
 	return (len + (fs->flash_parameters->write_block_size - 1U)) &
 	       ~(fs->flash_parameters->write_block_size - 1U);
 }
 
 /* zms_al_size returns size aligned to fs->write_block_size */
-static inline size_t zms_al_size(struct zms_fs *fs, size_t len)
+static inline size_t zms_al_size(const struct zms_fs *fs, size_t len)
 {
 	size_t write_block_size = fs->flash_parameters->write_block_size;
 
@@ -242,19 +242,19 @@ static inline size_t zms_al_size(struct zms_fs *fs, size_t len)
 }
 
 /* Helper to get empty ATE address */
-static inline uint64_t zms_empty_ate_addr(struct zms_fs *fs, uint64_t addr)
+static inline uint64_t zms_empty_ate_addr(const struct zms_fs *fs, uint64_t addr)
 {
 	return (addr & ADDR_SECT_MASK) + fs->sector_size - fs->ate_size;
 }
 
 /* Helper to get close ATE address */
-static inline uint64_t zms_close_ate_addr(struct zms_fs *fs, uint64_t addr)
+static inline uint64_t zms_close_ate_addr(const struct zms_fs *fs, uint64_t addr)
 {
 	return (addr & ADDR_SECT_MASK) + fs->sector_size - 2 * fs->ate_size;
 }
 
 /* Aligned memory write */
-static int zms_flash_al_wrt(struct zms_fs *fs, uint64_t addr, const void *data, size_t len)
+static int zms_flash_al_wrt(const struct zms_fs *fs, uint64_t addr, const void *data, size_t len)
 {
 	const uint8_t *data8 = (const uint8_t *)data;
 	int rc = 0;
@@ -294,7 +294,7 @@ end:
 }
 
 /* basic flash read from zms address */
-static int zms_flash_rd(struct zms_fs *fs, uint64_t addr, void *data, size_t len)
+static int zms_flash_rd(const struct zms_fs *fs, uint64_t addr, void *data, size_t len)
 {
 	off_t offset;
 
@@ -338,7 +338,7 @@ static int zms_flash_data_wrt(struct zms_fs *fs, const void *data, size_t len)
 }
 
 /* flash ate read */
-static int zms_flash_ate_rd(struct zms_fs *fs, uint64_t addr, struct zms_ate *entry)
+static int zms_flash_ate_rd(const struct zms_fs *fs, uint64_t addr, struct zms_ate *entry)
 {
 	return zms_flash_rd(fs, addr, entry, sizeof(struct zms_ate));
 }
@@ -347,7 +347,7 @@ static int zms_flash_ate_rd(struct zms_fs *fs, uint64_t addr, struct zms_ate *en
  * in blocks of size ZMS_BLOCK_SIZE aligned to fs->write_block_size
  * returns 0 if equal, 1 if not equal, errcode if error
  */
-static int zms_flash_block_cmp(struct zms_fs *fs, uint64_t addr, const void *data, size_t len)
+static int zms_flash_block_cmp(const struct zms_fs *fs, uint64_t addr, const void *data, size_t len)
 {
 	const uint8_t *data8 = (const uint8_t *)data;
 	int rc;
@@ -381,7 +381,7 @@ static int zms_flash_block_cmp(struct zms_fs *fs, uint64_t addr, const void *dat
  * value. returns 0 if all data in flash is equal to value, 1 if not equal,
  * errcode if error
  */
-static int zms_flash_cmp_const(struct zms_fs *fs, uint64_t addr, uint8_t value, size_t len)
+static int zms_flash_cmp_const(const struct zms_fs *fs, uint64_t addr, uint8_t value, size_t len)
 {
 	int rc;
 	size_t bytes_to_cmp;
@@ -596,8 +596,8 @@ static bool zms_gc_done_ate_valid(struct zms_fs *fs, const struct zms_ate *entry
  *
  * return true if closed, false otherwise
  */
-static bool zms_sector_closed(struct zms_fs *fs, struct zms_ate *empty_ate,
-			      struct zms_ate *close_ate)
+static bool zms_sector_closed(struct zms_fs *fs, const struct zms_ate *empty_ate,
+			      const struct zms_ate *close_ate)
 {
 	return (zms_empty_ate_valid(fs, empty_ate) && zms_close_ate_valid(fs, close_ate) &&
 		(empty_ate->cycle_cnt == close_ate->cycle_cnt));
@@ -795,7 +795,7 @@ static int zms_prev_ate(struct zms_fs *fs, uint64_t *addr, struct zms_ate *ate)
 	return zms_compute_prev_addr(fs, addr);
 }
 
-static void zms_sector_advance(struct zms_fs *fs, uint64_t *addr)
+static void zms_sector_advance(const struct zms_fs *fs, uint64_t *addr)
 {
 	*addr += (1ULL << ADDR_SECT_SHIFT);
 	if ((*addr >> ADDR_SECT_SHIFT) == fs->sector_count) {
@@ -1029,7 +1029,7 @@ static int zms_get_full_sector_cycle(struct zms_fs *fs, uint64_t addr, uint32_t 
 	return -ENOENT;
 }
 
-static int zms_get_sector_header(struct zms_fs *fs, uint64_t addr, struct zms_ate *empty_ate,
+static int zms_get_sector_header(const struct zms_fs *fs, uint64_t addr, struct zms_ate *empty_ate,
 				 struct zms_ate *close_ate)
 {
 	int rc;
@@ -1494,7 +1494,7 @@ static int zms_init(struct zms_fs *fs)
 
 			for (byte = 0; byte < sizeof(last_ate); byte++) {
 				if (((uint8_t *)&last_ate)[byte] !=
-				    (uint8_t)fs->flash_parameters->erase_value) {
+				    fs->flash_parameters->erase_value) {
 					break; /* break from the comparison loop */
 				}
 			}
@@ -2388,8 +2388,8 @@ static int zms_iter_filter_common(struct zms_fs *fs, struct zms_iter *iter,
 }
 
 static int zms_iter_filter_unique(struct zms_fs *fs, struct zms_iter *iter,
-					  struct zms_ate *ate, uint64_t ate_addr,
-					  bool unique_only)
+				  const struct zms_ate *ate, uint64_t ate_addr,
+				  bool unique_only)
 {
 	int rc;
 

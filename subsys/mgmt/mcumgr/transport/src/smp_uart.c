@@ -35,13 +35,15 @@ K_WORK_DEFINE(smp_uart_work, smp_uart_process_rx_queue);
 
 static struct mcumgr_serial_rx_ctxt smp_uart_rx_ctxt;
 static struct smp_transport smp_uart_transport;
+
 #if defined(CONFIG_SMP_CLIENT) || defined(CONFIG_MCUMGR_GRP_TRANSPORT)
 static struct smp_client_transport_entry smp_client_transport = {
-	.smpt = &smp_uart_transport,
-	.smpt_type = SMP_SERIAL_TRANSPORT,
-#ifdef CONFIG_MCUMGR_GRP_TRANSPORT_INFO_FUNCTIONS
-	.name = "UART",
-#endif
+    .smpt = &smp_uart_transport,
+    .smpt_type = SMP_SERIAL_TRANSPORT,
+
+    #ifdef CONFIG_MCUMGR_GRP_TRANSPORT_INFO_FUNCTIONS
+    .name = "UART",
+    #endif
 };
 #endif
 
@@ -99,73 +101,73 @@ static int smp_uart_tx_pkt(struct net_buf* nb) {
 }
 
 #ifdef CONFIG_MCUMGR_GRP_TRANSPORT
-static bool smp_uart_bridge_connect(struct smp_transport_bridge *bridge, bool direction,
-				    uint32_t mode, bool same_transport,
-				    zcbor_state_t *input_data, zcbor_state_t *output_data)
-{
-	ARG_UNUSED(bridge);
-	ARG_UNUSED(direction);
-	ARG_UNUSED(input_data);
-	ARG_UNUSED(output_data);
+static bool smp_uart_bridge_connect(struct smp_transport_bridge* bridge, bool direction,
+                                    uint32_t mode, bool same_transport,
+                                    zcbor_state_t* input_data, zcbor_state_t *output_data) {
+    ARG_UNUSED(bridge);
+    ARG_UNUSED(direction);
+    ARG_UNUSED(input_data);
+    ARG_UNUSED(output_data);
 
-	if (mode != 0) {
-		smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT,
-				TRANSPORT_MGMT_ERR_INVALID_MODE);
+    if (mode != 0) {
+        smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT,
+                        TRANSPORT_MGMT_ERR_INVALID_MODE);
 
-		return false;
-	}
+        return (false);
+    }
 
-	if (same_transport) {
-		smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT,
-				TRANSPORT_MGMT_ERR_SAME_BRIDGE_DEVICE_DISALLOWED);
-		return false;
-	}
+    if (same_transport) {
+        smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT,
+                        TRANSPORT_MGMT_ERR_SAME_BRIDGE_DEVICE_DISALLOWED);
+        return (false);
+    }
 
-	return (true);
+    return (true);
 }
 
 static void smp_uart_bridge_disconnect(struct smp_transport_bridge* bridge, bool direction) {
-	ARG_UNUSED(bridge);
-	ARG_UNUSED(direction);
+    ARG_UNUSED(bridge);
+    ARG_UNUSED(direction);
 }
 
 static int smp_uart_bridge_tx(const struct smp_transport_bridge* bridge, struct net_buf* nb,
-			                  bool direction) {
-	ARG_UNUSED(bridge);
-	ARG_UNUSED(direction);
+                              bool direction) {
+    ARG_UNUSED(bridge);
+    ARG_UNUSED(direction);
 
-	return smp_uart_tx_pkt(nb);
+    return smp_uart_tx_pkt(nb);
 }
 
 #if defined(CONFIG_MCUMGR_GRP_TRANSPORT_INFO_FUNCTIONS)
 static bool smp_uart_bridge_modes(zcbor_state_t* output_data, int* rc) {
-	bool ok;
+    bool ok;
 
-	ok = zcbor_map_start_encode(output_data, 4) &&
-	     zcbor_tstr_put_lit(output_data, "id") &&
-	     zcbor_uint32_put(output_data, 0) &&
-	     zcbor_tstr_put_lit(output_data, "description") &&
-	     zcbor_tstr_put_lit(output_data, "UART") &&
-	     zcbor_tstr_put_lit(output_data, "incoming") &&
-	     zcbor_bool_put(output_data, true) &&
-	     zcbor_tstr_put_lit(output_data, "outgoing") &&
-	     zcbor_bool_put(output_data, true) &&
-	     zcbor_map_end_encode(output_data, 4);
+    ok = zcbor_map_start_encode(output_data, 4) &&
+         zcbor_tstr_put_lit(output_data, "id") &&
+         zcbor_uint32_put(output_data, 0) &&
+         zcbor_tstr_put_lit(output_data, "description") &&
+         zcbor_tstr_put_lit(output_data, "UART") &&
+         zcbor_tstr_put_lit(output_data, "incoming") &&
+         zcbor_bool_put(output_data, true) &&
+         zcbor_tstr_put_lit(output_data, "outgoing") &&
+         zcbor_bool_put(output_data, true) &&
+         zcbor_map_end_encode(output_data, 4);
 
-	*rc = MGMT_RETURN_CHECK(ok);
-	return (ok);
+    *rc = MGMT_RETURN_CHECK(ok);
+
+    return (ok);
 }
 
 static bool smp_uart_bridge_config_details(uint32_t mode, zcbor_state_t* output_data, int* rc) {
-	if (mode == 0) {
-		return (true);
-	}
+    if (mode == 0) {
+        return (true);
+    }
 
-	smp_mgmt_reset_writer(output_data);
-	smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT, TRANSPORT_MGMT_ERR_INVALID_MODE);
-	*rc = 0;
+    smp_mgmt_reset_writer(output_data);
+    smp_add_cmd_err(output_data, MGMT_GROUP_ID_TRANSPORT, TRANSPORT_MGMT_ERR_INVALID_MODE);
+    *rc = 0;
 
-	return false;
+    return (false);
 }
 #endif
 #endif
@@ -174,15 +176,17 @@ static int smp_uart_init(void) {
     int rc;
 
     smp_uart_transport.functions.output  = smp_uart_tx_pkt;
+    TOOLCHAIN_DISABLE_WARNING(TOOLCHAIN_WARNING_DEPRECATED_DECLARATIONS);
     smp_uart_transport.functions.get_mtu = smp_uart_get_mtu;
+    TOOLCHAIN_ENABLE_WARNING(TOOLCHAIN_WARNING_DEPRECATED_DECLARATIONS);
 
     #ifdef CONFIG_MCUMGR_GRP_TRANSPORT
-	smp_uart_transport.functions.bridge_connect = smp_uart_bridge_connect;
-	smp_uart_transport.functions.bridge_disconnect = smp_uart_bridge_disconnect;
-	smp_uart_transport.functions.bridge_output = smp_uart_bridge_tx;
+    smp_uart_transport.functions.bridge_connect = smp_uart_bridge_connect;
+    smp_uart_transport.functions.bridge_disconnect = smp_uart_bridge_disconnect;
+    smp_uart_transport.functions.bridge_output = smp_uart_bridge_tx;
     #if defined(CONFIG_MCUMGR_GRP_TRANSPORT_INFO_FUNCTIONS)
-	smp_uart_transport.functions.bridge_modes = smp_uart_bridge_modes;
-	smp_uart_transport.functions.bridge_config_details = smp_uart_bridge_config_details;
+    smp_uart_transport.functions.bridge_modes = smp_uart_bridge_modes;
+    smp_uart_transport.functions.bridge_config_details = smp_uart_bridge_config_details;
     #endif
     #endif
 

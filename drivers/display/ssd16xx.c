@@ -64,6 +64,12 @@ struct ssd16xx_quirks {
 	 * SSD16XX_CMD_UPDATE_CTRL2 for a partial refresh.
 	 */
 	uint8_t ctrl2_partial;
+	/*
+	 * The controller keeps the black/red buffers in place after a
+	 * partial refresh, so the new image must be copied to the red
+	 * buffer, which holds the previous image.
+	 */
+	bool partial_keeps_ram;
 };
 
 struct ssd16xx_data {
@@ -479,15 +485,19 @@ static int ssd16xx_write(const struct device *dev, const uint16_t x,
 			return err;
 		}
 	} else if (partial_refresh) {
+		const uint8_t ram_cmd = config->quirks->partial_keeps_ram
+						? SSD16XX_CMD_WRITE_RED_RAM
+						: SSD16XX_CMD_WRITE_RAM;
+
 		/*
 		 * We just performed a partial refresh. After the
 		 * refresh, the controller swaps the black/red buffers
-		 * containing the current and new image. We need to
-		 * perform a second write here to ensure that future
-		 * updates work on an up-to-date framebuffer.
+		 * containing the current and new image, or leaves
+		 * them in place. We need to perform a second write
+		 * here to ensure that future updates work on an
+		 * up-to-date framebuffer.
 		 */
-		err = ssd16xx_write_cmd(dev, SSD16XX_CMD_WRITE_RAM,
-					(uint8_t *)buf, buf_len);
+		err = ssd16xx_write_cmd(dev, ram_cmd, (uint8_t *)buf, buf_len);
 		if (err < 0) {
 			return err;
 		}
@@ -566,8 +576,8 @@ static void ssd16xx_get_capabilities(const struct device *dev,
 	caps->x_resolution = config->width;
 	caps->y_resolution = config->height -
 			     config->height % EPD_PANEL_NUMOF_ROWS_PER_PAGE;
-	caps->supported_pixel_formats = PIXEL_FORMAT_MONO10;
-	caps->current_pixel_format = PIXEL_FORMAT_MONO10;
+	caps->supported_pixel_formats = PIXEL_FORMAT_MONO01;
+	caps->current_pixel_format = PIXEL_FORMAT_MONO01;
 	caps->screen_info = SCREEN_INFO_MONO_MSB_FIRST | SCREEN_INFO_EPD;
 
 	if (data->orientation == DISPLAY_ORIENTATION_NORMAL ||
@@ -581,7 +591,7 @@ static void ssd16xx_get_capabilities(const struct device *dev,
 static int ssd16xx_set_pixel_format(const struct device *dev,
 				    const enum display_pixel_format pf)
 {
-	if (pf == PIXEL_FORMAT_MONO10) {
+	if (pf == PIXEL_FORMAT_MONO01) {
 		return 0;
 	}
 
@@ -1009,6 +1019,7 @@ static struct ssd16xx_quirks quirks_solomon_ssd1675a = {
 	.pp_height_bits = 16,
 	.ctrl2_full = SSD16XX_GEN1_CTRL2_TO_PATTERN,
 	.ctrl2_partial = SSD16XX_GEN1_CTRL2_TO_PATTERN,
+	.partial_keeps_ram = true,
 };
 #endif
 

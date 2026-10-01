@@ -424,6 +424,17 @@ Deprecated APIs and options
   * Renamed :c:func:`lora_recv_duty_cycle` to :c:func:`lora_recv_duty_cycle_async`
     to be consistent with the existing sync/async naming convention.
 
+* MCUmgr
+
+  * The :c:type:`smp_transport_get_mtu_fn` type and the ``get_mtu`` member of
+    :c:struct:`smp_transport_api_t` have been deprecated, as the SMP layer does not use them.
+    See the :ref:`migration guide <migration_4.5>` for details.
+
+  * :kconfig:option:`CONFIG_MCUMGR_TRANSPORT_UART_MTU` and
+    :kconfig:option:`CONFIG_MCUMGR_TRANSPORT_SHELL_MTU` have been deprecated, as they only set the
+    value returned by the deprecated ``get_mtu`` callback. See the
+    :ref:`migration guide <migration_4.5>` for details.
+
 * Nordic
 
   * The internal SoC platform Kconfig symbols ``NRF_PLATFORM_HALTIUM`` and
@@ -2163,6 +2174,16 @@ Libraries / Subsystems
     LoRaWAN 1.0.x Class A directly on top of the LoRa radio driver, without
     the Semtech LoRaMac-node dependency.  Currently supports the EU868 region.
   * :c:member:`lora_modem_config.sync_word`
+
+* Networking
+
+  * Added tracking of local ports bound through offloaded sockets
+    (:kconfig:option:`CONFIG_NET_SOCKETS_OFFLOAD_PORT_TRACKING`). Offloaded
+    sockets bind in the offload engine, outside the ``net_context`` layer, so
+    :c:func:`net_context_port_in_use` could not see them. The socket layer now
+    tracks those bindings and provides ``net_socket_port_in_use()`` to check
+    both native and offloaded ports. mDNS probe port selection and DNS-SD
+    service checks use this new function.
 
 * Management
 

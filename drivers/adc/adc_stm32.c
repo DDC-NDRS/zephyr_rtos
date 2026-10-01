@@ -698,7 +698,8 @@ static void adc_stm32_calibration_delay(const struct device *dev)
 	 */
 	const struct adc_sub_stm32_cfg *config = dev->config;
 	const struct device *const clk = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
-	uint32_t adc_rate, wait_cycles;
+	uint32_t adc_rate = 0;
+	uint32_t wait_cycles;
 
 	const struct adc_stm32_clk_cfg *clk_cfg = adc_stm32_get_clk_cfg(config);
 
@@ -714,6 +715,7 @@ static void adc_stm32_calibration_delay(const struct device *dev)
 		      ADC_DELAY_CALIB_ADC_CYCLES;
 
 	for (int i = wait_cycles; i >= 0; i--) {
+		/* pass */
 	}
 }
 

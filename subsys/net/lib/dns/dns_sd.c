@@ -15,6 +15,7 @@
 #include <zephyr/net/net_context.h>
 #include <zephyr/net/net_core.h>
 #include <zephyr/net/net_log.h>
+#include <zephyr/net/socket.h>
 #include <zephyr/net/dns_sd.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/kernel.h>
@@ -776,9 +777,8 @@ static bool port_in_use_sockaddr(uint16_t proto, uint16_t port,
         ? (const struct net_sockaddr *) &any
         : (const struct net_sockaddr *) &any6;
 
-    return
-        net_context_port_in_use(proto, port, addr)
-        || net_context_port_in_use(proto, port, anyp);
+    return net_socket_port_in_use(proto, port, addr) ||
+           net_socket_port_in_use(proto, port, anyp);
 }
 
 static bool port_in_use(uint16_t proto, uint16_t port,
@@ -981,10 +981,9 @@ int dns_sd_handle_ptr_query(struct net_if *iface, const struct dns_sd_rec *inst,
 	return offset;
 }
 
-int dns_sd_handle_service_type_enum(const struct dns_sd_rec *inst,
-				    const struct net_in_addr *addr4,
-				    const struct net_in6_addr *addr6,
-				    uint8_t *buf, uint16_t buf_size)
+int dns_sd_handle_service_type_enum(const struct dns_sd_rec *inst, const struct net_in_addr *addr4,
+				    const struct net_in6_addr *addr6, uint8_t *buf,
+				    uint16_t buf_size)
 {
 	static const char query[] = { "\x09_services\x07_dns-sd\x04_udp\x05local" };
 	/* offset of '.local' in the above */
