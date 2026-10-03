@@ -31,8 +31,14 @@ uint32_t ke_env;
 uint8_t rxl_cntrl_env[64];
 uint8_t vif_info_tab[2 * 1512];
 uint8_t sta_info_tab[7 * 368];
+struct sm_connect_req *sm_env[15];
 
 void mac_irq(void)
+{
+	/* Stub */
+}
+
+void scanu_cached_scanresult_clear(void)
 {
 	/* Stub */
 }
@@ -172,6 +178,17 @@ bool bl_wifi_auth_done_internal(uint8_t sta_idx, uint16_t reason_code)
 	ARG_UNUSED(sta_idx);
 	ARG_UNUSED(reason_code);
 	return true;
+}
+
+int bl_wifi_set_igtk_internal(uint8_t vif_idx, uint8_t sta_idx, uint16_t key_idx,
+			      const uint8_t *pn, const uint8_t *key)
+{
+	ARG_UNUSED(vif_idx);
+	ARG_UNUSED(sta_idx);
+	ARG_UNUSED(key_idx);
+	ARG_UNUSED(pn);
+	ARG_UNUSED(key);
+	return 0;
 }
 
 int bl_wifi_set_sta_key_internal(uint8_t vif_idx, uint8_t sta_idx, wpa_alg_t alg, int key_idx,

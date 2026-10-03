@@ -27,8 +27,9 @@
 LOG_MODULE_REGISTER(esp_ppa, CONFIG_SOC_LOG_LEVEL);
 
 /* Color keying, the scaled alpha mode, the fixed foreground color for
- * alpha-only inputs and the YUV selectors are left at their reset values.
- * A request depending on one of them is rejected rather than run without it.
+ * alpha-only inputs and the YUV selectors of every picture but a scale,
+ * rotate and mirror input are left at their reset values. A request depending
+ * on one of them is rejected rather than run without it.
  */
 
 #define ESP_PPA_RX_CH    0
@@ -312,6 +313,61 @@ static uint32_t esp_ppa_pbyte(uint32_t color_mode)
 	}
 }
 
+/* The scale, rotate and mirror engine also takes YUV 4:2:0 and 4:2:2 input
+ * pictures, which it converts on the way in. YUV 4:4:4 needs the 2D-DMA to
+ * convert it first and is not offered.
+ */
+static bool esp_ppa_srm_in_is_yuv(ppa_srm_color_mode_t color_mode)
+{
+	switch (color_mode) {
+	case PPA_SRM_COLOR_MODE_YUV420:
+	case PPA_SRM_COLOR_MODE_YUV422_UYVY:
+	case PPA_SRM_COLOR_MODE_YUV422_VYUY:
+	case PPA_SRM_COLOR_MODE_YUV422_YUYV:
+	case PPA_SRM_COLOR_MODE_YUV422_YVYU:
+		return ppa_ll_srm_is_color_mode_supported(color_mode);
+	default:
+		return false;
+	}
+}
+
+static uint32_t esp_ppa_srm_in_pbyte(ppa_srm_color_mode_t color_mode)
+{
+	if (!esp_ppa_srm_in_is_yuv(color_mode)) {
+		return esp_ppa_pbyte(color_mode);
+	}
+
+	return (color_mode == PPA_SRM_COLOR_MODE_YUV420) ? DMA2D_DESCRIPTOR_PBYTE_1B5_PER_PIXEL
+							  : DMA2D_DESCRIPTOR_PBYTE_2B0_PER_PIXEL;
+}
+
+/* The HAL aborts on an alpha mode or rotation angle outside its enumeration */
+static bool esp_ppa_alpha_mode_valid(ppa_alpha_update_mode_t mode)
+{
+	switch (mode) {
+	case PPA_ALPHA_NO_CHANGE:
+	case PPA_ALPHA_FIX_VALUE:
+	case PPA_ALPHA_SCALE:
+	case PPA_ALPHA_INVERT:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static bool esp_ppa_rotation_valid(ppa_srm_rotation_angle_t angle)
+{
+	switch (angle) {
+	case PPA_SRM_ROTATION_ANGLE_0:
+	case PPA_SRM_ROTATION_ANGLE_90:
+	case PPA_SRM_ROTATION_ANGLE_180:
+	case PPA_SRM_ROTATION_ANGLE_270:
+		return true;
+	default:
+		return false;
+	}
+}
+
 /* A block reaching outside its surface makes the DMA read or write past the
  * buffer, and oversized dimensions are truncated silently by the descriptor
  * bitfields.
@@ -329,7 +385,8 @@ static bool esp_ppa_geometry_valid(uint32_t pic_w, uint32_t pic_h, uint32_t bloc
 		return false;
 	}
 
-	return (off_x + block_w <= pic_w) && (off_y + block_h <= pic_h);
+	return (off_x < pic_w) && (block_w <= pic_w - off_x) && (off_y < pic_h) &&
+	       (block_h <= pic_h - off_y);
 }
 
 /* The engine writes the whole output surface, so a buffer shorter than it is
@@ -470,6 +527,10 @@ static void esp_ppa_start_txn(struct esp_ppa_txn *txn)
 		dma2d_ll_rx_set_desc_addr(dma, ESP_PPA_RX_CH, (uint32_t)&txn->rx_desc);
 
 		ppa_ll_srm_set_rx_color_mode(ppa, in_cm);
+		if (esp_ppa_srm_in_is_yuv(in_cm)) {
+			ppa_ll_srm_set_rx_yuv_range(ppa, cfg->in.yuv_range);
+			ppa_ll_srm_set_rx_yuv2rgb_std(ppa, cfg->in.yuv_std);
+		}
 		ppa_ll_srm_enable_rx_byte_swap(ppa, cfg->byte_swap);
 		ppa_ll_srm_enable_rx_rgb_swap(ppa, cfg->rgb_swap);
 		ppa_ll_srm_configure_rx_alpha(ppa, cfg->alpha_update_mode, cfg->alpha_fix_val);
@@ -771,6 +832,11 @@ esp_err_t ppa_do_blend(ppa_client_handle_t ppa_client, const ppa_blend_oper_conf
 		return ESP_ERR_INVALID_ARG;
 	}
 
+	if (!esp_ppa_alpha_mode_valid(config->bg_alpha_update_mode) ||
+	    !esp_ppa_alpha_mode_valid(config->fg_alpha_update_mode)) {
+		return ESP_ERR_INVALID_ARG;
+	}
+
 	if (config->bg_ck_en || config->fg_ck_en || config->ck_reverse_bg2fg) {
 		return ESP_ERR_NOT_SUPPORTED;
 	}
@@ -828,15 +894,32 @@ esp_err_t ppa_do_scale_rotate_mirror(ppa_client_handle_t ppa_client,
 		return ESP_ERR_INVALID_ARG;
 	}
 
-	if (!(config->scale_x > 0.0f) || !(config->scale_y > 0.0f) ||
+	if (!(config->scale_x >= 1.0f / PPA_LL_SRM_SCALING_FRAG_MAX) ||
+	    !(config->scale_y >= 1.0f / PPA_LL_SRM_SCALING_FRAG_MAX) ||
 	    config->scale_x >= ESP_PPA_MAX_SCALE || config->scale_y >= ESP_PPA_MAX_SCALE) {
 		return ESP_ERR_INVALID_ARG;
 	}
+	if (!esp_ppa_rotation_valid(config->rotation_angle) ||
+	    !esp_ppa_alpha_mode_valid(config->alpha_update_mode)) {
+		return ESP_ERR_INVALID_ARG;
+	}
+	if (config->alpha_update_mode == PPA_ALPHA_SCALE) {
+		return ESP_ERR_NOT_SUPPORTED;
+	}
 
-	uint32_t in_pbyte = esp_ppa_pbyte(config->in.srm_cm);
+	uint32_t in_pbyte = esp_ppa_srm_in_pbyte(config->in.srm_cm);
 	uint32_t out_pbyte = esp_ppa_pbyte(config->out.srm_cm);
-	uint32_t out_block_w = (uint32_t)(config->in.block_w * config->scale_x);
-	uint32_t out_block_h = (uint32_t)(config->in.block_h * config->scale_y);
+	/* The engine scales by an integer part and a number of sixteenths */
+	uint32_t sx_int = (uint32_t)config->scale_x;
+	uint32_t sx_frac = (uint32_t)(config->scale_x * PPA_LL_SRM_SCALING_FRAG_MAX) &
+			   (PPA_LL_SRM_SCALING_FRAG_MAX - 1);
+	uint32_t sy_int = (uint32_t)config->scale_y;
+	uint32_t sy_frac = (uint32_t)(config->scale_y * PPA_LL_SRM_SCALING_FRAG_MAX) &
+			   (PPA_LL_SRM_SCALING_FRAG_MAX - 1);
+	uint32_t out_block_w = sx_int * config->in.block_w +
+			       sx_frac * config->in.block_w / PPA_LL_SRM_SCALING_FRAG_MAX;
+	uint32_t out_block_h = sy_int * config->in.block_h +
+			       sy_frac * config->in.block_h / PPA_LL_SRM_SCALING_FRAG_MAX;
 
 	/* A quarter turn transposes the block, so the output extent the
 	 * checks below need is the scaled one with its sides swapped.
@@ -850,6 +933,20 @@ esp_err_t ppa_do_scale_rotate_mirror(ppa_client_handle_t ppa_client,
 	}
 
 	if (config->in.buffer == NULL || config->out.buffer == NULL) {
+		return ESP_ERR_INVALID_ARG;
+	}
+	/* A chroma sample covers two columns, and in 4:2:0 two rows too */
+	if (esp_ppa_srm_in_is_yuv(config->in.srm_cm) &&
+	    (((config->in.pic_w | config->in.block_w | config->in.block_offset_x) & 1U) != 0U ||
+	     (config->in.srm_cm == PPA_SRM_COLOR_MODE_YUV420 &&
+	      ((config->in.pic_h | config->in.block_h | config->in.block_offset_y) & 1U) != 0U))) {
+		return ESP_ERR_INVALID_ARG;
+	}
+	if (esp_ppa_srm_in_is_yuv(config->in.srm_cm) &&
+	    ((config->in.yuv_range != PPA_COLOR_RANGE_LIMIT &&
+	      config->in.yuv_range != PPA_COLOR_RANGE_FULL) ||
+	     (config->in.yuv_std != PPA_COLOR_CONV_STD_RGB_YUV_BT601 &&
+	      config->in.yuv_std != PPA_COLOR_CONV_STD_RGB_YUV_BT709))) {
 		return ESP_ERR_INVALID_ARG;
 	}
 	if (!esp_ppa_geometry_valid(config->in.pic_w, config->in.pic_h, config->in.block_w,

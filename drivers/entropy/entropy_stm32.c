@@ -245,38 +245,6 @@ static void configure_rng(void)
 #endif /* STM32_CONDRST_SUPPORT */
 }
 
-/* This function releases the HSEM (on applicable series) for RNG access */
-static void release_rng(void)
-{
-	const struct device *dev = DEVICE_DT_GET(DT_DRV_INST(0));
-	const struct entropy_stm32_rng_dev_cfg *dev_cfg = dev->config;
-	RNG_TypeDef *rng = dev_cfg->rng;
-	uint32_t old_use_count;
-	k_spinlock_key_t key;
-	int res = 0;
-
-	ASSERT_RNG_HSEM_OWNED();
-
-	key = k_spin_lock(&entropy_stm32_rng_data.uc_lock);
-	old_use_count = entropy_stm32_rng_data.use_count;
-	entropy_stm32_rng_data.use_count--;
-
-	if (old_use_count != 1) {
-		/* We're not the last; keep HSEM held and RNG enabled. */
-		k_spin_unlock(&entropy_stm32_rng_data.uc_lock, key);
-		return;
-	}
-
-	LL_RNG_Disable(rng);
-#if defined(CONFIG_SOC_STM32WB09XX)
-	/* RM0505 Rev.2 §14.4:
-	 * "After the TRNG IP is disabled by setting CR.DISABLE, in order to
-	 * properly restart the TRNG IP, the AES_RESET bit must be set to 1
-	 * (that is, resetting the AES core and restarting all health tests)."
-	 */
-	LL_RNG_SetAesReset(rng, 1);
-#endif /* CONFIG_SOC_STM32WB09XX */
-
 /*
  * The PKA IP is currently not supported by Zephyr but may be used by
  * external code, such as wireless stack for example. Since the RNG
@@ -288,6 +256,8 @@ static void release_rng(void)
  * LL_PKA_IsEnabled(). Since RNG clock is not required by PKA, we can
  * ignore the check on this series.
  */
+static bool pka_needs_rng_clock(void)
+{
 #if defined(PKA) && !defined(CONFIG_SOC_SERIES_STM32WB0X)
 #if defined(CONFIG_STM32_HAL2)
 	uint32_t pka_clock_enabled = HAL_RCC_PKA_IsEnabledClock();
@@ -295,18 +265,22 @@ static void release_rng(void)
 	uint32_t pka_clock_enabled = __HAL_RCC_PKA_IS_CLK_ENABLED();
 #endif /* CONFIG_STM32_HAL2 */
 
-	if (pka_clock_enabled && LL_PKA_IsEnabled(PKA)) {
-		/* PKA needs RNG clock, so exit here if in use */
-		goto done;
-	}
+	return (pka_clock_enabled && LL_PKA_IsEnabled(PKA));
+#else
+	return false;
 #endif /* PKA && !CONFIG_SOC_SERIES_STM32WB0X */
+}
 
+static int prepare_rng_clock_disable(const struct entropy_stm32_rng_dev_cfg *dev_cfg)
+{
 #ifdef CONFIG_SOC_SERIES_STM32WBAX
-	uint32_t wait_cycles, rng_rate;
+	uint32_t wait_cycles;
+	uint32_t rng_rate;
+	int res;
 
 	res = clock_control_get_rate(dev_cfg->clock,
-			(clock_control_subsys_t) &dev_cfg->pclken[0],
-			&rng_rate);
+				     (clock_control_subsys_t)&dev_cfg->pclken[0],
+				     &rng_rate);
 	if (res == 0) {
 		wait_cycles = SystemCoreClock / rng_rate * 2;
 
@@ -315,21 +289,59 @@ static void release_rng(void)
 		}
 	}
 
-	/* STM32WBAX contrainsts prevent to disable the clock unless a few
+	/* STM32WBAX constraints prevent to disable the clock unless a few
 	 * cycles were spent hence clock disabling below depends on @c res
 	 * value.
 	 */
+	return res;
+#else
+	ARG_UNUSED(dev_cfg);
+	return 0;
 #endif /* CONFIG_SOC_SERIES_STM32WBAX */
+}
 
-	if (res == 0) {
-		/* Disabling the RNG clock is not expected to fail */
-		res = clock_control_off(dev_cfg->clock,
-					(clock_control_subsys_t)&dev_cfg->pclken[0]);
-		__ASSERT_NO_MSG(res == 0);
+/* This function releases the HSEM (on applicable series) for RNG access */
+static void release_rng(void)
+{
+	const struct device *dev = DEVICE_DT_GET(DT_DRV_INST(0));
+	const struct entropy_stm32_rng_dev_cfg *dev_cfg = dev->config;
+	RNG_TypeDef *rng = dev_cfg->rng;
+	uint32_t old_use_count;
+	k_spinlock_key_t key;
+	bool last_user;
+	int res;
+
+	ASSERT_RNG_HSEM_OWNED();
+
+	key = k_spin_lock(&entropy_stm32_rng_data.uc_lock);
+	old_use_count = entropy_stm32_rng_data.use_count;
+	entropy_stm32_rng_data.use_count--;
+	last_user = (old_use_count == 1U);
+
+	if (last_user) {
+		LL_RNG_Disable(rng);
+#if defined(CONFIG_SOC_STM32WB09XX)
+		/* RM0505 Rev.2 §14.4:
+		 * "After the TRNG IP is disabled by setting CR.DISABLE, in order to
+		 * properly restart the TRNG IP, the AES_RESET bit must be set to 1
+		 * (that is, resetting the AES core and restarting all health tests)."
+		 */
+		LL_RNG_SetAesReset(rng, 1);
+#endif /* CONFIG_SOC_STM32WB09XX */
+
+		if (pka_needs_rng_clock() == false) {
+			res = prepare_rng_clock_disable(dev_cfg);
+			if (res == 0) {
+				/* Disabling the RNG clock is not expected to fail */
+				res = clock_control_off(dev_cfg->clock,
+							(clock_control_subsys_t)&dev_cfg->pclken[0]);
+				__ASSERT_NO_MSG(res == 0);
+			}
+		}
+
+		entropy_stm32_hsem_release();
 	}
 
-done: __maybe_unused
-	entropy_stm32_hsem_release();
 	k_spin_unlock(&entropy_stm32_rng_data.uc_lock, key);
 }
 

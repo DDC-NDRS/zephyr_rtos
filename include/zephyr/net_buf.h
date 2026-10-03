@@ -1730,6 +1730,18 @@ struct net_buf* __must_check net_buf_ref(struct net_buf* buf);
  * This performs an atomic exchange on @p orig. setting it to NULL and
  * returning the previous value.
  *
+ * Use it where ownership of the reference moves, so that the previous owner
+ * is left without a pointer to a buffer it no longer owns:
+ *
+ * @code{.c}
+ * k_fifo_put(&tx_queue, net_buf_take(&buf));
+ * @endcode
+ *
+ * Passing `net_buf_take(&buf)` as an argument is only correct for calls that
+ * always take ownership. A function that takes ownership only on success
+ * leaves the buffer with the caller on error, so the caller needs its pointer
+ * until the function has returned.
+ *
  * @param orig Pointer to the buffer pointer to transfer. Will be set to NULL
  *        on return.
  *
@@ -2728,8 +2740,10 @@ void net_buf_frag_insert(struct net_buf* parent, struct net_buf* frag);
  *
  * Append a new fragment into the buffer fragments list.
  *
- * Note: This function takes ownership of the fragment reference so the
- * caller is not required to unref.
+ * Note: If @p head is not NULL, this function takes ownership of the
+ * fragment reference so the caller is not required to unref. If @p head is
+ * NULL, @p frag is returned with a new reference and the caller keeps its
+ * own.
  *
  * @param head Head of the fragment chain.
  * @param frag Fragment to add.
@@ -2845,14 +2859,19 @@ size_t net_buf_data_match(const struct net_buf* buf, size_t offset, void const* 
  * @param buf Network buffer.
  * @param len Total length of data to be skipped.
  *
- * @return Pointer to the fragment or
- *         NULL and pos is 0 after successful skip,
- *         NULL and pos is 0xffff otherwise.
+ * @return The remaining fragment chain, or NULL if all data was skipped.
  */
 static inline struct net_buf* net_buf_skip(struct net_buf* buf, size_t len) {
-    while (buf && len--) {
-        net_buf_pull_u8(buf);
-        if (!buf->len) {
+    while ((buf != NULL) && (len > 0U)) {
+        size_t to_skip = MIN(len, buf->len);
+
+        /* A zero-capacity fragment has no data buffer to pull from */
+        if (to_skip > 0U) {
+            net_buf_pull(buf, to_skip);
+            len -= to_skip;
+        }
+
+        if (buf->len == 0U) {
             buf = net_buf_frag_del(NULL, buf);
         }
     }
