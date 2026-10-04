@@ -69,6 +69,26 @@ struct shell_telnet {
 
 	/** If set, no output is sent to the TELNET client. */
 	bool output_lock;
+
+	/** The server is in WILL ECHO state for the connected client. */
+	bool echo_will;
+
+	/** The server is in WILL SGA state for the connected client. */
+	bool sga_will;
+
+	/** State of SGA on the client side:
+	 *  0 not enabled, 1 DO sent and not yet answered, 2 enabled.
+	 */
+	uint8_t sga_do;
+
+	/** A subnegotiation (IAC SB ... IAC SE) is being skipped. */
+	bool sb_active;
+
+	/** The last skipped subnegotiation byte was IAC. */
+	bool sb_iac;
+
+	/** Bytes skipped so far in the current subnegotiation. */
+	uint8_t sb_cnt;
 };
 /** @endcond */
 

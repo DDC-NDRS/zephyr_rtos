@@ -600,6 +600,26 @@ config SHELL_TELNET_SUPPORT_COMMAND
 	  IMPORTANT: This will increase network usage as a TCP packet will be
 	  sent each time a character is typed in the telnet client.
 
+config SHELL_TELNET_CHAR_MODE
+	bool "Offer character-at-a-time mode to the telnet client"
+	depends on SHELL_TELNET_SUPPORT_COMMAND
+	help
+	  Without this option the server only answers the options the client
+	  asks for, so a stock telnet client stays in line mode (local echo and
+	  line editing, a line is sent on Enter) and the shell never sees
+	  Tab, history or Ctrl-C keys.
+	  When enabled, the server sends IAC WILL ECHO, IAC WILL SGA and
+	  IAC DO SGA on connect and echoes the typed characters itself, which
+	  makes a telnet client switch to character mode, with the shell's
+	  line editing, history and tab completion.
+	  The server echoes from the moment it sends WILL ECHO, without waiting
+	  for the client's DO, so nothing typed in between is lost; a client that
+	  refuses with DONT ECHO switches the echo off again (RFC 857, RFC 1143).
+	  Output is not escaped: a bare CR is not sent as CR NUL and 0xFF is not
+	  doubled (RFC 854), which clients accept for shell text.
+	  IMPORTANT: As for SHELL_TELNET_SUPPORT_COMMAND, a TCP packet is sent
+	  each time a character is typed in the telnet client.
+
 module = SHELL_TELNET
 default-timeout = 100
 source "subsys/shell/Kconfig.template.shell_log_queue_timeout"
