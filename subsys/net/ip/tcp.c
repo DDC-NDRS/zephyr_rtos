@@ -3209,6 +3209,11 @@ static void tcp_check_sock_options(struct tcp* conn) {
 
 /* TCP state machine, everything happens here */
 #if defined(_MSC_VER) /* #CUSTOM@NDRS */
+/*
+ * The complete state machine uses GNU C extensions that MSVC cannot compile.
+ * Incoming TCP traffic is intentionally unsupported with MSVC so TCP-enabled
+ * configurations can still build.
+ */
 static enum net_verdict tcp_in(struct tcp* conn, struct net_pkt* pkt,
                                struct tcphdr* th) {
     ARG_UNUSED(conn);
