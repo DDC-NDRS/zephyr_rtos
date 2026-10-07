@@ -232,6 +232,7 @@ int net_ipv4_parse_hdr_options(struct net_pkt* pkt,
 
             case NET_IPV4_OPTS_RR :
             case NET_IPV4_OPTS_TS :
+            case NET_IPV4_OPTS_RA :
                 if (net_pkt_read(pkt, opt_data, opt_len)) {
                     return (-EINVAL);
                 }

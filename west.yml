@@ -154,7 +154,7 @@ manifest:
       groups:
         - hal
     - name: hal_afbr
-      revision: 1abf6947457380934e27f92508ec5532ddedfc6d
+      revision: effa58cab4a5e5f38d03357c73a65600d7414a67
       path: modules/hal/afbr
       groups:
         - hal
@@ -297,7 +297,7 @@ manifest:
         - hal
     - name: hostap
       path: modules/lib/hostap
-      revision: 1c541a0913058912376bb832fb753161978c266b
+      revision: 33921a8a77c56bddfe196a11935009cededc3bb3
     - name: liblc3
       revision: 48bbd3eacd36e99a57317a0a4867002e0b09e183
       path: modules/lib/liblc3
@@ -332,7 +332,7 @@ manifest:
       groups:
         - crypto
     - name: mcuboot
-      revision: 1e7cf3ff00752837149de1d0d3a36dedf2349ae3
+      revision: a7a630409f5e81e240822ce07ce5ee2bed1c6f5a
       path: bootloader/mcuboot
       groups:
         - bootloader

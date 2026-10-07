@@ -16,7 +16,7 @@
  * @brief Network Interface abstraction layer
  * @defgroup net_if Network Interface abstraction layer
  * @since 1.5
- * @version 1.0.0
+ * @version 1.1.0
  * @ingroup networking
  * @{
  */
@@ -184,6 +184,23 @@ struct net_if_mcast_addr {
 
     /** Rejoining multicast groups list node */
     sys_snode_t rejoin_node;
+
+    #if defined(CONFIG_NET_IPV4_IGMP)
+    /** Deadline of the pending response to an IGMP Membership Query for
+     *  this IPv4 group, never expiring when no response is pending.
+     */
+    k_timepoint_t igmp_resp_timeout;
+
+    /** Deadline of the next retransmission of the unsolicited IGMP report
+     *  of a join of this IPv4 group, never expiring when none is pending.
+     */
+    k_timepoint_t igmp_retx_timeout;
+
+    /** Retransmissions of the unsolicited IGMP report of this IPv4 group
+     *  left.
+     */
+    uint8_t igmp_retx_left;
+    #endif
 
     #if defined(CONFIG_NET_IPV4_IGMPV3)
     /** Sources to filter on */
@@ -538,7 +555,30 @@ struct net_if_ipv4 {
     /** IPv4 time-to-live for multicast packets */
     uint8_t mcast_ttl;
 
-    #if defined(CONFIG_NET_IPV4_ACD) || defined(_MSC_VER) /* #CUSTOM@NDRS */
+    #if defined(CONFIG_NET_IPV4_IGMP)
+    /** Deadline of the pending response to an IGMPv3 General Query, never
+     *  expiring when no response is pending.
+     */
+    k_timepoint_t igmp_general_timeout;
+
+    /** IGMPv1 Querier Present timer (@rfc{3376,section-7.2.1}), expired
+     *  when no IGMPv1 querier is present.
+     */
+    k_timepoint_t igmp_v1_querier_timeout;
+
+    /** IGMPv2 Querier Present timer (@rfc{3376,section-7.2.1}), expired
+     *  when no IGMPv2 querier is present.
+     */
+    k_timepoint_t igmp_v2_querier_timeout;
+
+    /** IGMP version the host last operated in on this interface (1, 2 or
+     *  3). 0 until the first query or timer run and stands for the newest
+     *  version built in.
+     */
+    uint8_t igmp_version;
+    #endif
+
+    #if defined(CONFIG_NET_IPV4_ACD)
     /** IPv4 conflict count.  */
     uint8_t conflict_cnt;
     #endif
@@ -1394,9 +1434,8 @@ static inline void net_if_nbr_reachability_hint(struct net_if* iface,
 #if defined(CONFIG_NET_IPV6)
 void net_if_ipv6_nbr_flush(struct net_if *iface);
 #else
-static inline void net_if_ipv6_nbr_flush(struct net_if *iface)
-{
-	ARG_UNUSED(iface);
+static inline void net_if_ipv6_nbr_flush(struct net_if* iface) {
+    ARG_UNUSED(iface);
 }
 #endif
 
@@ -1415,13 +1454,12 @@ static inline void net_if_ipv6_nbr_flush(struct net_if *iface)
 #if defined(CONFIG_NET_IPV6)
 bool net_if_ipv6_nbr_rm(struct net_if *iface, const struct net_in6_addr *addr);
 #else
-static inline bool net_if_ipv6_nbr_rm(struct net_if *iface,
-				      const struct net_in6_addr *addr)
-{
-	ARG_UNUSED(iface);
-	ARG_UNUSED(addr);
+static inline bool net_if_ipv6_nbr_rm(struct net_if* iface,
+                                      const struct net_in6_addr* addr) {
+    ARG_UNUSED(iface);
+    ARG_UNUSED(addr);
 
-	return false;
+    return (false);
 }
 #endif
 
@@ -2787,11 +2825,10 @@ void net_if_ipv4_maddr_leave(struct net_if* iface,
  * @param iface Network interface, or NULL to flush every interface.
  */
 #if defined(CONFIG_NET_IPV4)
-void net_if_ipv4_nbr_flush(struct net_if *iface);
+void net_if_ipv4_nbr_flush(struct net_if* iface);
 #else
-static inline void net_if_ipv4_nbr_flush(struct net_if *iface)
-{
-	ARG_UNUSED(iface);
+static inline void net_if_ipv4_nbr_flush(struct net_if* iface) {
+    ARG_UNUSED(iface);
 }
 #endif
 
@@ -2810,13 +2847,12 @@ static inline void net_if_ipv4_nbr_flush(struct net_if *iface)
 #if defined(CONFIG_NET_IPV4)
 bool net_if_ipv4_nbr_rm(struct net_if *iface, const struct net_in_addr *addr);
 #else
-static inline bool net_if_ipv4_nbr_rm(struct net_if *iface,
-				      const struct net_in_addr *addr)
-{
-	ARG_UNUSED(iface);
-	ARG_UNUSED(addr);
+static inline bool net_if_ipv4_nbr_rm(struct net_if* iface,
+                                      const struct net_in_addr* addr) {
+    ARG_UNUSED(iface);
+    ARG_UNUSED(addr);
 
-	return false;
+    return (false);
 }
 #endif
 
