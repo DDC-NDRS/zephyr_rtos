@@ -1778,6 +1778,7 @@ static int modem_cellular_on_await_dial_state_enter(struct modem_cellular_data* 
 static void modem_cellular_await_dial_event_handler(struct modem_cellular_data* data,
                                                     enum modem_cellular_event evt) {
     const struct modem_cellular_config *config = data->dev->config;
+    int ret;
 
     switch (evt) {
         case MODEM_CELLULAR_EVENT_DIAL :
@@ -1810,7 +1811,12 @@ static void modem_cellular_await_dial_event_handler(struct modem_cellular_data* 
                 break;
             }
 
-            modem_chat_run_script_async(&data->chat, config->vendor->scripts.periodic);
+            ret = modem_chat_run_script_async(&data->chat, config->vendor->scripts.periodic);
+            if (ret < 0) {
+                LOG_WRN("periodic %s %s, rearming timer", "timer",
+                        (ret == -EBUSY) ? "busy" : "failed");
+                modem_cellular_start_timer(data, MODEM_CELLULAR_PERIODIC_SCRIPT_TIMEOUT);
+            }
             break;
 
         case MODEM_CELLULAR_EVENT_PERIODIC_KICK :
@@ -1944,6 +1950,7 @@ static void modem_cellular_await_registered_event_handler(struct modem_cellular_
                                                           enum modem_cellular_event evt) {
     struct modem_cellular_config const* config = data->dev->config;
     struct modem_chat_script const* script;
+    int ret;
 
     switch (evt) {
         case MODEM_CELLULAR_EVENT_SCRIPT_SUCCESS :
@@ -1985,7 +1992,13 @@ static void modem_cellular_await_registered_event_handler(struct modem_cellular_
                 data->periodic_timeout_skipped = true;
                 break;
             }
-            modem_chat_run_script_async(&data->chat, config->vendor->scripts.periodic);
+
+            ret = modem_chat_run_script_async(&data->chat, config->vendor->scripts.periodic);
+            if (ret < 0) {
+                LOG_WRN("periodic %s %s, rearming timer", "timer",
+                        (ret == -EBUSY) ? "busy" : "failed");
+                modem_cellular_start_timer(data, MODEM_CELLULAR_PERIODIC_SCRIPT_TIMEOUT);
+            }
             break;
 
         case MODEM_CELLULAR_EVENT_PERIODIC_KICK :

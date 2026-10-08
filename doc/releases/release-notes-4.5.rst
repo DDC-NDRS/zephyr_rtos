@@ -351,10 +351,10 @@ Deprecated APIs and options
     stays as the extension point for out-of-tree stacks.
 
   * The HCI driver ``setup()`` op, :c:func:`bt_hci_setup`,
-    :c:struct:`bt_hci_setup_params` and :kconfig:option:`CONFIG_BT_HCI_SETUP` have
-    been deprecated. A driver performs its vendor-specific initialization inside
-    :c:member:`bt_hci_driver_api.open` instead, over its own transport. See the
-    migration guide.
+    :c:struct:`bt_hci_setup_params`, :kconfig:option:`CONFIG_BT_HCI_SETUP` and the
+    ``bt_h4_vnd_setup()`` hook of the H:4 driver have been deprecated. A driver performs its
+    vendor-specific initialization inside :c:member:`bt_hci_driver_api.open` instead, over its
+    own transport. See the migration guide.
 
 * Build system
 
@@ -620,13 +620,21 @@ New APIs and options
 
     * :c:macro:`BT_HCI_PKT_CMD_DEFINE`
     * :c:macro:`BT_HCI_PKT_CMD_DEFINE_STATIC`
+    * :c:macro:`BT_HCI_PKT_CMD_HDR_SIZE` and :c:macro:`BT_HCI_PKT_CMD_SIZE`
     * :c:func:`bt_hci_pkt_reset_cmd`
     * :c:func:`bt_hci_pkt_push_cmd_hdr`
     * :c:func:`bt_hci_pkt_pull_cmd_complete`
     * :c:func:`bt_hci_pkt_pull_cmd_status`
-    * :c:func:`bt_hci_pkt_parse_cmd_rsp`
+    * :c:func:`bt_hci_pkt_parse_cmd_rsp` and :c:struct:`bt_hci_pkt_cmd_rsp`
+    * :c:struct:`bt_hci_lockstep`
+    * :c:func:`bt_hci_lockstep_init`
+    * :c:func:`bt_hci_lockstep_feed`
     * :c:func:`bt_hci_lockstep_cmd_send_sync`
     * :c:func:`bt_hci_lockstep_reset`
+    * :c:func:`bt_h4_vnd_open` and :kconfig:option:`CONFIG_BT_H4_VND_OPEN`
+    * :c:struct:`bt_hci_driver_data` and :c:struct:`bt_hci_driver_config`
+    * :c:macro:`BT_DT_HCI_DRIVER_CONFIG_GET` and :c:macro:`BT_DT_HCI_DRIVER_CONFIG_INST_GET`
+    * :c:func:`bt_hci_recv` and :c:func:`bt_hci_recv_err`
     * :c:func:`bt_hci_set_public_addr` and :c:func:`bt_hci_get_public_addr`
     * :c:func:`bt_hci_can_close`
 
@@ -913,8 +921,15 @@ New APIs and options
     context is active without reading the context internals.
   * Add :c:func:`coap_client_reregister_observe` to refresh an ongoing CoAP
     observation (:rfc:`7641` re-registration) without tearing it down.
+  * Add :c:func:`coap_age_is_newer` to compare CoAP Observe option values for
+    freshness (:rfc:`7641#section-3.4`).
   * :c:func:`net_config_init_clock_via_sntp` to set system clock via SNTP.
   * :c:func:`net_config_sntp_set_server`
+  * Add an experimental RTP (:rfc:`3550`) stack (:kconfig:option:`CONFIG_RTP`)
+    to send and receive media streams over UDP, with a BSD socket transport
+    (:kconfig:option:`CONFIG_RTP_TRANSPORT_SOCKET`) and a raw ``net_pkt``
+    transport (:kconfig:option:`CONFIG_RTP_TRANSPORT_NET_PKT`). See
+    :ref:`rtp_interface`.
 
 * POSIX
 
@@ -1844,6 +1859,17 @@ New Drivers
   * :dtcompatible:`nxp,trgmux` (:github:`112088`)
 
 * Networking
+
+  * MLD
+
+    * Nodes now answer Multicast Address Specific Queries, delay query responses by a random
+      time within the Maximum Response Delay, retransmit the unsolicited report of a join,
+      switch to MLDv1 when an MLDv1 querier is present and drop queries without a link-local
+      source or the Router Alert option, as required by :rfc:`2710` and :rfc:`3810`. No report
+      is sent for the all-nodes group any more, and all groups are reported again once the
+      link-local address of the interface is valid. The number of report transmissions follows
+      the new :kconfig:option:`CONFIG_NET_IPV6_MLD_ROBUSTNESS`, and disabling the new
+      :kconfig:option:`CONFIG_NET_IPV6_MLD_V1_COMPAT` makes the node ignore MLDv1 messages.
 
   * gPTP
 
