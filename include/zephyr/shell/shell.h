@@ -1432,7 +1432,11 @@ void shell_hexdump(struct shell const* sh, uint8_t const* data, size_t len);
  * @param[in] _ft Format string.
  * @param[in] ... List of parameters to print.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS: no ##__VA_ARGS__ support */
 void __printf_like(2, 3) shell_fprintf_info(struct shell const* sh, char const* fmt, ...);
+#else
+#define shell_fprintf_info(_sh, _ft, ...) shell_fprintf(_sh, SHELL_INFO, _ft, ##__VA_ARGS__)
+#endif
 
 /**
  * @brief Print normal message to the shell.
@@ -1454,7 +1458,11 @@ void __printf_like(2, 3) shell_fprintf_info(struct shell const* sh, char const* 
  * @param[in] _ft Format string.
  * @param[in] ... List of parameters to print.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS: no ##__VA_ARGS__ support */
 void __printf_like(2, 3) shell_fprintf_normal(struct shell const* sh, char const* fmt, ...);
+#else
+#define shell_fprintf_normal(_sh, _ft, ...) shell_fprintf(_sh, SHELL_NORMAL, _ft, ##__VA_ARGS__)
+#endif
 
 /**
  * @brief Print warning message to the shell.
@@ -1476,7 +1484,11 @@ void __printf_like(2, 3) shell_fprintf_normal(struct shell const* sh, char const
  * @param[in] _ft Format string.
  * @param[in] ... List of parameters to print.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS: no ##__VA_ARGS__ support */
 void __printf_like(2, 3) shell_fprintf_warn(struct shell const* sh, char const* fmt, ...);
+#else
+#define shell_fprintf_warn(_sh, _ft, ...) shell_fprintf(_sh, SHELL_WARNING, _ft, ##__VA_ARGS__)
+#endif
 
 /**
  * @brief Print error message to the shell.
@@ -1498,7 +1510,11 @@ void __printf_like(2, 3) shell_fprintf_warn(struct shell const* sh, char const* 
  * @param[in] _ft Format string.
  * @param[in] ... List of parameters to print.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS: no ##__VA_ARGS__ support */
 void __printf_like(2, 3) shell_fprintf_error(struct shell const* sh, char const* fmt, ...);
+#else
+#define shell_fprintf_error(_sh, _ft, ...) shell_fprintf(_sh, SHELL_ERROR, _ft, ##__VA_ARGS__)
+#endif
 
 /**
  * @brief Process function, which should be executed when data is ready in the

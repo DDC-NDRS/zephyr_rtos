@@ -1449,6 +1449,8 @@ static void /**/spi_stm32_isr(const struct device* dev) {
 #define SPI_EVENT_INTERNAL_TRANSFER_COMPLETE (1UL << 30U)   /* Internal flag to report that an event occurred */
 
 #if DT_HAS_ANY_STPM3X_SPI_ISR
+BUILD_ASSERT(IS_ENABLED(CONFIG_SPI_ASYNC), "STPM3X SPI requires CONFIG_SPI_ASYNC");
+
 /**
  * @brief Receive data in 32 Bit mode
  * @param[in] spi  SPI peripheral
@@ -1990,8 +1992,8 @@ static int32_t spi_stm32_set_transfer_size(const struct device* dev,
         rx_frames = tx_frames;
     }
     else {
-        tx_frames = data->ctx.tx_len;
-        rx_frames = data->ctx.rx_len;
+        tx_frames = data->ctx.tx.len;
+        rx_frames = data->ctx.rx.len;
     }
     #else /* CONFIG_SPI_RTIO */
     tx_frames = spi_stm32_count_bufset_frames(config, tx_bufs);
@@ -2070,6 +2072,8 @@ bool spi_stpm3x_is_active(struct spi_dt_spec const* spec) {
 }
 
 #if DT_HAS_COMPAT_STATUS_OKAY(st_stpm3x_spi)
+BUILD_ASSERT(IS_ENABLED(CONFIG_SPI_ASYNC), "STPM3X SPI requires CONFIG_SPI_ASYNC");
+
 int spi_stpm3x_transceive_dt(struct spi_dt_spec const* spec,
                              uint8_t const tx[],
                              uint8_t rx[]) {
@@ -2519,12 +2523,13 @@ static int spi_stm32_ll_transceive(const struct device* dev,
     }
     #endif /* CONFIG_SPI_STM32_DMA */
 
-    /* #CUSTOM@NDRS
-     * No early return for (tx_bufs == NULL) && (rx_bufs == NULL):
-     * no caller does this.
-     * If one does, it is handled by the "!spi_stm32_transfer_ongoing()" path;
-     * an async request is then never completed, so callers must not issue one.
+    /* #CUSTOM@NDRS: keep this early return (as upstream does).
+     * Without it, an async call with no buffers is never completed, so the
+     * bus lock and the PM policy lock are never released.
      */
+    if ((tx_bufs == NULL) && (rx_bufs == NULL)) {
+        return (0);
+    }
 
     #if defined(CONFIG_DCACHE) && defined(CONFIG_SPI_STM32_DMA) && !defined(CONFIG_SPI_RTIO)
     if (use_dma &&

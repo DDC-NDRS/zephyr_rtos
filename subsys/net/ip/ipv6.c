@@ -377,7 +377,10 @@ static inline int ipv6_handle_ext_hdr_options(struct net_pkt* pkt,
      */
     offset = net_pkt_get_current_offset(pkt) - 2;
 
-    if (exthdr_len > (uint_fast16_t)(pkt_len - offset)) {
+    /* Add instead of subtracting (pkt_len - offset): offset can exceed pkt_len,
+     * and the unsigned subtraction would wrap and skip this check.
+     */
+    if ((exthdr_len + offset) > pkt_len) {
         NET_DBG("Corrupted packet, extension header %d too long "
                 "(max %d bytes)",
                 exthdr_len, (pkt_len > offset) ? (pkt_len - offset) : 0);

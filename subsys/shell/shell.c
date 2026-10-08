@@ -872,7 +872,7 @@ static uint16_t root_common_beginning_find(struct shell const* sh,
             continue;
         }
 
-        curr_common = str_common(temp_buff,
+        curr_common = str_common(ctx->temp_buff,
                                  shell_aliases[idx].alias, UINT16_MAX);
         if ((arg_len == 0U) || (curr_common >= arg_len)) {
             common = (curr_common < common) ? curr_common : common;
@@ -1049,11 +1049,8 @@ static bool wildcard_check_report(struct shell const* sh, bool found,
  * decision on further processing is based on currently processed command.
  */
 static int execute(struct shell const* sh) {
-    struct shell_static_entry dloc;         /* Memory for dynamic commands. 
-                                             * Intentionally ignore PR #109658,
-                                             * which initializes it to {0}.
-                                             */
-    char const* argv[CONFIG_SHELL_ARGC_MAX + 1]; /* +1 reserved for NULL */
+    struct shell_static_entry dloc = {0};   /* Memory for dynamic commands. */
+    char const* argv[CONFIG_SHELL_ARGC_MAX + 1] = {0}; /* +1 reserved for NULL */
     const struct shell_static_entry* parent = selected_cmd_get(sh);
     const struct shell_static_entry* entry  = NULL;
     struct shell_static_entry help_entry;
@@ -2134,6 +2131,7 @@ void shell_fprintf_impl(struct shell const* sh, enum shell_vt100_color color, ch
     va_end(args);
 }
 
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
 void shell_fprintf_info(struct shell const* sh, char const* fmt, ...) {
     va_list args;
 
@@ -2165,6 +2163,7 @@ void shell_fprintf_error(struct shell const* sh, char const* fmt, ...) {
     z_shell_print(sh, SHELL_ERROR, false, (void*)fmt, args);
     va_end(args);
 }
+#endif /* _MSC_VER */
 
 int shell_prompt_change(struct shell const* sh, char const* prompt) {
     #if IS_ENABLED(CONFIG_SHELL_PROMPT_CHANGE)

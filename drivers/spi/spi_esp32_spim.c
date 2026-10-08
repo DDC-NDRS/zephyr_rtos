@@ -279,16 +279,16 @@ static int IRAM_ATTR spi_esp32_transfer(const struct device* dev) {
      * zero-length buffers do not keep CS asserted.
      */
     size_t tx_remaining =
-        (ctx->tx_len > transfer_len_frames) ? (ctx->tx_len - transfer_len_frames) : 0;
+        (ctx->tx.len > transfer_len_frames) ? (ctx->tx.len - transfer_len_frames) : 0;
     size_t rx_remaining =
-        (ctx->rx_len > transfer_len_frames) ? (ctx->rx_len - transfer_len_frames) : 0;
+        (ctx->rx.len > transfer_len_frames) ? (ctx->rx.len - transfer_len_frames) : 0;
 
-    for (size_t i = 1; i < ctx->tx_count; i++) {
-        tx_remaining += ctx->current_tx[i].len;
+    for (size_t i = 1; i < ctx->tx.count; i++) {
+        tx_remaining += ctx->tx.current[i].len;
     }
 
-    for (size_t i = 1; i < ctx->rx_count; i++) {
-        rx_remaining += ctx->current_rx[i].len;
+    for (size_t i = 1; i < ctx->rx.count; i++) {
+        rx_remaining += ctx->rx.current[i].len;
     }
 
     hal_trans->cs_keep_active =
