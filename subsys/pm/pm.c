@@ -121,23 +121,13 @@ void pm_system_resume(void)
 	 * complete before the idle thread restores its saved interrupt key.
 	 */
 	if (atomic_test_and_clear_bit(z_post_ops_required, id)) {
-		/*
-		 * The SoC hook runs first: it restores whatever the state took from
-		 * the hardware, a gated clock or a powered-down rail for instance,
-		 * and the system timer can depend on any of it.
-		 */
-		pm_state_exit_post_ops(z_cpus_pm_state[id]->state,
-				       z_cpus_pm_state[id]->substate_id);
-		/*
-		 * The system timer comes back before the devices do. A driver is
-		 * entitled to delay in its resume handler, and k_busy_wait() reads
-		 * the system timer, which sys_clock_idle_enter() is free to have
-		 * stopped -- it does exactly that with SYSTEM_TIMER_RESET_BY_LPM,
-		 * and the read would never advance.
-		 */
+		if (IS_ENABLED(CONFIG_PM_EARLY_SYSTEM_TIMER_RESUME)) {
+			pm_state_exit_post_ops(z_cpus_pm_state[id]->state,
+					       z_cpus_pm_state[id]->substate_id);
 #ifdef CONFIG_SYS_CLOCK_EXISTS
-		sys_clock_idle_exit();
+			sys_clock_idle_exit();
 #endif /* CONFIG_SYS_CLOCK_EXISTS */
+		}
 #ifdef CONFIG_PM_DEVICE_SYSTEM_MANAGED
 		if (atomic_add(&_cpus_active, 1) == 0) {
 			if ((z_cpus_pm_state[id]->state != PM_STATE_RUNTIME_IDLE) &&
@@ -146,7 +136,16 @@ void pm_system_resume(void)
 			}
 		}
 #endif
+		if (!IS_ENABLED(CONFIG_PM_EARLY_SYSTEM_TIMER_RESUME)) {
+			pm_state_exit_post_ops(z_cpus_pm_state[id]->state,
+					       z_cpus_pm_state[id]->substate_id);
+		}
 		pm_state_notify(false);
+#ifdef CONFIG_SYS_CLOCK_EXISTS
+		if (!IS_ENABLED(CONFIG_PM_EARLY_SYSTEM_TIMER_RESUME)) {
+			sys_clock_idle_exit();
+		}
+#endif /* CONFIG_SYS_CLOCK_EXISTS */
 		z_cpus_pm_state[id] = NULL;
 		_kernel.idle = 0;
 	}
@@ -269,7 +268,10 @@ bool pm_system_suspend(int32_t kernel_ticks)
 	if (!IS_ENABLED(CONFIG_PM_STATE_SET_IRQ_UNLOCKED)) {
 		_kernel.idle = 0;
 	}
-	pm_state_set(z_cpus_pm_state[id]->state, z_cpus_pm_state[id]->substate_id);
+	/* pm_system_resume() clears z_cpus_pm_state[id] before the exit trace. */
+	enum pm_state state = z_cpus_pm_state[id]->state;
+
+	pm_state_set(state, z_cpus_pm_state[id]->substate_id);
 
 	/* Wake up sequence starts here */
 
@@ -281,9 +283,7 @@ bool pm_system_suspend(int32_t kernel_ticks)
 
 	pm_system_resume();
 	k_sched_unlock();
-	SYS_PORT_TRACING_FUNC_EXIT(pm, system_suspend, ticks,
-				   z_cpus_pm_state[id] ?
-				   z_cpus_pm_state[id]->state : PM_STATE_ACTIVE);
+	SYS_PORT_TRACING_FUNC_EXIT(pm, system_suspend, ticks, state);
 
 	return true;
 }

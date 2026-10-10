@@ -215,7 +215,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: 303ac3fd48436a07a2c1e417464f81f54cfb9809
+      revision: 56149a4041d46638ff12aaad35d5129751cdca0d
       path: modules/hal/nxp
       groups:
         - hal
@@ -332,7 +332,7 @@ manifest:
       groups:
         - crypto
     - name: mcuboot
-      revision: a7a630409f5e81e240822ce07ce5ee2bed1c6f5a
+      revision: 5f6149e84894778309be939a400c44f5f282a51e
       path: bootloader/mcuboot
       groups:
         - bootloader
@@ -397,6 +397,11 @@ manifest:
     - name: tf-psa-crypto
       revision: 765af96a20a2b408474dcd950372ba9af4d26b62
       path: modules/crypto/tf-psa-crypto
+      groups:
+        - crypto
+    - name: tf-psa-crypto-drivers
+      revision: edb74a92e602cd21a218836aff41a0600229978c
+      path: modules/crypto/tf-psa-crypto-drivers
       groups:
         - crypto
     - name: trusted-firmware-a

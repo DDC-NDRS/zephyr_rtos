@@ -194,9 +194,11 @@ void z_shell_op_word_remove(struct shell const* sh) {
         --str;
     }
 
-    /* Manage the buffer. */
+    /* Manage the buffer. Move the remainder of the line, including the
+     * terminator, over the removed word.
+     */
     memmove((str + 1), (str + 1 + chars_to_delete),
-            ctx->cmd_buff_len - chars_to_delete);
+            strlen(str + 1 + chars_to_delete) + 1);
     ctx->cmd_buff_len -= chars_to_delete;
     ctx->cmd_buff[ctx->cmd_buff_len] = '\0';
 

@@ -303,11 +303,6 @@ static inline int uart_stm32_set_baudrate(struct device const* dev, uint32_t bau
     }
     else {
     #endif /* HAS_LPUART */
-        #ifdef USART_CR1_OVER8
-        LL_USART_SetOverSampling(usart,
-                                 LL_USART_OVERSAMPLING_16);
-        #endif
-
         #ifdef USART_PRESC_PRESCALER
         uint32_t usartdiv = STM32_USART_DIV_SAMPLING16(clock_rate,
                                                        LL_USART_PRESCALER_DIV1,
@@ -317,10 +312,16 @@ static inline int uart_stm32_set_baudrate(struct device const* dev, uint32_t bau
                                                        baud_rate);
         #endif /* USART_PRESC_PRESCALER */
 
-        if (usartdiv < 16) {
+        /* BRR holds USARTDIV in 16 bits */
+        if ((usartdiv < 16) || (usartdiv > UINT16_MAX)) {
             LOG_ERR("Unable to set %s to %d", dev->name, baud_rate);
             return (-EINVAL);
         }
+
+        #ifdef USART_CR1_OVER8
+        LL_USART_SetOverSampling(usart,
+                                 LL_USART_OVERSAMPLING_16);
+        #endif
 
         LL_USART_SetBaudRate(usart,
                              clock_rate,
@@ -613,7 +614,18 @@ static int uart_stm32_parameters_set(struct device const* dev,
         }
     }
     else {
-        /* Called from application/subsys via uart_configure syscall */
+        /* Called from application/subsys via uart_configure syscall.
+         * Set the baud rate first: if it is rejected, nothing has changed.
+         */
+        if (cfg->baudrate != uart_cfg->baudrate) {
+            ret = uart_stm32_set_baudrate(dev, cfg->baudrate);
+            if (ret < 0) {
+                return (ret);
+            }
+
+            uart_cfg->baudrate = cfg->baudrate;
+        }
+
         if (parity != uart_stm32_get_parity(usart)) {
             uart_stm32_set_parity(usart, parity);
         }
@@ -635,14 +647,6 @@ static int uart_stm32_parameters_set(struct device const* dev,
             uart_stm32_set_driver_enable(usart, driver_enable);
         }
         #endif
-
-        if (cfg->baudrate != uart_cfg->baudrate) {
-            ret = uart_stm32_set_baudrate(dev, cfg->baudrate);
-            if (ret < 0) {
-                return (ret);
-            }
-            uart_cfg->baudrate = cfg->baudrate;
-        }
     }
 
     return (0);
@@ -701,6 +705,8 @@ static int uart_stm32_configure(struct device const* dev,
 
     /* Set basic parameters, such as data-/stop-bit, parity, and baudrate */
     if (uart_stm32_parameters_set(dev, cfg) < 0) {
+        /* Nothing was changed, keep running with the current configuration */
+        LL_USART_Enable(usart);
         return (-ENOTSUP);
     }
 
@@ -2592,7 +2598,7 @@ static int uart_stm32_pm_action(struct device const* dev,
                 }
 
                 if (ret < 0) {
-                    return ret;
+                    return (ret);
                 }
             }
             break;
