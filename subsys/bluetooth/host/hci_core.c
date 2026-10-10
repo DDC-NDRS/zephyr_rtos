@@ -10,6 +10,7 @@
  */
 #include <errno.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -227,6 +228,24 @@ void bt_hci_cmd_state_set_init(const struct net_buf *buf,
  * buffer length since the buffer is also used for the response event i.e
  * command complete or command status.
  */
+/* #CUSTOM@NDRS The *_SZ constants must match the header-only size of each struct */
+BUILD_ASSERT(offsetof(struct bt_hci_cp_host_num_completed_packets, h) == BT_HCI_CP_HOST_NUM_COMPLETED_PACKETS_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_cp_le_ext_create_conn, p) == BT_HCI_CP_LE_EXT_CREATE_CONN_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_cp_le_ext_create_conn_v2, p) == BT_HCI_CP_LE_EXT_CREATE_CONN_V2_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_cp_configure_data_path, vs_config) == BT_HCI_CP_CONFIGURE_DATA_PATH_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_evt_num_completed_packets, h) == BT_HCI_EVT_NUM_COMPLETED_PACKETS_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_meta_event, data) == BT_HCI_EVT_LE_META_EVENT_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_advertising_report, adv_info) == BT_HCI_EVT_LE_ADVERTISING_REPORT_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_direct_adv_report, direct_adv_info) == BT_HCI_EVT_LE_DIRECT_ADV_REPORT_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_ext_advertising_report, adv_info) == BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_per_advertising_report, data) == BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_per_advertising_report_v2, data) == BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_V2_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_connectionless_iq_report, sample) == BT_HCI_EVT_LE_CONNECTIONLESS_IQ_REPORT_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_connection_iq_report, sample) == BT_HCI_EVT_LE_CONNECTION_IQ_REPORT_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_big_sync_established, handle) == BT_HCI_EVT_LE_BIG_SYNC_ESTABLISHED_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_cs_subevent_result, steps) == BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_cs_subevent_result_continue, steps) == BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_CONTINUE_SZ);
+
 #define CMD_BUF_SIZE MAX(BT_BUF_EVT_RX_SIZE, BT_BUF_CMD_TX_SIZE)
 #if defined(_MSC_VER) /* #CUSTOM@NDRS */
 NET_BUF_POOL_FIXED_DEFINE(hci_cmd_pool, BT_BUF_CMD_TX_COUNT, CMD_BUF_SIZE,
@@ -3103,6 +3122,16 @@ void bt_hci_le_conn_rate_change_event(struct net_buf *buf)
 }
 #endif /* CONFIG_BT_SHORTER_CONNECTION_INTERVALS */
 
+#if !defined(CONFIG_BT_DF_VS_CL_IQ_REPORT_16_BITS_IQ_SAMPLES) && \
+	!defined(CONFIG_BT_DF_VS_CONN_IQ_REPORT_16_BITS_IQ_SAMPLES) && \
+	defined(_MSC_VER)
+/* #CUSTOM@NDRS Placeholder so vs_events[] is not empty and needs no scan.c symbol */
+static void vs_events_placeholder(struct net_buf *buf)
+{
+	ARG_UNUSED(buf);
+}
+#endif
+
 static const struct event_handler vs_events[] = {
 #if defined(CONFIG_BT_DF_VS_CL_IQ_REPORT_16_BITS_IQ_SAMPLES)
 	EVENT_HANDLER(BT_HCI_EVT_VS_LE_CONNECTIONLESS_IQ_REPORT,
@@ -3119,8 +3148,7 @@ static const struct event_handler vs_events[] = {
 	defined(_MSC_VER)
 	/* #CUSTOM@NDRS Add dummy event handler */
 	EVENT_HANDLER(BT_HCI_EVT_VS_LE_CONNECTIONLESS_IQ_REPORT,
-		      bt_hci_le_vs_df_connectionless_iq_report,
-		      sizeof(struct bt_hci_evt_vs_le_connectionless_iq_report)),
+		      vs_events_placeholder, 0),
 #endif
 };
 

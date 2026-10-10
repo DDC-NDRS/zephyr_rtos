@@ -517,12 +517,18 @@ static inline enum uart_config_data_bits uart_stm32_ll2cfg_databits(uint32_t db,
             if (p == LL_USART_PARITY_NONE) {
                 return (UART_CFG_DATA_BITS_7);
             }
+            else {
+                return (UART_CFG_DATA_BITS_6);
+            }
         #endif /* STM32_USART_DATAWIDTH_7_BIT */
 
         #ifdef STM32_USART_DATAWIDTH_9_BIT
         case STM32_USART_DATAWIDTH_9_BIT :
             if (p == LL_USART_PARITY_NONE) {
                 return (UART_CFG_DATA_BITS_9);
+            }
+            else {
+                return (UART_CFG_DATA_BITS_8);
             }
         #endif /* STM32_USART_DATAWIDTH_9_BIT */
 
@@ -2508,7 +2514,7 @@ static int uart_stm32_init(struct device const* dev) {
 
         ret = gpio_pin_configure_dt(&config->rts_gpio, GPIO_OUTPUT_INACTIVE);
         if (ret < 0) {
-            LOG_ERR("Failed to configure RTS GPIO (%d)", err);
+            LOG_ERR("Failed to configure RTS GPIO (%d)", ret);
             return (ret);
         }
     }
