@@ -20,7 +20,7 @@ static inline const char *sd_voltage_str(enum sd_voltage voltage)
 		[SD_VOL_1_8_V] = "1.8V", [SD_VOL_1_2_V] = "1.2V",
 	};
 
-	if (voltage >= 0 && voltage < ARRAY_SIZE(sig_vol_str)) {
+	if (voltage < ARRAY_SIZE(sig_vol_str)) {
 		return sig_vol_str[voltage];
 	} else {
 		return "Unknown";
@@ -51,7 +51,7 @@ static inline const char *sdhc_timing_mode_str(enum sdhc_timing_mode timing)
 #endif /* CONFIG_SDHC_SUPPORTS_UHS */
 	};
 
-	if (timing >= 0 && timing < ARRAY_SIZE(timing_str)) {
+	if (timing < ARRAY_SIZE(timing_str)) {
 		return timing_str[timing];
 	} else {
 		return "Unknown";

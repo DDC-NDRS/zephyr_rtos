@@ -1166,10 +1166,10 @@ static inline void async_evt_rx_release_buffer(struct ifx_cat1_uart_data* data, 
             async->rx_next_buf_len = 0;
         }
     }
-    else if (async->dma_rx.buf != NULL) {
-        buf = async->dma_rx.buf;
-        async->dma_rx.buf = NULL;
-        async->dma_rx.buf_len = 0;
+    else if (dma_rx->buf != NULL) {
+        buf = dma_rx->buf;
+        dma_rx->buf = NULL;
+        dma_rx->buf_len = 0;
     }
     else {
         /* pass */

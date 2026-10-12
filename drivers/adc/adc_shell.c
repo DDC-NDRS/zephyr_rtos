@@ -76,7 +76,7 @@ static struct adc_hdl adc_list[] = {
 };
 
 static struct adc_hdl* get_adc(char const* device_label) {
-    for (int i = 0; i < ARRAY_SIZE(adc_list); i++) {
+    for (size_t i = 0; i < ARRAY_SIZE(adc_list); i++) {
         if (!strcmp(device_label, adc_list[i].dev->name)) {
             return (&adc_list[i]);
         }

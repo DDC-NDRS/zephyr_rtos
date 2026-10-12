@@ -203,7 +203,7 @@ static void airoc_wifi_supp_scan2_cb(whd_scan_result_t **result_ptr, void *user_
 	} else if ((status == WHD_SCAN_INCOMPLETE) && (user_data != NULL) &&
 		   ((**result_ptr).SSID.length == data->ssid.length)) {
 		if (memcmp(data->ssid.value, (**result_ptr).SSID.value,
-			    (**result_ptr).SSID.length) == 0) {
+			   (**result_ptr).SSID.length) == 0) {
 			union wpa_event_data event;
 			struct scan_info *info = NULL;
 
@@ -276,7 +276,7 @@ static int convert_whd_security_to_zephyr(whd_security_t security)
 
 static whd_security_t convert_zephyr_security_to_whd(int security)
 {
-	whd_security_t whd_security = WIFI_SECURITY_TYPE_UNKNOWN;
+	whd_security_t whd_security = (whd_security_t)WIFI_SECURITY_TYPE_UNKNOWN;
 
 	switch (security) {
 	case WIFI_SECURITY_TYPE_NONE:
@@ -296,7 +296,7 @@ static whd_security_t convert_zephyr_security_to_whd(int security)
 		break;
 
 	case WIFI_SECURITY_TYPE_PSK_SHA256:
-		whd_security = WIFI_SECURITY_TYPE_PSK_SHA256;
+		whd_security = (whd_security_t)WIFI_SECURITY_TYPE_PSK_SHA256;
 		break;
 
 	case WIFI_SECURITY_TYPE_SAE:
@@ -861,6 +861,7 @@ static int airoc_mgmt_scan(const struct device *dev,
 {
 	struct airoc_wifi_data *data = dev->data;
 	enum wifi_scan_type scan_type = WIFI_SCAN_TYPE_ACTIVE;
+	whd_result_t result;
 
 	if (params != NULL) {
 		scan_type = params->scan_type;
@@ -880,8 +881,10 @@ static int airoc_mgmt_scan(const struct device *dev,
 	memset(&data->ssid, 0, sizeof(whd_ssid_t));
 
 	/* Connect to the network */
-	if (whd_wifi_scan(airoc_sta_if, scan_type, WHD_BSS_TYPE_ANY, &(data->ssid), NULL, NULL,
-			  NULL, scan_callback, &(data->scan_result), data) != WHD_SUCCESS) {
+	result = whd_wifi_scan(airoc_sta_if, (whd_scan_type_t)scan_type, WHD_BSS_TYPE_ANY,
+			       &data->ssid, NULL, NULL, NULL,
+			       scan_callback, &data->scan_result, data);
+	if (result != WHD_SUCCESS) {
 		LOG_ERR("Failed to start scan");
 		data->scan_rslt_cb = NULL;
 		k_sem_give(&data->sema_common);
