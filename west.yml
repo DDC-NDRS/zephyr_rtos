@@ -190,7 +190,7 @@ manifest:
       groups:
         - hal
     - name: hal_infineon
-      revision: ed8994a3c40ebabb59990b41e349cdaf54595778
+      revision: 4158b28b585aa79b515e74f21b933dee39078a6e
       path: modules/hal/infineon
       groups:
         - hal
@@ -410,7 +410,7 @@ manifest:
       groups:
         - tee
     - name: trusted-firmware-m
-      revision: 3d46d29fb296af1ff278ea3216e6fe0289a8fa7a
+      revision: 05262ef4c4925373f8eecd27f8b93de372d18ba2
       path: modules/tee/tf-m/trusted-firmware-m
       groups:
         - tee
