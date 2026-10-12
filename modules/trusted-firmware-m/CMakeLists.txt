@@ -351,6 +351,11 @@ if(CONFIG_BUILD_WITH_TFM)
   add_custom_command(
     OUTPUT ${TFM_BINARY_DIR}/CMakeCache.txt
     COMMAND ${CMAKE_COMMAND}
+      # SoCs pass TF-M the paths of every vendor library it may need (e.g.
+      # soc/infineon/edge/pse84) and each TF-M configuration reads only some
+      # of them, so the "Manually-specified variables were not used" list
+      # would only be noise.
+      --no-warn-unused-cli
       -G${CMAKE_GENERATOR}
       -DTFM_TOOLCHAIN_FILE=${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/${TFM_TOOLCHAIN_FILE}
       -DCMAKE_PROGRAM_PATH=${TFM_TOOLCHAIN_PATH}
