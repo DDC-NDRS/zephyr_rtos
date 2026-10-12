@@ -181,7 +181,7 @@ static int create_socket(enum smp_udp_proto_type proto, int* sock) {
     #endif
 
     if (IS_ENABLED(CONFIG_MCUMGR_TRANSPORT_UDP_IPV4) &&
-        proto == PROTOCOL_IPV4) {
+        (proto == PROTOCOL_IPV4)) {
         struct net_sockaddr_in* addr4 = (struct net_sockaddr_in*)addr;
 
         /* Intentional to not zero initialize addr4 since all fields are explicitly set */
@@ -191,7 +191,7 @@ static int create_socket(enum smp_udp_proto_type proto, int* sock) {
         addr_len = sizeof(*addr4);
     }
     else if (IS_ENABLED(CONFIG_MCUMGR_TRANSPORT_UDP_IPV6) &&
-             proto == PROTOCOL_IPV6) {
+             (proto == PROTOCOL_IPV6)) {
         struct net_sockaddr_in6* addr6 = (struct net_sockaddr_in6*)addr;
 
         /* Intentional to not zero initialize addr6 since all fields are explicitly set */
@@ -303,6 +303,9 @@ static void smp_udp_receive_thread(void* p1, void* p2, void* p3) {
         else if (len < 0) {
             LOG_ERR("recvfrom error (%s): %i, %d", smp_udp_proto_to_name(conf->proto),
                     errno, len);
+        }
+        else {
+            /* pass */
         }
     }
 }
