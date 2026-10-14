@@ -7,7 +7,7 @@
 #include <mem.h>
 #include <arm/armv7-a.dtsi>
 #include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
-#include <zephyr/dt-bindings/ethernet/xlnx_gem.h>
+#include <zephyr/dt-bindings/clock/xlnx-zynq-clkc.h>
 
 / {
 	sdhci_ref_clk: sdhci-ref-clk {
@@ -62,7 +62,65 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			fifo-depth = <16>;
+		};
+
+		gem0: ethernet@e000b000 {
+			compatible = "xlnx,zynq-gem", "cdns,gem";
 			status = "disabled";
+			reg = <0xe000b000 0x1000>;
+			clocks = <&clkc ZYNQ_CLK_GEM0_APER>, <&clkc ZYNQ_CLK_GEM0_APER>,
+				 <&clkc ZYNQ_CLK_GEM0>;
+			clock-names = "pclk", "hclk", "tx_clk";
+			interrupts = <GIC_SPI 22 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>,
+				     <GIC_SPI 23 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>;
+			interrupt-names = "irq_0", "irq_1";
+
+			gem0_mdio: mdio {
+				compatible = "cdns,macb-mdio";
+				status = "disabled";
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+
+		gem1: ethernet@e000c000 {
+			compatible = "xlnx,zynq-gem", "cdns,gem";
+			status = "disabled";
+			reg = <0xe000c000 0x1000>;
+			clocks = <&clkc ZYNQ_CLK_GEM1_APER>, <&clkc ZYNQ_CLK_GEM1_APER>,
+				 <&clkc ZYNQ_CLK_GEM1>;
+			clock-names = "pclk", "hclk", "tx_clk";
+			interrupts = <GIC_SPI 45 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>,
+				     <GIC_SPI 46 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>;
+			interrupt-names = "irq_0", "irq_1";
+
+			gem1_mdio: mdio {
+				compatible = "cdns,macb-mdio";
+				status = "disabled";
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+		};
+
+		uart0: uart@e0000000 {
+			compatible = "xlnx,xuartps";
+			status = "disabled";
+			reg = <0xe0000000 0x4c>;
+			interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>;
+			interrupt-names = "irq_0";
+		};
+
+		uart1: uart@e0001000 {
+			compatible = "xlnx,xuartps";
+			status = "disabled";
+			reg = <0xe0001000 0x4c>;
+			interrupts = <GIC_SPI 50 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>;
+			interrupt-names = "irq_0";
 		};
 
 		spi0: spi@e0006000 {
@@ -230,7 +288,7 @@
 				     <GIC_PPI 10 IRQ_TYPE_EDGE
 				      IRQ_DEFAULT_PRIORITY>;
 			status = "okay";
-		};
+	};
 
 		gic: interrupt-controller@f8f01000 {
 			compatible = "arm,gic-v1", "arm,gic";
