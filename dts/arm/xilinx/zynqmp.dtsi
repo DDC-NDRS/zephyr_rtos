@@ -7,10 +7,30 @@
 #include <mem.h>
 #include <arm/armv7-r.dtsi>
 #include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
-#include <zephyr/dt-bindings/ethernet/xlnx_gem.h>
+#include <zephyr/dt-bindings/clock/xlnx-zynqmp-clk.h>
 
 / {
+	pss_ref_clk: pss-ref-clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <33333000>;
+	};
+
 	soc {
+		zynqmp_clk: clock-controller@ff5e0000 {
+			compatible = "xlnx,zynqmp-clk";
+			reg = <0xff5e0000 0x1000>, <0xfd1a0000 0x1000>;
+			reg-names = "crl_apb", "crf_apb";
+			clocks = <&pss_ref_clk>;
+			clock-names = "pss_ref_clk";
+			#clock-cells = <1>;
+		};
+
+		pinctrl: pinctrl@ff180000 {
+			reg = <0xff180000 0xc80>;
+			compatible = "xlnx,pinctrl-zynqmp";
+		};
+
 		flash0: flash@c0000000 {
 			compatible = "soc-nv-flash";
 			reg = <0xc0000000 DT_SIZE_M(32)>;
@@ -59,10 +79,16 @@
 			reg = <0xff030000 0x1000>;
 			interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>;
-			#address-cells = <1>;
-			#size-cells = <0>;
+				#address-cells = <1>;
+				#size-cells = <0>;
 			fifo-depth = <16>;
 			status = "disabled";
+			};
+
+			gem0_ptp: ptp-clock {
+				compatible = "cdns,macb-ptp-clock";
+				status = "disabled";
+			};
 		};
 
 		spi0: spi@ff040000 {
@@ -70,12 +96,18 @@
 			reg = <0xff040000 0x1000>;
 			interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>;
-			#address-cells = <1>;
-			#size-cells = <0>;
+				#address-cells = <1>;
+				#size-cells = <0>;
 			fifo-width = <8>;
 			rx-fifo-depth = <128>;
 			tx-fifo-depth = <128>;
 			status = "disabled";
+			};
+
+			gem1_ptp: ptp-clock {
+				compatible = "cdns,macb-ptp-clock";
+				status = "disabled";
+			};
 		};
 
 		spi1: spi@ff050000 {
@@ -83,12 +115,30 @@
 			reg = <0xff050000 0x1000>;
 			interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-			fifo-width = <8>;
-			rx-fifo-depth = <128>;
-			tx-fifo-depth = <128>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+
+			gem2_ptp: ptp-clock {
+				compatible = "cdns,macb-ptp-clock";
+				status = "disabled";
+			};
+		};
+
+		gem3: ethernet@ff0e0000 {
+			compatible = "xlnx,zynqmp-gem", "cdns,gem";
+			reg = <0xff0e0000 0x1000>;
+			clocks = <&zynqmp_clk LPD_LSBUS>, <&zynqmp_clk GEM3_REF>,
+				 <&zynqmp_clk GEM3_TX>, <&zynqmp_clk GEM3_RX>,
+				 <&zynqmp_clk GEM_TSU>;
+			clock-names = "pclk", "hclk", "tx_clk", "rx_clk", "tsu_clk";
 			status = "disabled";
+			};
+
+			gem3_ptp: ptp-clock {
+				compatible = "cdns,macb-ptp-clock";
+				status = "disabled";
+			};
 		};
 
 		psgpio: gpio@ff0a0000 {
@@ -158,123 +208,91 @@
 		};
 
 		gem0: ethernet@ff0b0000 {
-			compatible = "xlnx,gem";
-			reg = <0xff0b0000 0x1000>,
-			      <0xff5e0050 0x4>;
-			reg-names = "mac", "clkc";
+			compatible = "xlnx,zynqmp-gem", "cdns,gem";
+			reg = <0xff0b0000 0x1000>;
+			clocks = <&zynqmp_clk LPD_LSBUS>, <&zynqmp_clk GEM0_REF>,
+				 <&zynqmp_clk GEM0_TX>, <&zynqmp_clk GEM0_RX>,
+				 <&zynqmp_clk GEM_TSU>;
+			clock-names = "pclk", "hclk", "tx_clk", "rx_clk", "tsu_clk";
 			interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>,
 				     <GIC_SPI 58 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_0", "irq_1";
-			amba-ahb-burst-length = <XLNX_GEM_AMBA_AHB_BURST_INCR16>;
-			hw-rx-buffer-size = <XLNX_GEM_HW_RX_BUFFER_SIZE_8KB>;
-			hw-rx-buffer-offset = <0>;
-			hw-tx-buffer-size-full;
-			rx-buffer-descriptors = <32>;
-			tx-buffer-descriptors = <32>;
-			rx-buffer-size = <1536>;
-			tx-buffer-size = <1536>;
-			discard-rx-fcs;
-			unicast-hash;
 			status = "disabled";
 
 			gem0_mdio: mdio {
-				compatible = "xlnx,gem-mdio";
-				#address-cells = <1>;
-				#size-cells = <0>;
+				compatible = "cdns,macb-mdio";
+			#address-cells = <1>;
+			#size-cells = <0>;
 				status = "disabled";
-			};
+		};
 		};
 
 		gem1: ethernet@ff0c0000 {
-			compatible = "xlnx,gem";
-			reg = <0xff0c0000 0x1000>,
-			      <0xff5e0054 0x4>;
-			reg-names = "mac", "clkc";
+			compatible = "xlnx,zynqmp-gem", "cdns,gem";
+			reg = <0xff0c0000 0x1000>;
+			clocks = <&zynqmp_clk LPD_LSBUS>, <&zynqmp_clk GEM1_REF>,
+				 <&zynqmp_clk GEM1_TX>, <&zynqmp_clk GEM1_RX>,
+				 <&zynqmp_clk GEM_TSU>;
+			clock-names = "pclk", "hclk", "tx_clk", "rx_clk", "tsu_clk";
 			interrupts = <GIC_SPI 59 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>,
 				     <GIC_SPI 60 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_0", "irq_1";
-			amba-ahb-burst-length = <XLNX_GEM_AMBA_AHB_BURST_INCR16>;
-			hw-rx-buffer-size = <XLNX_GEM_HW_RX_BUFFER_SIZE_8KB>;
-			hw-rx-buffer-offset = <0>;
-			hw-tx-buffer-size-full;
-			rx-buffer-descriptors = <32>;
-			tx-buffer-descriptors = <32>;
-			rx-buffer-size = <1536>;
-			tx-buffer-size = <1536>;
-			discard-rx-fcs;
-			unicast-hash;
 			status = "disabled";
 
 			gem1_mdio: mdio {
-				compatible = "xlnx,gem-mdio";
-				#address-cells = <1>;
-				#size-cells = <0>;
+				compatible = "cdns,macb-mdio";
+			#address-cells = <1>;
+			#size-cells = <0>;
 				status = "disabled";
-			};
+		};
 		};
 
 		gem2: ethernet@ff0d0000 {
-			compatible = "xlnx,gem";
-			reg = <0xff0d0000 0x1000>,
-			      <0xff5e0058 0x4>;
-			reg-names = "mac", "clkc";
+			compatible = "xlnx,zynqmp-gem", "cdns,gem";
+			reg = <0xff0d0000 0x1000>;
+			clocks = <&zynqmp_clk LPD_LSBUS>, <&zynqmp_clk GEM2_REF>,
+				 <&zynqmp_clk GEM2_TX>, <&zynqmp_clk GEM2_RX>,
+				 <&zynqmp_clk GEM_TSU>;
+			clock-names = "pclk", "hclk", "tx_clk", "rx_clk", "tsu_clk";
 			interrupts = <GIC_SPI 61 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>,
 				     <GIC_SPI 62 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_0", "irq_1";
-			amba-ahb-burst-length = <XLNX_GEM_AMBA_AHB_BURST_INCR16>;
-			hw-rx-buffer-size = <XLNX_GEM_HW_RX_BUFFER_SIZE_8KB>;
-			hw-rx-buffer-offset = <0>;
-			hw-tx-buffer-size-full;
-			rx-buffer-descriptors = <32>;
-			tx-buffer-descriptors = <32>;
-			rx-buffer-size = <1536>;
-			tx-buffer-size = <1536>;
-			discard-rx-fcs;
-			unicast-hash;
 			status = "disabled";
 
 			gem2_mdio: mdio {
-				compatible = "xlnx,gem-mdio";
-				#address-cells = <1>;
-				#size-cells = <0>;
+				compatible = "cdns,macb-mdio";
+			#address-cells = <1>;
+			#size-cells = <0>;
 				status = "disabled";
-			};
+		};
 		};
 
 		gem3: ethernet@ff0e0000 {
-			compatible = "xlnx,gem";
-			reg = <0xff0e0000 0x1000>,
-			      <0xff5e005c 0x4>;
-			reg-names = "mac", "clkc";
+			compatible = "xlnx,zynqmp-gem", "cdns,gem";
+			reg = <0xff0e0000 0x1000>;
+			clocks = <&zynqmp_clk LPD_LSBUS>, <&zynqmp_clk GEM3_REF>,
+				 <&zynqmp_clk GEM3_TX>, <&zynqmp_clk GEM3_RX>,
+				 <&zynqmp_clk GEM_TSU>;
+			clock-names = "pclk", "hclk", "tx_clk", "rx_clk", "tsu_clk";
 			interrupts = <GIC_SPI 63 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>,
 				     <GIC_SPI 64 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_0", "irq_1";
-			amba-ahb-burst-length = <XLNX_GEM_AMBA_AHB_BURST_INCR16>;
-			hw-rx-buffer-size = <XLNX_GEM_HW_RX_BUFFER_SIZE_8KB>;
-			hw-rx-buffer-offset = <0>;
-			hw-tx-buffer-size-full;
-			rx-buffer-descriptors = <32>;
-			tx-buffer-descriptors = <32>;
-			rx-buffer-size = <1536>;
-			tx-buffer-size = <1536>;
-			discard-rx-fcs;
-			unicast-hash;
 			status = "disabled";
 
 			gem3_mdio: mdio {
-				compatible = "xlnx,gem-mdio";
-				#address-cells = <1>;
-				#size-cells = <0>;
+				compatible = "cdns,macb-mdio";
+			#address-cells = <1>;
+			#size-cells = <0>;
 				status = "disabled";
-			};
+		};
 		};
 
 		qspi: spi@ff0f0000 {
@@ -298,7 +316,7 @@
 				      IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_0", "irq_1", "irq_2";
 			status = "disabled";
-		};
+			};
 
 		ttc1: timer@ff120000 {
 			compatible = "xlnx,ttcps";
@@ -360,6 +378,6 @@
 			compatible = "zephyr,memory-region", "xlnx,zynq-ocm";
 			reg = <0xfffc0000 DT_SIZE_K(256)>;
 			zephyr,memory-region = "OCM";
-		};
 	};
+};
 };
