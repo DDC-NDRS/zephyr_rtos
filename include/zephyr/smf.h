@@ -33,13 +33,13 @@
  * @param _initial State initial transition object or NULL
  */
 /* clang-format off */
-#define SMF_CREATE_STATE(_entry, _run, _exit, _parent, _initial)    \
-{                                           \
-    .entry   = _entry,                      \
-    .run     = _run,                        \
-    .exit    = _exit,                       \
-    .parent  = _parent,                     \
-    .initial = _initial                     \
+#define SMF_CREATE_STATE(_entry, _run, _exit, _parent, _initial)        \
+{                                                                       \
+    .entry   = _entry,                                                  \
+    .run     = _run,                                                    \
+    .exit    = _exit,                                                   \
+    IF_ENABLED(CONFIG_SMF_ANCESTOR_SUPPORT, (.parent = _parent,))       \
+    IF_ENABLED(CONFIG_SMF_INITIAL_TRANSITION, (.initial = _initial,))   \
 }
 /* clang-format on */
 
@@ -199,8 +199,8 @@ struct smf_ctx {
     int32_t terminate_val;
 
     /**
-     * The state machine casts this to a "struct internal_ctx" and it's
-     * used to track state machine context
+     * Internal state flags (SMF_NEW_STATE, SMF_TERMINATE, SMF_IS_EXIT,
+     * SMF_HANDLED) used by the state machine to track its context
      */
     uint32_t internal;
 
