@@ -229,22 +229,22 @@ void bt_hci_cmd_state_set_init(const struct net_buf *buf,
  * command complete or command status.
  */
 /* #CUSTOM@NDRS The *_SZ constants must match the header-only size of each struct */
-BUILD_ASSERT(offsetof(struct bt_hci_cp_host_num_completed_packets, h) == BT_HCI_CP_HOST_NUM_COMPLETED_PACKETS_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_cp_le_ext_create_conn, p) == BT_HCI_CP_LE_EXT_CREATE_CONN_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_cp_le_ext_create_conn_v2, p) == BT_HCI_CP_LE_EXT_CREATE_CONN_V2_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_cp_configure_data_path, vs_config) == BT_HCI_CP_CONFIGURE_DATA_PATH_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_evt_num_completed_packets, h) == BT_HCI_EVT_NUM_COMPLETED_PACKETS_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_evt_le_meta_event, data) == BT_HCI_EVT_LE_META_EVENT_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_evt_le_advertising_report, adv_info) == BT_HCI_EVT_LE_ADVERTISING_REPORT_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_evt_le_direct_adv_report, direct_adv_info) == BT_HCI_EVT_LE_DIRECT_ADV_REPORT_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_evt_le_ext_advertising_report, adv_info) == BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_evt_le_per_advertising_report, data) == BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_evt_le_per_advertising_report_v2, data) == BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_V2_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_evt_le_connectionless_iq_report, sample) == BT_HCI_EVT_LE_CONNECTIONLESS_IQ_REPORT_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_evt_le_connection_iq_report, sample) == BT_HCI_EVT_LE_CONNECTION_IQ_REPORT_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_evt_le_big_sync_established, handle) == BT_HCI_EVT_LE_BIG_SYNC_ESTABLISHED_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_evt_le_cs_subevent_result, steps) == BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_SZ);
-BUILD_ASSERT(offsetof(struct bt_hci_evt_le_cs_subevent_result_continue, steps) == BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_CONTINUE_SZ);
+BUILD_ASSERT(offsetof(struct bt_hci_cp_host_num_completed_packets, h) == BT_HCI_CP_HOST_NUM_COMPLETED_PACKETS_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_cp_le_ext_create_conn, p) == BT_HCI_CP_LE_EXT_CREATE_CONN_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_cp_le_ext_create_conn_v2, p) == BT_HCI_CP_LE_EXT_CREATE_CONN_V2_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_cp_configure_data_path, vs_config) == BT_HCI_CP_CONFIGURE_DATA_PATH_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_num_completed_packets, h) == BT_HCI_EVT_NUM_COMPLETED_PACKETS_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_meta_event, data) == BT_HCI_EVT_LE_META_EVENT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_advertising_report, adv_info) == BT_HCI_EVT_LE_ADVERTISING_REPORT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_direct_adv_report, direct_adv_info) == BT_HCI_EVT_LE_DIRECT_ADV_REPORT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_ext_advertising_report, adv_info) == BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_per_advertising_report, data) == BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_per_advertising_report_v2, data) == BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_V2_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_connectionless_iq_report, sample) == BT_HCI_EVT_LE_CONNECTIONLESS_IQ_REPORT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_connection_iq_report, sample) == BT_HCI_EVT_LE_CONNECTION_IQ_REPORT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_big_sync_established, handle) == BT_HCI_EVT_LE_BIG_SYNC_ESTABLISHED_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_cs_subevent_result, steps) == BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_cs_subevent_result_continue, steps) == BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_CONTINUE_SZ, "offset mismatch");
 
 #define CMD_BUF_SIZE MAX(BT_BUF_EVT_RX_SIZE, BT_BUF_CMD_TX_SIZE)
 #if defined(_MSC_VER) /* #CUSTOM@NDRS */
@@ -455,6 +455,29 @@ static void hci_cmd_queue_purge(void)
 
 		net_buf_unref(buf);
 	}
+}
+
+/* Complete the command that was on its way to the controller when the HCI
+ * transport was closed. Its response cannot arrive any more, and its sender
+ * would otherwise wait for the command timeout.
+ */
+static void hci_cmd_sent_purge(void)
+{
+	struct net_buf *buf;
+
+	buf = net_buf_take(&bt_dev.sent_cmd);
+	if (buf == NULL) {
+		return;
+	}
+
+	LOG_WRN("Dropping sent command 0x%04x: HCI transport closed", cmd(buf)->opcode);
+
+	if (cmd(buf)->sync != NULL) {
+		cmd(buf)->status = BT_HCI_ERR_UNSPECIFIED;
+		k_sem_give(cmd(buf)->sync);
+	}
+
+	net_buf_unref(buf);
 }
 
 int bt_hci_cmd_send(uint16_t opcode, struct net_buf *buf)
@@ -5132,8 +5155,15 @@ int bt_disable(void)
 	/* Clear BT_DEV_READY before disabling HCI link. It is not set if
 	 * bt_enable() failed after opening the transport, in which case a
 	 * failed disable must not set it either.
+	 *
+	 * The TX processor holds the host lock for a whole pass, so with the
+	 * lock held here no pass is under way in another thread when the
+	 * flag changes: what a pass has picked up has been sent, and every
+	 * later one holds back what is queued for the connections.
 	 */
+	bt_dev_lock();
 	was_ready = atomic_test_and_clear_bit(bt_dev.flags, BT_DEV_READY);
+	bt_dev_unlock();
 
 #if defined(CONFIG_BT_BROADCASTER)
 	bt_adv_reset_adv_pool();
@@ -5178,6 +5208,8 @@ int bt_disable(void)
 			LOG_ERR("Failed to reset BLE controller");
 			if (was_ready) {
 				atomic_set_bit(bt_dev.flags, BT_DEV_READY);
+				/* Resume sending the data that was held back */
+				bt_tx_irq_raise();
 			}
 			atomic_clear_bit(bt_dev.flags, BT_DEV_DISABLING);
 			return err;
@@ -5223,6 +5255,8 @@ int bt_disable(void)
 		atomic_clear_bit(bt_dev.flags, BT_DEV_DISABLING);
 		return err;
 	}
+
+	hci_cmd_sent_purge();
 
 	/* Some functions rely on checking this bitfield */
 	memset(bt_dev.supported_commands, 0x00, sizeof(bt_dev.supported_commands));

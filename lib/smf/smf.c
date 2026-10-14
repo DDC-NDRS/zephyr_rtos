@@ -175,20 +175,19 @@ static bool smf_execute_all_entry_actions(struct smf_ctx* const ctx,
  *
  * @param ctx State machine context
  * @param target The run actions of this target's ancestors are executed
- * @return true if the state machine should terminate, else false
  */
-static bool smf_execute_ancestor_run_actions(struct smf_ctx* const ctx) {
+static void smf_execute_ancestor_run_actions(struct smf_ctx* const ctx) {
     /* Execute all run actions in reverse order */
     enum smf_state_result rc;
 
     /* Return if the current state terminated */
     if ((ctx->internal & SMF_TERMINATE) != 0) {
-        return (true);
+        return;
     }
 
     /* The child state either transitioned or handled it. Either way, stop propagating. */
     if ((ctx->internal & (SMF_NEW_STATE | SMF_HANDLED)) != 0) {
-        return (false);
+        return;
     }
 
     /* Try to run parent run actions */
@@ -209,7 +208,7 @@ static bool smf_execute_ancestor_run_actions(struct smf_ctx* const ctx) {
             /* No need to continue if terminate was set */
             if ((ctx->internal & SMF_TERMINATE) != 0) {
                 ctx->executing = ctx->current;
-                return (true);
+                return;
             }
 
             /* This state dealt with it. Stop propagating. */
@@ -222,8 +221,6 @@ static bool smf_execute_ancestor_run_actions(struct smf_ctx* const ctx) {
     /* All done executing the run actions */
 
     ctx->executing = ctx->current;
-
-    return (false);
 }
 
 /**
@@ -447,7 +444,6 @@ void smf_set_terminate(struct smf_ctx* const ctx, int32_t val) {
 }
 
 int32_t smf_run_state(struct smf_ctx* const ctx) {
-
     /* No need to continue if terminate was set */
     if ((ctx->internal & SMF_TERMINATE) != 0) {
         return (ctx->terminate_val);
@@ -471,15 +467,18 @@ int32_t smf_run_state(struct smf_ctx* const ctx) {
         }
     }
 
-    if (smf_execute_ancestor_run_actions(ctx)) {
-        return (ctx->terminate_val);
-    }
+    smf_execute_ancestor_run_actions(ctx);
     #else
     if (ctx->current->run) {
         INVOKE_ACTION_HOOK(ctx, ctx->current, SMF_ACTION_RUN);
         ctx->current->run(ctx);
     }
     #endif
+
+    /* Return if the current state terminated */
+    if ((ctx->internal & SMF_TERMINATE) != 0) {
+        return (ctx->terminate_val);
+    }
 
     return (0);
 }
