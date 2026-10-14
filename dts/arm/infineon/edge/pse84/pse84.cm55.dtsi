@@ -61,7 +61,7 @@
 		reg = <0x20000000 DT_SIZE_K(256)>;
 		zephyr,memory-region = "DTCM";
 	};
-};
+	};
 
 &gpio_prt0 {
 	interrupts = <0 4>;
