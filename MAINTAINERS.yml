@@ -8128,6 +8128,7 @@ Xilinx Platforms:
     - boards/amd/
     - drivers/*/*xilinx*
     - drivers/*/*xlnx*
+    - drivers/*/*/*xlnx*
     - drivers/*/*zynq*
     - dts/*/xilinx/
     - dts/bindings/*/*xlnx*
