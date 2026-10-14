@@ -99,12 +99,13 @@ Hardware
 - **User I/O:** CAPSENSE buttons and slider
 - **Security:** Arm® TrustZone®-M, secure enclave with crypto accelerators
 - **Debug:** Onboard KitProg3 (SWD + UART bridge), ETM/JTAG/SWD headers
-- **Voltage Options:** MCU: 2.7 V, 3.3 V, 4.2 V; Peripheral: 1.8 V, 3.3 V
+- **Voltage Options:** MCU: 2.7V, 3.3V, 4.2V; Peripheral: 1.8V, 3.3V
 
 For more information about the PSOC™ Edge E84 and KIT_PSE84_EVAL:
 
 - `PSOC Edge E84 SoC Website`_
 - `KIT_PSE84_EVAL Board Website`_
+- `KIT_PSE84_EVAL User Guide`_
 
 Kit Contents
 ============
@@ -180,6 +181,67 @@ which can be used to program and debug both PSOC™ Edge E84 cores.
 Board Setup
 ===========
 
+Ethernet
+========
+
+The KIT_PSE84_EVAL board supports 10/100 Mbps Ethernet via the Cadence GEM MAC
+and an external Microchip LAN8710A PHY connected to the Ethernet header. Because
+the Ethernet pins are shared with the Bluetooth HCI UART (Port 10) and Wi-Fi
+control GPIOs (Port 11), Ethernet is disabled by default and requires a resistor
+rework on the evaluation kit. Dedicated board variants (``.../eth``) provide the
+pin and clock configuration for Ethernet in MII mode.
+
+See section 3.3.5 of the `KIT_PSE84_EVAL User Guide`_ for resistor rework instructions
+(configuring the board between Bluetooth, Wi-Fi, and Ethernet MII/RMII).
+
+To build an application with Ethernet in MII mode on the CM33 core (Non-Secure):
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/net/dhcpv4_client
+   :board: kit_pse84_eval/pse846gps2dbzc4a/m33/ns/eth
+   :goals: build
+
+To build for the Cortex-M55 core using sysbuild to include the CM33 companion
+application that boots CM55:
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/net/dhcpv4_client
+   :board: kit_pse84_eval/pse846gps2dbzc4a/m55/eth
+   :west-args: -p --sysbuild
+   :goals: build
+
+To test in RMII mode (requires matching RMII hardware rework, PHY strap configuration,
+and an external 50 MHz clock supplied to the ``REF_CLK`` pin):
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/net/dhcpv4_client
+   :board: kit_pse84_eval/pse846gps2dbzc4a/m33/ns/eth
+   :gen-args: -DEXTRA_DTC_OVERLAY_FILE="${ZEPHYR_BASE}/boards/infineon/kit_pse84_eval/rmii.overlay"
+   :goals: build
+
+Building
+********
+
+Here is an example for the :zephyr:code-sample:`hello_world` application
+on the CM33 core.
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/hello_world
+   :board: kit_pse84_eval/pse846gps2dbzc4a/m33
+   :goals: build
+
+To build the CM33 non-secure (TF-M) variant:
+
+.. code-block:: console
+
+   west build -p -b kit_pse84_eval/pse846gps2dbzc4a/m33/ns samples/hello_world
+
+To build for the CM55 core, use the ``--sysbuild`` flag:
+
+.. code-block:: console
+
+   west build -p -b kit_pse84_eval/pse846gps2dbzc4a/m55 samples/hello_world --sysbuild
+
 .. note::
 
    The ``SW6`` (``BOOT SW``) DIP switch selects where the extended boot jumps
@@ -212,7 +274,7 @@ extract it to a location of your choice.
 Tell west where Infineon OpenOCD is installed. On Windows the executable is
 ``openocd.exe``.
 
-.. code-block:: shell
+      .. code-block:: shell
 
    west config build.cmake-args -- "-DOPENOCD=path/to/infineon/openocd/bin/openocd"
 
@@ -783,6 +845,9 @@ References
 
 .. _KIT_PSE84_EVAL Board Website:
     https://www.infineon.com/evaluation-board/KIT-PSE84-EVAL
+
+.. _KIT_PSE84_EVAL User Guide:
+   https://www.infineon.com/document-promo/infineon-kit-pse84-eval-user-guide-usermanual-en_c6ba547c-8833-4171-b596-faa11e53a2d8
 
 .. _ModusToolbox™ Programming Tools:
     https://softwaretools.infineon.com/tools/com.ifx.tb.tool.modustoolboxprogtools
