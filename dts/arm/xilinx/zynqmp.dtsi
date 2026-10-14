@@ -8,9 +8,30 @@
 #include <arm/armv7-r.dtsi>
 #include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
 #include <zephyr/dt-bindings/ethernet/xlnx_gem.h>
+#include <zephyr/dt-bindings/clock/xlnx-zynqmp-clk.h>
 
 / {
+	pss_ref_clk: pss-ref-clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <33333000>;
+	};
+
 	soc {
+		zynqmp_clk: clock-controller@ff5e0000 {
+			compatible = "xlnx,zynqmp-clk";
+			reg = <0xff5e0000 0x1000>, <0xfd1a0000 0x1000>;
+			reg-names = "crl_apb", "crf_apb";
+			clocks = <&pss_ref_clk>;
+			clock-names = "pss_ref_clk";
+			#clock-cells = <1>;
+		};
+
+		pinctrl: pinctrl@ff180000 {
+			reg = <0xff180000 0xc80>;
+			compatible = "xlnx,pinctrl-zynqmp";
+		};
+
 		flash0: flash@c0000000 {
 			compatible = "soc-nv-flash";
 			reg = <0xc0000000 DT_SIZE_M(32)>;
@@ -109,7 +130,7 @@
 				#gpio-cells = <2>;
 				ngpios = <26>;
 				status = "okay";
-			};
+		};
 
 			psgpio_bank1: psgpio_bank@1 {
 				compatible = "xlnx,ps-gpio-bank";
@@ -285,7 +306,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
-		};
+			};
 
 		ttc0: timer@ff110000 {
 			compatible = "xlnx,ttcps";
@@ -298,7 +319,7 @@
 				      IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_0", "irq_1", "irq_2";
 			status = "disabled";
-		};
+			};
 
 		ttc1: timer@ff120000 {
 			compatible = "xlnx,ttcps";
@@ -360,6 +381,6 @@
 			compatible = "zephyr,memory-region", "xlnx,zynq-ocm";
 			reg = <0xfffc0000 DT_SIZE_K(256)>;
 			zephyr,memory-region = "OCM";
-		};
 	};
+};
 };
