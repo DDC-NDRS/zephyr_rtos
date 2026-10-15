@@ -133,6 +133,8 @@ struct esp32_wifi_runtime {
     #if defined(CONFIG_ESP32_WIFI_WNM_SUPPORT)
     struct k_work_delayable roam_timeout_work;
     #endif
+
+    uint8_t frame_buf[NET_ETH_MAX_FRAME_SIZE];
 };
 
 /*
@@ -879,9 +881,9 @@ static void esp_wifi_handle_sta_disconnect_event(void* event_data) {
             esp32_data.state = ESP32_STA_CONNECTING;
             esp_wifi_connect();
         }
-    }
-    else {
+        else {
             esp32_data.state = ESP32_STA_STARTED;
+        }
     }
 }
 

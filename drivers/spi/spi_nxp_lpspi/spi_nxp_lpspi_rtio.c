@@ -58,7 +58,7 @@ struct spi_dma_stream {
 struct lpspi_driver_data {
     struct spi_rtio* rtio_ctx;
 
-    struct {
+    struct lpspi_tx_curr {
         struct rtio_sqe* sqe;
         size_t words_clocked;
     } tx_curr;
@@ -69,7 +69,7 @@ struct lpspi_driver_data {
         size_t words_to_clock_rx;
     } total;
 
-    struct lpspi_tx_curr {
+    struct lpspi_rx_curr {
         struct rtio_sqe* sqe;
         size_t words_clocked;
     } rx_curr;
@@ -604,7 +604,8 @@ static void lpspi_rtio_iodev_start(const struct device* dev) {
     struct rtio_sqe* sqe = &rtio_ctx->txn_head->sqe;
     struct spi_dt_spec* spi_dt_spec = sqe->iodev->data;
     struct spi_config* spi_cfg = &spi_dt_spec->config;
-    uint8_t op_mode = SPI_OP_MODE_GET(spi_cfg->operation);
+    struct lpspi_tx_curr* tx_curr = &lpspi_data->tx_curr;
+    struct lpspi_rx_curr* rx_curr = &lpspi_data->rx_curr;
     int ret;
 
     lpspi_data->word_size_bytes =
@@ -658,7 +659,7 @@ static void lpspi_rtio_iodev_start(const struct device* dev) {
     spi_context_cs_control(&data->ctx, true);
 
     /* tcr is written to tx fifo */
-    lpspi_wait_tx_fifo_empty(dev);
+    lpspi_wait_tx_fifo_empty(dev, spi_cfg->operation);
 
     #ifdef CONFIG_SPI_NXP_LPSPI_RTIO_DMA
     #ifdef CONFIG_SPI_NXP_LPSPI_RTIO_DMA_THRESHOLD
@@ -703,7 +704,7 @@ static void lpspi_rtio_iodev_start(const struct device* dev) {
          * on the RX channel.
          */
         lpspi_data->tcr_cmd |= LPSPI_TCR_RXMSK_MASK;
-        base->TCR = lpspi_data->tcr_cmd;
+        lpspi->TCR = lpspi_data->tcr_cmd;
     }
 
     /* start the transfer sequence which are handled by irqs */

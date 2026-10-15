@@ -1834,7 +1834,7 @@ static inline void net_ipv6_addr_get_v4_mapped(const struct net_in6_addr* addr6,
  */
 int net_ipv6_addr_generate_iid(struct net_if* iface,
                                const struct net_in6_addr* prefix,
-                               uint8_t*_network_id, size_t network_id_len,
+                               uint8_t* network_id, size_t network_id_len,
                                uint8_t dad_counter,
                                struct net_in6_addr* addr,
                                struct net_linkaddr* lladdr);
@@ -1923,7 +1923,7 @@ static inline bool net_ipv6_addr_based_on_ll(struct net_in6_addr const* addr,
  *
  * @return Pointer to socket address (struct sockaddr)
  */
-static ALWAYS_INLINE struct net_sockaddr* net_sad(struct net_sockaddr_storage* addr) {
+static ALWAYS_INLINE struct net_sockaddr* net_sad(const struct net_sockaddr_storage* addr) {
     return (struct net_sockaddr*)addr;
 }
 

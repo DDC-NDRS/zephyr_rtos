@@ -663,7 +663,7 @@ enum net_verdict net_ipv6_input(struct net_pkt* pkt) {
     uint8_t ext_bitmap = 0U;
     uint16_t ext_len   = 0U;
     uint_fast8_t current_hdr;
-    uint_fast8_t prev_hdr_offset;
+    uint16_t prev_hdr_offset;   /* matches struct net_pkt::ipv6_prev_hdr_start */
     uint8_t nexthdr;
     union net_proto_header proto_hdr;
     struct net_ipv6_hdr* hdr;
@@ -869,7 +869,7 @@ enum net_verdict net_ipv6_input(struct net_pkt* pkt) {
         }
 
         /* Offset of "nexthdr" in the Extension Header */
-        prev_hdr_offset = (uint_fast8_t)net_pkt_get_current_offset(pkt);
+        prev_hdr_offset = (uint16_t)net_pkt_get_current_offset(pkt);
 
         if (net_pkt_read_u8(pkt, &nexthdr)) {
             NET_DBG("DROP: pkt invalid read");
