@@ -2063,6 +2063,7 @@ Documentation Infrastructure:
     - net.ethernet
     - sample.drivers.ethernet
     - net.ethernet.build
+    - sample.net.ptp
 
 "Drivers: FPGA":
   status: maintained
@@ -4119,6 +4120,7 @@ MIPS arch:
     - boards/qemu/malta/
   labels:
     - "area: MIPS"
+  tests:
     - arch
     - kernel
 

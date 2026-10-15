@@ -76,7 +76,7 @@ struct lpspi_data {
 
 #ifdef CONFIG_SPI_NXP_LPSPI_DMA
 /* Transfer-state machine used by the DMA callback. */
-typedef enum {
+enum lpspi_transfer_state_t {
     LPSPI_TRANSFER_STATE_NULL,
     LPSPI_TRANSFER_STATE_ONGOING,
     LPSPI_TRANSFER_STATE_NEXT_DMA_SIZE_UPDATED,
@@ -84,7 +84,7 @@ typedef enum {
     LPSPI_TRANSFER_STATE_RX_DONE,
     LPSPI_TRANSFER_STATE_RX_TX_DONE,
     LPSPI_TRANSFER_STATE_INVALID = 0xFFFFFFFFUL,
-} lpspi_transfer_state_t;
+};
 
 struct spi_dma_stream {
     const struct device* dma_dev;
@@ -96,9 +96,13 @@ struct spi_dma_stream {
 struct spi_nxp_dma_data {
     struct spi_dma_stream dma_rx;
     struct spi_dma_stream dma_tx;
-    lpspi_transfer_state_t state;
+    enum lpspi_transfer_state_t state;
+
     /* Synchronized DMA size for RX/TX interleaving on v1 LPSPI. */
     size_t synchronize_dma_size;
+
+    /* kept for the cache invalidate at the end of the transfer */
+    struct spi_buf_set const* rx_bufs;
 };
 #endif /* CONFIG_SPI_NXP_LPSPI_DMA */
 
@@ -151,15 +155,73 @@ struct spi_nxp_stream_data {
 };
 #endif /* CONFIG_SPI_NXP_LPSPI_STREAM */
 
+/* Common helper function to enable or disable the LPSPI module while
+ * taking into account ERR051472
+ */
+static inline void lpspi_enable(LPSPI_Type* lpspi, bool enable) {
+    if (enable) {
+        lpspi->CR |= LPSPI_CR_MEN_MASK;
+    }
+    else {
+        lpspi->CR &= ~LPSPI_CR_MEN_MASK;
+        while ((lpspi->CR & LPSPI_CR_MEN_MASK) != 0) {
+            /* According to datasheet, should wait for this MEN bit
+             * to clear once idle.
+             */
+        }
+    }
+
+    #if defined(FSL_FEATURE_LPSPI_HAS_ERRATA_051472) && FSL_FEATURE_LPSPI_HAS_ERRATA_051472
+    /*
+     * ERR051472: The SR[REF] would assert if software disables the LPSPI module
+     * after receiving some data and then enabled the LPSPI again without performing
+     * a software reset.
+     * Workaround: Clear SR[REF] flag after LPSPI module enabled
+     */
+    if ((lpspi->SR & LPSPI_SR_REF_MASK) != 0U) {
+        lpspi->SR = LPSPI_SR_REF_MASK;
+    }
+    #endif /* FSL_FEATURE_LPSPI_HAS_ERRATA_051472 */
+}
+
+/*
+ * Avoid register reading problems: Reading the Transmit Command Register will return
+ * the current state of the command register. Reading the Transmit Command Register at the
+ * same time that the Transmit Command Register is loaded from the transmit FIFO, can
+ * return an incorrect Transmit Command Register value. It is recommended:
+ * - to either read the Transmit Command Register when the transmit FIFO is empty,
+ * - or to read the Transmit Command Register more than once and then compare the
+ *   returned values.
+ */
+static inline uint32_t lpspi_read_tcr(LPSPI_Type* lpspi) {
+    uint32_t tcr_values[2];
+    uint32_t i = 0U;
+
+    tcr_values[0] = lpspi->TCR;
+    do {
+        i = ((i + 1U) % 2U);
+
+        /* ERR050606 LPSPI: TCR value does not get resampled when polling the
+         * register.
+         * Workaround: After reading the Transmit Command Register must always
+         * access a different register in between subsequent reads from TCR.
+         */
+        (void) lpspi->SR;
+        tcr_values[i] = lpspi->TCR;
+    } while (tcr_values[0] != tcr_values[1]);
+
+    return (tcr_values[0]);
+}
+
 /* Common helper functions used to interact with LPSPI FIFOs (TX and RX) when dealing
  * with cpu-based implementation.
  */
-static inline size_t rx_fifo_cur_len(LPSPI_Type* base) {
-    return (size_t)((base->FSR & LPSPI_FSR_RXCOUNT_MASK) >> LPSPI_FSR_RXCOUNT_SHIFT);
+static inline size_t rx_fifo_cur_len(LPSPI_Type* lpspi) {
+    return (size_t)((lpspi->FSR & LPSPI_FSR_RXCOUNT_MASK) >> LPSPI_FSR_RXCOUNT_SHIFT);
 }
 
-static inline size_t tx_fifo_cur_len(LPSPI_Type* base) {
-    return (size_t)((base->FSR & LPSPI_FSR_TXCOUNT_MASK) >> LPSPI_FSR_TXCOUNT_SHIFT);
+static inline size_t tx_fifo_cur_len(LPSPI_Type* lpspi) {
+    return (size_t)((lpspi->FSR & LPSPI_FSR_TXCOUNT_MASK) >> LPSPI_FSR_TXCOUNT_SHIFT);
 }
 
 /* Verifies spi_cfg validity and set up configuration of hardware for xfer

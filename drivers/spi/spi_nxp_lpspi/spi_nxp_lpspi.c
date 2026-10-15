@@ -220,7 +220,7 @@ static inline void lpspi_end_xfer(const struct device* dev) {
     #endif
 
     if (!(ctx->config->operation & SPI_HOLD_ON_CS)) {
-        lpspi->TCR &= ~(LPSPI_TCR_CONT_MASK | LPSPI_TCR_CONTC_MASK);
+        lpspi->TCR = lpspi_read_tcr(lpspi) & ~(LPSPI_TCR_CONT_MASK | LPSPI_TCR_CONTC_MASK);
         /* don't need to wait for TCR since we are at end of xfer + in IRQ context */
     }
 
@@ -273,7 +273,7 @@ static void lpspi_isr(const struct device* dev) {
          * in order to get last bit clocked out on bus. So all we need to do is touch the
          * TCR by writing to fifo through TCR register and wait for final RX interrupt.
          */
-        lpspi->TCR = lpspi->TCR;
+        lpspi->TCR = lpspi_read_tcr(lpspi);
         return;
     }
 
@@ -319,11 +319,11 @@ static void lpspi_controller_setup_native_cs(const struct device* dev,
      * asserted.
      */
     if (((spi_cfg->operation & SPI_HOLD_ON_CS) != 0U) ||
-        ((lpspi->TCR & LPSPI_TCR_CONTC_MASK) != 0U)) {
-        lpspi->TCR |= (LPSPI_TCR_CONTC_MASK | LPSPI_TCR_CONT_MASK);
+        ((lpspi_read_tcr(lpspi) & LPSPI_TCR_CONTC_MASK) != 0U)) {
+        lpspi->TCR = lpspi_read_tcr(lpspi) | LPSPI_TCR_CONTC_MASK | LPSPI_TCR_CONT_MASK;
     }
     else {
-        lpspi->TCR |= LPSPI_TCR_CONT_MASK;
+        lpspi->TCR = lpspi_read_tcr(lpspi) | LPSPI_TCR_CONT_MASK;
     }
 
     /* tcr is written to tx fifo */
@@ -406,7 +406,7 @@ static int lpspi_ll_transceive(const struct device* dev, const struct spi_config
         lpspi->CFGR1 |= LPSPI_CFGR1_AUTOPCS_MASK;
     }
 
-    lpspi->CR |= LPSPI_CR_MEN_MASK;
+    lpspi_enable(lpspi, true);
 
     if (op_mode == SPI_OP_MODE_CONTROLLER) {
         lpspi_controller_setup_native_cs(dev, spi_cfg);

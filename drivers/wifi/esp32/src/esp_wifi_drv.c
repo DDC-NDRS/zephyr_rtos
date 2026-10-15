@@ -38,6 +38,7 @@ LOG_MODULE_REGISTER(esp32_wifi, CONFIG_WIFI_LOG_LEVEL);
 
 #if defined(CONFIG_ESP32_WIFI_ENTERPRISE)
 #include <esp_eap_client.h>
+#include <mbedtls/platform_util.h>
 #endif
 #if defined(CONFIG_ESP32_WIFI_RRM_SUPPORT)
 #include <esp_rrm.h>
@@ -106,6 +107,9 @@ struct esp32_wifi_runtime {
 
     struct esp32_wifi_status status;
     scan_result_cb_t scan_cb;
+
+    /* Interface the scan was requested on; results are reported through it. */
+    struct net_if* scan_iface;
     uint8_t state;
     uint8_t ap_connection_cnt;
     struct k_mutex send_lock;
@@ -488,7 +492,7 @@ pkt_unref :
 }
 #endif
 
-static void scan_done_handler(void) {
+static void scan_done_handler(wifi_event_sta_scan_done_t const* evt) {
     esp_err_t ret;
     wifi_ap_record_t ap_record;
     struct wifi_scan_result res;
@@ -580,7 +584,7 @@ static void scan_done_handler(void) {
                 break;
         }
 
-        esp32_data.scan_cb(esp32_wifi_iface, 0, &res);
+        esp32_data.scan_cb(esp32_data.scan_iface, 0, &res);
 
         /* ensure notifications get delivered */
         k_yield();
@@ -594,7 +598,7 @@ static void scan_done_handler(void) {
     esp_wifi_clear_ap_list();
 
     /* Report end of scan; the internal-scan case already returned above. */
-    esp32_data.scan_cb(esp32_wifi_iface, 0, NULL);
+    esp32_data.scan_cb(esp32_data.scan_iface, (evt->status != 0) ? -EIO : 0, NULL);
     esp32_data.scan_cb = NULL;
 }
 
@@ -1004,16 +1008,19 @@ static int esp32_wifi_enterprise_err(const char* what, esp_err_t err) {
     return (-EIO);
 }
 
-static void esp32_wifi_clear_enterprise_creds(struct esp32_wifi_runtime* data) {
-    uint8_t* certs[] = {
-        data->enterprise_creds.ca_cert,
-        data->enterprise_creds.client_cert,
-        data->enterprise_creds.client_key,
-    };
-
-    for (size_t i = 0; i < ARRAY_SIZE(certs); i++) {
-        k_free(certs[i]);
+static void esp32_wifi_free_cred(uint8_t* cred, uint32_t cred_len) {
+    if (cred != NULL) {
+        mbedtls_platform_zeroize(cred, cred_len);
+        k_free(cred);
     }
+}
+
+static void esp32_wifi_clear_enterprise_creds(struct esp32_wifi_runtime* data) {
+    struct wifi_enterprise_creds_params* certs = &data->enterprise_creds;
+
+    esp32_wifi_free_cred(certs->ca_cert, certs->ca_cert_len);
+    esp32_wifi_free_cred(certs->client_cert, certs->client_cert_len);
+    esp32_wifi_free_cred(certs->client_key, certs->client_key_len);
 
     memset(&data->enterprise_creds, 0, sizeof(data->enterprise_creds));
 }
@@ -1352,7 +1359,7 @@ void esp_wifi_event_handler(const char* event_base, int32_t event_id, void* even
         #endif
 
         case WIFI_EVENT_SCAN_DONE :
-            scan_done_handler();
+            scan_done_handler(event_data);
             break;
 
         case WIFI_EVENT_AP_START :
@@ -1812,7 +1819,13 @@ static int esp32_wifi_scan(const struct device* dev __unused,
                            struct net_if* iface,
                            struct wifi_scan_params* params,
                            scan_result_cb_t cb) {
-    struct esp32_wifi_runtime* data = esp32_wifi_data_get(iface);
+    /*
+     * Scanning always runs on the station and scan_done_handler() reads
+     * esp32_data, so track the callback there regardless of which
+     * interface the request arrived on, and remember that interface so
+     * the results are reported to the requester.
+     */
+    struct esp32_wifi_runtime* data = &esp32_data;
     int ret;
 
     #if defined(CONFIG_WIFI_ESP32_MESH)
@@ -1829,6 +1842,7 @@ static int esp32_wifi_scan(const struct device* dev __unused,
     }
 
     data->scan_cb = cb;                     /* @see scan_result_cb in wifi_mgmt.c */
+    data->scan_iface = iface;
 
     wifi_scan_config_t scan_config = {0};
 

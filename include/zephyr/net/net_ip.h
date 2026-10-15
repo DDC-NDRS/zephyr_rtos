@@ -358,14 +358,21 @@ struct net_linger {
 #if !defined(NET_CMSG_NXTHDR)
 /**
  * Returns the next valid cmsghdr after the passed cmsghdr. It returns NULL
- * when there isn't enough space left in the buffer.
+ * when there isn't enough space left in the buffer, or when the length of
+ * the passed cmsghdr is not valid: too small to hold a header, as is the
+ * case in the unused, zeroed part of a buffer, or larger than what is left
+ * of the buffer.
  */
 #define NET_CMSG_NXTHDR(msghdr, cmsg)                           \
     (((cmsg) == NULL) ? NET_CMSG_FIRSTHDR(msghdr) :             \
-     (((uint8_t*)(cmsg) + NET_ALIGN_H((cmsg)->cmsg_len) +       \
-        NET_ALIGN_D(sizeof(struct net_cmsghdr)) >               \
-        (uint8_t*)((msghdr)->msg_control) + (msghdr)->msg_controllen) ? \
-        NULL :                                                  \
+     (((cmsg)->cmsg_len < sizeof(struct net_cmsghdr) ||         \
+       (cmsg)->cmsg_len > (size_t)((uint8_t*)((msghdr)->msg_control) + \
+                                   (msghdr)->msg_controllen -   \
+                                   (uint8_t*)(cmsg)) ||         \
+       (uint8_t*)(cmsg) + NET_ALIGN_H((cmsg)->cmsg_len) +       \
+       NET_ALIGN_D(sizeof(struct net_cmsghdr)) >                \
+       (uint8_t*)((msghdr)->msg_control) + (msghdr)->msg_controllen) ? \
+      NULL :                                                    \
       (struct net_cmsghdr*)((uint8_t *)(cmsg) +                 \
                             NET_ALIGN_H((cmsg)->cmsg_len))))
 #endif
@@ -851,17 +858,17 @@ struct net_ipv6_mreq {
  * @brief Struct used when setting a packet socket multicast filtering.
  */
 struct net_packet_mreq {
-	/** Network interface index */
-	int mr_ifindex;
+    /** Network interface index */
+    int mr_ifindex;
 
-	/** Packet type (action) */
-	uint16_t mr_type;
+    /** Packet type (action) */
+    uint16_t mr_type;
 
-	/** Address length */
-	uint16_t mr_alen;
+    /** Address length */
+    uint16_t mr_alen;
 
-	/** Physical layer address */
-	uint8_t mr_address[NET_LINK_ADDR_MAX_LENGTH];
+    /** Physical layer address */
+    uint8_t mr_address[NET_LINK_ADDR_MAX_LENGTH];
 };
 
 /**
@@ -978,18 +985,18 @@ static inline bool net_ipv6_is_prefix(uint8_t const* addr1,
     uint8_t mask;
 
     if (length > 128) {
-        return false;
+        return (false);
     }
 
     if (memcmp(addr1, addr2, bytes) != 0) {
-        return false;
+        return (false);
     }
 
     if (!remain) {
         /* No remaining bits, the prefixes are the same as first
          * bytes are the same.
          */
-        return true;
+        return (true);
     }
 
     /* Create a mask that has remaining most significant bits set */
@@ -1358,7 +1365,7 @@ extern bool net_if_ipv4_is_addr_bcast(struct net_if* iface,
 static inline bool net_ipv4_is_addr_bcast(struct net_if* iface,
                                           const struct net_in_addr* addr) {
     if (net_ipv4_addr_cmp(addr, net_ipv4_broadcast_address())) {
-        return true;
+        return (true);
     }
 
     return net_if_ipv4_is_addr_bcast(iface, addr);
@@ -1369,7 +1376,7 @@ static inline bool net_ipv4_is_addr_bcast(struct net_if* iface,
     ARG_UNUSED(iface);
     ARG_UNUSED(addr);
 
-    return false;
+    return (false);
 }
 #endif
 
@@ -1788,10 +1795,10 @@ static inline bool net_ipv6_addr_is_v4_mapped(const struct net_in6_addr* addr) {
     if (UNALIGNED_GET(&addr->s6_addr32[0]) == 0 &&
         UNALIGNED_GET(&addr->s6_addr32[1]) == 0 &&
         UNALIGNED_GET(&addr->s6_addr16[5]) == 0xffff) {
-        return true;
+        return (true);
     }
 
-    return false;
+    return (false);
 }
 
 /**
@@ -1847,7 +1854,7 @@ static inline void net_ipv6_addr_create_iid(struct net_in6_addr* addr,
 static inline bool net_ipv6_addr_based_on_ll_raw(uint8_t const* addr,
                                                  struct net_linkaddr const* lladdr) {
     if ((addr == NULL) || (lladdr == NULL)) {
-        return false;
+        return (false);
     }
 
     switch (lladdr->len) {
@@ -1858,7 +1865,7 @@ static inline bool net_ipv6_addr_based_on_ll_raw(uint8_t const* addr,
                 addr[10] == 0U &&
                 addr[11] == 0xFF &&
                 addr[12] == 0xFE) {
-                return true;
+                return (true);
             }
             break;
 
@@ -1876,21 +1883,21 @@ static inline bool net_ipv6_addr_based_on_ll_raw(uint8_t const* addr,
 
         case 8 :
             if (sizeof(lladdr->addr) < 8) {
-                return false;
+                return (false);
             }
 
             if (!memcmp(&addr[9], &lladdr->addr[1],
                         lladdr->len - 1) &&
                 (addr[8] ^ 0x02) == lladdr->addr[0]) {
-                return true;
+                return (true);
             }
             break;
 
         default :
-            return false;
+            return (false);
     }
 
-    return false;
+    return (false);
 }
 /** @endcond */
 
@@ -2156,39 +2163,38 @@ int net_port_get(struct net_sockaddr *addr, uint16_t *port);
  *
  * @return true if a and b are equal, false otherwise.
  */
-static inline bool net_sockaddr_cmp(const struct net_sockaddr *a, const struct net_sockaddr *b)
-{
-	if (a->sa_family != b->sa_family) {
-		return false;
-	}
+static inline bool net_sockaddr_cmp(const struct net_sockaddr* a, const struct net_sockaddr* b) {
+    if (a->sa_family != b->sa_family) {
+        return (false);
+    }
 
-	switch (a->sa_family) {
-	case NET_AF_INET: {
-		const struct net_sockaddr_in *a4 = net_sin(a);
-		const struct net_sockaddr_in *b4 = net_sin(b);
+    switch (a->sa_family) {
+    case NET_AF_INET : {
+        const struct net_sockaddr_in* a4 = net_sin(a);
+        const struct net_sockaddr_in* b4 = net_sin(b);
 
-		if (a4->sin_port != b4->sin_port) {
-			return false;
-		}
+        if (a4->sin_port != b4->sin_port) {
+            return (false);
+        }
 
-		return net_ipv4_addr_cmp(&a4->sin_addr, &b4->sin_addr);
-	}
+        return net_ipv4_addr_cmp(&a4->sin_addr, &b4->sin_addr);
+    }
 
-	case NET_AF_INET6: {
-		const struct net_sockaddr_in6 *a6 = net_sin6(a);
-		const struct net_sockaddr_in6 *b6 = net_sin6(b);
+    case NET_AF_INET6: {
+        const struct net_sockaddr_in6* a6 = net_sin6(a);
+        const struct net_sockaddr_in6* b6 = net_sin6(b);
 
-		if (a6->sin6_port != b6->sin6_port) {
-			return false;
-		}
+        if (a6->sin6_port != b6->sin6_port) {
+            return (false);
+        }
 
-		return net_ipv6_addr_cmp(&a6->sin6_addr, &b6->sin6_addr);
-	}
+        return net_ipv6_addr_cmp(&a6->sin6_addr, &b6->sin6_addr);
+    }
 
-	default:
-		/* Invalid address family */
-		return false;
-	}
+    default:
+        /* Invalid address family */
+        return (false);
+    }
 }
 
 /**

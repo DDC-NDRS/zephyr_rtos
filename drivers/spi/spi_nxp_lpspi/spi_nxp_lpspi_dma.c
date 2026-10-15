@@ -9,7 +9,44 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(spi_lpspi, CONFIG_SPI_LOG_LEVEL);
 
+#include <zephyr/cache.h>
+#include <zephyr/drivers/dma.h>
 #include "spi_nxp_lpspi_priv.h"
+
+/*
+ * eDMA is not coherent with the D-cache and nothing else in the path does
+ * cache maintenance, so a buffer in cached RAM is transferred stale.
+ */
+static void lpspi_dma_cache_clean_tx(struct spi_buf_set const* tx_bufs) {
+    if (!IS_ENABLED(CONFIG_DCACHE) || (tx_bufs == NULL)) {
+        return;
+    }
+
+    for (size_t i = 0; i < tx_bufs->count; i++) {
+        struct spi_buf const* buf = &tx_bufs->buffers[i];
+
+        if ((buf->buf != NULL) && (buf->len != 0)) {
+            sys_cache_data_flush_range((void*)buf->buf, buf->len);
+        }
+    }
+}
+
+static void lpspi_dma_cache_invd_rx(struct spi_buf_set const* rx_bufs) {
+    if (!IS_ENABLED(CONFIG_DCACHE) || (rx_bufs == NULL)) {
+        return;
+    }
+
+    for (size_t i = 0; i < rx_bufs->count; i++) {
+        struct spi_buf const* buf = &rx_bufs->buffers[i];
+
+        if ((buf->buf != NULL) && (buf->len != 0)) {
+            /* Clean too: a buffer not aligned to the line size
+             * shares its first and last lines with other data
+             */
+            sys_cache_data_flush_and_invd_range(buf->buf, buf->len);
+        }
+    }
+}
 
 /* dummy memory used for transferring NOP when tx buf is null */
 static uint32_t tx_nop_val; /* check compliance says no init to 0, but should be 0 in bss */
@@ -44,8 +81,8 @@ static void spi_mcux_issue_TCR(const struct device* dev) {
     /* On old LPSPI versions, we always have to issue TCR, or transaction will never end.
      * On a newer LPSPI version, only issue TCR when hold on CS feature is disabled.
      */
-    if ((major_ver < 2) || !(spi_cfg->operation & SPI_HOLD_ON_CS)) {
-        lpspi->TCR &= ~LPSPI_TCR_CONTC_MASK;
+    if ((major_ver < 2) || ((spi_cfg->operation & SPI_HOLD_ON_CS) == 0)) {
+        lpspi->TCR = lpspi_read_tcr(lpspi) & ~LPSPI_TCR_CONTC_MASK;
     }
 }
 
@@ -249,6 +286,10 @@ static void lpspi_dma_callback(const struct device* dev, void* arg, uint32_t cha
             dma_data->state = LPSPI_TRANSFER_STATE_RX_TX_DONE;
 
             /* TX and RX both done here. */
+            /* Not after spi_context_wait_for_completion(), which does not
+             * wait for an asynchronous transfer
+             */
+            lpspi_dma_cache_invd_rx(dma_data->rx_bufs);
             spi_context_complete(ctx, spi_dev, 0);
             spi_context_cs_control(ctx, false);
             break;
@@ -262,8 +303,11 @@ static void lpspi_dma_callback(const struct device* dev, void* arg, uint32_t cha
     LOG_DBG("DMA %cX Block Complete", debug_char);
     return;
 
-error:
+error :
     LOG_ERR("DMA callback error with channel %d.", channel);
+
+    /* The DMA may have written part of the RX data before failing */
+    lpspi_dma_cache_invd_rx(dma_data->rx_bufs);
     spi_context_complete(ctx, spi_dev, ret);
     spi_context_cs_control(ctx, false);
 }
@@ -292,7 +336,7 @@ static int lpspi_ll_transceive_dma(const struct device* dev, const struct spi_co
     }
 
     /* Always use continuous mode to satisfy SPI API requirements. */
-    lpspi->TCR |= (LPSPI_TCR_CONT_MASK | LPSPI_TCR_CONTC_MASK);
+    lpspi->TCR = lpspi_read_tcr(lpspi) | LPSPI_TCR_CONT_MASK | LPSPI_TCR_CONTC_MASK;
 
     /* Please set both watermarks as 0 because there are some synchronize requirements
      * between RX and TX on RT platform. TX and RX DMA callback must be called in interleaved
@@ -300,6 +344,10 @@ static int lpspi_ll_transceive_dma(const struct device* dev, const struct spi_co
      */
     lpspi->FCR = (LPSPI_FCR_TXWATER(0) | LPSPI_FCR_RXWATER(0));
     spi_context_buffers_setup(ctx, tx_bufs, rx_bufs, 1);
+
+    /* The source does not change in flight, so one clean covers every chunk */
+    lpspi_dma_cache_clean_tx(tx_bufs);
+    dma_data->rx_bufs = rx_bufs;
 
     /* Set next dma size is invalid. */
     dma_data->synchronize_dma_size = 0;

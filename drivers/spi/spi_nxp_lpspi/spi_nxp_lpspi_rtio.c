@@ -652,7 +652,7 @@ static void lpspi_rtio_iodev_start(const struct device* dev) {
      * and the TCR read is defined, and cache it. Every later command write
      * reuses the cached value so no TCR readback happens mid-transfer.
      */
-    lpspi_data->tcr_cmd = (lpspi->TCR & ~(LPSPI_TCR_PCS_MASK | LPSPI_TCR_RXMSK_MASK)) |
+    lpspi_data->tcr_cmd = (lpspi_read_tcr(lpspi) & ~(LPSPI_TCR_PCS_MASK | LPSPI_TCR_RXMSK_MASK)) |
                           LPSPI_TCR_PCS(spi_cfg->peripheral) | LPSPI_TCR_CONT_MASK;
     lpspi->TCR = lpspi_data->tcr_cmd;
     spi_context_cs_control(&data->ctx, true);
