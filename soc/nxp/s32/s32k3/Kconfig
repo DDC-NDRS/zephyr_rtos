@@ -19,7 +19,9 @@ config SOC_SERIES_S32K3
 	select HAS_MCUX_CACHE
 	select SOC_EARLY_INIT_HOOK
 	select HAS_SEGGER_RTT if ZEPHYR_SEGGER_MODULE
-	select SPI_NXP_LPSPI_ERR050456 if SPI_NXP_LPSPI
+	# #CUSTOM@NDRS: the S32K358 (mask 1P14E) has no ERR050456 in its errata sheet and its HAL sets
+	# FSL_FEATURE_LPSPI_HAS_ERRATA_050456 to 0, so it keeps the LPSPI "already configured" fast path.
+	select SPI_NXP_LPSPI_ERR050456 if SPI_NXP_LPSPI && !SOC_S32K358
 
 if SOC_SERIES_S32K3
 
