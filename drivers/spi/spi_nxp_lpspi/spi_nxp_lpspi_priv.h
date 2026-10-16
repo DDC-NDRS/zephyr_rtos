@@ -60,6 +60,23 @@ struct lpspi_config {
     uint8_t irqn;
 };
 
+/* Controller-mode clock/delay programming memoized by lpspi_configure(). With ERR050456 it runs a
+ * full module reset + reconfigure on every transfer, and the divider search and delay math behind
+ * CCR (64-bit divides) were redone each time although the SPI config hardly ever changes. The key
+ * holds every input of that math, so a changed config is never served a stale result.
+ */
+struct lpspi_ccr_cache {
+    bool valid;
+    bool cs_is_gpio;
+    uint8_t prescaler;
+    uint16_t word_delay;
+    uint32_t frequency;
+    uint32_t clock_freq;
+    uint32_t setup_ns;
+    uint32_t hold_ns;
+    uint32_t ccr;
+};
+
 struct lpspi_data {
     DEVICE_MMIO_NAMED_RAM(reg_base);
     struct spi_context ctx;
@@ -67,6 +84,7 @@ struct lpspi_data {
     size_t transfer_len;
     uint32_t clock_freq;
     uint8_t major_version;
+    struct lpspi_ccr_cache ccr_cache;
 
     #if defined(CONFIG_SPI_NXP_LPSPI_STREAM)
     /** Streaming state — NULL when streaming is not configured. */

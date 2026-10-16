@@ -298,6 +298,25 @@ static void lpspi_basic_config(const struct device* dev, const struct spi_config
     }
 }
 
+/* True when the cached CCR/prescaler was computed from exactly these inputs */
+static bool lpspi_ccr_cache_match(const struct lpspi_ccr_cache* cache,
+                                  const struct spi_config* spi_cfg,
+                                  uint32_t clock_freq) {
+    uint16_t word_delay = spi_get_word_delay(spi_cfg);
+    bool match = false;
+
+    if (cache->valid == true) {
+        match = ((cache->frequency == spi_cfg->frequency) &&
+                 (cache->clock_freq == clock_freq) &&
+                 (cache->setup_ns == spi_cfg->cs.setup_ns) &&
+                 (cache->hold_ns == spi_cfg->cs.hold_ns) &&
+                 (cache->cs_is_gpio == spi_cs_is_gpio(spi_cfg)) &&
+                 (cache->word_delay == word_delay));
+    }
+
+    return (match);
+}
+
 int lpspi_configure(const struct device* dev, const struct spi_config* spi_cfg) {
     struct lpspi_data* data = dev->data;
     struct spi_context* ctx = &data->ctx;
@@ -344,23 +363,36 @@ int lpspi_configure(const struct device* dev, const struct spi_config* spi_cfg) 
     uint8_t prescaler = 0;
 
     if (SPI_OP_MODE_GET(spi_cfg->operation) == SPI_OP_MODE_CONTROLLER) {
+        struct lpspi_ccr_cache* cache = &data->ccr_cache;
         uint32_t desired_sck_freq =
             MIN(spi_cfg->frequency, CONFIG_SPI_NXP_LPSPI_MAX_SCK_FREQUENCY);
-        uint32_t ccr = 0;
 
         if (spi_cfg->frequency > CONFIG_SPI_NXP_LPSPI_MAX_SCK_FREQUENCY) {
             LOG_WRN("Requested frequency %d is higher than maximum %d, capping to max",
                     spi_cfg->frequency, CONFIG_SPI_NXP_LPSPI_MAX_SCK_FREQUENCY);
         }
 
-        /* sckdiv algorithm must run *before* delays are set in order to know prescaler */
-        ccr |= lpspi_set_sckdiv(desired_sck_freq, clock_freq, &prescaler);
-        ccr |= lpspi_set_delays(dev, spi_cfg, clock_freq / TWO_EXP(prescaler));
+        /* The cap is a build-time constant, so the requested frequency alone keys the result */
+        if (lpspi_ccr_cache_match(cache, spi_cfg, clock_freq) == false) {
+            /* sckdiv algorithm must run *before* delays are set in order to know prescaler */
+            cache->ccr  = lpspi_set_sckdiv(desired_sck_freq, clock_freq, &cache->prescaler);
+            cache->ccr |= lpspi_set_delays(dev, spi_cfg, clock_freq / TWO_EXP(cache->prescaler));
+
+            cache->frequency  = spi_cfg->frequency;
+            cache->clock_freq = clock_freq;
+            cache->setup_ns   = spi_cfg->cs.setup_ns;
+            cache->hold_ns    = spi_cfg->cs.hold_ns;
+            cache->cs_is_gpio = spi_cs_is_gpio(spi_cfg);
+            cache->word_delay = spi_get_word_delay(spi_cfg);
+            cache->valid      = true;
+        }
+
+        prescaler = cache->prescaler;
 
         /* note that not all bits of the register are readable on some platform,
          * that's why we update it on one write
          */
-        lpspi->CCR = ccr;
+        lpspi->CCR = cache->ccr;
     }
 
     lpspi_enable(lpspi, true);
@@ -466,3 +498,40 @@ int spi_nxp_init_common(const struct device* dev) {
 
     return (ret);
 }
+
+#if (__GTEST == 1) /* #CUSTOM@NDRS */
+#include <string.h>
+
+/* Host-test hooks: run lpspi_configure() on a throw-away controller whose registers are plain RAM,
+ * so a test can read back CCR/TCR. The instance, and with it the CCR memo, lives until reset.
+ */
+static struct lpspi_data gtest_cfg_data;
+static struct lpspi_config gtest_cfg_config;
+static struct device gtest_cfg_dev;
+static LPSPI_Type gtest_cfg_regs;
+
+void zephyr_gtest_lpspi_cfg_reset(void) {
+    memset(&gtest_cfg_data, 0, sizeof(gtest_cfg_data));
+    memset(&gtest_cfg_config, 0, sizeof(gtest_cfg_config));
+    memset((void*)&gtest_cfg_regs, 0, sizeof(gtest_cfg_regs));
+
+    gtest_cfg_dev.config = &gtest_cfg_config;
+    gtest_cfg_dev.data   = &gtest_cfg_data;
+    DEVICE_MMIO_NAMED_GET(&gtest_cfg_dev, reg_base) = (mm_reg_t)&gtest_cfg_regs;
+}
+
+int zephyr_gtest_lpspi_cfg(uint32_t clock_freq, const struct spi_config* spi_cfg,
+                           uint32_t* ccr, uint32_t* tcr) {
+    int ret;
+
+    gtest_cfg_data.clock_freq = clock_freq;
+    gtest_cfg_data.ctx.config = NULL;       /* never take the "already configured" fast path */
+
+    ret = lpspi_configure(&gtest_cfg_dev, spi_cfg);
+
+    *ccr = gtest_cfg_regs.CCR;
+    *tcr = gtest_cfg_regs.TCR;
+
+    return (ret);
+}
+#endif /* (__GTEST == 1) */
