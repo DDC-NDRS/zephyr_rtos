@@ -44,6 +44,11 @@
 
 #include "rtc_stm32.h"
 
+#if defined(STM32_RTC_ALARM_ENABLED) && \
+    (defined(CONFIG_RTC_UPDATE) || defined(CONFIG_APP_USE_STM32_RTC_ISR_CUSTOM))
+#error The RTC alarm ISR cannot be combined with CONFIG_RTC_UPDATE or CONFIG_APP_USE_STM32_RTC_ISR_CUSTOM
+#endif
+
 LOG_MODULE_REGISTER(rtc_stm32, CONFIG_RTC_LOG_LEVEL);
 
 #if (defined(CONFIG_SOC_SERIES_STM32L1X) && !defined(RTC_SUBSECOND_SUPPORT)) \
@@ -186,7 +191,9 @@ struct rtc_stm32_data {
     #endif /* STM32_RTC_ALARM_ENABLED */
 };
 
+#if defined(CONFIG_RTC_UPDATE)
 static void rtc_stm32_isr(const struct device* dev);
+#endif
 
 #if defined(CONFIG_APP_USE_STM32_RTC_ISR_CUSTOM)
 extern void bsp_hal_rtc_isr(void);
@@ -314,10 +321,12 @@ static int rtc_stm32_configure(const struct device* dev) {
 
     LL_RTC_EnableWriteProtection(STM32_ARG(RTC));
 
-    #if defined(CONFIG_APP_USE_STM32_RTC_ISR_CUSTOM)
+    #if defined(STM32_RTC_ALARM_ENABLED)
+    /* rtc_stm32_irq_config() connects the alarm ISR. */
+    #elif defined(CONFIG_APP_USE_STM32_RTC_ISR_CUSTOM)
     IRQ_DIRECT_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority),
                        bsp_hal_rtc_isr, 0);
-    #else
+    #elif defined(CONFIG_RTC_UPDATE)
     IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority),
                 rtc_stm32_isr, DEVICE_DT_INST_GET(0), 0);
     #endif
@@ -1158,7 +1167,7 @@ static int rtc_stm32_get_time_ext(const struct device* dev, uint8_t* du) {
 
     k_spinlock_key_t key = k_spin_lock(&data->lock);
 
-    if (!LL_RTC_IsActiveFlag_INITS(RTC)) {
+    if (!LL_RTC_IsActiveFlag_INITS(STM32_ARG(RTC))) {
         /* INITS flag is set when the calendar has been initialiazed. This flag is
          * reset only on backup domain reset, so it can be read after a system
          * reset to check if the calendar has been initialized.
@@ -1171,29 +1180,29 @@ static int rtc_stm32_get_time_ext(const struct device* dev, uint8_t* du) {
         /* read date, time and subseconds and relaunch if a day increment occurred
          * while doing so as it will result in an erroneous result otherwise
          */
-        rtc_date = LL_RTC_DATE_Get(RTC);
+        rtc_date = LL_RTC_DATE_Get(STM32_ARG(RTC));
         do {
             /* read time and subseconds and relaunch if a second increment occurred
              * while doing so as it will result in an erroneous result otherwise
              */
-            rtc_time = LL_RTC_TIME_Get(RTC);
-        } while (rtc_time != LL_RTC_TIME_Get(RTC));
-    } while (rtc_date != LL_RTC_DATE_Get(RTC));
+            rtc_time = LL_RTC_TIME_Get(STM32_ARG(RTC));
+        } while (rtc_time != LL_RTC_TIME_Get(STM32_ARG(RTC)));
+    } while (rtc_date != LL_RTC_DATE_Get(STM32_ARG(RTC)));
 
     k_spin_unlock(&data->lock, key);
 
-    real_year = bcd2bin(__LL_RTC_GET_YEAR(rtc_date)) + RTC_YEAR_REF;
+    real_year = bcd2bin(STM32_RTC_LL_GET_YEAR(rtc_date)) + RTC_YEAR_REF;
     du[0] = (uint8_t)((real_year) >> 8U);
     du[1] = (uint8_t)((real_year) & 0xFFU);
 
-    du[2] = bcd2bin(__LL_RTC_GET_MONTH(rtc_date));
-    du[3] = bcd2bin(__LL_RTC_GET_DAY(rtc_date));
+    du[2] = bcd2bin(STM32_RTC_LL_GET_MONTH(rtc_date));
+    du[3] = bcd2bin(STM32_RTC_LL_GET_DAY(rtc_date));
 
-    du[4] = __LL_RTC_GET_WEEKDAY(rtc_date);
+    du[4] = STM32_RTC_LL_GET_WEEKDAY(rtc_date);
 
-    du[5] = bcd2bin(__LL_RTC_GET_HOUR(rtc_time));
-    du[6] = bcd2bin(__LL_RTC_GET_MINUTE(rtc_time));
-    du[7] = bcd2bin(__LL_RTC_GET_SECOND(rtc_time));
+    du[5] = bcd2bin(STM32_RTC_LL_GET_HOUR(rtc_time));
+    du[6] = bcd2bin(STM32_RTC_LL_GET_MINUTE(rtc_time));
+    du[7] = bcd2bin(STM32_RTC_LL_GET_SECOND(rtc_time));
 
     return (0);
 }
@@ -1219,27 +1228,27 @@ static int rtc_stm32_set_time_ext(const struct device* dev, uint8_t const* du) {
 
     stm32_backup_domain_enable_access();
 
-    LL_RTC_DisableWriteProtection(RTC);
+    LL_RTC_DisableWriteProtection(STM32_ARG(RTC));
 
     err = rtc_stm32_enter_init_mode();
-    if (err != SUCCESS) {
+    if (err != 0) {
         stm32_backup_domain_disable_access();
         k_spin_unlock(&data->lock, key);
         return (-EIO);
     }
 
-    LL_RTC_DATE_SetYear(RTC, bin2bcd((uint8_t)(real_year - RTC_YEAR_REF)));
-    LL_RTC_DATE_SetMonth(RTC, bin2bcd(du[2]));
-    LL_RTC_DATE_SetDay(RTC, bin2bcd(du[3]));
-    LL_RTC_DATE_SetWeekDay(RTC, du[4]);
+    LL_RTC_DATE_SetYear(STM32_ARG(RTC, bin2bcd((uint8_t)(real_year - RTC_YEAR_REF))));
+    LL_RTC_DATE_SetMonth(STM32_ARG(RTC, bin2bcd(du[2])));
+    LL_RTC_DATE_SetDay(STM32_ARG(RTC, bin2bcd(du[3])));
+    LL_RTC_DATE_SetWeekDay(STM32_ARG(RTC, du[4]));
 
-    LL_RTC_TIME_SetHour(RTC, bin2bcd(du[5]));
-    LL_RTC_TIME_SetMinute(RTC, bin2bcd(du[6]));
-    LL_RTC_TIME_SetSecond(RTC, bin2bcd(du[7]));
+    LL_RTC_TIME_SetHour(STM32_ARG(RTC, bin2bcd(du[5])));
+    LL_RTC_TIME_SetMinute(STM32_ARG(RTC, bin2bcd(du[6])));
+    LL_RTC_TIME_SetSecond(STM32_ARG(RTC, bin2bcd(du[7])));
 
-    LL_RTC_DisableInitMode(RTC);
+    LL_RTC_DisableInitMode(STM32_ARG(RTC));
 
-    LL_RTC_EnableWriteProtection(RTC);
+    LL_RTC_EnableWriteProtection(STM32_ARG(RTC));
 
     stm32_backup_domain_disable_access();
 
@@ -1248,7 +1257,11 @@ static int rtc_stm32_set_time_ext(const struct device* dev, uint8_t const* du) {
     return (0);
 }
 
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
+#if defined(CONFIG_RTC_UPDATE)
+#if defined(RTC_ISR_WUTF)
+#if !defined(CONFIG_SOC_SERIES_STM32H7X)
+#error RTC update ISR only implements the EXTI pending flag clear for STM32H7
+#endif
 __maybe_unused static void /**/rtc_stm32_isr(const struct device* dev) {
     const struct rtc_stm32_config* config = dev->config;
     struct rtc_stm32_data* data = dev->data;
@@ -1271,7 +1284,7 @@ __maybe_unused static void /**/rtc_stm32_isr(const struct device* dev) {
 
     __HAL_RTC_WAKEUPTIMER_EXTI_CLEAR_FLAG();
 }
-#else /* CONFIG_SOC_SERIES_STM32U5X */
+#elif defined(RTC_SR_WUTF)
 static void /**/rtc_stm32_isr(const struct device* dev) {
     const struct rtc_stm32_config* config = dev->config;
     struct rtc_stm32_data* data = dev->data;
@@ -1284,7 +1297,7 @@ static void /**/rtc_stm32_isr(const struct device* dev) {
 
     if (((rtc_cr  & RTC_CR_WUTIE) != 0U) &&
         ((rtc_isr & RTC_SR_WUTF)  != 0U)) {
-        CLEAR_BIT(regs->SR, RTC_SR_WUTF);
+        stm32_reg_write(&regs->SCR, RTC_SCR_CWUTF);
 
         if (data->update_callback != NULL) {
             data->update_callback(dev,
@@ -1292,9 +1305,10 @@ static void /**/rtc_stm32_isr(const struct device* dev) {
         }
     }
 }
+#else
+#error RTC wake-up timer flag is not defined for this series
 #endif
 
-#if defined(CONFIG_RTC_UPDATE)
 static int rtc_stm32_update_set_callback(const struct device* dev,
                                          rtc_update_callback callback, void* user_data) {
     const struct rtc_stm32_config* config = dev->config;
@@ -1312,7 +1326,7 @@ static int rtc_stm32_update_set_callback(const struct device* dev,
 
     return (0);
 }
-#endif /* STM32_RTC_ALARM_ENABLED */
+#endif /* CONFIG_RTC_UPDATE */
 
 #ifdef CONFIG_RTC_CALIBRATION
 #if !defined(CONFIG_SOC_SERIES_STM32F2X)  && \
