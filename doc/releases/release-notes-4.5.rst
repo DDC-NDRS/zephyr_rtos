@@ -516,6 +516,13 @@ Deprecated APIs and options
     model v2. Both the old Kconfig symbols and the ``soc.yml`` entries will be removed
     in a future release. All in-tree boards have been migrated.
 
+* RTIO
+
+  * The ``RTIO_SQE_CANCELED`` flag has been deprecated. Cancellation state moved into the
+    atomic status word of :c:struct:`rtio_iodev_sqe`; check it with
+    :c:func:`rtio_iodev_sqe_is_canceled`. See the :ref:`migration guide <migration_4.5>`
+    for details.
+
 * Ring buffer
 
   * The ring buffer item API (:c:func:`ring_buf_item_init`, :c:func:`ring_buf_item_put`,
@@ -744,6 +751,13 @@ New APIs and options
     * :c:func:`clock_control_release`
     * :c:func:`clock_control_cancel_or_release`
 
+* Counter
+
+  * :kconfig:option:`CONFIG_COUNTER_CAPTURE`, :c:struct:`counter_capture_dt_spec`,
+    :c:func:`counter_capture_configure`, :c:func:`counter_capture_configure_64`,
+    :c:func:`counter_enable_capture` and :c:func:`counter_disable_capture`, with
+    devicetree helpers for configuring input capture (:github:`89127`, :github:`108713`).
+
 * CPUFreq
 
   * :kconfig:option:`CONFIG_CPU_FREQ_POLICY_TIMING_NOISE`
@@ -754,6 +768,12 @@ New APIs and options
   * :c:enumerator:`CRYPTO_CIPHER_MODE_OFB`
   * :c:func:`cipher_cfb_op`
   * :c:func:`cipher_ofb_op`
+  * :c:enumerator:`CRYPTO_HASH_ALGO_SHA3_224`, :c:enumerator:`CRYPTO_HASH_ALGO_SHA3_256`,
+    :c:enumerator:`CRYPTO_HASH_ALGO_SHA3_384` and :c:enumerator:`CRYPTO_HASH_ALGO_SHA3_512`
+    (:github:`118321`).
+  * :kconfig:option:`CONFIG_USE_STM32_HAL_PSA_CRYPTO_DRIVERS` for experimental
+    hardware-accelerated PSA Crypto using STM32 AES, CRYP, SAES and HASH peripherals
+    (:github:`119888`).
 
 * Debug
 
@@ -1217,7 +1237,7 @@ New Boards
   * :zephyr:board:`cy8cproto_040t` (``cy8cproto_040t``)
   * :zephyr:board:`cy8cproto_040t_auto` (``cy8cproto_040t_auto``)
   * :zephyr:board:`kit_psc3m5_cc2` (``kit_psc3m5_cc2``)
-  * :zephyr:board:`kit_psc3m6_evk` (``kit_psc3m6_evk``)
+  * :zephyr:board:`kit_psc3m6_eval` (``kit_psc3m6_eval``)
   * :zephyr:board:`kit_t2g_c2d6m_lite` (``kit_t2g_c2d6m_lite``)
 
 * Intel Corporation
@@ -2558,6 +2578,9 @@ Libraries / Subsystems
     both native and offloaded ports. mDNS probe port selection and DNS-SD
     service checks use this new function.
 
+  * Added IEEE 802.3 transport support to PTP, packet-socket receive timestamping,
+    and PTP shell diagnostics (:github:`106464`).
+
 * Management
 
   * MCUmgr
@@ -2710,6 +2733,11 @@ Other notable changes
     ``-DHARDENCONFIG_EXTRA_SOURCES=``. The database is validated in CI against the actual Kconfig
     tree so entries can no longer go stale.
 
+* CRC
+
+  * Added CRC-32/MPEG-2 support (:c:func:`crc32_mpeg2` / ``crc32_mpeg2_update``) to the
+    software CRC subsystem, the CRC driver API and the NXP CRC drivers.
+
 * Kernel
 
   * The :ref:`object core framework <object_cores_api>` no longer keeps registry state inside
@@ -2836,6 +2864,10 @@ Other notable changes
     ``imxrt7xx/``, ``imxrt118x/``).
     See the :ref:`migration guide <migration_4.5>` for how to update
     out-of-tree board includes.
+
+  * Added counter reset API support to the NXP MCUX CTimer, GPT and LPTimer drivers.
+
+  * Added a HWInfo reset-cause driver for the NXP LPC55xx Power Management Controller (PMC).
 
 * Arm
 

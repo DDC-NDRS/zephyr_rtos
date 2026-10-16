@@ -12,9 +12,10 @@
  * Delay submissions are handled like any other iodev operation rather than as
  * an executor special case. The "device" here is the system clock: pending
  * delays are kept in a per-instance list sorted by absolute expiration and
- * driven by a single kernel timeout re-armed to the nearest deadline. This
- * keeps the per-SQE footprint to a single k_timepoint_t (no embedded
- * struct _timeout) and reduces the kernel timeout queue to one node per
+ * driven by a single kernel timeout re-armed to the nearest deadline. The
+ * absolute expiration lives in the iodev_sqe wrapper's runtime scratch (a
+ * single k_timepoint_t, no embedded struct _timeout), keeping the submission
+ * description immutable, and reduces the kernel timeout queue to one node per
  * timeout iodev instance.
  */
 
@@ -35,22 +36,20 @@
  * (it is out of the context submission queue and not yet recycled to the pool).
  */
 struct rtio_timeout_iodev_data {
-	struct k_spinlock lock;
-	struct _timeout timeout;     /* single kernel timeout shared by all pending delays */
-	struct rtio_iodev_sqe *head; /* soonest-first sorted list of pending delays */
+    struct k_spinlock lock;
+    struct _timeout timeout;                /* single kernel timeout shared by all pending delays */
+    struct rtio_iodev_sqe* head;            /* soonest-first sorted list of pending delays */
 };
 
 /* Reuse the iodev_sqe's mpsc_node storage as the sorted-list link. */
-static inline struct rtio_iodev_sqe *rtio_tq_next(struct rtio_iodev_sqe *iodev_sqe)
-{
-	struct mpsc_node *node = mpsc_ptr_get(iodev_sqe->q.next);
+static inline struct rtio_iodev_sqe* rtio_tq_next(struct rtio_iodev_sqe* iodev_sqe) {
+    struct mpsc_node* node = mpsc_ptr_get(iodev_sqe->q.next);
 
-	return node == NULL ? NULL : CONTAINER_OF(node, struct rtio_iodev_sqe, q);
+    return ((node == NULL) ? NULL : CONTAINER_OF(node, struct rtio_iodev_sqe, q));
 }
 
-static inline void rtio_tq_set_next(struct rtio_iodev_sqe *iodev_sqe, struct rtio_iodev_sqe *next)
-{
-	mpsc_ptr_set(iodev_sqe->q.next, next == NULL ? NULL : &next->q);
+static inline void rtio_tq_set_next(struct rtio_iodev_sqe* iodev_sqe, struct rtio_iodev_sqe* next) {
+    mpsc_ptr_set(iodev_sqe->q.next, next == NULL ? NULL : &next->q);
 }
 
 /**
@@ -58,54 +57,87 @@ static inline void rtio_tq_set_next(struct rtio_iodev_sqe *iodev_sqe, struct rti
  *
  * @retval true if the submission became the new head (nearest deadline)
  */
-static bool rtio_tq_insert(struct rtio_timeout_iodev_data *data, struct rtio_iodev_sqe *iodev_sqe)
-{
-	struct rtio_iodev_sqe *prev = NULL;
-	struct rtio_iodev_sqe *curr = data->head;
+static bool rtio_tq_insert(struct rtio_timeout_iodev_data* data, struct rtio_iodev_sqe* iodev_sqe) {
+    struct rtio_iodev_sqe* prev = NULL;
+    struct rtio_iodev_sqe* curr = data->head;
 
-	while (curr != NULL &&
-	       sys_timepoint_cmp(curr->sqe.delay.expiry, iodev_sqe->sqe.delay.expiry) <= 0) {
-		prev = curr;
-		curr = rtio_tq_next(curr);
-	}
+    while ((curr != NULL) &&
+           (sys_timepoint_cmp(curr->rt.delay_expiry, iodev_sqe->rt.delay_expiry) <= 0)) {
+        prev = curr;
+        curr = rtio_tq_next(curr);
+    }
 
-	rtio_tq_set_next(iodev_sqe, curr);
+    rtio_tq_set_next(iodev_sqe, curr);
 
-	if (prev == NULL) {
-		data->head = iodev_sqe;
-		return true;
-	}
+    if (prev == NULL) {
+        data->head = iodev_sqe;
+        return (true);
+    }
 
-	rtio_tq_set_next(prev, iodev_sqe);
-	return false;
+    rtio_tq_set_next(prev, iodev_sqe);
+
+    return (false);
 }
 
 /**
  * @brief Detach all expired submissions from the head into a NULL-terminated batch
  */
-static struct rtio_iodev_sqe *rtio_tq_pop_expired(struct rtio_timeout_iodev_data *data)
-{
-	struct rtio_iodev_sqe *batch = NULL;
-	struct rtio_iodev_sqe *last = NULL;
+static struct rtio_iodev_sqe* rtio_tq_pop_expired(struct rtio_timeout_iodev_data* data) {
+    struct rtio_iodev_sqe* batch = NULL;
+    struct rtio_iodev_sqe* last  = NULL;
 
-	while (data->head != NULL && sys_timepoint_expired(data->head->sqe.delay.expiry)) {
-		struct rtio_iodev_sqe *iodev_sqe = data->head;
+    while ((data->head != NULL) &&
+           sys_timepoint_expired(data->head->rt.delay_expiry)) {
+        struct rtio_iodev_sqe* iodev_sqe = data->head;
 
-		data->head = rtio_tq_next(iodev_sqe);
-		rtio_tq_set_next(iodev_sqe, NULL);
+        data->head = rtio_tq_next(iodev_sqe);
+        rtio_tq_set_next(iodev_sqe, NULL);
 
-		if (last == NULL) {
-			batch = iodev_sqe;
-		} else {
-			rtio_tq_set_next(last, iodev_sqe);
-		}
-		last = iodev_sqe;
-	}
+        if (last == NULL) {
+            batch = iodev_sqe;
+        }
+        else {
+            rtio_tq_set_next(last, iodev_sqe);
+        }
+        last = iodev_sqe;
+    }
 
-	return batch;
+    return (batch);
 }
 
-static void rtio_tq_expired(struct _timeout const *timeout);
+/**
+ * @brief Remove a specific submission from the sorted list
+ *
+ * @retval true if @p target was pending and got unlinked
+ * @retval false if @p target was not in the list (already expired/completed)
+ */
+static bool rtio_tq_remove(struct rtio_timeout_iodev_data* data, struct rtio_iodev_sqe* target) {
+    struct rtio_iodev_sqe* prev = NULL;
+    struct rtio_iodev_sqe* curr = data->head;
+
+    while (curr != NULL) {
+        if (curr == target) {
+            struct rtio_iodev_sqe* next = rtio_tq_next(curr);
+
+            if (prev == NULL) {
+                data->head = next;
+            }
+            else {
+                rtio_tq_set_next(prev, next);
+            }
+
+            rtio_tq_set_next(curr, NULL);
+            return (true);
+        }
+
+        prev = curr;
+        curr = rtio_tq_next(curr);
+    }
+
+    return (false);
+}
+
+static void rtio_tq_expired(struct _timeout const* timeout);
 
 /**
  * @brief Arm the shared kernel timeout to the current head, or disarm if empty
@@ -117,18 +149,17 @@ static void rtio_tq_expired(struct _timeout const *timeout);
  * @retval true if the arm completed
  * @retval false if the timeout abort needs the caller to drop the lock and retry
  */
-static bool rtio_tq_try_arm(struct rtio_timeout_iodev_data *data)
-{
-	if (z_try_abort_timeout(&data->timeout) == -EAGAIN) {
-		return false;
-	}
+static bool rtio_tq_try_arm(struct rtio_timeout_iodev_data* data) {
+    if (z_try_abort_timeout(&data->timeout) == -EAGAIN) {
+        return (false);
+    }
 
-	if (data->head != NULL) {
-		z_add_timeout(&data->timeout, rtio_tq_expired,
-			      sys_timepoint_timeout(data->head->sqe.delay.expiry));
-	}
+    if (data->head != NULL) {
+        z_add_timeout(&data->timeout, rtio_tq_expired,
+                      sys_timepoint_timeout(data->head->rt.delay_expiry));
+    }
 
-	return true;
+    return (true);
 }
 
 /**
@@ -139,55 +170,114 @@ static bool rtio_tq_try_arm(struct rtio_timeout_iodev_data *data)
  * holding the lock; completions run with the lock released because completing a
  * submission may re-enter rtio_timeout_iodev_submit() (e.g. a chained delay).
  */
-static void rtio_tq_expired(struct _timeout const *timeout)
-{
-	struct rtio_timeout_iodev_data *data =
-		CONTAINER_OF(timeout, struct rtio_timeout_iodev_data, timeout);
-	struct rtio_iodev_sqe *batch;
-	k_spinlock_key_t key = k_spin_lock(&data->lock);
+static void rtio_tq_expired(struct _timeout const* timeout) {
+    struct rtio_timeout_iodev_data* data =
+        CONTAINER_OF(timeout, struct rtio_timeout_iodev_data, timeout);
+    struct rtio_iodev_sqe* batch;
+    k_spinlock_key_t key = k_spin_lock(&data->lock);
 
-	batch = rtio_tq_pop_expired(data);
+    batch = rtio_tq_pop_expired(data);
 
-	if (data->head != NULL) {
-		z_add_timeout(&data->timeout, rtio_tq_expired,
-			      sys_timepoint_timeout(data->head->sqe.delay.expiry));
-	}
+    if (data->head != NULL) {
+        z_add_timeout(&data->timeout, rtio_tq_expired,
+                      sys_timepoint_timeout(data->head->rt.delay_expiry));
+    }
 
-	k_spin_unlock(&data->lock, key);
+    k_spin_unlock(&data->lock, key);
 
-	while (batch != NULL) {
-		struct rtio_iodev_sqe *iodev_sqe = batch;
+    while (batch != NULL) {
+        struct rtio_iodev_sqe* iodev_sqe = batch;
 
-		batch = rtio_tq_next(iodev_sqe);
-		rtio_tq_set_next(iodev_sqe, NULL);
-		rtio_iodev_sqe_ok(iodev_sqe, 0);
-	}
+        batch = rtio_tq_next(iodev_sqe);
+        rtio_tq_set_next(iodev_sqe, NULL);
+        rtio_iodev_sqe_ok(iodev_sqe, 0);
+    }
 }
 
-static void rtio_timeout_iodev_submit(struct rtio_iodev_sqe *iodev_sqe)
-{
-	struct rtio_timeout_iodev_data *data = iodev_sqe->sqe.iodev->data;
-	k_spinlock_key_t key;
+static void rtio_timeout_iodev_submit(struct rtio_iodev_sqe* iodev_sqe) {
+    struct rtio_timeout_iodev_data* data = iodev_sqe->sqe.iodev->data;
+    k_spinlock_key_t key;
 
-	iodev_sqe->sqe.delay.expiry = sys_timepoint_calc(iodev_sqe->sqe.delay.timeout);
+    iodev_sqe->rt.delay_expiry = sys_timepoint_calc(iodev_sqe->sqe.delay.timeout);
 
-	key = k_spin_lock(&data->lock);
+    key = k_spin_lock(&data->lock);
 
-	if (rtio_tq_insert(data, iodev_sqe)) {
-		/* New nearest deadline: re-arm, dropping the lock to retry if the
-		 * handler is in flight on another CPU (SMP).
-		 */
-		while (!rtio_tq_try_arm(data)) {
-			k_spin_unlock(&data->lock, key);
-			key = k_spin_lock(&data->lock);
-		}
-	}
+    if (rtio_tq_insert(data, iodev_sqe)) {
+        /* New nearest deadline: re-arm, dropping the lock to retry if the
+         * handler is in flight on another CPU (SMP).
+         */
+        while (!rtio_tq_try_arm(data)) {
+            k_spin_unlock(&data->lock, key);
+            key = k_spin_lock(&data->lock);
+        }
+    }
 
-	k_spin_unlock(&data->lock, key);
+    k_spin_unlock(&data->lock, key);
 }
 
-static const struct rtio_iodev_api rtio_timeout_iodev_api = {
-	.submit = rtio_timeout_iodev_submit,
+/**
+ * @brief Actively cancel a pending delay by removing it from the timeout queue
+ *
+ * The submission arrives as a handle because the canceling context does not own
+ * it, so it is resolved under @p data->lock, which every path that completes a
+ * pending delay also holds. A handle that no longer resolves belongs to an entry
+ * that already completed and was recycled, and is a no-op.
+ *
+ * If the delay is still pending it is unlinked and the submission completed with
+ * -ECANCELED. The shared timeout only needs re-arming when the removed entry was
+ * the head (nearest deadline); cancelling any later delay leaves the armed
+ * deadline unchanged. If the delay already expired (not in the list) this is a
+ * no-op: its completion is already in flight. Once unlinked no other path can
+ * complete the entry, so completion runs with the lock released, matching
+ * rtio_tq_expired().
+ */
+static void rtio_timeout_iodev_cancel(struct rtio_iodev const* iodev,
+                                      struct rtio* r,
+                                      rtio_sqe_handle_t handle) {
+    struct rtio_timeout_iodev_data* data = iodev->data;
+    k_spinlock_key_t key = k_spin_lock(&data->lock);
+
+    /* Resolve under the lock: every path that completes a pending delay (the
+     * expiry handler and this hook) holds it, so a handle that still resolves
+     * here names an entry that cannot be completed and recycled underneath us.
+     */
+    struct rtio_iodev_sqe* iodev_sqe = rtio_iodev_sqe_from_handle(r, handle);
+    bool was_head;
+    bool was_pending;
+
+    if (iodev_sqe == NULL) {
+        /* Already completed and recycled; nothing of ours left to abort. */
+        k_spin_unlock(&data->lock, key);
+        return;
+    }
+
+    was_head    = (data->head == iodev_sqe);
+    was_pending = rtio_tq_remove(data, iodev_sqe);
+
+    if (was_head) {
+        /* We removed the nearest deadline, so the shared timeout must be
+         * re-armed to the new head. z_try_abort_timeout() (inside
+         * rtio_tq_try_arm) returns -EAGAIN if the expiry handler is running on
+         * another CPU and would deadlock on data->lock; the kernel's contract
+         * is to drop the lock so it can finish, then retry. On non-SMP this
+         * loop always runs exactly once.
+         */
+        while (!rtio_tq_try_arm(data)) {
+            k_spin_unlock(&data->lock, key);
+            key = k_spin_lock(&data->lock);
+        }
+    }
+
+    k_spin_unlock(&data->lock, key);
+
+    if (was_pending) {
+        rtio_iodev_sqe_err(iodev_sqe, -ECANCELED);
+    }
+}
+
+static struct rtio_iodev_api const rtio_timeout_iodev_api = {
+    .submit = rtio_timeout_iodev_submit,
+    .cancel = rtio_timeout_iodev_cancel,
 };
 
 static struct rtio_timeout_iodev_data rtio_timeout_iodev_data_inst;

@@ -397,12 +397,12 @@ static struct net_dplpmtud_entry *lookup_path_entry(struct net_dplpmtud_path *pa
 	return net_dplpmtud_get_entry(net_sad(&path->dst));
 }
 
-/* Resolve the cache entry for a path. The caller MUST hold @lock across both
+/* Resolve the cache entry for a path. The caller MUST hold @dplpmtud_lock across both
  * this lookup and the subsequent read/update of the returned entry. Otherwise a
  * concurrent net_dplpmtud_get_or_create_entry() on another thread could evict
  * and reuse the entry (LRU) in the window between lookup and use, applying the
  * operation to the wrong destination. The per-operation helpers below take
- * @lock too, but k_mutex is recursive so the nested acquisition is a no-op
+ * @dplpmtud_lock too, but k_mutex is recursive so the nested acquisition is a no-op
  * while the wrapper already holds it.
  */
 static struct net_dplpmtud_entry *get_path_entry(struct net_dplpmtud_path *path,
@@ -919,7 +919,7 @@ void net_dplpmtud_sync_from_pmtu(const struct net_sockaddr *dst, uint16_t pmtu)
 	 */
 	plpmtu = pmtu_to_plpmtu(dst->sa_family, pmtu);
 
-	/* Hold @lock across the lookup/create and the update so the entry
+	/* Hold @dplpmtud_lock across the lookup/create and the update so the entry
 	 * cannot be evicted and reused for another destination in between.
 	 */
 	k_mutex_lock(&dplpmtud_lock, K_FOREVER);

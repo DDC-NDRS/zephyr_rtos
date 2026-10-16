@@ -100,7 +100,7 @@ struct mcux_lpuart_rx_dma_params {
     size_t buf_len;
     size_t offset;
     size_t counter;
-    struct k_work_delayable timeout_work;
+    struct k_timer timeout_timer;
     size_t timeout_us;
 };
 
@@ -162,7 +162,7 @@ struct mcux_lpuart_data {
     #endif
 };
 
-static inline LPUART_Type* get_base(const struct device* dev) {
+static inline LPUART_Type* get_base(struct device const* dev) {
     return (LPUART_Type*)DEVICE_MMIO_GET(dev);
 }
 
@@ -629,7 +629,7 @@ static int mcux_lpuart_rx_disable(struct device const* dev) {
     unsigned int key = irq_lock();
 
     LPUART_EnableRx(lpuart, false);
-    (void) k_work_cancel_delayable(&async->rx_dma_params.timeout_work);
+    k_timer_stop(&async->rx_dma_params.timeout_timer);
     LPUART_DisableInterrupts(lpuart, kLPUART_IdleLineInterruptEnable     |
                                      kLPUART_RxOverrunInterruptEnable    |
                                      kLPUART_NoiseErrorInterruptEnable   |
@@ -1060,12 +1060,11 @@ static int mcux_lpuart_rx_buf_rsp(struct device const* dev, uint8_t* buf, size_t
     return (ret);
 }
 
-static void mcux_lpuart_async_rx_timeout(struct k_work* work) {
-    struct k_work_delayable* dwork = k_work_delayable_from_work(work);
+static void mcux_lpuart_async_rx_timeout(struct k_timer* timer) {
     struct mcux_lpuart_rx_dma_params* rx_params;
     struct mcux_lpuart_async_data const* async_data;
 
-    rx_params  = CONTAINER_OF(dwork, struct mcux_lpuart_rx_dma_params, timeout_work);
+    rx_params  = CONTAINER_OF(timer, struct mcux_lpuart_rx_dma_params, timeout_timer);
     async_data = CONTAINER_OF(rx_params, struct mcux_lpuart_async_data, rx_dma_params);
 
     struct device const* dev = async_data->uart_dev;
@@ -1106,7 +1105,7 @@ static inline void mcux_lpuart_irq_driven_isr(struct device const* dev,
 #endif
 
 #if LPUART_ASYNC_ENABLE
-static inline void mcux_lpuart_async_isr(const struct device* dev,
+static inline void mcux_lpuart_async_isr(struct device const* dev,
                                          struct mcux_lpuart_data* data,
                                          const uint32_t status) {
     /*
@@ -1154,9 +1153,12 @@ static inline void mcux_lpuart_async_isr(const struct device* dev,
         if (data->async.rx_dma_params.timeout_us == 0) {
             mcux_lpuart_async_rx_flush(dev);
         }
+        else if (data->async.rx_dma_params.timeout_us != SYS_FOREVER_US) {
+            k_timer_start(&data->async.rx_dma_params.timeout_timer,
+                          K_USEC(data->async.rx_dma_params.timeout_us), K_NO_WAIT);
+        }
         else {
-            async_timer_start(&data->async.rx_dma_params.timeout_work,
-                              data->async.rx_dma_params.timeout_us);
+            /* pass */
         }
 
         LPUART_ClearStatusFlags(get_base(dev), kLPUART_IdleLineFlag);
@@ -1345,8 +1347,7 @@ static int mcux_lpuart_configure_async(struct device const* dev) {
     data->async.next_rx_buffer     = NULL;
     data->async.next_rx_buffer_len = 0;
     data->async.uart_dev           = dev;
-    k_work_init_delayable(&data->async.rx_dma_params.timeout_work,
-                          mcux_lpuart_async_rx_timeout);
+    k_timer_init(&data->async.rx_dma_params.timeout_timer, mcux_lpuart_async_rx_timeout, NULL);
     k_work_init_delayable(&data->async.tx_dma_params.timeout_work,
                           mcux_lpuart_async_tx_timeout);
 
@@ -1609,7 +1610,7 @@ static int mcux_lpuart_line_ctrl_get(struct device const* dev,
 #endif /* LPUART_HAS_MCR */
 #endif /* CONFIG_UART_LINE_CTRL */
 
-static int mcux_lpuart_pm_action(const struct device* dev, enum pm_device_action action) {
+static int mcux_lpuart_pm_action(struct device const* dev, enum pm_device_action action) {
     struct mcux_lpuart_data* data = dev->data;
     int ret;
 
@@ -1640,7 +1641,7 @@ static int mcux_lpuart_pm_action(const struct device* dev, enum pm_device_action
     return (0);
 }
 
-static int mcux_lpuart_init(const struct device* dev) {
+static int mcux_lpuart_init(struct device const* dev) {
     const struct mcux_lpuart_config* config = dev->config;
     struct mcux_lpuart_data* data = dev->data;
     struct uart_config* uart_api_config = &data->uart_config;
@@ -1895,7 +1896,7 @@ DT_INST_FOREACH_STATUS_OKAY(LPUART_MCUX_INIT)
     zephyr_gtest_uart_s32k3_reg_init(DEVICE_DT_GET(DT_DRV_INST(n)), \
                                      &mcux_lpuart_##n##_data, &mcux_lpuart_##n##_config);
 
-static void zephyr_gtest_uart_s32k3_reg_init(const struct device* dev,
+static void zephyr_gtest_uart_s32k3_reg_init(struct device const* dev,
                                              struct mcux_lpuart_data* data,
                                              struct mcux_lpuart_config* cfg) {
     uintptr_t base_addr = (uintptr_t)get_base(dev);
@@ -1957,7 +1958,7 @@ void zephyr_gtest_uart_s32k3(void) {
     DT_INST_FOREACH_STATUS_OKAY(S32K3_UART_CFG_REG_INIT)
 }
 
-void zephyr_uart_s32k3_isr(const struct device* dev) {
+void zephyr_uart_s32k3_isr(struct device const* dev) {
     struct mcux_lpuart_data *data = dev->data;
     const uint32_t status = LPUART_GetStatusFlags(get_base(dev));
 
@@ -1975,7 +1976,7 @@ void zephyr_uart_s32k3_isr(const struct device* dev) {
     #endif /* API */
 }
 
-LPUART_Type* zephyr_uart_s32k3_get_reg(const struct device* dev) {
+LPUART_Type* zephyr_uart_s32k3_get_reg(struct device const* dev) {
     return get_base(dev);
 }
 
