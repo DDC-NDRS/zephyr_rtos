@@ -682,6 +682,8 @@ New APIs and options
     * :kconfig:option:`CONFIG_BT_SMP_DERIVE_LTK`
     * :kconfig:option:`CONFIG_BT_SMP_DERIVE_LK`
     * :c:func:`bt_sdp_unregister_service`
+    * :kconfig:option:`CONFIG_BT_L2CAP_SIG_TX_BUF_COUNT` to set the number of L2CAP signaling TX
+      buffers.
 
   * HCI Drivers
 
@@ -2641,6 +2643,14 @@ Libraries / Subsystems
 
   * ``psa_its_get()`` called with a ``data_size`` of 0 now reports whether the entry exists
     and is valid instead of always returning ``PSA_SUCCESS``.
+
+  * ``psa_its_set()`` and ``psa_its_remove()`` now only replace or remove an entry that cannot be
+    read back when it is corrupt, and fail with the underlying error otherwise.
+
+  * The decrypted data of an entry is now wiped from the subsystem's own buffers before returning.
+
+  * The ZMS store now supports 64-bit UIDs through 64-bit ZMS IDs and rejects the UIDs it cannot map
+    instead of aliasing them. See the :ref:`migration guide <migration_4.5>` for more information.
 
 * Precision timing
 

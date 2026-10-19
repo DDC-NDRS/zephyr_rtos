@@ -250,6 +250,11 @@ static void mcp251xfd_rxobj_to_canframe(struct mcp251xfd_rxobj* src, struct can_
 
     dst->dlc = FIELD_GET(MCP251XFD_OBJ_FLAGS_DLC_MASK, src->flags);
 
+    /* A classic CAN frame with a DLC greater than 8 carries 8 data bytes */
+    if (((dst->flags & CAN_FRAME_FDF) == 0U) && (dst->dlc > CAN_MAX_DLC)) {
+        dst->dlc = CAN_MAX_DLC;
+    }
+
     #if defined(CONFIG_CAN_RX_TIMESTAMP)
     dst->timestamp = sys_le32_to_cpu(src->timestamp);
     #endif
@@ -283,15 +288,9 @@ static int mcp251xfd_reg_check_value_wtimeout(const struct device* dev, uint16_t
     uint32_t* reg;
     uint32_t delay = (timeout_usec / retries);
 
-    for (;;) {
+    while (true) {
         reg = mcp251xfd_read_crc(dev, addr, MCP251XFD_REG_SIZE);
-        if (!reg) {
-            return (-EINVAL);
-        }
-
-        *reg = sys_le32_to_cpu(*reg);
-
-        if ((*reg & mask) == value) {
+        if ((reg != NULL) && ((sys_le32_to_cpu(*reg) & mask) == value)) {
             return (0);
         }
 
@@ -522,9 +521,19 @@ static int mcp251xfd_send(const struct device* dev, const struct can_frame* msg,
         return (-ENETUNREACH);
     }
 
-    if (((msg->flags & CAN_FRAME_FDF) == 0) && msg->dlc > CAN_MAX_DLC) {
-        LOG_ERR("DLC of %d without fd flag set.", msg->dlc);
+    if (((msg->flags & CAN_FRAME_FDF) == 0) && (msg->dlc > CAN_MAX_DLC)) {
+        LOG_ERR("DLC of %d without FD flag set.", msg->dlc);
         return (-EINVAL);
+    }
+
+    if (((msg->flags & CAN_FRAME_FDF) != 0) && (msg->dlc > CANFD_MAX_DLC)) {
+        LOG_ERR("DLC of %d with FD flag set.", msg->dlc);
+        return (-EINVAL);
+    }
+
+    if ((msg->flags & ~(CAN_FRAME_IDE | CAN_FRAME_RTR | CAN_FRAME_FDF | CAN_FRAME_BRS)) != 0) {
+        LOG_ERR("unsupported CAN frame flags 0x%02x", msg->flags);
+        return (-ENOTSUP);
     }
 
     if ((msg->flags & CAN_FRAME_FDF) && !(dev_data->common.mode & CAN_MODE_FD)) {
@@ -1065,7 +1074,7 @@ static void mcp251xfd_handle_interrupts(const struct device* dev) {
         reg_int_hw = mcp251xfd_read_crc(dev, MCP251XFD_REG_INT, sizeof(*reg_int_hw));
         if (reg_int_hw == NULL) {
             k_mutex_unlock(&dev_data->mutex);
-            continue;
+            goto check_int_pin;
         }
 
         *reg_int_hw = sys_le16_to_cpu(*reg_int_hw);
@@ -1139,6 +1148,7 @@ static void mcp251xfd_handle_interrupts(const struct device* dev) {
         }
         #endif
 
+check_int_pin :
         /* Break from loop if INT pin is inactive */
         consecutive_calls++;
         ret = gpio_pin_get_dt(&dev_cfg->int_gpio_dt);
@@ -1386,6 +1396,10 @@ static inline int mcp251xfd_init_osc_reg(const struct device* dev) {
     ret = mcp251xfd_reg_check_value_wtimeout(dev, MCP251XFD_REG_OSC, reg_value, reg_value,
                                              MCP251XFD_PLLRDY_TIMEOUT_USEC,
                                              MCP251XFD_PLLRDY_RETRIES, false);
+    if ((ret == 0) && dev_cfg->pll_enable) {
+        /* SYSCLK is not yet stable when PLLRDY is set */
+        k_busy_wait(MCP251XFD_PLLRDY_SETTLE_USEC);
+    }
 
     return (ret);
 }
@@ -1522,8 +1536,18 @@ static int mcp251xfd_reset(const struct device* dev) {
     ret = spi_write(dev_cfg->bus.bus, dev_data->spi_cfg, &tx);
     /* Adding delay after init to fix occasional init issue. Delay time found experimentally. */
     k_sleep(K_USEC(MCP251XFD_RESET_DELAY_USEC));
+    if (ret < 0) {
+        return (ret);
+    }
 
-    return (ret);
+    /* The oscillator restart may take longer than the delay */
+    ret = mcp251xfd_reg_check_value_wtimeout(
+            dev, MCP251XFD_REG_CON,
+            FIELD_PREP(MCP251XFD_REG_CON_OPMOD_MASK, MCP251XFD_REG_CON_MODE_CONFIG),
+            MCP251XFD_REG_CON_OPMOD_MASK, MCP251XFD_RESET_TIMEOUT_USEC,
+            MCP251XFD_RESET_RETRIES, true);
+
+    return (ret); 
 }
 
 static int mcp251xfd_init(const struct device* dev) {

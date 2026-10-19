@@ -4546,6 +4546,11 @@ static bool ipv4_is_broadcast_address(struct net_if* iface,
             continue;
         }
 
+        /* A /31 or /32 prefix has no broadcast address (RFC 3021) */
+        if (~net_ntohl(unicast->netmask.s_addr_be) <= 1U) {
+            continue;
+        }
+
         bcast.s_addr_be = unicast->ipv4.address.in_addr.s_addr_be |
                           ~unicast->netmask.s_addr_be;
 

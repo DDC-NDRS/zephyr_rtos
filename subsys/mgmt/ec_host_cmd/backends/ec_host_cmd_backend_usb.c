@@ -26,6 +26,9 @@ BUILD_ASSERT((CONFIG_EC_HOST_CMD_HANDLER_BUFFER_ALIGN % UDC_BUF_ALIGN) == 0, "Bu
 #define EP_BULK_SIZE     64U
 #define EP_INT_SIZE      4U
 
+/* Interrupt notifications are written with net_buf_add_le32(). */
+BUILD_ASSERT(EP_INT_SIZE == sizeof(uint32_t), "Interrupt notification size mismatch");
+
 #define INT_POOL_SIZE 4
 
 /* Timeout for receiving entire request. */
@@ -98,7 +101,6 @@ struct ec_host_cmd_usb_ctx {
 	const struct usb_desc_header *const *const fs_desc;
 	struct ec_host_cmd_rx_ctx *rx_ctx;
 	struct ec_host_cmd_tx_buf *tx_buf;
-	uint8_t *bulk_out_buf;
 	struct net_buf *usb_rx_buf;
 	struct net_buf *usb_tx_buf;
 	enum ec_host_cmd_usb_state state;
@@ -196,12 +198,11 @@ static int ec_host_cmd_signal_event(struct usbd_class_data *const c_data)
 		LOG_WRN("Event has been already signaled but not polled by the host");
 		return 0;
 	}
-	net_buf_add_u8(buf, USB_EC_HOST_CMD_IRQ_TYPE_EVENT);
-	buf->len = EP_INT_SIZE;
+	net_buf_add_le32(buf, USB_EC_HOST_CMD_IRQ_TYPE_EVENT);
 	ret = usbd_ep_enqueue(c_data, buf);
 	if (ret) {
 		LOG_ERR("Failed to enqueue EP IN INT: %d", ret);
-		usbd_ep_buf_free(uds_ctx, buf);
+		(void)usbd_ep_buf_free(uds_ctx, buf);
 		return ret;
 	}
 	ctx->pending_event = false;
@@ -274,7 +275,7 @@ static int ec_host_cmd_request(struct usbd_class_data *const c_data, struct net_
 
 		if ((bi->ep == ec_host_cmd_get_in_int_ep(c_data)) ||
 		    (bi->ep == ec_host_cmd_get_out_ep(c_data))) {
-			usbd_ep_buf_free(uds_ctx, buf);
+			(void)usbd_ep_buf_free(uds_ctx, buf);
 		}
 
 		return 0;
@@ -283,13 +284,7 @@ static int ec_host_cmd_request(struct usbd_class_data *const c_data, struct net_
 	if (bi->ep == ec_host_cmd_get_out_ep(c_data)) {
 		uint16_t buf_len = buf->len;
 
-		ret = usbd_ep_buf_free(uds_ctx, buf);
-		if (ret) {
-			LOG_ERR("Failed to free buf OUT");
-			/* Schedule the reset work even if it hasn't been queued */
-			k_work_reschedule(&ctx->reset_work, K_NO_WAIT);
-			return ret;
-		}
+		(void)usbd_ep_buf_free(uds_ctx, buf);
 
 		if (ctx->state == USB_EC_HOST_CMD_STATE_READY_TO_RX) {
 			if (buf_len < sizeof(struct ec_host_cmd_request_header)) {
@@ -334,7 +329,7 @@ static int ec_host_cmd_request(struct usbd_class_data *const c_data, struct net_
 	}
 
 	if (bi->ep == ec_host_cmd_get_in_int_ep(c_data)) {
-		usbd_ep_buf_free(uds_ctx, buf);
+		(void)usbd_ep_buf_free(uds_ctx, buf);
 	}
 
 	return 0;
@@ -545,8 +540,7 @@ static int ec_host_cmd_backend_send(const struct ec_host_cmd_backend *backend)
 	}
 
 	/* Signal to host that response is ready. */
-	net_buf_add_u8(buf, USB_EC_HOST_CMD_IRQ_TYPE_RESP_READY);
-	buf->len = EP_INT_SIZE;
+	net_buf_add_le32(buf, USB_EC_HOST_CMD_IRQ_TYPE_RESP_READY);
 
 	ret = usbd_ep_enqueue(c_data, buf);
 	if (ret) {
@@ -620,12 +614,10 @@ static struct ec_host_cmd_usb_ctx ec_host_cmd_ctx;
 
 USBD_DEFINE_CLASS(ec_host_cmd_class, &ec_host_cmd_api, (void *)&ec_host_cmd_ctx, NULL);
 
-static uint8_t bulk_out_buf[EP_BULK_SIZE] __aligned(UDC_BUF_ALIGN);
 static struct ec_host_cmd_usb_ctx ec_host_cmd_ctx = {
 	.desc = &ec_host_cmd_desc,
 	.fs_desc = ec_host_cmd_fs_desc,
 	.c_data = &ec_host_cmd_class,
-	.bulk_out_buf = bulk_out_buf,
 };
 
 static struct ec_host_cmd_backend usb_ec_host_cmd_backend = {
