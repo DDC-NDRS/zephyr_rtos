@@ -504,6 +504,7 @@ struct mcp251xfd_data {
     struct k_thread   int_thread;
     k_thread_stack_t* int_thread_stack;
     struct k_sem      int_sem;
+    bool int_edge;      /* INT is armed on the falling edge, the GPIO has no level interrupt */
 
     /* General */
     enum can_state state;

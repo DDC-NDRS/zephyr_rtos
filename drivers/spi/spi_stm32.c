@@ -2015,9 +2015,9 @@ static int32_t spi_stm32_set_transfer_size(const struct device* dev,
     }
     #endif /* CONFIG_SPI_RTIO */
 
-    if (DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) &&
-        (!IS_ENABLED(CONFIG_SPI_RTIO) ||
-         (SPI_OP_MODE_GET(config->operation) == SPI_OP_MODE_CONTROLLER))) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    if (!IS_ENABLED(CONFIG_SPI_RTIO) ||
+        (SPI_OP_MODE_GET(config->operation) == SPI_OP_MODE_CONTROLLER)) {
         uint32_t frames = (transfer_dir != STM32_SPI_HALF_DUPLEX_RX) ? tx_frames : rx_frames;
 
         if (frames <= cfg->fifo_max_transfer_size) {
@@ -2046,6 +2046,7 @@ static int32_t spi_stm32_set_transfer_size(const struct device* dev,
             }
         }
     }
+    #endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) */
 
     data->tx_len = tx_frames;
     data->rx_len = rx_frames;

@@ -1666,6 +1666,37 @@ void can_mcan_line_0_isr(const struct device* dev);
 void can_mcan_line_1_isr(const struct device* dev);
 
 /**
+ * @brief Bosch M_CAN bus state change handler, called from the m_can_int0 ISR.
+ *
+ * Exported for SoC front ends that dispatch the interrupt lines themselves.
+ *
+ * @param dev Pointer to the device structure for the driver instance.
+ */
+void can_mcan_state_change_handler(const struct device* dev);
+
+/**
+ * @brief Bosch M_CAN Tx event FIFO handler, called from the m_can_int0 ISR.
+ *
+ * Exported for SoC front ends that dispatch the interrupt lines themselves.
+ *
+ * @param dev Pointer to the device structure for the driver instance.
+ */
+void can_mcan_tx_event_handler(const struct device* dev);
+
+/**
+ * @brief Drain a Bosch M_CAN Rx FIFO and call the matching Rx callbacks.
+ *
+ * Exported for SoC front ends that dispatch the interrupt lines themselves.
+ *
+ * @param dev Pointer to the device structure for the driver instance.
+ * @param fifo_offset Offset of the Rx FIFO elements in Message RAM.
+ * @param fifo_status_reg Rx FIFO status register (RXF0S or RXF1S).
+ * @param fifo_ack_reg Rx FIFO acknowledge register (RXF0A or RXF1A).
+ */
+void can_mcan_get_message(const struct device* dev, uint16_t fifo_offset,
+                          uint16_t fifo_status_reg, uint16_t fifo_ack_reg);
+
+/**
  * @brief Enable Bosch M_CAN configuration change.
  *
  * @param dev Pointer to the device structure for the driver instance.

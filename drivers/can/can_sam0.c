@@ -21,12 +21,6 @@ LOG_MODULE_REGISTER(can_sam0, CONFIG_CAN_LOG_LEVEL);
 
 #define DT_DRV_COMPAT atmel_sam0_can
 
-// ---------- EXTERNAL METHOD --------------------------------------------------------------------------------------- //
-extern void can_mcan_state_change_handler(struct device const* dev);
-extern void can_mcan_tx_event_handler(struct device const* dev);
-extern void can_mcan_get_message(struct device const* dev, uint16_t fifo_offset,
-                                 uint16_t fifo_status_reg, uint16_t fifo_ack_reg);
-
 #define CAN_MCAN_IR_ISR_MSK_BIT     (CAN_MCAN_IR_BO   | CAN_MCAN_IR_EW   | CAN_MCAN_IR_EP |     \
                                      CAN_MCAN_IR_TEFL | CAN_MCAN_IR_TEFN |                      \
                                      CAN_MCAN_IR_ARA  | CAN_MCAN_IR_MRAF |                      \

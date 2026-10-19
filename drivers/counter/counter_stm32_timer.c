@@ -63,7 +63,7 @@ static uint32_t (*const get_timer_compare[TIMER_MAX_CH])(TIM_TypeDef const* TIMx
     LL_TIM_OC_GetCompareCH3, LL_TIM_OC_GetCompareCH4,
 };
 #else
-static uint32_t (*const get_timer_compare[TIMER_MAX_CH])(TIM_TypeDef const* TIMx) = {
+static uint32_t (*const get_timer_compare[TIMER_MAX_CH])(TIM_TypeDef* TIMx) = {
     LL_TIM_OC_GetCompareCH1, LL_TIM_OC_GetCompareCH2,
     LL_TIM_OC_GetCompareCH3, LL_TIM_OC_GetCompareCH4
 };
@@ -112,7 +112,7 @@ static uint32_t (*const check_it_enabled[TIMER_MAX_CH])(TIM_TypeDef const* TIMx)
     LL_TIM_IsEnabledIT_CC3, LL_TIM_IsEnabledIT_CC4,
 };
 #else
-static uint32_t (*const check_it_enabled[TIMER_MAX_CH])(TIM_TypeDef const* TIMx) = {
+static uint32_t (*const check_it_enabled[TIMER_MAX_CH])(TIM_TypeDef* TIMx) = {
     LL_TIM_IsEnabledIT_CC1, LL_TIM_IsEnabledIT_CC2,
     LL_TIM_IsEnabledIT_CC3, LL_TIM_IsEnabledIT_CC4
 };

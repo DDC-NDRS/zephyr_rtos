@@ -23,6 +23,11 @@ BUILD_ASSERT(sizeof(struct mcp251xfd_txobj) == (CAN_MAX_DLEN + 8U), "sizeof erro
 
 static void mcp251xfd_canframe_to_txobj(const struct can_frame* src, int mailbox_idx,
                                         struct mcp251xfd_txobj* dst) {
+    /*
+     * dst is intentionally not cleared with memset(). id and flags are always assigned below;
+     * data[] is only written for non-RTR frames and only up to the DLC, the remaining bytes
+     * keep their previous content.
+     */
     if ((src->flags & CAN_FRAME_IDE) != 0) {
         dst->id  = FIELD_PREP(MCP251XFD_OBJ_ID_SID_MASK, src->id >> 18);
         dst->id |= FIELD_PREP(MCP251XFD_OBJ_ID_EID_MASK, src->id);
@@ -176,7 +181,9 @@ static int mcp251xfd_write(const struct device* dev, uint16_t addr, int len) {
     spi_cmd = sys_cpu_to_be16(MCP251XFD_SPI_INSTRUCTION_WRITE | addr);
     (void) memcpy(&spi_data->header[1], &spi_cmd, sizeof(spi_cmd));
 
-    return spi_write(dev_cfg->bus.bus, dev_data->spi_cfg, &tx);
+    ret = spi_write(dev_cfg->bus.bus, dev_data->spi_cfg, &tx);
+
+    return (ret);
 }
 
 static int mcp251xfd_fifo_write(const struct device* dev, int mailbox_idx,
@@ -225,6 +232,12 @@ static int mcp251xfd_fifo_write(const struct device* dev, int mailbox_idx,
 }
 
 static void mcp251xfd_rxobj_to_canframe(struct mcp251xfd_rxobj* src, struct can_frame* dst) {
+    /*
+     * dst is intentionally not cleared with memset(). id, flags and dlc (plus timestamp with
+     * CONFIG_CAN_RX_TIMESTAMP) are always assigned below; data[] is only written for non-RTR
+     * frames and only up to the DLC, and the padding field is never written. Consumers must not
+     * rely on the content of those bytes.
+     */
     src->id    = sys_le32_to_cpu(src->id);
     src->flags = sys_le32_to_cpu(src->flags);
 
@@ -360,7 +373,7 @@ static int mcp251xfd_set_mode_internal(const struct device* dev, uint8_t request
             ret = mcp251xfd_set_tdc(dev, false);
         }
         else if (requested_mode == MCP251XFD_REG_CON_MODE_MIXED) {
-            ret = mcp251xfd_set_tdc(dev, true, dev_data->tdco);
+            ret = mcp251xfd_set_tdc(dev, true);
         }
 
         if (ret < 0) {
@@ -1168,6 +1181,32 @@ check_int_pin :
     }
 }
 
+/*
+ * Arm the INT pin interrupt (the pin is active low).
+ *
+ * A level interrupt is preferred. Many SoC GPIO controllers cannot raise level interrupts (e.g.
+ * STM32: gpio_stm32 returns -ENOTSUP for them, except on STM32WB0), so the falling edge is used
+ * there instead, which is intentional, and remembered in int_edge.
+ */
+static int mcp251xfd_int_arm(const struct device* dev) {
+    const struct mcp251xfd_config* dev_cfg = dev->config;
+    struct mcp251xfd_data* dev_data = dev->data;
+    int ret;
+
+    if (dev_data->int_edge == false) {
+        ret = gpio_pin_interrupt_configure_dt(&dev_cfg->int_gpio_dt, GPIO_INT_LEVEL_ACTIVE);
+        if (ret != -ENOTSUP) {
+            return (ret);
+        }
+
+        dev_data->int_edge = true;
+    }
+
+    ret = gpio_pin_interrupt_configure_dt(&dev_cfg->int_gpio_dt, GPIO_INT_EDGE_FALLING);
+
+    return (ret);
+}
+
 static void mcp251xfd_int_thread(const struct device* dev) {
     const struct mcp251xfd_config* dev_cfg = dev->config;
     struct mcp251xfd_data* dev_data = dev->data;
@@ -1179,10 +1218,28 @@ static void mcp251xfd_int_thread(const struct device* dev) {
         mcp251xfd_handle_interrupts(dev);
 
         /* Re-enable pin interrupts */
-        ret = gpio_pin_interrupt_configure_dt(&dev_cfg->int_gpio_dt, GPIO_INT_EDGE_FALLING);
+        ret = mcp251xfd_int_arm(dev);
         if (ret < 0) {
             LOG_ERR("Couldn't enable pin interrupt [%d]", ret);
             k_oops();
+        }
+
+        if (dev_data->int_edge) {
+            /*
+             * An edge is only seen while the interrupt is armed, and INT stays asserted until
+             * the flags are cleared. Sample the pin once after arming, so that an assertion
+             * between the last pin check in mcp251xfd_handle_interrupts() and the arming above
+             * still wakes this thread. An unreadable pin is treated as asserted. A level
+             * interrupt does not need this.
+             */
+            ret = gpio_pin_get_dt(&dev_cfg->int_gpio_dt);
+            if (ret < 0) {
+                LOG_ERR("Couldn't read INT pin [%d]", ret);
+            }
+
+            if (ret != 0) {
+                k_sem_give(&dev_data->int_sem);
+            }
         }
     }
 }
@@ -1625,9 +1682,13 @@ static int mcp251xfd_init(const struct device* dev) {
         return (-EINVAL);
     }
 
-    ret = gpio_pin_interrupt_configure_dt(&dev_cfg->int_gpio_dt, GPIO_INT_EDGE_FALLING);
+    /*
+     * No INT pin check after arming here, unlike in mcp251xfd_int_thread(): the controller is
+     * reset by mcp251xfd_reset() below, which drops any INT assertion from before this point.
+     */
+    ret = mcp251xfd_int_arm(dev);
     if (ret < 0) {
-        LOG_ERR("Failed to configure level-triggered GPIO interrupt [%d]", ret);
+        LOG_ERR("Failed to configure GPIO interrupt [%d]", ret);
         return (-EINVAL);
     }
 
@@ -1670,8 +1731,7 @@ static int mcp251xfd_init(const struct device* dev) {
 
     reg = mcp251xfd_read_crc(dev, MCP251XFD_REG_CON, MCP251XFD_REG_SIZE);
     if (reg == NULL) {
-        ret = -EINVAL;
-        return (ret);
+        return (-EIO);
     }
 
     *reg = sys_le32_to_cpu(*reg);
