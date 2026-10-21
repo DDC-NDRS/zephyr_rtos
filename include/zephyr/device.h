@@ -632,9 +632,14 @@ static inline device_handle_t device_handle_get(const struct device* dev) {
 /**
  * @brief Run device initialization in user space
  *
+ * Runs the init function of a POST_KERNEL device with the same result and
+ * state handling as the kernel's own device initialization.
+ *
  * @param[in] dev the device that want to re-initialize
  *
- * @return 0 on success, negative errno code otherwise
+ * @retval 0 On success
+ * @retval -ENODEV @p dev has no init entry in the POST_KERNEL level
+ * @retval -errno Negative errno returned by the device init function
  * @note The init_entry entry of the device shall be in POST_KERNEL !!!
  */
 int device_user_init(const struct device* dev);                 /* #CUSTOM@NDRS */

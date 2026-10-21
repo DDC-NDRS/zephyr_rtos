@@ -487,12 +487,6 @@ struct /**/net_sockaddr_ptr {
     char data[NET_SOCKADDR_PTR_MAX_SIZE - sizeof(net_sa_family_t)];
 } __aligned(SOCKADDR_ALIGN);
 
-#if (__GTEST == 0) /* #CUSTOM@NDRS */
-#define sockaddr            net_sockaddr
-#define sockaddr_ptr        net_sockaddr_ptr
-#define sockaddr_in_ptr     net_sockaddr_in_ptr
-#endif
-
 /* Same as sockaddr in our case */
 struct /**/net_sockaddr_storage {
     net_sa_family_t ss_family;

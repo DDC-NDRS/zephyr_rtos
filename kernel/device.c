@@ -286,29 +286,14 @@ extern const struct init_entry __init_APPLICATION_start[];
 int /**/device_user_init(const struct device* dev) {
     int rc;
 
-    rc = -1;
     for (const struct init_entry* entry = __init_POST_KERNEL_start;
          entry < __init_APPLICATION_start;
          entry++) {
         if (entry->dev == dev) {
-            rc = dev->ops.init(dev);
-
-            /* Mark device initialized.  If initialization
-             * failed, record the error condition.
-             */
-            if (rc != 0) {
-                if (rc < 0) {
-                    rc = -rc;
-                }
-
-                if (rc > UINT8_MAX) {
-                    rc = UINT8_MAX;
-                }
-                dev->state->init_res = (uint8_t)rc;
-            }
-            dev->state->initialized = true;
+            rc = do_device_init(dev);
+            return (rc);
         }
     }
 
-    return (rc);
+    return (-ENODEV);
 }
