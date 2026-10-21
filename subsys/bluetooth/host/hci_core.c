@@ -46,7 +46,6 @@
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/clock.h>
 #include <zephyr/toolchain.h>
-#include <soc.h>
 
 #include "addr_internal.h"
 #include "adv.h"
@@ -1570,6 +1569,9 @@ static void le_conn_complete_adv_timeout(void)
 		bt_conn_set_state(conn, BT_CONN_DISCONNECTED);
 
 		bt_conn_unref(conn);
+	} else if (bt_drv_quirk_no_adv_term_on_dir_timeout()) {
+		/* No LE Advertising Set Terminated event follows to end the advertising set */
+		bt_le_adv_high_duty_timeout();
 	}
 }
 

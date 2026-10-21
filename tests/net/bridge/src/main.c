@@ -146,7 +146,7 @@ static int eth_fake_set_config(const struct device *dev,
 		break;
 
 	default:
-		return -EINVAL;
+		return -ENOTSUP;
 	}
 
 	return 0;
@@ -666,6 +666,44 @@ static void test_recv_with_bridge(void)
 	check_free_packet_count();
 }
 
+/* A frame that no other port can take is freed, not kept by the bridge.
+ * The forwarded copy is cloned from the RX pool, so a leak shows there.
+ */
+static void test_recv_no_forwarding_port(void)
+{
+	struct k_mem_slab *rx;
+	uint32_t rx_free;
+
+	net_pkt_get_info(&rx, NULL, NULL, NULL);
+
+	/* test_recv_with_bridge() leaves what fake_iface[1] sent */
+	for (int i = 0; i < 3; i++) {
+		if (eth_fake_data[i].sent_pkt != NULL) {
+			net_pkt_unref(eth_fake_data[i].sent_pkt);
+			eth_fake_data[i].sent_pkt = NULL;
+		}
+	}
+
+	net_if_down(fake_iface[1]);
+	net_if_down(fake_iface[2]);
+
+	rx_free = k_mem_slab_num_free_get(rx);
+
+	_recv_data(fake_iface[0]);
+
+	/* give time to the processing threads to run */
+	k_sleep(K_MSEC(100));
+
+	zexpect_equal(k_mem_slab_num_free_get(rx), rx_free, "RX packet leaked");
+
+	for (int i = 0; i < 3; i++) {
+		zexpect_is_null(eth_fake_data[i].sent_pkt, "Frame sent on fake_iface[%d]", i);
+	}
+
+	net_if_up(fake_iface[1]);
+	net_if_up(fake_iface[2]);
+}
+
 static void test_recv_with_bridge_fdb(void)
 {
 	struct net_eth_addr mac;
@@ -815,6 +853,41 @@ static void test_fdb_del_iface(void)
 	zexpect_equal(fdb_count(fake_iface[2]), 0, "Entries left on fake_iface[2]");
 }
 
+/* A NULL interface deletes from every interface, as the API documents */
+static void test_fdb_del_any_iface(void)
+{
+	/* A multicast address can have an entry on several ports */
+	struct net_eth_addr mcast = {.addr = {0x01, 0x00, 0x5e, 0x10, 0x00, 0x01}};
+	struct net_eth_addr ucast = {.addr = {0x02, 0x00, 0x5e, 0x10, 0x00, 0x20}};
+	int ret;
+
+	ret = eth_bridge_fdb_add(&mcast, fake_iface[0]);
+	zassert_equal(ret, 0, "Cannot add FDB entry (%d)", ret);
+	ret = eth_bridge_fdb_add(&mcast, fake_iface[1]);
+	zassert_equal(ret, 0, "Cannot add FDB entry (%d)", ret);
+	ret = eth_bridge_fdb_add(&ucast, fake_iface[2]);
+	zassert_equal(ret, 0, "Cannot add FDB entry (%d)", ret);
+
+	ret = eth_bridge_fdb_del(&mcast, NULL);
+	zexpect_equal(ret, 0, "Cannot delete address from any interface (%d)", ret);
+	zexpect_equal(fdb_count(fake_iface[0]), 0, "Entry left on fake_iface[0]");
+	zexpect_equal(fdb_count(fake_iface[1]), 0, "Entry left on fake_iface[1]");
+	zexpect_equal(fdb_count(fake_iface[2]), 1, "Other address deleted");
+
+	ret = eth_bridge_fdb_del(&mcast, NULL);
+	zexpect_equal(ret, -ENOENT, "Deleted a missing address (%d)", ret);
+
+	ret = eth_bridge_fdb_add(&mcast, fake_iface[0]);
+	zassert_equal(ret, 0, "Cannot add FDB entry (%d)", ret);
+
+	ret = eth_bridge_fdb_del_iface(NULL);
+	zexpect_equal(ret, 0, "Cannot delete entries of every interface (%d)", ret);
+
+	for (int i = 0; i < 3; i++) {
+		zexpect_equal(fdb_count(fake_iface[i]), 0, "Entries left on fake_iface[%d]", i);
+	}
+}
+
 static void test_recv_after_bridging(void)
 {
 	int ret;
@@ -864,9 +937,11 @@ ZTEST(net_eth_bridge, test_net_eth_bridge)
 	test_local_unicast_delivered_to_bridge();
 #endif
 	test_recv_with_bridge();
+	test_recv_no_forwarding_port();
 	test_recv_with_bridge_fdb();
 	test_recv_with_bridge_fdb_ingress();
 	test_fdb_del_iface();
+	test_fdb_del_any_iface();
 	DBG("After bridging\n");
 	test_recv_after_bridging();
 }

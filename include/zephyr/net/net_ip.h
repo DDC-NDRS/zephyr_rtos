@@ -1220,7 +1220,7 @@ static inline bool net_ipv6_addr_cmp_raw(uint8_t const* addr1,
 
 /** @cond INTERNAL_HIDDEN */
 static inline bool net_ipv6_is_ll_addr_raw(uint8_t const* addr) {
-    return (UNALIGNED_GET((uint16_t*)addr) == net_htons(0xFE80));
+    return (UNALIGNED_GET((uint16_t*)addr) & net_htons(0xFFC0)) == net_htons(0xFE80);
 }
 /** @endcond */
 
@@ -1243,7 +1243,7 @@ static inline bool net_ipv6_is_ll_addr(struct net_in6_addr const* addr) {
  * @return True if it is, false otherwise.
  */
 static inline bool net_ipv6_is_sl_addr(const struct net_in6_addr* addr) {
-    return (UNALIGNED_GET(&addr->s6_addr16[0]) == net_htons(0xFEC0));
+    return (UNALIGNED_GET(&addr->s6_addr16[0]) & net_htons(0xFFC0)) == net_htons(0xFEC0);
 }
 
 /**
