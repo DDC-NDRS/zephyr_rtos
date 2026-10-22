@@ -200,6 +200,15 @@ bool lll_scan_ext_tgta_check(const struct lll_scan *lll, bool pri, bool is_init,
 		return true;
 	}
 
+	/* The AUX_ADV_IND of connectable and scannable advertising has the
+	 * AdvA (Core Spec v6.3, Vol 6, Part B, Tables 2.4 and 2.5)
+	 */
+	if (!pri && (pdu->adv_ext_ind.adv_mode != 0U) &&
+	    ((pdu->adv_ext_ind.ext_hdr_len == 0U) ||
+	     !pdu->adv_ext_ind.ext_hdr.adv_addr)) {
+		return false;
+	}
+
 	if (pdu->len <
 	    PDU_AC_EXT_HEADER_SIZE_MIN + sizeof(struct pdu_adv_ext_hdr) +
 	    ADVA_SIZE) {
@@ -589,7 +598,13 @@ static int is_abort_cb(void *next, void *curr, lll_prepare_cb_t *resume_cb)
 		}
 	}
 
-	if (0) {
+	/* We are here when same event is preempting, example continuous scanning */
+	if (lll->is_stop != 0U) {
+		/* Flagged to stop, lets yield to be cancelled so that done event is generated for
+		 * which ULL scan disable is waiting to take a semaphore.
+		 */
+		return -ECANCELED;
+
 #if defined(CONFIG_BT_CTLR_ADV_EXT)
 	} else if (unlikely(lll->duration_reload && !lll->duration_expire)) {
 		/* Duration expired, do not continue, close and generate

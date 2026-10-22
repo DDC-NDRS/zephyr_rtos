@@ -190,7 +190,8 @@ uint8_t bt_le_ext_adv_get_index(const struct bt_le_ext_adv *adv)
 {
 	__ASSERT(IS_ARRAY_ELEMENT(adv_pool, adv), "Invalid bt_adv pointer");
 
-	return (uint8_t)ARRAY_INDEX_WITH_TYPE(adv_pool, struct bt_le_ext_adv, adv); /* #CUSTOM@NDRS */
+	/* #CUSTOM@NDRS */
+	return (uint8_t)((uintptr_t)ARRAY_INDEX_WITH_TYPE(adv_pool, struct bt_le_ext_adv, adv));
 }
 
 static struct bt_le_ext_adv *adv_new(void)
@@ -1101,6 +1102,8 @@ static int adv_start_legacy(struct bt_le_ext_adv *adv,
 #if defined(CONFIG_BT_EXT_ADV)
 	adv->sid = BT_GAP_SID_INVALID;
 #endif /* CONFIG_BT_EXT_ADV */
+
+	adv->options = param->options;
 
 	atomic_set_bit_to(adv->flags, BT_ADV_CONNECTABLE, param->options & BT_LE_ADV_OPT_CONN);
 

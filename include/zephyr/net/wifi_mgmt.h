@@ -1318,7 +1318,12 @@ struct wifi_twt_flow_info {
     uint32_t twt_wake_ahead_duration;
 };
 
-/** Wi-Fi enterprise mode credentials */
+/** Wi-Fi enterprise mode credentials
+ *
+ * The buffers are owned by the caller and are only guaranteed to be valid
+ * for the duration of the request. A driver that needs them later must keep
+ * its own copy.
+ */
 struct wifi_enterprise_creds_params {
     /** CA certification */
     uint8_t* ca_cert;
@@ -2396,6 +2401,10 @@ struct wifi_mgmt_ops {
 
     /** Connect to a Wi-Fi network
      *
+     * The buffers referenced by @p params are only valid for the duration of
+     * the call. A driver that needs them after returning must keep its own
+     * copy.
+     *
      * @param dev Pointer to the device structure for the driver instance.
      * @param iface Network interface to use for the connection
      * @param params Connect parameters
@@ -2655,6 +2664,11 @@ struct wifi_mgmt_ops {
 
     /** Get Wi-Fi connection parameters recently used
      *
+     * Only the SSID is returned among the buffer members, and it is valid
+     * until the next connect request. The pointers to secrets and to other
+     * caller-owned buffers are set to NULL, since those buffers are not
+     * valid once the connect request has returned.
+     *
      * @param dev Pointer to the device structure for the driver instance
      * @param iface Network interface to use for the get connection parameters operation
      * @param params the Wi-Fi connection parameters recently used
@@ -2739,6 +2753,12 @@ struct wifi_mgmt_ops {
     int (*pmksa_flush)(struct device const* dev, struct net_if* iface);
 
     /** Set Wi-Fi enterprise mode CA/client Cert and key
+     *
+     * The buffers referenced by @p creds are only valid for the duration of
+     * the call. The driver must keep its own copy of the credentials it needs
+     * for later connections, and must not release a copy that is still in
+     * use by an active connection. A request with all buffers NULL releases
+     * the stored copies.
      *
      * @param dev Pointer to the device structure for the driver instance.
      * @param iface Network interface to use for the enterprise credentials operation

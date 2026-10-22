@@ -322,6 +322,7 @@ char* z_vrfy_net_addr_ntop(net_sa_family_t family, void const* src,
     struct net_in_addr  addr4;
     char* out;
     void const* addr;
+    size_t len;
 
     K_OOPS(K_SYSCALL_MEMORY_WRITE(dst, size));
 
@@ -339,12 +340,17 @@ char* z_vrfy_net_addr_ntop(net_sa_family_t family, void const* src,
         return (0);
     }
 
-    out = z_impl_net_addr_ntop(family, addr, str, sizeof(str));
+    out = z_impl_net_addr_ntop(family, addr, str, MIN(size, sizeof(str)));
     if (!out) {
         return (0);
     }
 
-    K_OOPS(k_usermode_to_copy((void*)dst, str, MIN(size, sizeof(str))));
+    /* Copy the string and its terminator only, as the rest of str is
+     * not initialized.
+     */
+    len = strlen(str) + 1U;
+
+    K_OOPS(k_usermode_to_copy((void *)dst, str, MIN(size, len)));
 
     return (dst);
 }
