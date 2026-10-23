@@ -588,8 +588,9 @@ static int ifx_cat1_i2c_configure_locked(struct device const* dev, uint32_t dev_
     Cy_SCB_I2C_DeInit(config->base);
 
     /* Configure the I2C resource.
-     * #CUSTOM@NDRS: the Cy_SCB_I2C_Init() status is intentionally not checked
-     * here; upstream logs, releases operation_sem and returns -EIO on failure.
+     * #CUSTOM@NDRS: status intentionally not checked (upstream returns -EIO).
+     * It cannot fail here (only BAD_PARAM for NULL args, never NULL), and the
+     * PSE8xxGP PDL declares Cy_SCB_I2C_Init() as void.
      */
     (void) Cy_SCB_I2C_Init(config->base, &data->scb_config, &data->context);
 

@@ -803,17 +803,17 @@ int net_calc_chksum(struct net_pkt* pkt, uint8_t proto, uint16_t* out_chksum) {
         net_pkt_family(pkt) == NET_AF_INET) {
         if ((proto != NET_IPPROTO_ICMP) && (proto != NET_IPPROTO_IGMP)) {
             len = (2U * sizeof(struct net_in_addr));
-            sum = (uint16_t)(net_pkt_get_len(pkt) -
-                             net_pkt_ip_hdr_len(pkt) -
-                             (net_pkt_ipv4_opts_len(pkt) + proto));
+            sum = (uint16_t)((net_pkt_get_len(pkt) -
+                              net_pkt_ip_hdr_len(pkt) -
+                              net_pkt_ipv4_opts_len(pkt)) + proto);
         }
     }
     else if (IS_ENABLED(CONFIG_NET_IPV6) &&
              (net_pkt_family(pkt) == NET_AF_INET6)) {
         len = (2U * sizeof(struct net_in6_addr));
-        sum = (uint16_t)(net_pkt_get_len(pkt) -
-                         net_pkt_ip_hdr_len(pkt) -
-                         (net_pkt_ipv6_ext_len(pkt) + proto));
+        sum = (uint16_t)((net_pkt_get_len(pkt) -
+                          net_pkt_ip_hdr_len(pkt) -
+                          net_pkt_ipv6_ext_len(pkt)) + proto);
     }
     else {
         NET_DBG("Unknown protocol family %d", net_pkt_family(pkt));
