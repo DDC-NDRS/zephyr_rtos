@@ -430,6 +430,22 @@ static int sdhc_send_cmd(const struct device *dev, cy_stc_sd_host_cmd_config_t *
 
 	if (result == 0) {
 		result = sdhc_poll_cmd_complete(dev);
+
+		/* This driver does not check the error status after a command, so a card that stays
+		 * silent can still end with "complete" and an empty response. Report a command that
+		 * ends with an error status (bit 0 command timeout, bit 1 CRC error, bit 2 end bit
+		 * error, bit 3 index error), or that never completes, except CMD0 which has no
+		 * response and never completes here.
+		 */
+		uint32_t err_status = Cy_SD_Host_GetErrorInterruptStatus(config->reg_addr);
+
+		if ((err_status != 0U) || ((result != 0) && (cmd_config->commandIndex != 0U))) {
+			uint32_t resp0 = 0U;
+
+			Cy_SD_Host_GetResponse(config->reg_addr, &resp0, false);
+			LOG_WRN("CMD%u poll %d, error status 0x%x, response 0x%x",
+				cmd_config->commandIndex, result, err_status, resp0);
+		}
 	}
 
 	if (result == 0) {
@@ -522,6 +538,24 @@ static int sdhc_send_cmd53(const struct device *dev, cy_stc_sd_host_cmd_config_t
 		result = k_sem_take(&sdhc_data->transfer_sem, K_MSEC(data->timeout_ms));
 		if (result != 0U) {
 			LOG_ERR("Cannot take sem!");
+			/* Normal status bit 1 is transfer complete, bit 15 an error; error status
+			 * bit 4 data timeout, bit 5 data CRC, bit 6 data end bit, bit 9 ADMA error.
+			 */
+			LOG_ERR("CMD53 %s, %u x %u B: normal status 0x%x, error status 0x%x, "
+				"present state 0x%x, read %d",
+				is_read ? "read" : "write", (unsigned int)data->blocks,
+				(unsigned int)data->block_size,
+				Cy_SD_Host_GetNormalInterruptStatus(config->reg_addr),
+				Cy_SD_Host_GetErrorInterruptStatus(config->reg_addr),
+				SDHC_CORE_PSTATE_REG(config->reg_addr), (int)is_read);
+			/* ADMA error status: bits 1:0 state (0 stop, 1 fetch descriptor, 3 transfer),
+			 * bit 2 length mismatch. The address register holds where it stopped.
+			 */
+			LOG_ERR("ADMA error status 0x%x, stopped at 0x%x; buffer 0x%x, descriptor 0x%x",
+				config->reg_addr->CORE.ADMA_ERR_STAT_R,
+				(unsigned int)config->reg_addr->CORE.ADMA_SA_LOW_R,
+				(unsigned int)(uintptr_t)data->data,
+				(unsigned int)(uintptr_t)&sdhc_data->adma_descriptor_tbl[0]);
 		}
 
 #if defined(CONFIG_CPU_HAS_DCACHE) && defined(__DCACHE_PRESENT) && __DCACHE_PRESENT
@@ -718,6 +752,8 @@ static int sdhc_change_clock(const struct device *dev, uint32_t *frequency)
 
 	sdhc_find_best_div(source_freq, *frequency, &most_suitable_div);
 	bus_freq = source_freq / most_suitable_div;
+	LOG_INF("SD clock: source %u Hz, divider %u, bus %u Hz (requested %u Hz)", source_freq,
+		most_suitable_div, bus_freq, *frequency);
 
 	Cy_SD_Host_DisableSdClk(config->reg_addr);
 	if (Cy_SD_Host_SetSdClkDiv(config->reg_addr, most_suitable_div >> 1) !=
@@ -1127,7 +1163,7 @@ static DEVICE_API(sdhc, sdhc_infineon_api) = {
 			  .power_delay = DT_INST_PROP(n, power_delay_ms),                          \
 			  .host_caps = {.vol_180_support = !DT_INST_PROP(n, no_1_8_v),             \
 					.vol_300_support = false,                                  \
-					.vol_330_support = true,                                   \
+					.vol_330_support = !DT_INST_PROP(n, no_3_3_v),             \
 					.suspend_res_support = false,                              \
 					.sdma_support = true,                                      \
 					.high_spd_support =                                        \
