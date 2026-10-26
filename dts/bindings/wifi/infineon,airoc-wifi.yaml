@@ -27,6 +27,29 @@ properties:
     description: |
       WiFi device wake-up gpio. Signal from the host to the
       AIROC Wi-Fi device indicating that the host requires attention.
+      When set, the driver drives it to its active level before it
+      raises WL_REG_ON and leaves it there, so the flags must say which
+      level is the asserted one.
+    type: phandle-array
+
+  wifi-bt-reg-on-gpios:
+    description: |
+      BT_REG_ON of a combo module, which shares its chip with the Wi-Fi
+      section. When set, the driver raises it once WL_REG_ON is up and has
+      had its power-up delay, as the start of Infineon's Bluetooth open
+      does. Some modules (Ezurio Sona IF513) answer on SDIO only after
+      that. The Bluetooth driver can still toggle it afterwards.
+    type: phandle-array
+
+  wifi-sdio-dat2-gpios:
+    description: |
+      The SDIO DAT2 pin, as a gpio. Some modules (for example the Ezurio
+      Sona IF513) latch the level of SDIO_DATA2 when WL_REG_ON first rises
+      and need it high, which a board without a pull-up on DAT2 cannot
+      guarantee. When this is set, the driver drives the pin high as a gpio
+      across the WL_REG_ON rising edge and then gives it back to the SDIO
+      controller by applying the default pinctrl state of this node, so
+      pinctrl-0 must list the SDIO DAT2 function of the same pin.
     type: phandle-array
 
 examples:

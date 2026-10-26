@@ -106,6 +106,12 @@ static struct airoc_wifi_data airoc_wifi_data = {0};
 PINCTRL_DT_INST_DEFINE(0);
 #endif
 
+#if defined(AIROC_WIFI_SDIO_DAT2_HOLD)
+PINCTRL_DT_INST_DEFINE(0);
+BUILD_ASSERT(DT_INST_NUM_PINCTRL_STATES(0) > 0,
+	     "wifi-sdio-dat2-gpios needs pinctrl-0 with the SDIO DAT2 function to hand the pin back");
+#endif
+
 static struct airoc_wifi_config airoc_wifi_config = {
 #if defined(CONFIG_AIROC_WIFI_BUS_SDIO)
 	.bus_dev.bus_sdio = DEVICE_DT_GET(DT_INST_PARENT(0)),
@@ -119,6 +125,11 @@ static struct airoc_wifi_config airoc_wifi_config = {
 	.wifi_reg_on_gpio = GPIO_DT_SPEC_GET_OR(DT_DRV_INST(0), wifi_reg_on_gpios, {0}),
 	.wifi_host_wake_gpio = GPIO_DT_SPEC_GET_OR(DT_DRV_INST(0), wifi_host_wake_gpios, {0}),
 	.wifi_dev_wake_gpio = GPIO_DT_SPEC_GET_OR(DT_DRV_INST(0), wifi_dev_wake_gpios, {0}),
+	.wifi_bt_reg_on_gpio = GPIO_DT_SPEC_GET_OR(DT_DRV_INST(0), wifi_bt_reg_on_gpios, {0}),
+#if defined(AIROC_WIFI_SDIO_DAT2_HOLD)
+	.wifi_sdio_dat2_gpio = GPIO_DT_SPEC_GET(DT_DRV_INST(0), wifi_sdio_dat2_gpios),
+	.sdio_pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(0),
+#endif
 };
 
 static whd_buffer_funcs_t airoc_wifi_buffer_if_default = {
