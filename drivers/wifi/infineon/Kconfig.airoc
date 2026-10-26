@@ -265,6 +265,11 @@ config CYW55513_MOD_PSE84_SOM
 	help
 	  Infineon CYW55513_MOD_PSE84_SOM (SM) module
 
+config CYW55513_EZURIO_SONA_IF513
+	bool "CYW55513 EZURIO SONA-IF513 (SM)"
+	help
+	  Infineon CYW55513 in Ezurio Sona IF513 module (SM)
+
 endchoice
 
 choice CYW55572_MODULE
