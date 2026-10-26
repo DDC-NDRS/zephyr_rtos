@@ -103,6 +103,13 @@ if(CONFIG_CYW55513IUBG_SM)
   set(blob_hcd_file  ${hal_blobs_dir}/COMPONENT_CYW55513/COMPONENT_BTFW/bt_firmware.hcd)
 endif()
 
+# CYW55513 Ezurio Sona IF513 Module
+# The HCD is tracked in the HAL tree (not fetched as a blob): it is the module's own build,
+# CYW55500A1_v001.002.032.0227.0080, from bt-fw-ifx-cyw55500a1 COMPONENT_wlbga_SONA-IF513.
+if(CONFIG_CYW55513_EZURIO_SONA_IF513)
+  set(blob_hcd_file  ${btstack_integration}/firmware/COMPONENT_CYW55513/COMPONENT_BTFW_SONA-IF513/bt_firmware.hcd)
+endif()
+
 # CYW55513 Murata 2FY Module
 if(CONFIG_CYW55513_MURATA_2FY)
   set(blob_hcd_file  ${hal_blobs_dir}/COMPONENT_CYW55513/COMPONENT_BTFW_MURATA-2FY/bt_firmware.hcd)

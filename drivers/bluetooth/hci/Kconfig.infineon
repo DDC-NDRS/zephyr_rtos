@@ -250,12 +250,18 @@ config CYW55513_MURATA_2FY
 
 	  Detailed information about Murata Type 2FY module you can find on
 	  https://www.murata.com/en-us/products/connectivitymodule/wi-fi-bluetooth/overview/lineup/type2fy
+
+config CYW55513_EZURIO_SONA_IF513
+	bool "CYW55513 Ezurio Sona IF513 Module"
+	help
+	  Ezurio Sona IF513 is a module based on Infineon CYW55513 combo chipset
+	  which supports Wi-Fi® 802.11a/b/g/n/ac/ax + Bluetooth® 5.4 BR/EDR/LE.
 endchoice
 
 
 config BT_CYW555XX
 	bool "Bluetooth support for CYW555XX"
-	default y if CYW55513_MURATA_2FY || CYW55513IUBG_SM
+	default y if CYW55513_MURATA_2FY || CYW55513IUBG_SM || CYW55513_EZURIO_SONA_IF513
 	help
 	  Common Bluetooth configuration for CYW555XX-based designs,
 	  including Murata 2FY modules and discrete chip implementations.
