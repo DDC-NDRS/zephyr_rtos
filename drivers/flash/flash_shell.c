@@ -107,6 +107,10 @@ static int parse_helper(const struct shell* sh, size_t* argc, char** argv[],
         return (0);
     }
 
+    /* The shell's mandatory arg count already guarantees argc >= 3 for erase, write, load, test
+     * and the *_test commands. This check only fires for read, page_info, is_bad and mark_bad
+     * (mandatory 2, device name given without an address).
+     */
     if (*argc < 3) {
         shell_error(sh, "Missing address.");
         return (-EINVAL);
@@ -132,12 +136,11 @@ static int cmd_flash_shell_erase(const struct shell* sh, size_t argc, char* argv
     uint32_t size;
     int err = 0;
 
-    /* For safety, require explicit device name for erase operations */
-    if (argc < 2) {
-        shell_error(sh, "Missing argument");
-        return (-EINVAL);
-    }
+    /* No argc check needed: SHELL_CMD_ARG(erase, ..., 3, 1) makes the shell reject argc < 3
+     * before this handler runs.
+     */
 
+    /* For safety, require explicit device name for erase operations */
     /* Check if first argument is a device name (not a number) */
     (void)shell_strtoul(argv[1], 16, &err);
     if (err == 0) {
@@ -195,12 +198,11 @@ static int cmd_flash_shell_write(const struct shell* sh, size_t argc, char* argv
     size_t op_size;
     int err = 0;
 
-    /* For safety, require explicit device name for write operations */
-    if (argc < 3) {
-        shell_error(sh, "Missing argument");
-        return (-EINVAL);
-    }
+    /* No argc check needed: SHELL_CMD_ARG(write, ..., 4, BUF_ARRAY_CNT) makes the shell reject
+     * argc < 4 before this handler runs.
+     */
 
+    /* For safety, require explicit device name for write operations */
     /* Check if first argument is a device name (not a number) */
     (void)shell_strtoul(argv[1], 16, &err);
     if (err == 0) {
@@ -215,10 +217,9 @@ static int cmd_flash_shell_write(const struct shell* sh, size_t argc, char* argv
         return (ret);
     }
 
-    if (argc <= 2) {
-        shell_error(sh, "Missing data to be written.");
-        return (-EINVAL);
-    }
+    /* No "missing data" check needed: argc >= 4 on entry and parse_helper() consumes one (the
+     * device is mandatory above), so at least one data word is always present.
+     */
 
     op_size = 0;
     for (int i = 2; i < argc; i++) {
@@ -265,10 +266,9 @@ static int cmd_flash_shell_copy(const struct shell* sh, size_t argc, char* argv[
     const struct device* src_dev;
     const struct device* dst_dev;
 
-    if (argc < 5) {
-        shell_error(sh, "missing parameters");
-        return (-EINVAL);
-    }
+    /* No argc check needed: SHELL_CMD_ARG(copy, ..., 6, 0) makes the shell require exactly
+     * argc == 6, so argv[5] below is always valid.
+     */
 
     src_dev = shell_device_get_binding(argv[1]);
     dst_dev = shell_device_get_binding(argv[2]);
