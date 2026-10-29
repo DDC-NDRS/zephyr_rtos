@@ -1,0 +1,19 @@
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  NXP S32 HSE Messaging Unit, dedicated to entropy (TRNG) service requests. Sibling of
+  nxp,s32-crypto-hse-mu (crypto/) - same Messaging Unit hardware, different host-side MU instance
+  and Zephyr driver (entropy_nxp_s32_hse_trng.c), so that the entropy and crypto services in the
+  HSE firmware core don't contend over one host MU. To enable:
+    &mub1 {
+      status = "okay";
+    };
+
+compatible: "nxp,s32-hse-entropy"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true

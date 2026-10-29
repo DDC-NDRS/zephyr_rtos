@@ -56,11 +56,11 @@ static __nocache __aligned(4) uint32_t m_buf_arr[BUF_ARRAY_CNT];
 
 static int parse_u32(const struct shell* sh, char const* str, int base,
                      char const* name, uint32_t* val) {
-    unsigned long tmp;
+    unsigned long long tmp;
     int err = 0;
 
-    tmp = shell_strtoul(str, base, &err);
-    if ((err != 0) || ((uint64_t)tmp > UINT32_MAX)) {
+    tmp = shell_strtoull(str, base, &err);
+    if ((err != 0) || (tmp > UINT32_MAX)) {
         shell_error(sh, "Invalid %s: %s", name, str);
         return (-EINVAL);
     }

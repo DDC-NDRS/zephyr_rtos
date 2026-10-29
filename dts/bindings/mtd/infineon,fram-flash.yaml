@@ -1,0 +1,33 @@
+# Copyright (c) 2026 NDR Solution (Thailand) Co., Ltd.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Zephyr flash-API shim over a FRAM device. Wraps an existing `fram`-class
+  device (see drivers/fram/, e.g. infineon,cy15xq) and re-exposes it as a
+  `flash` class device so flash-only consumers (Settings ZMS/NVS backends,
+  fixed-partitions/FLASH_MAP, the flash shell) can use a small
+  byte-addressable FRAM chip as their backing store.
+
+compatible: "infineon,fram-flash"
+
+include: base.yaml
+
+properties:
+  fram:
+    type: phandle
+    required: true
+    description: Backing FRAM device (must expose the `fram` class API and a `size` property).
+
+  erase-block-size:
+    type: int
+    required: true
+    description: |
+      Synthetic sector size (bytes) reported through the flash page-layout
+      API. FRAM has no physical erase-block constraint; this only exists
+      so consumers that need CONFIG_FLASH_PAGE_LAYOUT (e.g. ZMS) can
+      compute a sector count for garbage collection.
+
+  write-block-size:
+    type: int
+    default: 1
+    description: Minimum write alignment reported through the flash API (FRAM allows byte writes).
