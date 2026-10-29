@@ -7,8 +7,8 @@
 
 .. _migration_4.5:
 
-Migration guide to Zephyr v4.5.0 (Working Draft)
-################################################
+Migration guide to Zephyr v4.5.0
+################################
 
 This document describes the changes required when migrating your application from Zephyr v4.4.0 to
 Zephyr v4.5.0.
@@ -196,6 +196,10 @@ Boards
   On RP2040, the ``regulator-always-on`` and ``regulator-allowed-modes =
   <REGULATOR_RPI_PICO_MODE_NORMAL>`` properties are now set by default in the SoC dtsi. Boards
   that previously set them explicitly can remove those lines. (:github:`114751`)
+
+* On RP2040, the ``mbox`` node was split into ``mbox0`` and ``mbox1`` to provide
+  per-core mailbox instances. The ``ipm_mbox`` node was renamed to ``ipm_mbox0`` and
+  ``ipm_mbox1``, respectively.
 
 * On RP2350 (rpi_pico family), the ``hazard3`` and ``m33`` cpucluster qualifiers are deprecated in
   favor of ``hazard3_0`` and ``m33_0``, which explicitly identify the cluster as CPU0 and pave the
@@ -457,6 +461,12 @@ Boards
   The migration is ongoing, otherer STM32 boards still use the legacy bindings.
   See :ref:`migration_4_5_mspi_stm32` for the migration and deprecation timeline,
   and the required configuration changes.
+
+* The GD32F4xx SoC device-tree files ``gd32f405vg.dtsi`` and
+  ``gd32f470ik.dtsi`` have been renamed to ``gd32f405xg.dtsi`` and
+  ``gd32f470xk.dtsi``.
+
+* On GD32L233RC, the ``sram`` node label has been replaced by ``sram0``.
 
 Device Drivers and Devicetree
 *****************************
