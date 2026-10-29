@@ -13,6 +13,7 @@
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/lldp.h>
+#include <zephyr/net/mii.h>
 #include <zephyr/net/phy.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
@@ -29,18 +30,59 @@ LOG_MODULE_REGISTER(eth_stm32_hal, CONFIG_ETHERNET_LOG_LEVEL);
 
 #include "dwc_mac/eth_stm32_dwc.h"
 
-#if defined(CONFIG_ETH_STM32_HAL_USE_DTCM_FOR_DMA_BUFFER) &&                                       \
-	!DT_NODE_HAS_STATUS_OKAY(DT_CHOSEN(zephyr_dtcm))
+#if defined(CONFIG_ETH_STM32_HAL_USE_DTCM_FOR_DMA_BUFFER) && \
+	    !DT_NODE_HAS_STATUS_OKAY(DT_CHOSEN(zephyr_dtcm))
 #error DTCM for DMA buffer is activated but zephyr,dtcm is not present in dts
 #endif
 
 #define ETH_STM32_HAL_MTU            NET_ETH_MTU
 #define ETH_STM32_HAL_FRAME_SIZE_MAX (ETH_STM32_HAL_MTU + 18)
 
-static void rx_thread(void *arg1, void *unused1, void *unused2)
+/*
+ ****************************
+ * PHY management functions *
+ ****************************
+ */
+static int eth_stm32_phy_reset_and_configure(const struct device *phy)
+{
+	int32_t tmout_us;
+	uint32_t reg;
+	int ret;
+
+	/* Reset the PHY */
+	ret = phy_write(phy, MII_BMCR, MII_BMCR_RESET);
+	if (ret == 0) {
+		/* 802.3u standard says reset takes up to 0.5s */
+		tmout_us = 500000;
+		while (true) {
+			k_busy_wait(1000);
+			ret = phy_read(phy, MII_BMCR, &reg);
+			if ((ret == 0) &&
+			    ((reg & MII_BMCR_RESET) == 0)) {
+				break;
+			}
+
+			tmout_us -= 1000;
+			if (tmout_us < 0) {
+				ret = -ETIMEDOUT;
+				break;
+			}
+		}
+	}
+
+	if (ret == 0) {
+		/* Configure the PHY */
+		ret = phy_configure_link(phy, (LINK_HALF_10BASE  | LINK_FULL_10BASE |
+					       LINK_HALF_100BASE | LINK_FULL_100BASE), 0);
+	}
+
+	return ret;
+}
+
+static void eth_stm32_rx_thread(void *arg1, void *unused1, void *unused2)
 {
 	const struct device *dev = (const struct device *)arg1;
-	struct eth_stm32_hal_dev_data *dev_data = dev->data;
+	struct eth_stm32_hal_dev_data *ctx = dev->data;
 	struct net_if *iface;
 	struct net_pkt *pkt;
 	int res;
@@ -48,8 +90,8 @@ static void rx_thread(void *arg1, void *unused1, void *unused2)
 	ARG_UNUSED(unused1);
 	ARG_UNUSED(unused2);
 
-	while (1) {
-		res = k_sem_take(&dev_data->rx_int_sem, K_FOREVER);
+	while (true) {
+		res = k_sem_take(&ctx->rx_int_sem, K_FOREVER);
 		if (res == 0) {
 			/* semaphore taken and receive packets */
 			while ((pkt = eth_stm32_rx(dev)) != NULL) {
@@ -66,10 +108,10 @@ static void rx_thread(void *arg1, void *unused1, void *unused2)
 	}
 }
 
-static void eth_isr(const struct device *dev)
+static void eth_stm32_isr(const struct device *dev)
 {
-	struct eth_stm32_hal_dev_data *dev_data = dev->data;
-	ETH_HandleTypeDef *heth = &dev_data->heth;
+	struct eth_stm32_hal_dev_data *ctx = dev->data;
+	ETH_HandleTypeDef *heth = &ctx->heth;
 
 	HAL_ETH_IRQHandler(heth);
 }
@@ -78,20 +120,20 @@ void HAL_ETH_RxCpltCallback(ETH_HandleTypeDef *heth_handle)
 {
 	__ASSERT_NO_MSG(heth_handle != NULL);
 
-	struct eth_stm32_hal_dev_data *dev_data =
+	struct eth_stm32_hal_dev_data *ctx =
 		CONTAINER_OF(heth_handle, struct eth_stm32_hal_dev_data, heth);
 
-	__ASSERT_NO_MSG(dev_data != NULL);
+	__ASSERT_NO_MSG(ctx != NULL);
 
-	k_sem_give(&dev_data->rx_int_sem);
+	k_sem_give(&ctx->rx_int_sem);
 }
 
-static int eth_initialize(const struct device *dev)
+static int eth_stm32_initialize(const struct device *dev)
 {
-	struct eth_stm32_hal_dev_data *dev_data = dev->data;
+	struct eth_stm32_hal_dev_data *ctx = dev->data;
 	const struct eth_stm32_hal_dev_cfg *cfg = dev->config;
-	ETH_HandleTypeDef *heth = &dev_data->heth;
-	int ret = 0;
+	ETH_HandleTypeDef *heth = &ctx->heth;
+	int ret;
 
 	/* Set up gated and source clocks */
 	for (size_t n = 0; n < cfg->pclken_cnt; n++) {
@@ -110,22 +152,17 @@ static int eth_initialize(const struct device *dev)
 		return ret;
 	}
 
-	ret = eth_stm32_net_eth_mac_load(&cfg->mac_cfg, dev_data->mac_addr);
+	ret = eth_stm32_net_eth_mac_load(&cfg->mac_cfg, ctx->mac_addr);
 	if (ret < 0) {
 		return ret;
 	}
 
-	heth->Init.MACAddr = dev_data->mac_addr;
+	heth->Init.MACAddr = ctx->mac_addr;
 
-	ret = eth_stm32_hal_init(dev);
-	if (ret) {
-		LOG_ERR("Failed to initialize HAL");
-		return -EIO;
-	}
-
-	LOG_DBG("MAC %02x:%02x:%02x:%02x:%02x:%02x", dev_data->mac_addr[0], dev_data->mac_addr[1],
-		dev_data->mac_addr[2], dev_data->mac_addr[3], dev_data->mac_addr[4],
-		dev_data->mac_addr[5]);
+	LOG_DBG("MAC %02x:%02x:%02x:%02x:%02x:%02x",
+		ctx->mac_addr[0], ctx->mac_addr[1],
+		ctx->mac_addr[2], ctx->mac_addr[3],
+		ctx->mac_addr[4], ctx->mac_addr[5]);
 
 	return 0;
 }
@@ -133,16 +170,16 @@ static int eth_initialize(const struct device *dev)
 #if defined(CONFIG_ETH_STM32_MULTICAST_FILTER)
 void eth_stm32_mcast_filter(const struct device *dev, const struct ethernet_filter *filter)
 {
-	struct eth_stm32_hal_dev_data *dev_data = (struct eth_stm32_hal_dev_data *)dev->data;
-	ETH_HandleTypeDef *heth = &dev_data->heth;
+	struct eth_stm32_hal_dev_data *ctx = (struct eth_stm32_hal_dev_data *)dev->data;
+	ETH_HandleTypeDef *heth = &ctx->heth;
 	uint32_t crc;
 	uint32_t hash_table[2];
 	uint32_t hash_index;
 
 	crc = __RBIT(crc32_ieee(filter->mac_address.addr, sizeof(struct net_eth_addr)));
-	hash_index = (crc >> 26) & 0x3f;
+	hash_index = (crc >> 26) & 0x3F;
 
-	__ASSERT_NO_MSG(hash_index < ARRAY_SIZE(dev_data->hash_index_cnt));
+	__ASSERT_NO_MSG(hash_index < ARRAY_SIZE(ctx->hash_index_cnt));
 
 #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
 	hash_table[0] = heth->Instance->MACHT0R;
@@ -153,16 +190,16 @@ void eth_stm32_mcast_filter(const struct device *dev, const struct ethernet_filt
 #endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
 
 	if (filter->set) {
-		dev_data->hash_index_cnt[hash_index]++;
+		ctx->hash_index_cnt[hash_index]++;
 		hash_table[hash_index / 32] |= (1 << (hash_index % 32));
 	} else {
-		if (dev_data->hash_index_cnt[hash_index] == 0) {
+		if (ctx->hash_index_cnt[hash_index] == 0) {
 			__ASSERT_NO_MSG(false);
 			return;
 		}
 
-		dev_data->hash_index_cnt[hash_index]--;
-		if (dev_data->hash_index_cnt[hash_index] == 0) {
+		ctx->hash_index_cnt[hash_index]--;
+		if (ctx->hash_index_cnt[hash_index] == 0) {
 			hash_table[hash_index / 32] &= ~(1 << (hash_index % 32));
 		}
 	}
@@ -175,14 +212,13 @@ void eth_stm32_mcast_filter(const struct device *dev, const struct ethernet_filt
 	heth->Instance->MACHTHR = hash_table[1];
 #endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
 }
-
 #endif /* CONFIG_ETH_STM32_MULTICAST_FILTER */
 
 static void phy_link_state_changed(const struct device *phy_dev, struct phy_link_state *state,
 				   void *user_data)
 {
 	const struct device *dev = (const struct device *)user_data;
-	struct eth_stm32_hal_dev_data *dev_data = dev->data;
+	struct eth_stm32_hal_dev_data *ctx = dev->data;
 
 	ARG_UNUSED(phy_dev);
 
@@ -190,34 +226,45 @@ static void phy_link_state_changed(const struct device *phy_dev, struct phy_link
 	 * The speed can change without receiving a link down callback before.
 	 */
 	if (state->is_up) {
-		eth_stm32_hal_stop(dev, dev_data->iface);
+		eth_stm32_hal_stop(dev, ctx->iface);
 		eth_stm32_set_mac_config(dev, state);
-		eth_stm32_hal_start(dev, dev_data->iface);
+		eth_stm32_hal_start(dev, ctx->iface);
 	}
 
-	net_eth_carrier_set(dev_data->iface, state->is_up);
+	net_eth_carrier_set(ctx->iface, state->is_up);
 }
 
-static void eth_iface_init(struct net_if *iface)
+static void eth_stm32_iface_init(struct net_if *iface)
 {
 	const struct device *dev = net_if_get_device(iface);
-	struct eth_stm32_hal_dev_data *dev_data = dev->data;
+	struct eth_stm32_hal_dev_data *ctx = dev->data;
 	const struct eth_stm32_hal_dev_cfg *cfg = dev->config;
-	ETH_HandleTypeDef *heth = &dev_data->heth;
+	ETH_HandleTypeDef *heth = &ctx->heth;
+	int ret;
 
-	dev_data->iface = iface;
+	ctx->iface = iface;
 
 	/* Register Ethernet MAC Address with the upper layer */
-	net_if_set_link_addr(iface, dev_data->mac_addr, sizeof(dev_data->mac_addr),
+	net_if_set_link_addr(iface, ctx->mac_addr,
+			     sizeof(ctx->mac_addr),
 			     NET_LINK_ETHERNET);
 
 	ethernet_init(iface);
+
+	ret = eth_stm32_hal_init(dev);
+	if (ret != 0) {
+		LOG_ERR("Failed to initialize HAL");
+	}
 
 	eth_stm32_setup_mac_filter(heth);
 
 	net_if_carrier_off(iface);
 
 	if (device_is_ready(cfg->phy_dev)) {
+		ret = eth_stm32_phy_reset_and_configure(cfg->phy_dev);
+		if (ret != 0) {
+			LOG_ERR("PHY device failed to configure");
+		}
 		phy_link_callback_set(cfg->phy_dev, phy_link_state_changed, (void *)dev);
 	} else {
 		LOG_ERR("PHY device not ready");
@@ -228,15 +275,15 @@ static void eth_iface_init(struct net_if *iface)
 	cfg->config_func();
 
 	/* Start interruption-poll thread */
-	k_thread_create(&dev_data->rx_thread, dev_data->rx_thread_stack,
-			K_KERNEL_STACK_SIZEOF(dev_data->rx_thread_stack), rx_thread, (void *)dev,
-			NULL, NULL,
+	k_thread_create(&ctx->rx_thread, ctx->rx_thread_stack,
+			K_KERNEL_STACK_SIZEOF(ctx->rx_thread_stack),
+			eth_stm32_rx_thread, (void*)dev, NULL, NULL,
 			IS_ENABLED(CONFIG_ETH_STM32_HAL_RX_THREAD_PREEMPTIVE)
 				? K_PRIO_PREEMPT(CONFIG_ETH_STM32_HAL_RX_THREAD_PRIO)
 				: K_PRIO_COOP(CONFIG_ETH_STM32_HAL_RX_THREAD_PRIO),
 			0, K_NO_WAIT);
 
-	k_thread_name_set(&dev_data->rx_thread, "stm_eth");
+	k_thread_name_set(&ctx->rx_thread, "stm_eth");
 }
 
 static enum ethernet_hw_caps eth_stm32_hal_get_capabilities(const struct device *dev __unused,
@@ -244,19 +291,19 @@ static enum ethernet_hw_caps eth_stm32_hal_get_capabilities(const struct device 
 {
 	return ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE
 #if defined(CONFIG_NET_VLAN)
-	       | ETHERNET_HW_VLAN
+		| ETHERNET_HW_VLAN
 #endif
 #if defined(CONFIG_NET_PROMISCUOUS_MODE)
-	       | ETHERNET_PROMISC_MODE
+		| ETHERNET_PROMISC_MODE
 #endif
 #if defined(CONFIG_NET_LLDP)
-	       | ETHERNET_LLDP
+		| ETHERNET_LLDP
 #endif
 #if defined(CONFIG_ETH_STM32_HW_CHECKSUM)
-	       | ETHERNET_HW_RX_CHKSUM_OFFLOAD | ETHERNET_HW_TX_CHKSUM_OFFLOAD
+		| ETHERNET_HW_RX_CHKSUM_OFFLOAD | ETHERNET_HW_TX_CHKSUM_OFFLOAD
 #endif
 #if defined(CONFIG_ETH_STM32_MULTICAST_FILTER)
-	       | ETHERNET_HW_FILTERING
+		| ETHERNET_HW_FILTERING
 #endif
 		;
 }
@@ -273,21 +320,24 @@ static const struct device *eth_stm32_hal_get_phy(const struct device *dev,
 static struct net_stats_eth *eth_stm32_hal_get_stats(const struct device *dev,
 						     struct net_if *iface __unused)
 {
-	struct eth_stm32_hal_dev_data *dev_data = dev->data;
+	struct eth_stm32_hal_dev_data *ctx = dev->data;
 
-	return &dev_data->stats;
+	return &ctx->stats;
 }
 #endif /* CONFIG_NET_STATISTICS_ETHERNET */
 
-static const struct ethernet_api eth_api = {
-	.iface_api.init = eth_iface_init,
+static const struct ethernet_api eth_stm32_api = {
+	.iface_api.init = eth_stm32_iface_init,     /* @see void init_iface(struct net_if* iface) in net_if.c */
+
 #if defined(CONFIG_PTP_CLOCK_STM32_HAL)
 	.get_ptp_clock = eth_stm32_get_ptp_clock,
 #endif /* CONFIG_PTP_CLOCK_STM32_HAL */
+
 	.get_capabilities = eth_stm32_hal_get_capabilities,
 	.set_config = eth_stm32_hal_set_config,
 	.get_phy = eth_stm32_hal_get_phy,
 	.send = eth_stm32_tx,
+
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 	.get_stats = eth_stm32_hal_get_stats,
 #endif /* CONFIG_NET_STATISTICS_ETHERNET */
@@ -304,7 +354,7 @@ static const struct ethernet_api eth_api = {
 #define ETH_STM32_HAL_COMMON_IRQ_CONFIG_DEFN(n)                                                    \
 	static void eth##n##_irq_config(void)                                                      \
 	{                                                                                          \
-		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority), eth_isr,                    \
+		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority), eth_stm32_isr,              \
 			    DEVICE_DT_INST_GET(n), 0);                                             \
 		irq_enable(DT_INST_IRQN(n));                                                       \
 	}
@@ -365,8 +415,8 @@ static const struct ethernet_api eth_api = {
 	}
 
 #define ETH_STM32_HAL_COMMON_DT_INST_DEFN(n)                                                       \
-	ETH_NET_DEVICE_DT_INST_DEFINE(n, eth_initialize, NULL, &eth##n##_data, &eth##n##_config,   \
-				      CONFIG_ETH_INIT_PRIORITY, &eth_api, ETH_STM32_HAL_MTU)
+	ETH_NET_DEVICE_DT_INST_DEFINE(n, eth_stm32_initialize, NULL, &eth##n##_data, &eth##n##_config,   \
+				      CONFIG_ETH_INIT_PRIORITY, &eth_stm32_api, ETH_STM32_HAL_MTU)
 
 #define ETH_STM32_HAL_COMMON_DEVICE(n)                                                             \
 	ETH_STM32_HAL_COMMON_DMA_BUF_DEFN(n);                                                      \

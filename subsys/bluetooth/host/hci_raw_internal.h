@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 struct bt_dev_raw {
-	const struct device *hci;
+    const struct device *hci;
 };
 
 extern struct bt_dev_raw bt_dev;

@@ -69,10 +69,10 @@ static inline void z_timer_observer_on_expiry(struct k_timer *timer)
  *
  * @param t  Timeout used by the timer.
  */
-void z_timer_expiration_handler(struct _timeout *t)
+void z_timer_expiration_handler(const struct _timeout *t)
 {
 	struct k_timer *timer = CONTAINER_OF(t, struct k_timer, timeout);
-	struct k_thread *thread;
+	struct k_thread *thread = NULL;
 	k_spinlock_key_t key = k_spin_lock(&timer_lock);
 
 	/* A same-CPU IRQ may have raced with our dispatch between
@@ -108,6 +108,7 @@ void z_timer_expiration_handler(struct _timeout *t)
 		 */
 		next = K_TIMEOUT_ABS_TICKS(k_uptime_ticks() + next.ticks);
 #endif /* CONFIG_TIMEOUT_64BIT */
+
 		z_add_timeout(&timer->timeout, z_timer_expiration_handler,
 			      next);
 	}
@@ -133,23 +134,19 @@ void z_timer_expiration_handler(struct _timeout *t)
 		key = k_spin_lock(&timer_lock);
 	}
 
-	if (!IS_ENABLED(CONFIG_MULTITHREADING)) {
-		k_spin_unlock(&timer_lock, key);
-		return;
-	}
+	if (IS_ENABLED(CONFIG_MULTITHREADING)) {
+		LOCK_SCHED_SPINLOCK {
+			thread = z_waitq_head_locked(&timer->wait_q);
 
-	LOCK_SCHED_SPINLOCK {
-		thread = z_waitq_head_locked(&timer->wait_q);
-
-		if (thread != NULL) {
-			unpend_thread_no_timeout(thread);
-			arch_thread_return_value_set(thread, 0);
-			z_sched_ready_locked(thread);
+			if (thread != NULL) {
+				unpend_thread_no_timeout(thread);
+				arch_thread_return_value_set(thread, 0);
+				z_sched_ready_locked(thread);
+			}
 		}
 	}
 
 	k_spin_unlock(&timer_lock, key);
-
 }
 
 
@@ -220,10 +217,9 @@ int k_timer_cleanup(struct k_timer *timer)
 	return z_timer_cleanup(timer, false);
 }
 
-
 void k_timer_init(struct k_timer *timer,
-			 k_timer_expiry_t expiry_fn,
-			 k_timer_stop_t stop_fn)
+		  k_timer_expiry_t expiry_fn,
+		  k_timer_stop_t stop_fn)
 {
 	timer->expiry_fn = expiry_fn;
 	timer->stop_fn = stop_fn;

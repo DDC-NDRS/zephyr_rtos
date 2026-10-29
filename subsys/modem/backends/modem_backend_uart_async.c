@@ -233,7 +233,7 @@ static int modem_backend_uart_async_transmit_chain(void *data,
 	}
 
 	/* Linearize data from fragments into internal buffer */
-	for (int i = 0; i < num_frags; i++) {
+	for (size_t i = 0; i < num_frags; i++) {
 		to_copy = MIN(remaining, frags[i].size);
 		memcpy(backend->async.common.transmit_buf + offset, frags[i].data, to_copy);
 		offset += to_copy;
@@ -306,7 +306,7 @@ static int modem_backend_uart_async_close(void *data)
 	return 0;
 }
 
-static const struct modem_pipe_api modem_backend_uart_async_api = {
+static struct modem_pipe_api const modem_backend_uart_async_api = {
 	.open = modem_backend_uart_async_open,
 	.transmit_chain = modem_backend_uart_async_transmit_chain,
 	.receive = modem_backend_uart_async_receive,

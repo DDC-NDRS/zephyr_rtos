@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
+ /**
  * @file modem_cellular.h
  * @brief Backend helpers for implementing cellular modem drivers.
  * @ingroup modem_cellular_backend
- */
+  */
 
-#ifndef ZEPHYR_INCLUDE_DRIVERS_CELLULAR_INTERNAL_H_
-#define ZEPHYR_INCLUDE_DRIVERS_CELLULAR_INTERNAL_H_
+ #ifndef ZEPHYR_INCLUDE_DRIVERS_CELLULAR_INTERNAL_H_
+ #define ZEPHYR_INCLUDE_DRIVERS_CELLULAR_INTERNAL_H_
 
 #include <zephyr/drivers/cellular.h>
 #include <zephyr/modem/backend/uart.h>
@@ -35,7 +35,7 @@ extern "C" {
  * @brief Implement vendor-specific cellular modem drivers using common chat, CMUX, PPP, and
  * power-management support.
  * @in_driverbackendgroup{cellular_interface}
- * @{
+ *  @{
  */
 
 /** @cond INTERNAL_HIDDEN */
@@ -350,7 +350,7 @@ int modem_cellular_init(const struct device *dev);
 
 int modem_cellular_pm_action(const struct device *dev, enum pm_device_action action);
 
-extern const struct cellular_driver_api modem_cellular_api;
+extern struct cellular_driver_api DT_CONST modem_cellular_api;
 
 void modem_cellular_emit_event(struct modem_cellular_data *data, enum cellular_event evt,
 			       const void *payload);
@@ -580,7 +580,6 @@ void modem_cellular_chat_callback_handler(struct modem_chat *chat,
  *        NULL.
  */
 #define MODEM_CELLULAR_DEFINE_INSTANCE(inst, vendor_config, _vendor_specific)                      \
-	BUILD_ASSERT(vendor_config != NULL, "vendor_config must be non-NULL");                     \
 	static const struct modem_cellular_config MODEM_CELLULAR_INST_NAME(config, inst) = {       \
 		.uart = DEVICE_DT_GET(DT_INST_BUS(inst)),                                          \
 		.vendor = vendor_config,                                                           \
@@ -607,7 +606,9 @@ void modem_cellular_chat_callback_handler(struct modem_chat *chat,
 			DT_INST_PROP_OR(inst, cmux_no_powersave_handshake, 0),                     \
 		.use_default_pdp_context = DT_INST_PROP_OR(inst, zephyr_use_default_pdp_ctx, 0),   \
 		.use_default_apn = DT_INST_PROP_OR(inst, zephyr_use_default_apn, 0),               \
-		.cmux_idle_timeout = K_MSEC(DT_INST_PROP_OR(inst, cmux_idle_timeout_ms, 0)),       \
+		.cmux_idle_timeout = {                                                             \
+			.ticks = Z_TIMEOUT_MS_TICKS(DT_INST_PROP_OR(inst, cmux_idle_timeout_ms, 0))\
+		},                                                                                 \
 		.user_pipes = MODEM_CELLULAR_GET_USER_PIPES(inst),                                 \
 		.user_pipes_size = ARRAY_SIZE(MODEM_CELLULAR_GET_USER_PIPES(inst)),                \
 	};                                                                                         \

@@ -32,6 +32,14 @@ struct shell_telnet *sh_telnet;
 #define TELNET_MIN_COMMAND_LEN 2
 #define TELNET_WILL_DO_COMMAND_LEN 3
 
+/* Longest subnegotiation that is skipped, a longer one is treated as ended. */
+#define TELNET_SB_MAX_LEN 64
+
+/* State of an option on the client side (RFC 1143). */
+#define TELNET_OPT_NO       0
+#define TELNET_OPT_WANT_YES 1
+#define TELNET_OPT_YES      2
+
 #define SOCK_ID_IPV4_LISTEN 0
 #define SOCK_ID_IPV6_LISTEN 1
 #define SOCK_ID_CLIENT      2
@@ -105,18 +113,101 @@ static int telnet_echo_set(const struct shell *sh, bool val)
 
 static void telnet_reply_dont_command(struct telnet_simple_command *cmd)
 {
+	/* Only an option that is enabled is confirmed disabled, a DONT for one that is
+	 * not changes nothing and must not be answered (RFC 854, RFC 1143).
+	 */
 	switch (cmd->opt) {
 	case NVT_OPT_ECHO:
 	{
-		int ret = telnet_echo_set(sh_telnet->shell_context, false);
+		int ret;
 
+		if (!sh_telnet->echo_will) {
+			return;
+		}
+
+		ret = telnet_echo_set(sh_telnet->shell_context, false);
 		if (ret >= 0) {
+			sh_telnet->echo_will = false;
 			cmd->op = NVT_CMD_WILL_NOT;
 		} else {
 			cmd->op = NVT_CMD_WILL;
 		}
 		break;
 	}
+
+	case NVT_OPT_SUPR_GA:
+		if (!sh_telnet->sga_will) {
+			return;
+		}
+
+		sh_telnet->sga_will = false;
+		cmd->op = NVT_CMD_WILL_NOT;
+		break;
+
+	default:
+		return;
+	}
+
+	telnet_command_send_reply((uint8_t *)cmd,
+				  sizeof(struct telnet_simple_command));
+}
+
+static void telnet_offer_char_mode(void)
+{
+	static const uint8_t offer[] = {
+		NVT_CMD_IAC, NVT_CMD_WILL, NVT_OPT_ECHO,
+		NVT_CMD_IAC, NVT_CMD_WILL, NVT_OPT_SUPR_GA,
+		NVT_CMD_IAC, NVT_CMD_DO,   NVT_OPT_SUPR_GA,
+	};
+
+	/* The client stops its own echo on WILL ECHO, the shell has to do it. */
+	if (telnet_echo_set(sh_telnet->shell_context, true) < 0) {
+		return;
+	}
+
+	/* The server side is treated as enabled as soon as the offer is sent, so the
+	 * characters typed before the client's DO arrives are echoed; DONT ECHO
+	 * from a client that refuses switches echo off again.
+	 */
+	sh_telnet->echo_will = true;
+	sh_telnet->sga_will = true;
+	sh_telnet->sga_do = TELNET_OPT_WANT_YES;
+
+	telnet_command_send_reply((uint8_t *)offer, sizeof(offer));
+}
+
+static void telnet_reply_do_command(struct telnet_simple_command *cmd)
+{
+	switch (cmd->opt) {
+	case NVT_OPT_SUPR_GA:
+		if (sh_telnet->sga_will) {
+			/* Already enabled, a DO for it is not acknowledged again. */
+			return;
+		}
+
+		sh_telnet->sga_will = true;
+		cmd->op = NVT_CMD_WILL;
+		break;
+
+	case NVT_OPT_ECHO:
+	{
+		int ret;
+
+		if (sh_telnet->echo_will) {
+			/* Already enabled, a DO for it is not acknowledged again. */
+			return;
+		}
+
+		ret = telnet_echo_set(sh_telnet->shell_context, true);
+		if (ret >= 0) {
+			sh_telnet->echo_will = true;
+			cmd->op = NVT_CMD_WILL;
+		} else {
+			cmd->op = NVT_CMD_WILL_NOT;
+		}
+		break;
+	}
+
 	default:
 		cmd->op = NVT_CMD_WILL_NOT;
 		break;
@@ -126,28 +217,44 @@ static void telnet_reply_dont_command(struct telnet_simple_command *cmd)
 				  sizeof(struct telnet_simple_command));
 }
 
-static void telnet_reply_do_command(struct telnet_simple_command *cmd)
+static void telnet_reply_will_command(struct telnet_simple_command *cmd)
 {
-	switch (cmd->opt) {
-	case NVT_OPT_SUPR_GA:
-		cmd->op = NVT_CMD_WILL;
-		break;
-	case NVT_OPT_ECHO:
-	{
-		int ret = telnet_echo_set(sh_telnet->shell_context, true);
-
-		if (ret >= 0) {
-			cmd->op = NVT_CMD_WILL;
-		} else {
-			cmd->op = NVT_CMD_WILL_NOT;
-		}
-		break;
-	}
-	default:
-		cmd->op = NVT_CMD_WILL_NOT;
-		break;
+	if (cmd->opt != NVT_OPT_SUPR_GA) {
+		/* Not supported, refuse it. */
+		cmd->op = NVT_CMD_DO_NOT;
+	} else if (sh_telnet->sga_do == TELNET_OPT_WANT_YES) {
+		/* Answer to our own DO. */
+		sh_telnet->sga_do = TELNET_OPT_YES;
+		return;
+	} else if (sh_telnet->sga_do == TELNET_OPT_YES) {
+		return;
+	} else {
+		sh_telnet->sga_do = TELNET_OPT_YES;
+		cmd->op = NVT_CMD_DO;
 	}
 
+	telnet_command_send_reply((uint8_t *)cmd,
+				  sizeof(struct telnet_simple_command));
+}
+
+static void telnet_reply_wont_command(struct telnet_simple_command *cmd)
+{
+	uint8_t state;
+
+	if (cmd->opt != NVT_OPT_SUPR_GA) {
+		/* Never enabled, nothing to confirm. */
+		return;
+	}
+
+	state = sh_telnet->sga_do;
+	sh_telnet->sga_do = TELNET_OPT_NO;
+
+	if (state != TELNET_OPT_YES) {
+		/* Refusal of our own DO, or already disabled. */
+		return;
+	}
+
+	cmd->op = NVT_CMD_DO_NOT;
 	telnet_command_send_reply((uint8_t *)cmd,
 				  sizeof(struct telnet_simple_command));
 }
@@ -166,15 +273,27 @@ static void telnet_reply_command(struct telnet_simple_command *cmd)
 		k_work_cancel_delayable_sync(&sh_telnet->send_work,
 					     &sh_telnet->work_sync);
 		break;
+
 	case NVT_CMD_AYT:
 		telnet_reply_ay_command();
 		break;
+
 	case NVT_CMD_DO:
 		telnet_reply_do_command(cmd);
 		break;
+
 	case NVT_CMD_DO_NOT:
 		telnet_reply_dont_command(cmd);
 		break;
+
+	case NVT_CMD_WILL:
+		telnet_reply_will_command(cmd);
+		break;
+
+	case NVT_CMD_WILL_NOT:
+		telnet_reply_wont_command(cmd);
+		break;
+
 	default:
 		LOG_DBG("Operation %u not handled", cmd->op);
 		break;
@@ -246,6 +365,32 @@ static int telnet_command_length(uint8_t op)
 	return TELNET_MIN_COMMAND_LEN;
 }
 
+/* Skip one byte of a subnegotiation: it is not parsed, only the end (IAC SE) is looked for
+ * (RFC 855). IAC IAC inside it is a data byte of the parameters.
+ */
+static void telnet_skip_sb_byte(uint8_t byte)
+{
+	if (sh_telnet->sb_iac) {
+		sh_telnet->sb_iac = false;
+
+		if (byte == NVT_CMD_SE) {
+			sh_telnet->sb_active = false;
+		}
+	} else if (byte == NVT_CMD_IAC) {
+		sh_telnet->sb_iac = true;
+	} else {
+		/* pass */
+	}
+
+	if (sh_telnet->sb_active) {
+		sh_telnet->sb_cnt++;
+
+		if (sh_telnet->sb_cnt > TELNET_SB_MAX_LEN) {
+			sh_telnet->sb_active = false;
+		}
+	}
+}
+
 static inline int telnet_handle_command(struct telnet_simple_command *cmd)
 {
 	/* Commands are two or three bytes. */
@@ -259,8 +404,10 @@ static inline int telnet_handle_command(struct telnet_simple_command *cmd)
 	}
 
 	if (cmd->op == NVT_CMD_SB) {
-		/* TODO Add subnegotiation support. */
-		return -EOPNOTSUPP;
+		/* No option uses subnegotiation here: skip it up to IAC SE. */
+		sh_telnet->sb_active = true;
+		sh_telnet->sb_iac = false;
+		sh_telnet->sb_cnt = 0;
 	}
 
 	return 0;
@@ -300,6 +447,14 @@ static void telnet_recv(struct zsock_pollfd *pollfd)
 	cmd_total_len = 0;
 	/* Filter out and process commands from the data buffer. */
 	while (off < len) {
+		if (sh_telnet->sb_active) {
+			/* Subnegotiation parameters are dropped like command bytes. */
+			telnet_skip_sb_byte(*(buf + off));
+			cmd_total_len++;
+			off++;
+			continue;
+		}
+
 		if (sh_telnet->cmd_len > 0) {
 			/* Command mode */
 			if (sh_telnet->cmd_len == 1) {
@@ -445,10 +600,22 @@ static void telnet_accept(struct zsock_pollfd *pollfd)
 	LOG_DBG("Telnet client connected (family NET_AF_INET%s)",
 		addr.ss_family == NET_AF_INET ? "" : "6");
 
-	/* Disable echo - if command handling is enabled we reply that we
-	 * support echo.
-	 */
-	(void)telnet_echo_set(sh_telnet->shell_context, false);
+	sh_telnet->echo_will = false;
+	sh_telnet->sga_will = false;
+	sh_telnet->sga_do = TELNET_OPT_NO;
+	sh_telnet->sb_active = false;
+	sh_telnet->sb_iac = false;
+	sh_telnet->sb_cnt = 0;
+
+	if (IS_ENABLED(CONFIG_SHELL_TELNET_CHAR_MODE)) {
+		/* Offer character mode: the client switches to it and the shell echoes. */
+		telnet_offer_char_mode();
+	} else {
+		/* Disable echo - if command handling is enabled we reply that we
+		 * support echo.
+		 */
+		(void)telnet_echo_set(sh_telnet->shell_context, false);
+	}
 
 	return;
 

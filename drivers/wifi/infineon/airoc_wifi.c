@@ -106,6 +106,12 @@ static struct airoc_wifi_data airoc_wifi_data = {0};
 PINCTRL_DT_INST_DEFINE(0);
 #endif
 
+#if defined(AIROC_WIFI_SDIO_DAT2_HOLD)
+PINCTRL_DT_INST_DEFINE(0);
+BUILD_ASSERT(DT_INST_NUM_PINCTRL_STATES(0) > 0,
+	     "wifi-sdio-dat2-gpios needs pinctrl-0 with the SDIO DAT2 function to hand the pin back");
+#endif
+
 static struct airoc_wifi_config airoc_wifi_config = {
 #if defined(CONFIG_AIROC_WIFI_BUS_SDIO)
 	.bus_dev.bus_sdio = DEVICE_DT_GET(DT_INST_PARENT(0)),
@@ -119,6 +125,11 @@ static struct airoc_wifi_config airoc_wifi_config = {
 	.wifi_reg_on_gpio = GPIO_DT_SPEC_GET_OR(DT_DRV_INST(0), wifi_reg_on_gpios, {0}),
 	.wifi_host_wake_gpio = GPIO_DT_SPEC_GET_OR(DT_DRV_INST(0), wifi_host_wake_gpios, {0}),
 	.wifi_dev_wake_gpio = GPIO_DT_SPEC_GET_OR(DT_DRV_INST(0), wifi_dev_wake_gpios, {0}),
+	.wifi_bt_reg_on_gpio = GPIO_DT_SPEC_GET_OR(DT_DRV_INST(0), wifi_bt_reg_on_gpios, {0}),
+#if defined(AIROC_WIFI_SDIO_DAT2_HOLD)
+	.wifi_sdio_dat2_gpio = GPIO_DT_SPEC_GET(DT_DRV_INST(0), wifi_sdio_dat2_gpios),
+	.sdio_pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(0),
+#endif
 };
 
 static whd_buffer_funcs_t airoc_wifi_buffer_if_default = {
@@ -203,7 +214,7 @@ static void airoc_wifi_supp_scan2_cb(whd_scan_result_t **result_ptr, void *user_
 	} else if ((status == WHD_SCAN_INCOMPLETE) && (user_data != NULL) &&
 		   ((**result_ptr).SSID.length == data->ssid.length)) {
 		if (memcmp(data->ssid.value, (**result_ptr).SSID.value,
-			    (**result_ptr).SSID.length) == 0) {
+			   (**result_ptr).SSID.length) == 0) {
 			union wpa_event_data event;
 			struct scan_info *info = NULL;
 
@@ -276,7 +287,7 @@ static int convert_whd_security_to_zephyr(whd_security_t security)
 
 static whd_security_t convert_zephyr_security_to_whd(int security)
 {
-	whd_security_t whd_security = WIFI_SECURITY_TYPE_UNKNOWN;
+	whd_security_t whd_security = (whd_security_t)WIFI_SECURITY_TYPE_UNKNOWN;
 
 	switch (security) {
 	case WIFI_SECURITY_TYPE_NONE:
@@ -296,7 +307,7 @@ static whd_security_t convert_zephyr_security_to_whd(int security)
 		break;
 
 	case WIFI_SECURITY_TYPE_PSK_SHA256:
-		whd_security = WIFI_SECURITY_TYPE_PSK_SHA256;
+		whd_security = (whd_security_t)WIFI_SECURITY_TYPE_PSK_SHA256;
 		break;
 
 	case WIFI_SECURITY_TYPE_SAE:
@@ -861,6 +872,7 @@ static int airoc_mgmt_scan(const struct device *dev,
 {
 	struct airoc_wifi_data *data = dev->data;
 	enum wifi_scan_type scan_type = WIFI_SCAN_TYPE_ACTIVE;
+	whd_result_t result;
 
 	if (params != NULL) {
 		scan_type = params->scan_type;
@@ -880,8 +892,10 @@ static int airoc_mgmt_scan(const struct device *dev,
 	memset(&data->ssid, 0, sizeof(whd_ssid_t));
 
 	/* Connect to the network */
-	if (whd_wifi_scan(airoc_sta_if, scan_type, WHD_BSS_TYPE_ANY, &(data->ssid), NULL, NULL,
-			  NULL, scan_callback, &(data->scan_result), data) != WHD_SUCCESS) {
+	result = whd_wifi_scan(airoc_sta_if, (whd_scan_type_t)scan_type, WHD_BSS_TYPE_ANY,
+			       &data->ssid, NULL, NULL, NULL,
+			       scan_callback, &data->scan_result, data);
+	if (result != WHD_SUCCESS) {
 		LOG_ERR("Failed to start scan");
 		data->scan_rslt_cb = NULL;
 		k_sem_give(&data->sema_common);

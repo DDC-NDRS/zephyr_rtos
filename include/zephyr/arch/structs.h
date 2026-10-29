@@ -41,7 +41,7 @@
 
 /* Per CPU architecture specifics (empty) */
 struct _cpu_arch {
-#ifdef __cplusplus
+#if (defined(__cplusplus) || defined(_MSC_VER))
 	/* An empty struct is not valid C, and compilers that accept it give
 	 * it size 0 while C++ gives 1. Keep a byte so both languages agree.
 	 */

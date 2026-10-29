@@ -19,8 +19,14 @@ LOG_MODULE_REGISTER(modem_chat, CONFIG_MODEM_MODULES_LOG_LEVEL);
 #include "modem_workqueue.h"
 
 const struct modem_chat_match modem_chat_any_match = MODEM_CHAT_MATCH("", "", NULL);
+
+#if !defined(_MSC_VER) /* #CUSTOM@NDRS */
 const struct modem_chat_match modem_chat_empty_matches[0];
 const struct modem_chat_script_chat modem_chat_empty_script_chats[0];
+#else
+const struct modem_chat_match modem_chat_empty_matches[1];
+const struct modem_chat_script_chat modem_chat_empty_script_chats[1];
+#endif
 
 #define MODEM_CHAT_MATCHES_INDEX_RESPONSE (0)
 #define MODEM_CHAT_MATCHES_INDEX_ABORT	  (1)
@@ -79,7 +85,7 @@ static void modem_chat_log_received_command(struct modem_chat *chat)
 	uint16_t log_buffer_pos = 0;
 	uint16_t argv_len;
 
-	for (uint16_t i = 0; i < chat->argc; i++) {
+	for (uint_fast16_t i = 0; i < chat->argc; i++) {
 		argv_len = (uint16_t)strlen(chat->argv[i]);
 
 		/* Validate argument fits in log buffer including termination */
@@ -490,7 +496,7 @@ static void modem_chat_parse_save_match(struct modem_chat *chat)
 static bool modem_chat_match_matches_received(struct modem_chat *chat,
 					      const struct modem_chat_match *match)
 {
-	for (uint16_t i = 0; i < match->match_size; i++) {
+	for (uint_fast8_t i = 0; i < match->match_size; i++) {
 		if ((match->match[i] == chat->receive_buf[i]) ||
 		    (match->wildcards == true && match->match[i] == '?')) {
 			continue;
@@ -505,9 +511,9 @@ static bool modem_chat_match_matches_received(struct modem_chat *chat,
 static bool modem_chat_parse_find_match(struct modem_chat *chat)
 {
 	/* Find in all matches types */
-	for (uint16_t i = 0; i < ARRAY_SIZE(chat->matches); i++) {
+	for (uint_fast16_t i = 0; i < ARRAY_SIZE(chat->matches); i++) {
 		/* Find in all matches of matches type */
-		for (uint16_t u = 0; u < chat->matches_size[i]; u++) {
+		for (uint_fast16_t u = 0; u < chat->matches_size[i]; u++) {
 			/* Validate match size matches received data length */
 			if (chat->matches[i][u].match_size != chat->receive_buf_len) {
 				continue;
@@ -531,7 +537,7 @@ static bool modem_chat_parse_find_match(struct modem_chat *chat)
 
 static bool modem_chat_parse_is_separator(struct modem_chat *chat)
 {
-	for (uint16_t i = 0; i < chat->parse_match->separators_size; i++) {
+	for (uint_fast8_t i = 0; i < chat->parse_match->separators_size; i++) {
 		if ((chat->parse_match->separators[i]) ==
 		    (chat->receive_buf[chat->receive_buf_len - 1])) {
 			return true;
@@ -543,7 +549,7 @@ static bool modem_chat_parse_is_separator(struct modem_chat *chat)
 
 static bool modem_chat_parse_end_del_start(struct modem_chat *chat)
 {
-	for (uint8_t i = 0; i < chat->delimiter_size; i++) {
+	for (uint_fast16_t i = 0; i < chat->delimiter_size; i++) {
 		if (chat->receive_buf[chat->receive_buf_len - 1] == chat->delimiter[i]) {
 			return true;
 		}
@@ -604,9 +610,9 @@ static void modem_chat_on_command_received_resp(struct modem_chat *chat)
 static bool modem_chat_parse_find_catch_all_match(struct modem_chat *chat)
 {
 	/* Find in all matches types */
-	for (uint16_t i = 0; i < ARRAY_SIZE(chat->matches); i++) {
+	for (uint_fast16_t i = 0; i < ARRAY_SIZE(chat->matches); i++) {
 		/* Find in all matches of matches type */
-		for (uint16_t u = 0; u < chat->matches_size[i]; u++) {
+		for (uint_fast16_t u = 0; u < chat->matches_size[i]; u++) {
 			/* Validate match config is matching previous bytes */
 			if (chat->matches[i][u].match_size == 0) {
 				chat->parse_match = &chat->matches[i][u];
@@ -771,7 +777,7 @@ static void modem_chat_process_byte(struct modem_chat *chat, uint8_t byte)
 
 static bool modem_chat_discard_byte(struct modem_chat *chat, uint8_t byte)
 {
-	for (uint8_t i = 0; i < chat->filter_size; i++) {
+	for (uint_fast16_t i = 0; i < chat->filter_size; i++) {
 		if (byte == chat->filter[i]) {
 			return true;
 		}
@@ -783,7 +789,7 @@ static bool modem_chat_discard_byte(struct modem_chat *chat, uint8_t byte)
 /* Process chunk of received bytes */
 static void modem_chat_process_bytes(struct modem_chat *chat)
 {
-	for (uint16_t i = 0; i < chat->work_buf_len; i++) {
+	for (uint_fast16_t i = 0; i < chat->work_buf_len; i++) {
 		if (modem_chat_discard_byte(chat, chat->work_buf[i])) {
 			continue;
 		}
@@ -819,7 +825,7 @@ static void modem_chat_process_handler(struct k_work *item)
 	}
 
 	/* Save received data length */
-	chat->work_buf_len = (size_t)ret;
+	chat->work_buf_len = (uint16_t)ret;
 
 #if CONFIG_MODEM_STATS
 	advertise_work_buf_stats(chat);
@@ -830,7 +836,7 @@ static void modem_chat_process_handler(struct k_work *item)
 	modem_work_submit(&chat->receive_work);
 }
 
-static void modem_chat_pipe_callback(struct modem_pipe *pipe, enum modem_pipe_event event,
+static void modem_chat_pipe_callback(struct modem_pipe const* pipe, enum modem_pipe_event event,
 				     void *user_data)
 {
 	struct modem_chat *chat = (struct modem_chat *)user_data;
@@ -959,7 +965,7 @@ static int _run_script_internal(struct modem_chat *chat, const struct modem_chat
 	}
 
 	/* Validate script commands */
-	for (uint16_t i = 0; i < script->script_chats_size; i++) {
+	for (uint_fast16_t i = 0; i < script->script_chats_size; i++) {
 		if ((script->script_chats[i].request_size == 0) &&
 		    (script->script_chats[i].response_matches_size == 0) &&
 		    (script->script_chats[i].timeout == 0)) {

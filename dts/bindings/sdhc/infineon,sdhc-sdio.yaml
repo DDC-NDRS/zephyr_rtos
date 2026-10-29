@@ -42,6 +42,14 @@ properties:
       The SD/MMC bus on the board doesn't support the 1.8V voltage,
       Which disables UHS-I, HS200 and HS400 support.
 
+  no-3-3-v:
+    type: boolean
+    description: |
+      When the bus I/O voltage is hard-wired to 1.8V and the board does
+      not support 3.3V signaling, add this property to disable 3.3V card
+      voltage of the controller. This makes the SD subsystem start the
+      card initialization at 1.8V instead of 3.3V.
+
   cd-gpios:
     type: phandle-array
     description: Card Detect pin

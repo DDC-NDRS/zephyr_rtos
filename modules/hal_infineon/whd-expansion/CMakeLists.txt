@@ -314,6 +314,17 @@ if(CONFIG_CYW55513_MOD_PSE84_SOM AND NOT CONFIG_AIROC_WIFI_CUSTOM)
   set(NVRAM_IMAGE_NAME ${hal_wifi_dir_resources}/nvram/COMPONENT_55500/COMPONENT_CYW55513_MOD_PSE84_SOM/cyw55513modpse84som_rev3.txt)
 endif()
 
+# CYW55513_EZURIO_SONA_IF513 clm, nvram
+# Both files are tracked in the WHD resources tree (not fetched as blobs): wifi-resources has no release that
+# carries them. There is no mfgtest CLM for this module, so the same CLM is used with WLAN_MFG_FIRMWARE.
+# The NVRAM must be the stripped plain-text variant (no comments).
+if(CONFIG_CYW55513_EZURIO_SONA_IF513 AND NOT CONFIG_AIROC_WIFI_CUSTOM)
+  # clm
+  set(CLM_IMAGE_NAME ${hal_wifi_dir_resources}/clm/COMPONENT_55500/COMPONENT_SONA-IF513/cyfmac55500-if513_v3_20250707.clm_blob)
+  # nvram
+  set(NVRAM_IMAGE_NAME ${hal_wifi_dir_resources}/nvram/COMPONENT_55500/COMPONENT_SONA-IF513/cyfmac55500-if513-div-strip.txt)
+endif()
+
 # CYW955573M2IPA1_SM
 if(CONFIG_CYW955573M2IPA1_SM AND NOT CONFIG_AIROC_WIFI_CUSTOM)
   # clm

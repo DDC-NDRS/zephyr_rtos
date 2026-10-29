@@ -286,7 +286,7 @@ void arch_pm_state_set_finish(unsigned int key);
  *
  * @param data context parameter, implementation specific
  */
-typedef void (*arch_cpustart_t)(void *data);
+typedef void (*arch_cpustart_t)(void* data);
 
 /**
  * @brief Start a numbered CPU on a MP-capable system
@@ -349,6 +349,13 @@ static inline void arch_irq_unlock(unsigned int key);
  */
 static inline bool arch_irq_unlocked(unsigned int key);
 
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+static inline bool arch_irq_unlocked(unsigned int key) {
+    /* This convention works for both PRIMASK and BASEPRI */
+    return (key == 0U);
+}
+#endif
+
 /**
  * Probe the current CPU overall interrupt controller lock state without
  * modifying it.
@@ -359,6 +366,21 @@ static inline bool arch_irq_unlocked(unsigned int key);
  * @return true if interrupts are currently enabled on the calling CPU.
  */
 static inline bool arch_cpu_irqs_are_enabled(void);
+
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+/* Emulated PRIMASK, defined in arch/arm/asm_inline.h */
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern unsigned int z_msvc_irq_locked;
+#ifdef __cplusplus
+}
+#endif
+
+static inline bool arch_cpu_irqs_are_enabled(void) {
+    return (z_msvc_irq_locked == 0U);
+}
+#endif
 
 #ifdef CONFIG_ZERO_LATENCY_IRQS
 

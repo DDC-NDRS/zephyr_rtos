@@ -163,7 +163,13 @@ static void init_mem_slab_module(void)
 	}
 }
 
+#if !defined(_MSC_VER) /* #CUSTOM@NDRS */
 K_KERNEL_INIT_PRE(init_mem_slab_module);
+#else
+#pragma data_seg("._k_kernel_init_pre_entry.static")
+K_KERNEL_INIT_PRE(init_mem_slab_module);
+#pragma data_seg()
+#endif
 
 int k_mem_slab_init(struct k_mem_slab *slab, void *buffer,
 		    size_t block_size, uint32_t num_blocks)
@@ -174,7 +180,12 @@ int k_mem_slab_init(struct k_mem_slab *slab, void *buffer,
 	slab->info.block_size = block_size;
 	slab->buffer = buffer;
 	slab->info.num_used = 0U;
-	slab->lock = (struct k_spinlock) {};
+
+	#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+	slab->lock = (struct k_spinlock){0};
+	#else
+	slab->lock = (struct k_spinlock){};
+	#endif
 
 #ifdef CONFIG_MEM_SLAB_TRACE_MAX_UTILIZATION
 	slab->info.max_used = 0U;
@@ -201,17 +212,17 @@ out:
 	return rc;
 }
 
-static bool slab_ptr_is_good(struct k_mem_slab *slab, const void *ptr)
+static bool slab_ptr_is_good(struct k_mem_slab const *slab, const void *ptr)
 {
 	if (!IS_ENABLED(CONFIG_MEM_SLAB_POINTER_VALIDATE)) {
 		return true;
 	}
 
 	const char *p = ptr;
-	ptrdiff_t offset = p - slab->buffer;
+	ptrdiff_t offset = (p - slab->buffer);
 
 	return (offset >= 0) &&
-	       (offset < (slab->info.block_size * slab->info.num_blocks)) &&
+	       (offset < (ptrdiff_t)(slab->info.block_size * slab->info.num_blocks)) &&
 	       ((offset % slab->info.block_size) == 0);
 }
 

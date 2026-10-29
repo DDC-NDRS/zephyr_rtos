@@ -375,8 +375,8 @@ struct bt_dev_br {
 /* State tracking for the local Bluetooth controller */
 struct bt_dev {
 	/* Local Identity Address(es) */
-	bt_addr_le_t            id_addr[CONFIG_BT_ID_MAX];
-	uint8_t                    id_count;
+	bt_addr_le_t id_addr[CONFIG_BT_ID_MAX];
+	uint8_t id_count;
 
 	struct bt_conn_le_create_param create_param;
 
@@ -540,7 +540,7 @@ struct bt_hci_cmd_state_set {
 };
 
 /* Set command state related with the command buffer */
-void bt_hci_cmd_state_set_init(struct net_buf *buf,
+void bt_hci_cmd_state_set_init(const struct net_buf *buf,
 			       struct bt_hci_cmd_state_set *state,
 			       atomic_t *target, int bit, bool val);
 

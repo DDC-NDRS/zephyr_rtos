@@ -188,8 +188,8 @@ int net_dplpmtud_foreach(net_dplpmtud_cb_t cb, void *user_data);
 #if defined(CONFIG_NET_PMTU_DPLPMTUD)
 void net_dplpmtud_init(void);
 #else
-static inline void net_dplpmtud_init(void)
-{
+static inline void net_dplpmtud_init(void) {
+	/* pass */
 }
 #endif
 

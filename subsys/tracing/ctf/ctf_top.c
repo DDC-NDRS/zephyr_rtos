@@ -34,7 +34,7 @@ static void _get_thread_name(struct k_thread *thread, ctf_bounded_string_t *name
 
 void sys_trace_k_thread_switched_out(void)
 {
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 	struct k_thread *thread;
 
 	thread = k_sched_current_thread_query();
@@ -46,7 +46,7 @@ void sys_trace_k_thread_switched_out(void)
 void sys_trace_k_thread_user_mode_enter(void)
 {
 	struct k_thread *thread;
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 
 	thread = k_sched_current_thread_query();
 	_get_thread_name(thread, &name);
@@ -55,7 +55,7 @@ void sys_trace_k_thread_user_mode_enter(void)
 
 void sys_trace_k_thread_wakeup(struct k_thread *thread)
 {
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 
 	_get_thread_name(thread, &name);
 	ctf_top_thread_wakeup((uint32_t)(uintptr_t)thread, name);
@@ -64,7 +64,7 @@ void sys_trace_k_thread_wakeup(struct k_thread *thread)
 void sys_trace_k_thread_switched_in(void)
 {
 	struct k_thread *thread;
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 
 	thread = k_sched_current_thread_query();
 	_get_thread_name(thread, &name);
@@ -74,7 +74,7 @@ void sys_trace_k_thread_switched_in(void)
 
 void sys_trace_k_thread_priority_set(struct k_thread *thread)
 {
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 
 	_get_thread_name(thread, &name);
 	ctf_top_thread_priority_set((uint32_t)(uintptr_t)thread, thread->base.prio, name);
@@ -93,7 +93,7 @@ void sys_trace_k_thread_sleep_ticks_exit(k_timeout_t timeout, int ret)
 
 void sys_trace_k_thread_create(struct k_thread *thread, size_t stack_size, int prio)
 {
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 
 	_get_thread_name(thread, &name);
 	ctf_top_thread_create((uint32_t)(uintptr_t)thread, thread->base.prio, name);
@@ -106,7 +106,7 @@ void sys_trace_k_thread_create(struct k_thread *thread, size_t stack_size, int p
 
 void sys_trace_k_thread_abort(struct k_thread *thread)
 {
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 
 	_get_thread_name(thread, &name);
 	ctf_top_thread_abort((uint32_t)(uintptr_t)thread, name);
@@ -114,7 +114,7 @@ void sys_trace_k_thread_abort(struct k_thread *thread)
 
 void sys_trace_k_thread_suspend(struct k_thread *thread)
 {
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 
 	_get_thread_name(thread, &name);
 	ctf_top_thread_suspend((uint32_t)(uintptr_t)thread, name);
@@ -122,7 +122,7 @@ void sys_trace_k_thread_suspend(struct k_thread *thread)
 
 void sys_trace_k_thread_resume(struct k_thread *thread)
 {
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 
 	_get_thread_name(thread, &name);
 
@@ -131,7 +131,7 @@ void sys_trace_k_thread_resume(struct k_thread *thread)
 
 void sys_trace_k_thread_ready(struct k_thread *thread)
 {
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 
 	_get_thread_name(thread, &name);
 
@@ -144,7 +144,7 @@ void sys_trace_k_thread_start(struct k_thread *thread)
 
 void sys_trace_k_thread_pend(struct k_thread *thread)
 {
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 
 	_get_thread_name(thread, &name);
 	ctf_top_thread_pend((uint32_t)(uintptr_t)thread, name);
@@ -153,7 +153,7 @@ void sys_trace_k_thread_pend(struct k_thread *thread)
 void sys_trace_k_thread_info(struct k_thread *thread)
 {
 #if defined(CONFIG_THREAD_STACK_INFO)
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 
 	_get_thread_name(thread, &name);
 	ctf_top_thread_info((uint32_t)(uintptr_t)thread, name, thread->stack_info.start,
@@ -163,7 +163,7 @@ void sys_trace_k_thread_info(struct k_thread *thread)
 
 void sys_trace_k_thread_name_set(struct k_thread *thread, int ret)
 {
-	ctf_bounded_string_t name = {"unknown"};
+	ctf_bounded_string_t name = { "unknown" };
 
 	_get_thread_name(thread, &name);
 	ctf_top_thread_name_set((uint32_t)(uintptr_t)thread, name);
@@ -905,7 +905,7 @@ void sys_trace_k_timer_init(struct k_timer *timer)
 void sys_trace_k_timer_start(struct k_timer *timer, k_timeout_t duration, k_timeout_t period)
 {
 	ctf_top_timer_start((uint32_t)(uintptr_t)timer,
-			    k_ticks_to_us_floor32((uint32_t)duration.ticks),
+		k_ticks_to_us_floor32((uint32_t)duration.ticks),
 			    k_ticks_to_us_floor32((uint32_t)period.ticks));
 }
 
@@ -1030,7 +1030,7 @@ void sys_trace_socket_accept_enter(int sock)
 void sys_trace_socket_accept_exit(int sock, const struct net_sockaddr *addr,
 				  const uint32_t *addrlen, int ret)
 {
-	ctf_net_bounded_string_t addr_str = {"unknown"};
+	ctf_net_bounded_string_t addr_str = { "unknown" };
 	uint32_t addr_len = 0U;
 	uint16_t port = 0U;
 
@@ -1050,7 +1050,7 @@ void sys_trace_socket_accept_exit(int sock, const struct net_sockaddr *addr,
 void sys_trace_socket_sendto_enter(int sock, int len, int flags,
 				   const struct net_sockaddr *dest_addr, uint32_t addrlen)
 {
-	ctf_net_bounded_string_t addr_str = {"unknown"};
+	ctf_net_bounded_string_t addr_str = { "unknown" };
 
 	if (dest_addr != NULL) {
 		(void)net_addr_ntop(dest_addr->sa_family, &net_sin(dest_addr)->sin_addr,
@@ -1067,7 +1067,7 @@ void sys_trace_socket_sendto_exit(int sock, int ret)
 
 void sys_trace_socket_sendmsg_enter(int sock, const struct net_msghdr *msg, int flags)
 {
-	ctf_net_bounded_string_t addr = {"unknown"};
+	ctf_net_bounded_string_t addr = { "unknown" };
 	uint32_t len = 0;
 
 	for (int i = 0; msg->msg_iov != NULL && i < msg->msg_iovlen; i++) {
@@ -1099,7 +1099,7 @@ void sys_trace_socket_recvfrom_enter(int sock, int max_len, int flags,
 void sys_trace_socket_recvfrom_exit(int sock, const struct net_sockaddr *src_addr,
 				    const uint32_t *addrlen, int ret)
 {
-	ctf_net_bounded_string_t addr_str = {"unknown"};
+	ctf_net_bounded_string_t addr_str = { "unknown" };
 	int len = 0;
 
 	if (src_addr != NULL) {
@@ -1129,7 +1129,7 @@ void sys_trace_socket_recvmsg_enter(int sock, const struct net_msghdr *msg, int 
 void sys_trace_socket_recvmsg_exit(int sock, const struct net_msghdr *msg, int ret)
 {
 	uint32_t len = 0;
-	ctf_net_bounded_string_t addr = {"unknown"};
+	ctf_net_bounded_string_t addr = { "unknown" };
 
 	for (int i = 0; msg->msg_iov != NULL && i < msg->msg_iovlen; i++) {
 		len += msg->msg_iov[i].iov_len;

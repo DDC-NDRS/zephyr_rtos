@@ -26,7 +26,7 @@ LOG_MODULE_REGISTER(LOG_DOMAIN);
 #define DBANK_PAGES_PER_BANK     ((FLASH_SIZE / FLASH_PAGE_SIZE) / 2)
 
 #if defined(FLASH_STM32_DBANK)
-#define IS_DUAL_BANK(flash_device)                                                                 \
+#define IS_DUAL_BANK(flash_device)          \
 	((FLASH_STM32_REGS(flash_device)->OPTR & FLASH_OPTR_DBANK) == FLASH_OPTR_DBANK)
 #else
 /* If FLASH_STM32_DBANK is not defined this chip doesn't support dual bank operation */
@@ -255,10 +255,10 @@ int flash_stm32_block_erase_loop(const struct device *dev,
 int flash_stm32_write_range(const struct device *dev, unsigned int offset,
 			    const void *data, unsigned int len)
 {
-	int i, rc = 0;
+	int rc = 0;
 
-	for (i = 0; i < len; i += 8, offset += 8) {
-		rc = write_dword(dev, offset, UNALIGNED_GET((const uint64_t *) data + (i>>3)));
+	for (unsigned int i = 0; i < len; i += 8, offset += 8) {
+		rc = write_dword(dev, offset, UNALIGNED_GET((const uint64_t *) data + (i >> 3)));
 		if (rc < 0) {
 			return rc;
 		}
@@ -341,6 +341,9 @@ int flash_stm32_set_rdp_level(const struct device *dev, uint8_t level)
 }
 #endif /* CONFIG_FLASH_STM32_READOUT_PROTECTION */
 
+#define PAGES_PER_BANK  ((FLASH_SIZE / FLASH_PAGE_SIZE) / 2)
+#define DUMMY_PAGE_SIZE (BANK2_OFFSET - (PAGES_PER_BANK * FLASH_PAGE_SIZE))
+
 void flash_stm32_page_layout(const struct device *dev,
 			     const struct flash_pages_layout **layout,
 			     size_t *layout_size)
@@ -358,13 +361,20 @@ void flash_stm32_page_layout(const struct device *dev,
 			/* Bank1 */
 			stm32g4_flash_layout[0].pages_count = DBANK_PAGES_PER_BANK;
 			stm32g4_flash_layout[0].pages_size = FLASH_PAGE_SIZE;
+
 			/* Dummy page corresponding to discontinuity between bank1/2 */
-			stm32g4_flash_layout[1].pages_count = 1;
-			stm32g4_flash_layout[1].pages_size =
-				BANK2_OFFSET - (DBANK_PAGES_PER_BANK * FLASH_PAGE_SIZE);
-			/* Bank2 */
-			stm32g4_flash_layout[2].pages_count = DBANK_PAGES_PER_BANK;
-			stm32g4_flash_layout[2].pages_size = FLASH_PAGE_SIZE;
+			if (DUMMY_PAGE_SIZE > 0) {
+				stm32g4_flash_layout[1].pages_count = 1;
+				stm32g4_flash_layout[1].pages_size =
+					BANK2_OFFSET - (DBANK_PAGES_PER_BANK * FLASH_PAGE_SIZE);
+				/* Bank2 */
+				stm32g4_flash_layout[2].pages_count = DBANK_PAGES_PER_BANK;
+				stm32g4_flash_layout[2].pages_size = FLASH_PAGE_SIZE;
+			} else {
+				/* Bank2 */
+				stm32g4_flash_layout[1].pages_count = PAGES_PER_BANK;
+				stm32g4_flash_layout[1].pages_size = FLASH_PAGE_SIZE;
+			}
 		}
 	} else {
 		/*

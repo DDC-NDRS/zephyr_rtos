@@ -522,6 +522,7 @@ static inline void *usbd_class_get_private(const struct usbd_class_data *const c
 		.bNumConfigurations = 0,				\
 	};								\
 	))								\
+	MSC_DECLARE_SECTION("._usbd_context.static")			\
 	static STRUCT_SECTION_ITERABLE(usbd_context, device_name) = {	\
 		.name = STRINGIFY(device_name),				\
 		.mutex = Z_MUTEX_INITIALIZER(device_name.mutex),	\
@@ -656,6 +657,18 @@ static inline void *usbd_class_get_private(const struct usbd_class_data *const c
  *
  * @param d_name   String descriptor node identifier.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+/* Remove BUILD_ASSERT statement */
+#define USBD_DESC_SERIAL_NUMBER_DEFINE(d_name)					\
+	static struct usbd_desc_node d_name = {					\
+		.str = {							\
+			.utype = USBD_DUT_STRING_SERIAL_NUMBER,			\
+			.ascii7 = true,						\
+			.use_hwinfo = true,					\
+		},								\
+		.bDescriptorType = USB_DESC_STRING,				\
+	}
+#else
 #define USBD_DESC_SERIAL_NUMBER_DEFINE(d_name)					\
 	BUILD_ASSERT(IS_ENABLED(CONFIG_HWINFO), "HWINFO not enabled");		\
 	static struct usbd_desc_node d_name = {					\
@@ -666,6 +679,7 @@ static inline void *usbd_class_get_private(const struct usbd_class_data *const c
 		},								\
 		.bDescriptorType = USB_DESC_STRING,				\
 	}
+#endif
 
 /**
  * @brief Create a string descriptor node for configuration descriptor
@@ -691,6 +705,18 @@ static inline void *usbd_class_get_private(const struct usbd_class_data *const c
  * @param len        Device Capability descriptor length
  * @param subset     Pointer to a Device Capability descriptor
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+/* Remove BUILD_ASSERT statement */
+#define USBD_DESC_BOS_DEFINE(name, len, subset)					\
+	static struct usbd_desc_node name = {					\
+		.bos = {							\
+			.utype = USBD_DUT_BOS_NONE,				\
+		},								\
+		.ptr = subset,							\
+		.bLength = len,							\
+		.bDescriptorType = USB_DESC_BOS,				\
+	}
+#else
 #define USBD_DESC_BOS_DEFINE(name, len, subset)					\
 	BUILD_ASSERT(IS_ENABLED(CONFIG_USBD_BOS_SUPPORT),			\
 		     "USB device BOS support is disabled");			\
@@ -702,6 +728,7 @@ static inline void *usbd_class_get_private(const struct usbd_class_data *const c
 		.bLength = len,							\
 		.bDescriptorType = USB_DESC_BOS,				\
 	}
+#endif
 
 /**
  * @brief Define a vendor request with recipient device
@@ -767,6 +794,8 @@ static inline void *usbd_class_get_private(const struct usbd_class_data *const c
  * @param class_v_reqs Pointer to struct usbd_cctx_vendor_req
  */
 #define USBD_DEFINE_CLASS(class_name, class_api, class_priv, class_v_reqs)	\
+	MSC_DECLARE_SECTION("._usbd_class_fs.static")				\
+	MSC_DECLARE_SECTION("._usbd_class_hs.static")				\
 	static struct usbd_class_data class_name = {				\
 		.name = STRINGIFY(class_name),					\
 		.api = class_api,						\
@@ -799,10 +828,15 @@ static inline void *usbd_class_get_private(const struct usbd_class_data *const c
  *
  *  @param _reqs Variable number of vendor requests
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define USBD_VENDOR_REQ(...) \
+	VENDOR_REQ_DEFINE(((const uint8_t []) { __VA_ARGS__ }), \
+			  sizeof((const uint8_t []) { __VA_ARGS__ }))
+#else
 #define USBD_VENDOR_REQ(_reqs...) \
 	VENDOR_REQ_DEFINE(((const uint8_t []) { _reqs }), \
 			  sizeof((const uint8_t []) { _reqs }))
-
+#endif
 
 /**
  * @brief Add common USB descriptor

@@ -35,6 +35,10 @@
 #include <zephyr/sys/util_macro.h>
 #include <zephyr/toolchain.h>
 
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define EHOSTDOWN   117
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -1391,9 +1395,9 @@ enum bt_conn_le_path_loss_zone {
 	BT_CONN_LE_PATH_LOSS_ZONE_UNAVAILABLE,
 };
 
-BUILD_ASSERT(BT_CONN_LE_PATH_LOSS_ZONE_ENTERED_LOW == BT_HCI_LE_ZONE_ENTERED_LOW);
-BUILD_ASSERT(BT_CONN_LE_PATH_LOSS_ZONE_ENTERED_MIDDLE == BT_HCI_LE_ZONE_ENTERED_MIDDLE);
-BUILD_ASSERT(BT_CONN_LE_PATH_LOSS_ZONE_ENTERED_HIGH == BT_HCI_LE_ZONE_ENTERED_HIGH);
+BUILD_ASSERT(BT_CONN_LE_PATH_LOSS_ZONE_ENTERED_LOW == BT_HCI_LE_ZONE_ENTERED_LOW, "size error");
+BUILD_ASSERT(BT_CONN_LE_PATH_LOSS_ZONE_ENTERED_MIDDLE == BT_HCI_LE_ZONE_ENTERED_MIDDLE, "size error");
+BUILD_ASSERT(BT_CONN_LE_PATH_LOSS_ZONE_ENTERED_HIGH == BT_HCI_LE_ZONE_ENTERED_HIGH, "size error");
 
 /** @brief LE Path Loss Monitoring Threshold Change Report Structure. */
 struct bt_conn_le_path_loss_threshold_report {

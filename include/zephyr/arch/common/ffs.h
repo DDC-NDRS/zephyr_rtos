@@ -29,13 +29,12 @@ extern "C" {
  * @return most significant bit set, 0 if @a op is 0
  */
 
-static ALWAYS_INLINE unsigned int find_msb_set(uint32_t op)
-{
+static ALWAYS_INLINE unsigned int find_msb_set(uint32_t op) {
 	if (op == 0) {
-		return 0;
+		return (0);
 	}
 
-	return 32 - __builtin_clz(op);
+	return (unsigned int)(32 - __builtin_clz(op));
 }
 
 
@@ -51,12 +50,10 @@ static ALWAYS_INLINE unsigned int find_msb_set(uint32_t op)
  * @return least significant bit set, 0 if @a op is 0
  */
 
-static ALWAYS_INLINE unsigned int find_lsb_set(uint32_t op)
-{
-#ifdef CONFIG_TOOLCHAIN_HAS_BUILTIN_FFS
-	return __builtin_ffs(op);
-
-#else
+static ALWAYS_INLINE unsigned int find_lsb_set(uint32_t op) {
+	#if (defined(CONFIG_TOOLCHAIN_HAS_BUILTIN_FFS) && !defined(_MSC_VER))   /* #CUSTOM@NDRS */
+	return (unsigned int)__builtin_ffs((int)op);
+	#else
 	/*
 	 * Toolchain does not have __builtin_ffs(). Leverage find_lsb_set()
 	 * by first clearing all but the lowest set bit.
@@ -65,7 +62,7 @@ static ALWAYS_INLINE unsigned int find_lsb_set(uint32_t op)
 	op = op ^ (op & (op - 1));
 
 	return find_msb_set(op);
-#endif /* CONFIG_TOOLCHAIN_HAS_BUILTIN_FFS */
+	#endif /* CONFIG_TOOLCHAIN_HAS_BUILTIN_FFS */
 }
 
 #ifdef __cplusplus

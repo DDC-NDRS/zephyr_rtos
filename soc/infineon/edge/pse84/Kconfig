@@ -55,3 +55,23 @@ config SOC_PSE84_LPM_TIMER
 	  Enable MCWDT as a low-power companion timer for the SysTick.
 	  The MCWDT runs from PILO (32 kHz) and provides timekeeping
 	  during deepsleep when HF clocks (and thus SysTick) are stopped.
+
+config PSE84_SECURE_IMAGE_KEY_FILE
+	string "OEM key file for signing the PSE84 CM33 secure image"
+	default ""
+	help
+	  Path to the OEM private key (PEM) passed to imgtool as --key when
+	  pse84_add_metadata_secure_hex() adds the MCUboot metadata to the
+	  CM33 secure image. Empty (the default) leaves the image with format
+	  and hash only, which is what a non-provisioned / DEVELOPMENT-LCS
+	  device expects. Set this once the device has been provisioned for
+	  secure boot and its lifecycle transitioned, so the ROM extended
+	  boot verifies the image signature against the provisioned key.
+
+config PSE84_SECURE_IMAGE_SECURITY_COUNTER
+	string "Security counter for the PSE84 CM33 secure image"
+	default ""
+	help
+	  Value passed to imgtool as --security-counter for the CM33 secure
+	  image. Empty (the default) omits --security-counter. Accepts an
+	  integer or the literal "auto".

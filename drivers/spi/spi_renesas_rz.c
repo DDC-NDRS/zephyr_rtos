@@ -447,19 +447,20 @@ static int transceive(const struct device *dev, const struct spi_config *spi_cfg
 	if (!spi_context_total_tx_len(&data->ctx) && !spi_context_total_rx_len(&data->ctx)) {
 		goto end_transceive;
 	}
-	if (data->ctx.rx_len == 0) {
+
+	if (data->ctx.rx.len == 0) {
 		data->data_len = spi_context_is_peripheral(&data->ctx)
 					 ? spi_context_total_tx_len(&data->ctx)
-					 : data->ctx.tx_len;
-	} else if (data->ctx.tx_len == 0) {
+					 : data->ctx.tx.len;
+	} else if (data->ctx.tx.len == 0) {
 		data->data_len = spi_context_is_peripheral(&data->ctx)
 					 ? spi_context_total_rx_len(&data->ctx)
-					 : data->ctx.rx_len;
+					 : data->ctx.rx.len;
 	} else {
 		data->data_len = spi_context_is_peripheral(&data->ctx)
 					 ? MAX(spi_context_total_tx_len(&data->ctx),
 					       spi_context_total_rx_len(&data->ctx))
-					 : MIN(data->ctx.tx_len, data->ctx.rx_len);
+					 : MIN(data->ctx.tx.len, data->ctx.rx.len);
 	}
 
 #if (CONFIG_SPI_RENESAS_RZ_DMA && CONFIG_CACHE_MANAGEMENT)
@@ -745,9 +746,9 @@ static void spi_rz_tei_isr(const struct device *dev)
 
 	if (data->fsp_ctrl->rx_count == data->fsp_ctrl->count) {
 #ifdef CONFIG_SPI_RENESAS_RZ_DMA
-		if (data->ctx.rx_len < data->data_len && data->fsp_config->p_transfer_tx != NULL &&
+		if (data->ctx.rx.len < data->data_len && data->fsp_config->p_transfer_tx != NULL &&
 		    data->fsp_config->p_transfer_rx != NULL) {
-			data->ctx.rx_len = 0;
+			data->ctx.rx.len = 0;
 			spi_context_update_rx(&data->ctx, data->dfs,
 					      spi_context_total_rx_len(&data->ctx));
 		} else {
@@ -759,20 +760,20 @@ static void spi_rz_tei_isr(const struct device *dev)
 	}
 	if (data->fsp_ctrl->tx_count == data->fsp_ctrl->count) {
 #ifdef CONFIG_SPI_RENESAS_RZ_DMA
-		if (data->ctx.tx_len < data->data_len && data->fsp_config->p_transfer_tx != NULL &&
+		if (data->ctx.tx.len < data->data_len && data->fsp_config->p_transfer_tx != NULL &&
 		    data->fsp_config->p_transfer_rx != NULL) {
-			data->ctx.tx_len = 0;
+			data->ctx.tx.len = 0;
 		}
 #endif /* CONFIG_SPI_RENESAS_RZ_DMA */
 		spi_context_update_tx(&data->ctx, data->dfs, data->data_len);
 	}
 
-	if (data->ctx.rx_len == 0) {
-		data->data_len = data->ctx.tx_len;
-	} else if (data->ctx.tx_len == 0) {
-		data->data_len = data->ctx.rx_len;
+	if (data->ctx.rx.len == 0) {
+		data->data_len = data->ctx.tx.len;
+	} else if (data->ctx.tx.len == 0) {
+		data->data_len = data->ctx.rx.len;
 	} else {
-		data->data_len = MIN(data->ctx.tx_len, data->ctx.rx_len);
+		data->data_len = MIN(data->ctx.tx.len, data->ctx.rx.len);
 	}
 
 #if (CONFIG_SPI_RENESAS_RZ_DMA && CONFIG_CACHE_MANAGEMENT)
@@ -782,10 +783,10 @@ static void spi_rz_tei_isr(const struct device *dev)
 	if (spi_rz_transfer_ongoing(data)) {
 		R_BSP_IrqDisable(data->fsp_ctrl->p_cfg->tei_irq);
 		data->fsp_ctrl->p_regs->SPCR_b.SPE = 0U;
-		if (data->ctx.rx_len == 0) {
+		if (data->ctx.rx.len == 0) {
 			err = config->fsp_api->write(data->fsp_ctrl, data->ctx.tx_buf,
 						     data->data_len, data->fsp_ctrl->bit_width);
-		} else if (data->ctx.tx_len == 0) {
+		} else if (data->ctx.tx.len == 0) {
 			err = config->fsp_api->read(data->fsp_ctrl, data->ctx.rx_buf,
 						    data->data_len, data->fsp_ctrl->bit_width);
 		} else {
@@ -793,6 +794,7 @@ static void spi_rz_tei_isr(const struct device *dev)
 							 data->ctx.rx_buf, data->data_len,
 							 data->fsp_ctrl->bit_width);
 		}
+
 		if (err != FSP_SUCCESS) {
 			LOG_ERR("Async transmit fail: %d", err);
 		}
@@ -853,6 +855,7 @@ static int spi_rz_init(const struct device *dev)
 				R_MPU0->RGN[i].ENDADD = RZ_MASTER_MPU_ENDADD_DISABLE_RW_PROTECTION;
 			}
 		}
+
 		if (dmac_tx_ext->unit == 1 || dmac_rx_ext->unit == 1) {
 			for (uint8_t i = 0; i < region_num; i++) {
 				R_MPU1->RGN[i].STADD = RZ_MASTER_MPU_STADD_DISABLE_RW_PROTECTION;
@@ -1183,7 +1186,7 @@ static void intc_connect_irq_event(IRQn_Type irq, IRQSELn_Type event)
 		RZ_SPI_IRQ_INIT(n);                                                                \
 		return 0;                                                                          \
 	}                                                                                          \
-	DEVICE_DT_INST_DEFINE(n, &spi_rz_init_##n, NULL, &spi_rz_data_##n, &spi_rz_config_##n,     \
+	DEVICE_DT_INST_DEFINE(n, spi_rz_init_##n, NULL, &spi_rz_data_##n, &spi_rz_config_##n,      \
 			      POST_KERNEL, CONFIG_SPI_INIT_PRIORITY, &spi_rz_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(SPI_RZ_INIT)

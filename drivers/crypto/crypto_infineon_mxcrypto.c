@@ -230,7 +230,7 @@ static int mxcrypto_aes_ecb_op(struct cipher_ctx *ctx, struct cipher_pkt *pkt)
 		return -EIO;
 	}
 
-	for (uint32_t off = 0U; off < pkt->in_len; off += MXCRYPTO_AES_BLOCK_SIZE) {
+	for (int off = 0; off < pkt->in_len; off += MXCRYPTO_AES_BLOCK_SIZE) {
 		rc = Cy_Crypto_Core_Aes_Ecb(base, dir,
 					    pkt->out_buf + off,
 					    pkt->in_buf + off,

@@ -24,6 +24,7 @@ void z_sched_init(void)
 #endif /* CONFIG_SCHED_CPU_MASK_PIN_ONLY */
 }
 
+#if (__GTEST == 0) /* #CUSTOM@NDRS */
 void k_sched_lock(void)
 {
 	Z_SCHED_SPINLOCK {
@@ -49,6 +50,17 @@ void k_sched_unlock(void)
 	++_current->base.sched_locked;
 	z_sched_lock_reschedule(key);
 }
+#else
+void k_sched_lock(void)
+{
+	/* pass */
+}
+
+void k_sched_unlock(void)
+{
+	/* pass */
+}
+#endif
 
 void z_impl_k_reschedule(void)
 {

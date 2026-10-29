@@ -10,6 +10,7 @@
  */
 #include <errno.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -163,9 +164,9 @@ static void bt_workq_start(void)
 static void init_work(struct k_work *work);
 
 struct bt_dev bt_dev = {
-	.init          = Z_WORK_INITIALIZER(init_work),
+	.init = Z_WORK_INITIALIZER(init_work),
 #if defined(CONFIG_BT_PRIVACY)
-	.rpa_timeout   = CONFIG_BT_RPA_TIMEOUT,
+	.rpa_timeout = CONFIG_BT_RPA_TIMEOUT,
 #endif
 #if defined(CONFIG_BT_DEVICE_APPEARANCE_DYNAMIC)
 	.appearance = CONFIG_BT_DEVICE_APPEARANCE,
@@ -199,6 +200,14 @@ static struct cmd_data cmd_data[BT_BUF_CMD_TX_COUNT];
 #define cmd(buf) (&cmd_data[net_buf_id(buf)])
 #define acl(buf) ((struct bt_conn_rx *)net_buf_user_data(buf))
 
+#if !defined(CONFIG_BT_USER_CONN_PARAM_REJECTED) && defined(_MSC_VER) /* #CUSTOM@NDRS */
+void bt_conn_notify_le_param_rejected(struct bt_conn *conn, uint8_t hci_err)
+{
+	ARG_UNUSED(conn);
+	ARG_UNUSED(hci_err);
+}
+#endif
+
 static bool drv_quirk_no_reset(void)
 {
 	return ((BT_HCI_QUIRKS & BT_HCI_QUIRK_NO_RESET) != 0);
@@ -209,7 +218,7 @@ bool bt_drv_quirk_no_auto_dle(void)
 	return ((BT_HCI_QUIRKS & BT_HCI_QUIRK_NO_AUTO_DLE) != 0);
 }
 
-void bt_hci_cmd_state_set_init(struct net_buf *buf,
+void bt_hci_cmd_state_set_init(const struct net_buf *buf,
 			       struct bt_hci_cmd_state_set *state,
 			       atomic_t *target, int bit, bool val)
 {
@@ -223,8 +232,32 @@ void bt_hci_cmd_state_set_init(struct net_buf *buf,
  * buffer length since the buffer is also used for the response event i.e
  * command complete or command status.
  */
+/* #CUSTOM@NDRS The *_SZ constants must match the header-only size of each struct */
+BUILD_ASSERT(offsetof(struct bt_hci_cp_host_num_completed_packets, h) == BT_HCI_CP_HOST_NUM_COMPLETED_PACKETS_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_cp_le_ext_create_conn, p) == BT_HCI_CP_LE_EXT_CREATE_CONN_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_cp_le_ext_create_conn_v2, p) == BT_HCI_CP_LE_EXT_CREATE_CONN_V2_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_cp_configure_data_path, vs_config) == BT_HCI_CP_CONFIGURE_DATA_PATH_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_num_completed_packets, h) == BT_HCI_EVT_NUM_COMPLETED_PACKETS_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_meta_event, data) == BT_HCI_EVT_LE_META_EVENT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_advertising_report, adv_info) == BT_HCI_EVT_LE_ADVERTISING_REPORT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_direct_adv_report, direct_adv_info) == BT_HCI_EVT_LE_DIRECT_ADV_REPORT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_ext_advertising_report, adv_info) == BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_per_advertising_report, data) == BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_per_advertising_report_v2, data) == BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_V2_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_connectionless_iq_report, sample) == BT_HCI_EVT_LE_CONNECTIONLESS_IQ_REPORT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_connection_iq_report, sample) == BT_HCI_EVT_LE_CONNECTION_IQ_REPORT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_big_sync_established, handle) == BT_HCI_EVT_LE_BIG_SYNC_ESTABLISHED_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_cs_subevent_result, steps) == BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_SZ, "offset mismatch");
+BUILD_ASSERT(offsetof(struct bt_hci_evt_le_cs_subevent_result_continue, steps) == BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_CONTINUE_SZ, "offset mismatch");
+
 #define CMD_BUF_SIZE MAX(BT_BUF_EVT_RX_SIZE, BT_BUF_CMD_TX_SIZE)
-NET_BUF_POOL_FIXED_DEFINE(hci_cmd_pool, BT_BUF_CMD_TX_COUNT, CMD_BUF_SIZE, 0, NULL);
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+NET_BUF_POOL_FIXED_DEFINE(hci_cmd_pool, BT_BUF_CMD_TX_COUNT, CMD_BUF_SIZE,
+			  BT_ZERO_LEN_ARRAY, NULL);
+#else
+NET_BUF_POOL_FIXED_DEFINE(hci_cmd_pool, BT_BUF_CMD_TX_COUNT, CMD_BUF_SIZE,
+			  0, NULL);
+#endif
 
 struct event_handler {
 	uint8_t event;
@@ -242,9 +275,7 @@ struct event_handler {
 static int handle_event_common(uint8_t event, struct net_buf *buf,
 			       const struct event_handler *handlers, size_t num_handlers)
 {
-	size_t i;
-
-	for (i = 0; i < num_handlers; i++) {
+	for (size_t i = 0; i < num_handlers; i++) {
 		const struct event_handler *handler = &handlers[i];
 
 		if (handler->event != event) {
@@ -308,7 +339,7 @@ void bt_send_one_host_num_completed_packets(uint16_t handle)
 	buf = bt_hci_cmd_alloc(K_FOREVER);
 	BT_ASSERT_MSG(buf, "Unable to alloc for Host NCP");
 
-	cp = net_buf_add(buf, sizeof(*cp));
+	cp = net_buf_add(buf, BT_HCI_CP_HOST_NUM_COMPLETED_PACKETS_SZ);
 	cp->num_handles = 1;
 
 	hc = net_buf_add(buf, sizeof(*hc));
@@ -790,10 +821,11 @@ static void hci_num_completed_packets(struct net_buf *buf)
 	struct bt_hci_evt_num_completed_packets *evt = (void *)buf->data;
 	int i;
 
-	if (sizeof(*evt) + sizeof(evt->h[0]) * evt->num_handles > buf->len) {
+	if ((BT_HCI_EVT_NUM_COMPLETED_PACKETS_SZ + (sizeof(evt->h[0]) * evt->num_handles)) >
+	    buf->len) {
 		LOG_ERR("evt num_handles (=%u) too large (%zu > %u)",
 			evt->num_handles,
-			sizeof(*evt) + sizeof(evt->h[0]) * evt->num_handles,
+			BT_HCI_EVT_NUM_COMPLETED_PACKETS_SZ + sizeof(evt->h[0]) * evt->num_handles,
 			buf->len);
 		return;
 	}
@@ -940,8 +972,8 @@ int bt_le_create_conn_ext(const struct bt_conn *conn)
 		return -ENOBUFS;
 	}
 
-	cp = net_buf_add(buf, sizeof(*cp));
-	(void)memset(cp, 0, sizeof(*cp));
+	cp = net_buf_add(buf, BT_HCI_CP_LE_EXT_CREATE_CONN_SZ);
+	(void)memset(cp, 0, BT_HCI_CP_LE_EXT_CREATE_CONN_SZ);
 
 	if (use_filter) {
 		/* User Initiated procedure use fast scan parameters. */
@@ -1010,8 +1042,8 @@ int bt_le_create_conn_synced(const struct bt_conn *conn, const struct bt_le_ext_
 		return -ENOBUFS;
 	}
 
-	cp = net_buf_add(buf, sizeof(*cp));
-	(void)memset(cp, 0, sizeof(*cp));
+	cp = net_buf_add(buf, BT_HCI_CP_LE_EXT_CREATE_CONN_V2_SZ);
+	(void)memset(cp, 0, BT_HCI_CP_LE_EXT_CREATE_CONN_V2_SZ);
 
 	cp->subevent = subevent;
 	cp->adv_handle = adv->handle;
@@ -1154,7 +1186,7 @@ static void conn_handle_disconnected(uint16_t handle, uint8_t disconnect_reason)
 			/* Use invalid connection handle bits so that connection
 			 * handle 0 can be used as a valid non-zero handle.
 			 */
-			disconnected_handles[i] = ~BT_ACL_HANDLE_MASK | handle;
+			disconnected_handles[i] = (uint16_t)(~BT_ACL_HANDLE_MASK) | handle;
 			disconnected_handles_reason[i] = disconnect_reason;
 
 			return;
@@ -3136,6 +3168,16 @@ void bt_hci_le_conn_rate_change_event(struct net_buf *buf)
 }
 #endif /* CONFIG_BT_SHORTER_CONNECTION_INTERVALS */
 
+#if !defined(CONFIG_BT_DF_VS_CL_IQ_REPORT_16_BITS_IQ_SAMPLES) && \
+	!defined(CONFIG_BT_DF_VS_CONN_IQ_REPORT_16_BITS_IQ_SAMPLES) && \
+	defined(_MSC_VER)
+/* #CUSTOM@NDRS Placeholder so vs_events[] is not empty and needs no scan.c symbol */
+static void vs_events_placeholder(struct net_buf *buf)
+{
+	ARG_UNUSED(buf);
+}
+#endif
+
 static const struct event_handler vs_events[] = {
 #if defined(CONFIG_BT_DF_VS_CL_IQ_REPORT_16_BITS_IQ_SAMPLES)
 	EVENT_HANDLER(BT_HCI_EVT_VS_LE_CONNECTIONLESS_IQ_REPORT,
@@ -3146,6 +3188,14 @@ static const struct event_handler vs_events[] = {
 	EVENT_HANDLER(BT_HCI_EVT_VS_LE_CONNECTION_IQ_REPORT, bt_hci_le_vs_df_connection_iq_report,
 		      sizeof(struct bt_hci_evt_vs_le_connection_iq_report)),
 #endif /* CONFIG_BT_DF_VS_CONN_IQ_REPORT_16_BITS_IQ_SAMPLES */
+
+#if !defined(CONFIG_BT_DF_VS_CL_IQ_REPORT_16_BITS_IQ_SAMPLES) && \
+	!defined(CONFIG_BT_DF_VS_CONN_IQ_REPORT_16_BITS_IQ_SAMPLES) && \
+	defined(_MSC_VER)
+	/* #CUSTOM@NDRS Add dummy event handler */
+	EVENT_HANDLER(BT_HCI_EVT_VS_LE_CONNECTIONLESS_IQ_REPORT,
+		      vs_events_placeholder, 0),
+#endif
 };
 
 static void hci_vendor_event(struct net_buf *buf)
@@ -3165,7 +3215,7 @@ static void hci_vendor_event(struct net_buf *buf)
 #endif /* CONFIG_BT_HCI_VS_EVT_USER */
 
 	if (IS_ENABLED(CONFIG_BT_HCI_VS) && !handled) {
-		struct bt_hci_evt_vs *evt;
+		struct bt_hci_evt_vs const *evt;
 
 		evt = net_buf_pull_mem(buf, sizeof(*evt));
 
@@ -3178,10 +3228,10 @@ static void hci_vendor_event(struct net_buf *buf)
 static const struct event_handler meta_events[] = {
 #if defined(CONFIG_BT_OBSERVER)
 	EVENT_HANDLER(BT_HCI_EVT_LE_ADVERTISING_REPORT, bt_hci_le_adv_report,
-		      sizeof(struct bt_hci_evt_le_advertising_report)),
+		      BT_HCI_EVT_LE_ADVERTISING_REPORT_SZ),
 #if defined(CONFIG_BT_SCAN_EXT_FILTER_POLICY)
 	EVENT_HANDLER(BT_HCI_EVT_LE_DIRECT_ADV_REPORT, bt_hci_le_direct_adv_report,
-		      sizeof(struct bt_hci_evt_le_direct_adv_report)),
+		      BT_HCI_EVT_LE_DIRECT_ADV_REPORT_SZ),
 #endif /* CONFIG_BT_SCAN_EXT_FILTER_POLICY */
 #endif /* CONFIG_BT_OBSERVER */
 #if defined(CONFIG_BT_CONN)
@@ -3222,14 +3272,14 @@ static const struct event_handler meta_events[] = {
 	EVENT_HANDLER(BT_HCI_EVT_LE_SCAN_TIMEOUT, bt_hci_le_scan_timeout,
 		      0),
 	EVENT_HANDLER(BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT, bt_hci_le_adv_ext_report,
-		      sizeof(struct bt_hci_evt_le_ext_advertising_report)),
+		      BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT_SZ),
 #endif /* defined(CONFIG_BT_OBSERVER) */
 #if defined(CONFIG_BT_PER_ADV_SYNC)
 	EVENT_HANDLER(BT_HCI_EVT_LE_PER_ADV_SYNC_ESTABLISHED,
 		      bt_hci_le_per_adv_sync_established,
 		      sizeof(struct bt_hci_evt_le_per_adv_sync_established)),
 	EVENT_HANDLER(BT_HCI_EVT_LE_PER_ADVERTISING_REPORT, bt_hci_le_per_adv_report,
-		      sizeof(struct bt_hci_evt_le_per_advertising_report)),
+		      BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_SZ),
 	EVENT_HANDLER(BT_HCI_EVT_LE_PER_ADV_SYNC_LOST, bt_hci_le_per_adv_sync_lost,
 		      sizeof(struct bt_hci_evt_le_per_adv_sync_lost)),
 #if defined(CONFIG_BT_PER_ADV_SYNC_TRANSFER_RECEIVER)
@@ -3259,7 +3309,7 @@ static const struct event_handler meta_events[] = {
 #if defined(CONFIG_BT_ISO_SYNC_RECEIVER)
 	EVENT_HANDLER(BT_HCI_EVT_LE_BIG_SYNC_ESTABLISHED,
 		      hci_le_big_sync_established,
-		      sizeof(struct bt_hci_evt_le_big_sync_established)),
+		      BT_HCI_EVT_LE_BIG_SYNC_ESTABLISHED_SZ),
 	EVENT_HANDLER(BT_HCI_EVT_LE_BIG_SYNC_LOST,
 		      hci_le_big_sync_lost,
 		      sizeof(struct bt_hci_evt_le_big_sync_lost)),
@@ -3269,11 +3319,11 @@ static const struct event_handler meta_events[] = {
 #endif /* CONFIG_BT_ISO_SYNC_RECEIVER */
 #if defined(CONFIG_BT_DF_CONNECTIONLESS_CTE_RX)
 	EVENT_HANDLER(BT_HCI_EVT_LE_CONNECTIONLESS_IQ_REPORT, bt_hci_le_df_connectionless_iq_report,
-		      sizeof(struct bt_hci_evt_le_connectionless_iq_report)),
+		      BT_HCI_EVT_LE_CONNECTIONLESS_IQ_REPORT_SZ),
 #endif /* CONFIG_BT_DF_CONNECTIONLESS_CTE_RX */
 #if defined(CONFIG_BT_DF_CONNECTION_CTE_RX)
 	EVENT_HANDLER(BT_HCI_EVT_LE_CONNECTION_IQ_REPORT, bt_hci_le_df_connection_iq_report,
-		      sizeof(struct bt_hci_evt_le_connection_iq_report)),
+		      BT_HCI_EVT_LE_CONNECTION_IQ_REPORT_SZ),
 #endif /* CONFIG_BT_DF_CONNECTION_CTE_RX */
 #if defined(CONFIG_BT_DF_CONNECTION_CTE_REQ)
 	EVENT_HANDLER(BT_HCI_EVT_LE_CTE_REQUEST_FAILED, bt_hci_le_df_cte_req_failed,
@@ -3297,7 +3347,7 @@ static const struct event_handler meta_events[] = {
 #endif /* CONFIG_BT_SHORTER_CONNECTION_INTERVALS */
 #if defined(CONFIG_BT_PER_ADV_SYNC_RSP)
 	EVENT_HANDLER(BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_V2, bt_hci_le_per_adv_report_v2,
-		      sizeof(struct bt_hci_evt_le_per_advertising_report_v2)),
+		      BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_V2_SZ),
 #if defined(CONFIG_BT_PER_ADV_SYNC_TRANSFER_RECEIVER)
 	EVENT_HANDLER(BT_HCI_EVT_LE_PAST_RECEIVED_V2, bt_hci_le_past_received_v2,
 		      sizeof(struct bt_hci_evt_le_past_received_v2)),
@@ -3350,10 +3400,10 @@ static const struct event_handler meta_events[] = {
 		      sizeof(struct bt_hci_evt_le_cs_procedure_enable_complete)),
 	EVENT_HANDLER(BT_HCI_EVT_LE_CS_SUBEVENT_RESULT,
 		      bt_hci_le_cs_subevent_result,
-		      sizeof(struct bt_hci_evt_le_cs_subevent_result)),
+		      BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_SZ),
 	EVENT_HANDLER(BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_CONTINUE,
 		      bt_hci_le_cs_subevent_result_continue,
-		      sizeof(struct bt_hci_evt_le_cs_subevent_result_continue)),
+		      BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_CONTINUE_SZ),
 #if defined(CONFIG_BT_CHANNEL_SOUNDING_TEST)
 	EVENT_HANDLER(BT_HCI_EVT_LE_CS_TEST_END_COMPLETE,
 		      bt_hci_le_cs_test_end_complete,
@@ -3378,7 +3428,7 @@ static const struct event_handler normal_events[] = {
 	EVENT_HANDLER(BT_HCI_EVT_VENDOR, hci_vendor_event,
 		      sizeof(struct bt_hci_evt_vs)),
 	EVENT_HANDLER(BT_HCI_EVT_LE_META_EVENT, hci_le_meta_event,
-		      sizeof(struct bt_hci_evt_le_meta_event)),
+		      BT_HCI_EVT_LE_META_EVENT_SZ),
 #if defined(CONFIG_BT_CLASSIC)
 	EVENT_HANDLER(BT_HCI_EVT_CONN_REQUEST, bt_hci_conn_req,
 		      sizeof(struct bt_hci_evt_conn_request)),
@@ -4706,10 +4756,10 @@ static const struct event_handler prio_events[] = {
 #if defined(CONFIG_BT_CONN_TX)
 	EVENT_HANDLER(BT_HCI_EVT_NUM_COMPLETED_PACKETS,
 		      hci_num_completed_packets,
-		      sizeof(struct bt_hci_evt_num_completed_packets)),
+		      BT_HCI_EVT_NUM_COMPLETED_PACKETS_SZ),
 #endif /* CONFIG_BT_CONN_TX */
 	EVENT_HANDLER(BT_HCI_EVT_LE_META_EVENT, hci_le_meta_prio_event,
-	      sizeof(struct bt_hci_evt_le_meta_event)),
+		      BT_HCI_EVT_LE_META_EVENT_SZ),
 };
 
 static void hci_event_prio(struct net_buf *buf)
@@ -5075,7 +5125,7 @@ int bt_enable(bt_ready_cb_t cb)
 	/* Cleared before the open, as the Controller may send right after it. */
 	atomic_clear_bit(bt_dev.flags, BT_DEV_CTLR_RX);
 
-	err = bt_hci_open(bt_dev.hci, bt_recv);
+	err = bt_hci_open(bt_dev.hci, bt_recv);                 // @see h4_open
 	if (err) {
 		LOG_ERR("HCI driver open failed (%d)", err);
 		goto failed;
@@ -5262,9 +5312,9 @@ bool bt_is_ready(void)
 
 #define DEVICE_NAME_LEN (sizeof(CONFIG_BT_DEVICE_NAME) - 1)
 #if defined(CONFIG_BT_DEVICE_NAME_DYNAMIC)
-BUILD_ASSERT(DEVICE_NAME_LEN < CONFIG_BT_DEVICE_NAME_MAX);
+BUILD_ASSERT((DEVICE_NAME_LEN < CONFIG_BT_DEVICE_NAME_MAX), "build assert");
 #else
-BUILD_ASSERT(DEVICE_NAME_LEN < 248);
+BUILD_ASSERT((DEVICE_NAME_LEN < 248), "build assert");
 #endif
 
 int bt_set_name(const char *name)
@@ -5342,9 +5392,9 @@ int bt_set_appearance(uint16_t appearance)
 }
 #endif
 
-int bt_le_get_local_features(struct bt_le_local_features *remote_info)
+int bt_le_get_local_features(struct bt_le_local_features *local_features)
 {
-	if (remote_info == NULL) {
+	if (local_features == NULL) {
 		return -EINVAL;
 	}
 
@@ -5352,14 +5402,14 @@ int bt_le_get_local_features(struct bt_le_local_features *remote_info)
 		return -EAGAIN;
 	}
 
-	memcpy(remote_info->features, bt_dev.le.features, sizeof(remote_info->features));
-	remote_info->states = bt_dev.le.states;
-	remote_info->acl_mtu = COND_CODE_1(CONFIG_BT_CONN, (bt_dev.le.acl_mtu), (0));
-	remote_info->acl_pkts = COND_CODE_1(CONFIG_BT_CONN, (bt_dev.le.acl_pkts.limit), (0));
-	remote_info->iso_mtu = COND_CODE_1(CONFIG_BT_ISO, (bt_dev.le.iso_mtu), (0));
-	remote_info->iso_pkts = COND_CODE_1(CONFIG_BT_ISO, (bt_dev.le.iso_limit), (0));
-	remote_info->rl_size = COND_CODE_1(CONFIG_BT_SMP, (bt_dev.le.rl_size), (0));
-	remote_info->max_adv_data_len =
+	memcpy(local_features->features, bt_dev.le.features, sizeof(local_features->features));
+	local_features->states = bt_dev.le.states;
+	local_features->acl_mtu = COND_CODE_1(CONFIG_BT_CONN, (bt_dev.le.acl_mtu), (0));
+	local_features->acl_pkts = COND_CODE_1(CONFIG_BT_CONN, (bt_dev.le.acl_pkts.limit), (0));
+	local_features->iso_mtu = COND_CODE_1(CONFIG_BT_ISO, (bt_dev.le.iso_mtu), (0));
+	local_features->iso_pkts = COND_CODE_1(CONFIG_BT_ISO, (bt_dev.le.iso_limit), (0));
+	local_features->rl_size = COND_CODE_1(CONFIG_BT_SMP, (bt_dev.le.rl_size), (0));
+	local_features->max_adv_data_len =
 		COND_CODE_1(CONFIG_BT_BROADCASTER, (bt_dev.le.max_adv_data_len), (0));
 
 	return 0;
@@ -5512,7 +5562,7 @@ int bt_configure_data_path(uint8_t dir, uint8_t id, uint8_t vs_config_len,
 		return -ENOBUFS;
 	}
 
-	cp = net_buf_add(buf, sizeof(*cp));
+	cp = net_buf_add(buf, BT_HCI_CP_CONFIGURE_DATA_PATH_SZ);
 	cp->data_path_dir = dir;
 	cp->data_path_id  = id;
 	cp->vs_config_len = vs_config_len;

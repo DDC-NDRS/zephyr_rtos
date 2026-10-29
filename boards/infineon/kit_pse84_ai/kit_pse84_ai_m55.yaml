@@ -18,6 +18,7 @@ supported:
   - counter
   - dma
   - gpio
+  - hwinfo
   - i2c
   - i2s
   - pinctrl
@@ -25,6 +26,8 @@ supported:
   - spi
   - uart
   - usbd
+  - sdhc
+  - i2s
   - rtc
   - watchdog
   - wifi

@@ -39,15 +39,26 @@ extern "C" {
 #define BT_HCI_OWN_ADDR_RPA_OR_RANDOM   0x03
 #define BT_HCI_OWN_ADDR_RPA_MASK        0x02
 
-#define BT_HCI_PEER_ADDR_RPA_UNRESOLVED 0xfe
-#define BT_HCI_PEER_ADDR_ANONYMOUS      0xff
+#define BT_HCI_PEER_ADDR_RPA_UNRESOLVED 0xFE
+#define BT_HCI_PEER_ADDR_ANONYMOUS      0xFF
 
 #define BT_ENC_KEY_SIZE_MIN             0x07
 #define BT_ENC_KEY_SIZE_MAX             0x10
 
-#define BT_HCI_ADV_HANDLE_INVALID       0xff
-#define BT_HCI_SYNC_HANDLE_INVALID      0xffff
+#define BT_HCI_ADV_HANDLE_INVALID       0xFF
+#define BT_HCI_SYNC_HANDLE_INVALID      0xFFFF
 #define BT_HCI_PAWR_SUBEVENT_MAX        128
+
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define ESHUTDOWN                       110         /* Can't send after socket shutdown */
+#define BT_ZERO_LEN_ARRAY               1
+#else
+#define BT_ZERO_LEN_ARRAY
+#endif
+
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#pragma pack(push, 1)
+#endif
 
 /* Bluetooth spec v5.4 Vol 4, Part E - 5.4.3 HCI Synchronous Data Packets */
 struct bt_hci_sco_hdr {
@@ -58,9 +69,9 @@ struct bt_hci_sco_hdr {
 
 /* Bluetooth spec v5.4 Vol 4, Part E - 5.4.4 HCI Event Packet */
 struct bt_hci_evt_hdr {
-	uint8_t  evt;
-	uint8_t  len;
-	uint8_t  data[];
+	uint8_t evt;
+	uint8_t len;
+	uint8_t data[BT_ZERO_LEN_ARRAY];
 } __packed;
 #define BT_HCI_EVT_HDR_SIZE             2
 
@@ -92,7 +103,7 @@ struct bt_hci_acl_hdr {
 #define BT_ISO_SINGLE                   0x02
 #define BT_ISO_END                      0x03
 
-#define bt_iso_handle(h)                ((h) & 0x0fff)
+#define bt_iso_handle(h)                ((h) & 0x0FFF)
 #define bt_iso_flags(h)                 ((h) >> 12)
 #define bt_iso_flags_pb(f)              ((f) & 0x0003)
 #define bt_iso_flags_ts(f)              (((f) >> 2) & 0x0001)
@@ -383,7 +394,7 @@ struct bt_hci_cmd_hdr {
 #define BT_OGF_INFO                             0x04
 #define BT_OGF_STATUS                           0x05
 #define BT_OGF_LE                               0x08
-#define BT_OGF_VS                               0x3f
+#define BT_OGF_VS                               0x3F
 
 /* Construct OpCode from OGF and OCF */
 #define BT_OP(ogf, ocf)                         ((ocf) | ((ogf) << 10))
@@ -488,9 +499,9 @@ struct bt_hci_cp_accept_conn_req {
 	 BT_HCI_VOICE_SETTING_DATA_FMT_PREP(data_fmt) | \
 	 BT_HCI_VOICE_SETTING_CODING_FMT_PREP(coding_fmt))
 
-#define BT_HCI_SCO_MAX_LATENCY_DEFAULT 0xffff /* do not care about SCO link latency */
+#define BT_HCI_SCO_MAX_LATENCY_DEFAULT 0xFFFF /* do not care about SCO link latency */
 
-#define BT_HCI_SCO_RETRANS_EFFORT_DEFAULT 0xff /* do not care about SCO retransmission effort */
+#define BT_HCI_SCO_RETRANS_EFFORT_DEFAULT 0xFF /* do not care about SCO retransmission effort */
 
 #define BT_HCI_OP_SETUP_SYNC_CONN               BT_OP(BT_OGF_LINK_CTRL, 0x0028) /* 0x0428 */
 struct bt_hci_cp_setup_sync_conn {
@@ -514,24 +525,24 @@ struct bt_hci_cp_accept_sync_conn_req {
 	uint16_t  pkt_type;
 } __packed;
 
-#define BT_HCI_OP_REJECT_CONN_REQ               BT_OP(BT_OGF_LINK_CTRL, 0x000a) /* 0x040a */
+#define BT_HCI_OP_REJECT_CONN_REQ               BT_OP(BT_OGF_LINK_CTRL, 0x000A) /* 0x040A */
 struct bt_hci_cp_reject_conn_req {
 	bt_addr_t bdaddr;
 	uint8_t   reason;
 } __packed;
 
-#define BT_HCI_OP_LINK_KEY_REPLY                BT_OP(BT_OGF_LINK_CTRL, 0x000b) /* 0x040b */
+#define BT_HCI_OP_LINK_KEY_REPLY                BT_OP(BT_OGF_LINK_CTRL, 0x000B) /* 0x040B */
 struct bt_hci_cp_link_key_reply {
 	bt_addr_t bdaddr;
 	uint8_t   link_key[16];
 } __packed;
 
-#define BT_HCI_OP_LINK_KEY_NEG_REPLY            BT_OP(BT_OGF_LINK_CTRL, 0x000c) /* 0x040c */
+#define BT_HCI_OP_LINK_KEY_NEG_REPLY            BT_OP(BT_OGF_LINK_CTRL, 0x000C) /* 0x040C */
 struct bt_hci_cp_link_key_neg_reply {
 	bt_addr_t bdaddr;
 } __packed;
 
-#define BT_HCI_OP_PIN_CODE_REPLY                BT_OP(BT_OGF_LINK_CTRL, 0x000d) /* 0x040d */
+#define BT_HCI_OP_PIN_CODE_REPLY                BT_OP(BT_OGF_LINK_CTRL, 0x000D) /* 0x040D */
 struct bt_hci_cp_pin_code_reply {
 	bt_addr_t bdaddr;
 	uint8_t   pin_len;
@@ -542,7 +553,7 @@ struct bt_hci_rp_pin_code_reply {
 	bt_addr_t bdaddr;
 } __packed;
 
-#define BT_HCI_OP_PIN_CODE_NEG_REPLY            BT_OP(BT_OGF_LINK_CTRL, 0x000e) /* 0x040e */
+#define BT_HCI_OP_PIN_CODE_NEG_REPLY            BT_OP(BT_OGF_LINK_CTRL, 0x000E) /* 0x040E */
 struct bt_hci_cp_pin_code_neg_reply {
 	bt_addr_t bdaddr;
 } __packed;
@@ -617,7 +628,7 @@ struct bt_hci_cp_remote_name_request {
 	uint16_t  clock_offset;
 } __packed;
 
-#define BT_HCI_OP_REMOTE_NAME_CANCEL            BT_OP(BT_OGF_LINK_CTRL, 0x001a) /* 0x041a */
+#define BT_HCI_OP_REMOTE_NAME_CANCEL            BT_OP(BT_OGF_LINK_CTRL, 0x001A) /* 0x041A */
 struct bt_hci_cp_remote_name_cancel {
 	bt_addr_t bdaddr;
 } __packed;
@@ -626,23 +637,23 @@ struct bt_hci_rp_remote_name_cancel {
 	bt_addr_t bdaddr;
 } __packed;
 
-#define BT_HCI_OP_READ_REMOTE_FEATURES          BT_OP(BT_OGF_LINK_CTRL, 0x001b) /* 0x041b */
+#define BT_HCI_OP_READ_REMOTE_FEATURES          BT_OP(BT_OGF_LINK_CTRL, 0x001B) /* 0x041B */
 struct bt_hci_cp_read_remote_features {
 	uint16_t handle;
 } __packed;
 
-#define BT_HCI_OP_READ_REMOTE_EXT_FEATURES      BT_OP(BT_OGF_LINK_CTRL, 0x001c) /* 0x041c */
+#define BT_HCI_OP_READ_REMOTE_EXT_FEATURES      BT_OP(BT_OGF_LINK_CTRL, 0x001C) /* 0x041C */
 struct bt_hci_cp_read_remote_ext_features {
 	uint16_t handle;
 	uint8_t  page;
 } __packed;
 
-#define BT_HCI_OP_READ_REMOTE_VERSION_INFO      BT_OP(BT_OGF_LINK_CTRL, 0x001d) /* 0x041d */
+#define BT_HCI_OP_READ_REMOTE_VERSION_INFO      BT_OP(BT_OGF_LINK_CTRL, 0x001D) /* 0x041D */
 struct bt_hci_cp_read_remote_version_info {
 	uint16_t handle;
 } __packed;
 
-#define BT_HCI_OP_IO_CAPABILITY_REPLY           BT_OP(BT_OGF_LINK_CTRL, 0x002b) /* 0x042b */
+#define BT_HCI_OP_IO_CAPABILITY_REPLY           BT_OP(BT_OGF_LINK_CTRL, 0x002B) /* 0x042B */
 struct bt_hci_cp_io_capability_reply {
 	bt_addr_t bdaddr;
 	uint8_t   capability;
@@ -650,8 +661,8 @@ struct bt_hci_cp_io_capability_reply {
 	uint8_t   authentication;
 } __packed;
 
-#define BT_HCI_OP_USER_CONFIRM_REPLY            BT_OP(BT_OGF_LINK_CTRL, 0x002c) /* 0x042c */
-#define BT_HCI_OP_USER_CONFIRM_NEG_REPLY        BT_OP(BT_OGF_LINK_CTRL, 0x002d) /* 0x042d */
+#define BT_HCI_OP_USER_CONFIRM_REPLY            BT_OP(BT_OGF_LINK_CTRL, 0x002C) /* 0x042C */
+#define BT_HCI_OP_USER_CONFIRM_NEG_REPLY        BT_OP(BT_OGF_LINK_CTRL, 0x002D) /* 0x042D */
 struct bt_hci_cp_user_confirm_reply {
 	bt_addr_t bdaddr;
 } __packed;
@@ -660,13 +671,13 @@ struct bt_hci_rp_user_confirm_reply {
 	bt_addr_t bdaddr;
 } __packed;
 
-#define BT_HCI_OP_USER_PASSKEY_REPLY            BT_OP(BT_OGF_LINK_CTRL, 0x002e) /* 0x042e */
+#define BT_HCI_OP_USER_PASSKEY_REPLY            BT_OP(BT_OGF_LINK_CTRL, 0x002E) /* 0x042E */
 struct bt_hci_cp_user_passkey_reply {
 	bt_addr_t bdaddr;
 	uint32_t  passkey;
 } __packed;
 
-#define BT_HCI_OP_USER_PASSKEY_NEG_REPLY        BT_OP(BT_OGF_LINK_CTRL, 0x002f) /* 0x042f */
+#define BT_HCI_OP_USER_PASSKEY_NEG_REPLY        BT_OP(BT_OGF_LINK_CTRL, 0x002F) /* 0x042F */
 struct bt_hci_cp_user_passkey_neg_reply {
 	bt_addr_t bdaddr;
 } __packed;
@@ -677,7 +688,7 @@ struct bt_hci_cp_io_capability_neg_reply {
 	uint8_t   reason;
 } __packed;
 
-#define BT_HCI_OP_SWITCH_ROLE                   BT_OP(BT_OGF_LINK_POLICY, 0x000b)
+#define BT_HCI_OP_SWITCH_ROLE                   BT_OP(BT_OGF_LINK_POLICY, 0x000B)
 struct bt_hci_cp_switch_role {
 	bt_addr_t bdaddr;
 	uint8_t   role;
@@ -687,7 +698,7 @@ struct bt_hci_cp_switch_role {
 #define BT_HCI_LINK_POLICY_SETTINGS_ENABLE_HOLD_MODE    BIT(1)
 #define BT_HCI_LINK_POLICY_SETTINGS_ENABLE_SNIFF_SWITCH BIT(2)
 
-#define BT_HCI_OP_READ_LINK_POLICY_SETTINGS     BT_OP(BT_OGF_LINK_POLICY, 0x000c)
+#define BT_HCI_OP_READ_LINK_POLICY_SETTINGS     BT_OP(BT_OGF_LINK_POLICY, 0x000C)
 struct bt_hci_cp_read_link_policy_settings {
 	uint16_t handle;
 } __packed;
@@ -697,19 +708,19 @@ struct bt_hci_rp_read_link_policy_settings {
 	uint16_t link_policy_settings;
 } __packed;
 
-#define BT_HCI_OP_WRITE_LINK_POLICY_SETTINGS    BT_OP(BT_OGF_LINK_POLICY, 0x000d)
+#define BT_HCI_OP_WRITE_LINK_POLICY_SETTINGS    BT_OP(BT_OGF_LINK_POLICY, 0x000D)
 struct bt_hci_cp_write_link_policy_settings {
 	uint16_t handle;
 	uint16_t link_policy_settings;
 } __packed;
 
-#define BT_HCI_OP_READ_DEFAULT_LINK_POLICY_SETTINGS  BT_OP(BT_OGF_LINK_POLICY, 0x000e)
+#define BT_HCI_OP_READ_DEFAULT_LINK_POLICY_SETTINGS  BT_OP(BT_OGF_LINK_POLICY, 0x000E)
 struct bt_hci_rp_read_default_link_policy_settings {
 	uint8_t  status;
 	uint16_t default_link_policy_settings;
 } __packed;
 
-#define BT_HCI_OP_WRITE_DEFAULT_LINK_POLICY_SETTINGS BT_OP(BT_OGF_LINK_POLICY, 0x000f)
+#define BT_HCI_OP_WRITE_DEFAULT_LINK_POLICY_SETTINGS BT_OP(BT_OGF_LINK_POLICY, 0x000F)
 struct bt_hci_cp_write_default_link_policy_settings {
 	uint16_t default_link_policy_settings;
 } __packed;
@@ -750,25 +761,25 @@ struct bt_hci_rp_sniff_subrating {
 	uint16_t handle;
 } __packed;
 
-#define BT_HCI_OP_SET_EVENT_MASK                BT_OP(BT_OGF_BASEBAND, 0x0001) /* 0x0c01 */
+#define BT_HCI_OP_SET_EVENT_MASK                BT_OP(BT_OGF_BASEBAND, 0x0001) /* 0x0C01 */
 struct bt_hci_cp_set_event_mask {
 	uint8_t  events[8];
 } __packed;
 
-#define BT_HCI_OP_RESET                         BT_OP(BT_OGF_BASEBAND, 0x0003) /* 0x0c03 */
+#define BT_HCI_OP_RESET                         BT_OP(BT_OGF_BASEBAND, 0x0003) /* 0x0C03 */
 
-#define BT_HCI_OP_WRITE_LOCAL_NAME              BT_OP(BT_OGF_BASEBAND, 0x0013) /* 0x0c13 */
+#define BT_HCI_OP_WRITE_LOCAL_NAME              BT_OP(BT_OGF_BASEBAND, 0x0013) /* 0x0C13 */
 struct bt_hci_write_local_name {
 	uint8_t local_name[248];
 } __packed;
 
-#define BT_HCI_OP_READ_CONN_ACCEPT_TIMEOUT      BT_OP(BT_OGF_BASEBAND, 0x0015) /* 0x0c15 */
+#define BT_HCI_OP_READ_CONN_ACCEPT_TIMEOUT      BT_OP(BT_OGF_BASEBAND, 0x0015) /* 0x0C15 */
 struct bt_hci_rp_read_conn_accept_timeout {
 	uint8_t  status;
 	uint16_t conn_accept_timeout;
 } __packed;
 
-#define BT_HCI_OP_WRITE_CONN_ACCEPT_TIMEOUT     BT_OP(BT_OGF_BASEBAND, 0x0016) /* 0x0c16 */
+#define BT_HCI_OP_WRITE_CONN_ACCEPT_TIMEOUT     BT_OP(BT_OGF_BASEBAND, 0x0016) /* 0x0C16 */
 struct bt_hci_cp_write_conn_accept_timeout {
 	uint16_t conn_accept_timeout;
 } __packed;
@@ -777,15 +788,15 @@ struct bt_hci_rp_write_conn_accept_timeout {
 	uint8_t  status;
 } __packed;
 
-#define BT_HCI_OP_WRITE_PAGE_TIMEOUT            BT_OP(BT_OGF_BASEBAND, 0x0018) /* 0x0c18 */
+#define BT_HCI_OP_WRITE_PAGE_TIMEOUT            BT_OP(BT_OGF_BASEBAND, 0x0018) /* 0x0C18 */
 
-#define BT_HCI_OP_WRITE_SCAN_ENABLE             BT_OP(BT_OGF_BASEBAND, 0x001a) /* 0x0c1a */
+#define BT_HCI_OP_WRITE_SCAN_ENABLE             BT_OP(BT_OGF_BASEBAND, 0x001A) /* 0x0C1A */
 #define BT_BREDR_SCAN_DISABLED                  0x00
 #define BT_BREDR_SCAN_INQUIRY                   0x01
 #define BT_BREDR_SCAN_PAGE                      0x02
 
 /** HCI opcode for Write Page Scan Activity. */
-#define BT_HCI_OP_WRITE_PAGE_SCAN_ACTIVITY      BT_OP(BT_OGF_BASEBAND, 0x001c) /* 0x0c1c */
+#define BT_HCI_OP_WRITE_PAGE_SCAN_ACTIVITY      BT_OP(BT_OGF_BASEBAND, 0x001C) /* 0x0C1C */
 /** HCI command parameters for Write Page Scan Activity. */
 struct bt_hci_cp_write_page_scan_activity {
 	/** Page scan interval in 0.625 ms units. */
@@ -795,7 +806,7 @@ struct bt_hci_cp_write_page_scan_activity {
 } __packed;
 
 /** HCI opcode for Write Inquiry Scan Activity. */
-#define BT_HCI_OP_WRITE_INQUIRY_SCAN_ACTIVITY   BT_OP(BT_OGF_BASEBAND, 0x001e) /* 0x0c1e */
+#define BT_HCI_OP_WRITE_INQUIRY_SCAN_ACTIVITY   BT_OP(BT_OGF_BASEBAND, 0x001E) /* 0x0C1E */
 /** HCI command parameters for Write Inquiry Scan Activity. */
 struct bt_hci_cp_write_inquiry_scan_activity {
 	/** Inquiry scan interval in 0.625 ms units. */
@@ -804,20 +815,20 @@ struct bt_hci_cp_write_inquiry_scan_activity {
 	uint16_t window;
 } __packed;
 
-#define BT_HCI_OP_READ_CLASS_OF_DEVICE          BT_OP(BT_OGF_BASEBAND, 0x0023) /* 0x0c23 */
+#define BT_HCI_OP_READ_CLASS_OF_DEVICE          BT_OP(BT_OGF_BASEBAND, 0x0023) /* 0x0C23 */
 struct bt_hci_rp_read_class_of_device {
 	uint8_t  status;
 	uint8_t  class_of_device[3];
 } __packed;
 
-#define BT_HCI_OP_WRITE_CLASS_OF_DEVICE         BT_OP(BT_OGF_BASEBAND, 0x0024) /* 0x0c24 */
+#define BT_HCI_OP_WRITE_CLASS_OF_DEVICE         BT_OP(BT_OGF_BASEBAND, 0x0024) /* 0x0C24 */
 struct bt_hci_cp_write_class_of_device {
 	uint8_t  class_of_device[3];
 } __packed;
 
 #define BT_TX_POWER_LEVEL_CURRENT               0x00
 #define BT_TX_POWER_LEVEL_MAX                   0x01
-#define BT_HCI_OP_READ_TX_POWER_LEVEL           BT_OP(BT_OGF_BASEBAND, 0x002d) /* 0x0c2d */
+#define BT_HCI_OP_READ_TX_POWER_LEVEL           BT_OP(BT_OGF_BASEBAND, 0x002D) /* 0x0C2D */
 struct bt_hci_cp_read_tx_power_level {
 	uint16_t handle;
 	uint8_t  type;
@@ -911,12 +922,12 @@ struct bt_hci_cp_le_subrate_request {
 
 #define BT_HCI_CTL_TO_HOST_FLOW_DISABLE         0x00
 #define BT_HCI_CTL_TO_HOST_FLOW_ENABLE          0x01
-#define BT_HCI_OP_SET_CTL_TO_HOST_FLOW          BT_OP(BT_OGF_BASEBAND, 0x0031) /* 0x0c31 */
+#define BT_HCI_OP_SET_CTL_TO_HOST_FLOW          BT_OP(BT_OGF_BASEBAND, 0x0031) /* 0x0C31 */
 struct bt_hci_cp_set_ctl_to_host_flow {
 	uint8_t  flow_enable;
 } __packed;
 
-#define BT_HCI_OP_HOST_BUFFER_SIZE              BT_OP(BT_OGF_BASEBAND, 0x0033) /* 0x0c33 */
+#define BT_HCI_OP_HOST_BUFFER_SIZE              BT_OP(BT_OGF_BASEBAND, 0x0033) /* 0x0C33 */
 struct bt_hci_cp_host_buffer_size {
 	uint16_t acl_mtu;
 	uint8_t  sco_mtu;
@@ -929,14 +940,15 @@ struct bt_hci_handle_count {
 	uint16_t count;
 } __packed;
 
-#define BT_HCI_OP_HOST_NUM_COMPLETED_PACKETS    BT_OP(BT_OGF_BASEBAND, 0x0035) /* 0x0c35 */
+#define BT_HCI_OP_HOST_NUM_COMPLETED_PACKETS    BT_OP(BT_OGF_BASEBAND, 0x0035) /* 0x0C35 */
+#define BT_HCI_CP_HOST_NUM_COMPLETED_PACKETS_SZ 1
 struct bt_hci_cp_host_num_completed_packets {
-	uint8_t  num_handles;
-	struct bt_hci_handle_count h[0];
+	uint8_t num_handles;
+	struct bt_hci_handle_count h[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 /** HCI opcode for Read Link Supervision Timeout. */
-#define BT_HCI_OP_READ_LINK_SUPERVISION_TIMEOUT     BT_OP(BT_OGF_BASEBAND, 0x0036) /* 0x0c36 */
+#define BT_HCI_OP_READ_LINK_SUPERVISION_TIMEOUT     BT_OP(BT_OGF_BASEBAND, 0x0036) /* 0x0C36 */
 /** HCI command parameters for Read Link Supervision Timeout. */
 struct bt_hci_cp_read_link_supervision_timeout {
 	/** Connection handle. */
@@ -953,7 +965,7 @@ struct bt_hci_rp_read_link_supervision_timeout {
 } __packed;
 
 /** HCI opcode for Write Link Supervision Timeout. */
-#define BT_HCI_OP_WRITE_LINK_SUPERVISION_TIMEOUT    BT_OP(BT_OGF_BASEBAND, 0x0037) /* 0x0c37 */
+#define BT_HCI_OP_WRITE_LINK_SUPERVISION_TIMEOUT    BT_OP(BT_OGF_BASEBAND, 0x0037) /* 0x0C37 */
 /** HCI command parameters for Write Link Supervision Timeout. */
 struct bt_hci_cp_write_link_supervision_timeout {
 	/** Connection handle. */
@@ -962,31 +974,32 @@ struct bt_hci_cp_write_link_supervision_timeout {
 	uint16_t timeout;
 } __packed;
 
-#define BT_HCI_OP_WRITE_CURRENT_IAC_LAP         BT_OP(BT_OGF_BASEBAND, 0x003a) /* 0x0c3a */
+#define BT_HCI_OP_WRITE_CURRENT_IAC_LAP         BT_OP(BT_OGF_BASEBAND, 0x003A) /* 0x0C3A */
 struct bt_hci_iac_lap {
 	uint8_t iac[3];
 } __packed;
 
+#define BT_HCI_CP_WRITE_CURRENT_IAC_LAP_PACKETS_SZ 1
 struct bt_hci_cp_write_current_iac_lap {
 	uint8_t  num_current_iac;
-	struct bt_hci_iac_lap lap[0];
+	struct bt_hci_iac_lap lap[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 /** HCI opcode for Write Inquiry Scan Type. */
-#define BT_HCI_OP_WRITE_INQUIRY_SCAN_TYPE       BT_OP(BT_OGF_BASEBAND, 0x0043) /* 0x0c43 */
+#define BT_HCI_OP_WRITE_INQUIRY_SCAN_TYPE       BT_OP(BT_OGF_BASEBAND, 0x0043) /* 0x0C43 */
 /** HCI command parameters for Write Inquiry Scan Type. */
 struct bt_hci_cp_write_inquiry_scan_type {
 	/** Inquiry scan type. */
 	uint8_t type;
 } __packed;
 
-#define BT_HCI_OP_WRITE_INQUIRY_MODE            BT_OP(BT_OGF_BASEBAND, 0x0045) /* 0x0c45 */
+#define BT_HCI_OP_WRITE_INQUIRY_MODE            BT_OP(BT_OGF_BASEBAND, 0x0045) /* 0x0C45 */
 struct bt_hci_cp_write_inquiry_mode {
-	uint8_t  mode;
+	uint8_t mode;
 } __packed;
 
 /** HCI opcode for Write Page Scan Type. */
-#define BT_HCI_OP_WRITE_PAGE_SCAN_TYPE          BT_OP(BT_OGF_BASEBAND, 0x0047) /* 0x0c47 */
+#define BT_HCI_OP_WRITE_PAGE_SCAN_TYPE          BT_OP(BT_OGF_BASEBAND, 0x0047) /* 0x0C47 */
 /** HCI command parameters for Write Page Scan Type. */
 struct bt_hci_cp_write_page_scan_type {
 	/** Page scan type. */
@@ -996,7 +1009,7 @@ struct bt_hci_cp_write_page_scan_type {
 /** Maximum length of Extended Inquiry Response data. */
 #define BT_HCI_EIR_MAX_DATA_LEN                 240
 /** HCI opcode for Write Extended Inquiry Response. */
-#define BT_HCI_OP_WRITE_EXT_INQUIRY_RESPONSE    BT_OP(BT_OGF_BASEBAND, 0x0052) /* 0x0c52 */
+#define BT_HCI_OP_WRITE_EXT_INQUIRY_RESPONSE    BT_OP(BT_OGF_BASEBAND, 0x0052) /* 0x0C52 */
 /** HCI command parameters for Write Extended Inquiry Response. */
 struct bt_hci_cp_write_ext_inquiry_response {
 	/** FEC encoding required. */
@@ -1005,28 +1018,28 @@ struct bt_hci_cp_write_ext_inquiry_response {
 	uint8_t eir[BT_HCI_EIR_MAX_DATA_LEN];
 } __packed;
 
-#define BT_HCI_OP_WRITE_SSP_MODE                BT_OP(BT_OGF_BASEBAND, 0x0056) /* 0x0c56 */
+#define BT_HCI_OP_WRITE_SSP_MODE                BT_OP(BT_OGF_BASEBAND, 0x0056) /* 0x0C56 */
 struct bt_hci_cp_write_ssp_mode {
 	uint8_t mode;
 } __packed;
 
-#define BT_HCI_OP_SET_EVENT_MASK_PAGE_2         BT_OP(BT_OGF_BASEBAND, 0x0063) /* 0x0c63 */
+#define BT_HCI_OP_SET_EVENT_MASK_PAGE_2         BT_OP(BT_OGF_BASEBAND, 0x0063) /* 0x0C63 */
 struct bt_hci_cp_set_event_mask_page_2 {
-	uint8_t  events_page_2[8];
+	uint8_t events_page_2[8];
 } __packed;
 
-#define BT_HCI_OP_LE_WRITE_LE_HOST_SUPP         BT_OP(BT_OGF_BASEBAND, 0x006d) /* 0x0c6d */
+#define BT_HCI_OP_LE_WRITE_LE_HOST_SUPP         BT_OP(BT_OGF_BASEBAND, 0x006D) /* 0x0C6D */
 struct bt_hci_cp_write_le_host_supp {
-	uint8_t  le;
-	uint8_t  simul;
+	uint8_t le;
+	uint8_t simul;
 } __packed;
 
-#define BT_HCI_OP_WRITE_SC_HOST_SUPP            BT_OP(BT_OGF_BASEBAND, 0x007a) /* 0x0c7a */
+#define BT_HCI_OP_WRITE_SC_HOST_SUPP            BT_OP(BT_OGF_BASEBAND, 0x007A) /* 0x0C7A */
 struct bt_hci_cp_write_sc_host_supp {
-	uint8_t  sc_support;
+	uint8_t sc_support;
 } __packed;
 
-#define BT_HCI_OP_READ_AUTH_PAYLOAD_TIMEOUT     BT_OP(BT_OGF_BASEBAND, 0x007b) /* 0x0c7b */
+#define BT_HCI_OP_READ_AUTH_PAYLOAD_TIMEOUT     BT_OP(BT_OGF_BASEBAND, 0x007B) /* 0x0C7B */
 struct bt_hci_cp_read_auth_payload_timeout {
 	uint16_t handle;
 } __packed;
@@ -1037,7 +1050,7 @@ struct bt_hci_rp_read_auth_payload_timeout {
 	uint16_t auth_payload_timeout;
 } __packed;
 
-#define BT_HCI_OP_WRITE_AUTH_PAYLOAD_TIMEOUT    BT_OP(BT_OGF_BASEBAND, 0x007c) /* 0x0c7c */
+#define BT_HCI_OP_WRITE_AUTH_PAYLOAD_TIMEOUT    BT_OP(BT_OGF_BASEBAND, 0x007C) /* 0x0C7C */
 struct bt_hci_cp_write_auth_payload_timeout {
 	uint16_t handle;
 	uint16_t auth_payload_timeout;
@@ -1048,16 +1061,17 @@ struct bt_hci_rp_write_auth_payload_timeout {
 	uint16_t handle;
 } __packed;
 
-#define BT_HCI_OP_CONFIGURE_DATA_PATH           BT_OP(BT_OGF_BASEBAND, 0x0083) /* 0x0c83 */
+#define BT_HCI_OP_CONFIGURE_DATA_PATH           BT_OP(BT_OGF_BASEBAND, 0x0083) /* 0x0C83 */
+#define BT_HCI_CP_CONFIGURE_DATA_PATH_SZ        3
 struct bt_hci_cp_configure_data_path {
-	uint8_t  data_path_dir;
-	uint8_t  data_path_id;
-	uint8_t  vs_config_len;
-	uint8_t  vs_config[0];
+	uint8_t data_path_dir;
+	uint8_t data_path_id;
+	uint8_t vs_config_len;
+	uint8_t vs_config[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 struct bt_hci_rp_configure_data_path {
-	uint8_t  status;
+	uint8_t status;
 } __packed;
 
 /* HCI version from Assigned Numbers */
@@ -1147,7 +1161,7 @@ struct bt_hci_rp_read_bd_addr {
 /* audio datapath IDs */
 #define BT_HCI_DATAPATH_ID_HCI      0x00
 #define BT_HCI_DATAPATH_ID_VS       0x01
-#define BT_HCI_DATAPATH_ID_VS_END   0xfe
+#define BT_HCI_DATAPATH_ID_VS_END   0xFE
 
 /* coding format assigned numbers, used for codec IDs */
 #define BT_HCI_CODING_FORMAT_ULAW_LOG    0x00
@@ -1161,50 +1175,61 @@ struct bt_hci_rp_read_bd_addr {
 #define BT_HCI_CODING_FORMAT_VS          0xFF
 
 
-#define BT_HCI_OP_READ_CODECS                   BT_OP(BT_OGF_INFO, 0x000b) /* 0x100b */
+#define BT_HCI_OP_READ_CODECS                   BT_OP(BT_OGF_INFO, 0x000B) /* 0x100B */
 struct bt_hci_std_codec_info {
 	uint8_t codec_id;
 } __packed;
+
 struct bt_hci_std_codecs {
 	uint8_t num_codecs;
-	struct bt_hci_std_codec_info codec_info[0];
+	struct bt_hci_std_codec_info codec_info[BT_ZERO_LEN_ARRAY];
 } __packed;
+
 struct bt_hci_vs_codec_info {
 	uint16_t company_id;
 	uint16_t codec_id;
 } __packed;
+
 struct bt_hci_vs_codecs {
 	uint8_t num_codecs;
-	struct bt_hci_vs_codec_info codec_info[0];
+	struct bt_hci_vs_codec_info codec_info[BT_ZERO_LEN_ARRAY];
 } __packed;
+
 struct bt_hci_rp_read_codecs {
 	uint8_t status;
 	/* other fields filled in dynamically */
-	uint8_t codecs[0];
+	uint8_t codecs[BT_ZERO_LEN_ARRAY];
 } __packed;
 
-#define BT_HCI_OP_READ_CODECS_V2                BT_OP(BT_OGF_INFO, 0x000d) /* 0x100d */
+#define BT_HCI_OP_READ_CODECS_V2                BT_OP(BT_OGF_INFO, 0x000D) /* 0x100D */
 struct bt_hci_std_codec_info_v2 {
 	uint8_t codec_id;
 	uint8_t transports; /* bitmap */
 } __packed;
+
+#define BT_HCI_STD_CODECS_V2_SZ                 1
 struct bt_hci_std_codecs_v2 {
 	uint8_t num_codecs;
-	struct bt_hci_std_codec_info_v2 codec_info[0];
+	struct bt_hci_std_codec_info_v2 codec_info[BT_ZERO_LEN_ARRAY];
 } __packed;
+
 struct bt_hci_vs_codec_info_v2 {
 	uint16_t company_id;
 	uint16_t codec_id;
 	uint8_t transports; /* bitmap */
 } __packed;
+
+#define BT_HCI_VS_CODECS_V2_SZ                  1
 struct bt_hci_vs_codecs_v2 {
 	uint8_t num_codecs;
-	struct bt_hci_vs_codec_info_v2 codec_info[0];
+	struct bt_hci_vs_codec_info_v2 codec_info[BT_ZERO_LEN_ARRAY];
 } __packed;
+
+#define BT_HCI_RP_READ_CODESC_V2_SZ             1
 struct bt_hci_rp_read_codecs_v2 {
 	uint8_t status;
 	/* other fields filled in dynamically */
-	uint8_t codecs[0];
+	uint8_t codecs[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 struct bt_hci_cp_codec_id {
@@ -1213,31 +1238,35 @@ struct bt_hci_cp_codec_id {
 	uint16_t vs_codec_id;
 } __packed;
 
-#define BT_HCI_OP_READ_CODEC_CAPABILITIES       BT_OP(BT_OGF_INFO, 0x000e) /* 0x100e */
+#define BT_HCI_OP_READ_CODEC_CAPABILITIES       BT_OP(BT_OGF_INFO, 0x000E) /* 0x100E */
 struct bt_hci_cp_read_codec_capabilities {
 	struct bt_hci_cp_codec_id codec_id;
 	uint8_t transport;
 	uint8_t direction;
 } __packed;
+
 struct bt_hci_codec_capability_info {
 	uint8_t length;
-	uint8_t data[0];
+	uint8_t data[BT_ZERO_LEN_ARRAY];
 } __packed;
+
+#define BT_HCI_RP_READ_CODEC_CAPABILITIES_SZ    2
 struct bt_hci_rp_read_codec_capabilities {
 	uint8_t status;
 	uint8_t num_capabilities;
 	/* other fields filled in dynamically */
-	uint8_t capabilities[0];
+	uint8_t capabilities[BT_ZERO_LEN_ARRAY];
 } __packed;
 
-#define BT_HCI_OP_READ_CTLR_DELAY               BT_OP(BT_OGF_INFO, 0x000f) /* 0x100f */
+#define BT_HCI_OP_READ_CTLR_DELAY               BT_OP(BT_OGF_INFO, 0x000F) /* 0x100F */
 struct bt_hci_cp_read_ctlr_delay {
 	struct bt_hci_cp_codec_id codec_id;
 	uint8_t transport;
 	uint8_t direction;
 	uint8_t codec_config_len;
-	uint8_t codec_config[0];
+	uint8_t codec_config[BT_ZERO_LEN_ARRAY];
 } __packed;
+
 struct bt_hci_rp_read_ctlr_delay {
 	uint8_t status;
 	uint8_t min_ctlr_delay[3];
@@ -1248,6 +1277,7 @@ struct bt_hci_rp_read_ctlr_delay {
 struct bt_hci_cp_read_rssi {
 	uint16_t handle;
 } __packed;
+
 struct bt_hci_rp_read_rssi {
 	uint8_t  status;
 	uint16_t handle;
@@ -1347,13 +1377,13 @@ struct bt_hci_cp_le_set_scan_rsp_data {
 #define BT_HCI_LE_ADV_DISABLE                   0x00
 #define BT_HCI_LE_ADV_ENABLE                    0x01
 
-#define BT_HCI_OP_LE_SET_ADV_ENABLE             BT_OP(BT_OGF_LE, 0x000a) /* 0x200a */
+#define BT_HCI_OP_LE_SET_ADV_ENABLE             BT_OP(BT_OGF_LE, 0x000A) /* 0x200A */
 struct bt_hci_cp_le_set_adv_enable {
 	uint8_t  enable;
 } __packed;
 
 /* Scan types */
-#define BT_HCI_OP_LE_SET_SCAN_PARAM             BT_OP(BT_OGF_LE, 0x000b) /* 0x200b */
+#define BT_HCI_OP_LE_SET_SCAN_PARAM             BT_OP(BT_OGF_LE, 0x000B) /* 0x200B */
 #define BT_HCI_LE_SCAN_PASSIVE                  0x00
 #define BT_HCI_LE_SCAN_ACTIVE                   0x01
 
@@ -1370,7 +1400,7 @@ struct bt_hci_cp_le_set_scan_param {
 	uint8_t  filter_policy;
 } __packed;
 
-#define BT_HCI_OP_LE_SET_SCAN_ENABLE            BT_OP(BT_OGF_LE, 0x000c) /* 0x200c */
+#define BT_HCI_OP_LE_SET_SCAN_ENABLE            BT_OP(BT_OGF_LE, 0x000C) /* 0x200C */
 
 #define BT_HCI_LE_SCAN_DISABLE                  0x00
 #define BT_HCI_LE_SCAN_ENABLE                   0x01
@@ -1383,7 +1413,7 @@ struct bt_hci_cp_le_set_scan_enable {
 	uint8_t  filter_dup;
 } __packed;
 
-#define BT_HCI_OP_LE_CREATE_CONN                BT_OP(BT_OGF_LE, 0x000d) /* 0x200d */
+#define BT_HCI_OP_LE_CREATE_CONN                BT_OP(BT_OGF_LE, 0x000D) /* 0x200D */
 
 #define BT_HCI_LE_CREATE_CONN_FP_NO_FILTER      0x00
 #define BT_HCI_LE_CREATE_CONN_FP_FILTER         0x01
@@ -1402,9 +1432,9 @@ struct bt_hci_cp_le_create_conn {
 	uint16_t     max_ce_len;
 } __packed;
 
-#define BT_HCI_OP_LE_CREATE_CONN_CANCEL         BT_OP(BT_OGF_LE, 0x000e) /* 0x200e */
+#define BT_HCI_OP_LE_CREATE_CONN_CANCEL         BT_OP(BT_OGF_LE, 0x000E) /* 0x200E */
 
-#define BT_HCI_OP_LE_READ_FAL_SIZE               BT_OP(BT_OGF_LE, 0x000f) /* 0x200f */
+#define BT_HCI_OP_LE_READ_FAL_SIZE               BT_OP(BT_OGF_LE, 0x000F) /* 0x200F */
 struct bt_hci_rp_le_read_fal_size {
 	uint8_t  status;
 	uint8_t  fal_size;
@@ -1479,7 +1509,7 @@ struct bt_hci_cp_le_start_encryption {
 	uint8_t  ltk[16];
 } __packed;
 
-#define BT_HCI_OP_LE_LTK_REQ_REPLY              BT_OP(BT_OGF_LE, 0x001a) /* 0x201a */
+#define BT_HCI_OP_LE_LTK_REQ_REPLY              BT_OP(BT_OGF_LE, 0x001A) /* 0x201A */
 struct bt_hci_cp_le_ltk_req_reply {
 	uint16_t handle;
 	uint8_t  ltk[16];
@@ -1489,7 +1519,7 @@ struct bt_hci_rp_le_ltk_req_reply {
 	uint16_t handle;
 } __packed;
 
-#define BT_HCI_OP_LE_LTK_REQ_NEG_REPLY          BT_OP(BT_OGF_LE, 0x001b) /* 0x201b */
+#define BT_HCI_OP_LE_LTK_REQ_NEG_REPLY          BT_OP(BT_OGF_LE, 0x001B) /* 0x201B */
 struct bt_hci_cp_le_ltk_req_neg_reply {
 	uint16_t handle;
 } __packed;
@@ -1498,13 +1528,13 @@ struct bt_hci_rp_le_ltk_req_neg_reply {
 	uint16_t handle;
 } __packed;
 
-#define BT_HCI_OP_LE_READ_SUPP_STATES           BT_OP(BT_OGF_LE, 0x001c) /* 0x201c */
+#define BT_HCI_OP_LE_READ_SUPP_STATES           BT_OP(BT_OGF_LE, 0x001C) /* 0x201C */
 struct bt_hci_rp_le_read_supp_states {
 	uint8_t  status;
 	uint8_t  le_states[8];
 } __packed;
 
-#define BT_HCI_OP_LE_RX_TEST                    BT_OP(BT_OGF_LE, 0x001d) /* 0x201d */
+#define BT_HCI_OP_LE_RX_TEST                    BT_OP(BT_OGF_LE, 0x001D) /* 0x201D */
 struct bt_hci_cp_le_rx_test {
 	uint8_t  rx_ch;
 } __packed;
@@ -1518,14 +1548,14 @@ struct bt_hci_cp_le_rx_test {
 #define BT_HCI_TEST_PKT_PAYLOAD_00001111        0x06
 #define BT_HCI_TEST_PKT_PAYLOAD_01010101        0x07
 
-#define BT_HCI_OP_LE_TX_TEST                    BT_OP(BT_OGF_LE, 0x001e) /* 0x201e */
+#define BT_HCI_OP_LE_TX_TEST                    BT_OP(BT_OGF_LE, 0x001E) /* 0x201E */
 struct bt_hci_cp_le_tx_test {
 	uint8_t  tx_ch;
 	uint8_t  test_data_len;
 	uint8_t  pkt_payload;
 } __packed;
 
-#define BT_HCI_OP_LE_TEST_END                   BT_OP(BT_OGF_LE, 0x001f) /* 0x201f */
+#define BT_HCI_OP_LE_TEST_END                   BT_OP(BT_OGF_LE, 0x001F) /* 0x201F */
 struct bt_hci_rp_le_test_end {
 	uint8_t  status;
 	uint16_t rx_pkt_count;
@@ -1562,6 +1592,7 @@ struct bt_hci_cp_le_set_data_len {
 	uint16_t tx_octets;
 	uint16_t tx_time;
 } __packed;
+
 struct bt_hci_rp_le_set_data_len {
 	uint8_t  status;
 	uint16_t handle;
@@ -1588,7 +1619,7 @@ struct bt_hci_cp_le_generate_dhkey {
 } __packed;
 
 
-#define BT_HCI_OP_LE_GENERATE_DHKEY_V2          BT_OP(BT_OGF_LE, 0x005e) /* 0x205e */
+#define BT_HCI_OP_LE_GENERATE_DHKEY_V2          BT_OP(BT_OGF_LE, 0x005E) /* 0x205E */
 
 #define BT_HCI_LE_KEY_TYPE_GENERATED            0x00
 #define BT_HCI_LE_KEY_TYPE_DEBUG                0x01
@@ -1613,13 +1644,13 @@ struct bt_hci_cp_le_rem_dev_from_rl {
 
 #define BT_HCI_OP_LE_CLEAR_RL                   BT_OP(BT_OGF_LE, 0x0029) /* 0x2029 */
 
-#define BT_HCI_OP_LE_READ_RL_SIZE               BT_OP(BT_OGF_LE, 0x002a) /* 0x202a */
+#define BT_HCI_OP_LE_READ_RL_SIZE               BT_OP(BT_OGF_LE, 0x002A) /* 0x202A */
 struct bt_hci_rp_le_read_rl_size {
 	uint8_t  status;
 	uint8_t  rl_size;
 } __packed;
 
-#define BT_HCI_OP_LE_READ_PEER_RPA              BT_OP(BT_OGF_LE, 0x002b) /* 0x202b */
+#define BT_HCI_OP_LE_READ_PEER_RPA              BT_OP(BT_OGF_LE, 0x002B) /* 0x202B */
 struct bt_hci_cp_le_read_peer_rpa {
 	bt_addr_le_t  peer_id_addr;
 } __packed;
@@ -1628,7 +1659,7 @@ struct bt_hci_rp_le_read_peer_rpa {
 	bt_addr_t  peer_rpa;
 } __packed;
 
-#define BT_HCI_OP_LE_READ_LOCAL_RPA             BT_OP(BT_OGF_LE, 0x002c) /* 0x202c */
+#define BT_HCI_OP_LE_READ_LOCAL_RPA             BT_OP(BT_OGF_LE, 0x002C) /* 0x202C */
 struct bt_hci_cp_le_read_local_rpa {
 	bt_addr_le_t  peer_id_addr;
 } __packed;
@@ -1640,12 +1671,12 @@ struct bt_hci_rp_le_read_local_rpa {
 #define BT_HCI_ADDR_RES_DISABLE                 0x00
 #define BT_HCI_ADDR_RES_ENABLE                  0x01
 
-#define BT_HCI_OP_LE_SET_ADDR_RES_ENABLE        BT_OP(BT_OGF_LE, 0x002d) /* 0x202d */
+#define BT_HCI_OP_LE_SET_ADDR_RES_ENABLE        BT_OP(BT_OGF_LE, 0x002D) /* 0x202D */
 struct bt_hci_cp_le_set_addr_res_enable {
 	uint8_t  enable;
 } __packed;
 
-#define BT_HCI_OP_LE_SET_RPA_TIMEOUT            BT_OP(BT_OGF_LE, 0x002e) /* 0x202e */
+#define BT_HCI_OP_LE_SET_RPA_TIMEOUT            BT_OP(BT_OGF_LE, 0x002E) /* 0x202E */
 struct bt_hci_cp_le_set_rpa_timeout {
 	uint16_t rpa_timeout;
 } __packed;
@@ -1661,7 +1692,7 @@ struct bt_hci_cp_le_set_rpa_timeout {
 #define BT_HCI_LE_MAX_RX_TIME_MIN               0x0148
 #define BT_HCI_LE_MAX_RX_TIME_MAX               0x4290
 
-#define BT_HCI_OP_LE_READ_MAX_DATA_LEN          BT_OP(BT_OGF_LE, 0x002f) /* 0x202f */
+#define BT_HCI_OP_LE_READ_MAX_DATA_LEN          BT_OP(BT_OGF_LE, 0x002F) /* 0x202F */
 struct bt_hci_rp_le_read_max_data_len {
 	uint8_t  status;
 	uint16_t max_tx_octets;
@@ -1678,6 +1709,7 @@ struct bt_hci_rp_le_read_max_data_len {
 struct bt_hci_cp_le_read_phy {
 	uint16_t handle;
 } __packed;
+
 struct bt_hci_rp_le_read_phy {
 	uint8_t  status;
 	uint16_t handle;
@@ -1828,21 +1860,22 @@ struct bt_hci_cp_le_set_ext_adv_param_v2 {
 #define BT_HCI_LE_EXT_ADV_FRAG_MAX_LEN          251
 
 #define BT_HCI_OP_LE_SET_EXT_ADV_DATA           BT_OP(BT_OGF_LE, 0x0037) /* 0x2037 */
+#define BT_HCI_CP_LE_SET_EXT_ADV_DATA_SZ        4
 struct bt_hci_cp_le_set_ext_adv_data {
-	uint8_t  handle;
-	uint8_t  op;
-	uint8_t  frag_pref;
-	uint8_t  len;
-	uint8_t  data[0];
+	uint8_t handle;
+	uint8_t op;
+	uint8_t frag_pref;
+	uint8_t len;
+	uint8_t data[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_OP_LE_SET_EXT_SCAN_RSP_DATA      BT_OP(BT_OGF_LE, 0x0038) /* 0x2038 */
 struct bt_hci_cp_le_set_ext_scan_rsp_data {
-	uint8_t  handle;
-	uint8_t  op;
-	uint8_t  frag_pref;
-	uint8_t  len;
-	uint8_t  data[0];
+	uint8_t handle;
+	uint8_t op;
+	uint8_t frag_pref;
+	uint8_t len;
+	uint8_t data[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_OP_LE_SET_EXT_ADV_ENABLE         BT_OP(BT_OGF_LE, 0x0039) /* 0x2039 */
@@ -1855,32 +1888,32 @@ struct bt_hci_ext_adv_set {
 struct bt_hci_cp_le_set_ext_adv_enable {
 	uint8_t  enable;
 	uint8_t  set_num;
-	struct bt_hci_ext_adv_set s[0];
+	struct bt_hci_ext_adv_set s[BT_ZERO_LEN_ARRAY];
 } __packed;
 
-#define BT_HCI_OP_LE_READ_MAX_ADV_DATA_LEN      BT_OP(BT_OGF_LE, 0x003a) /* 0x203a */
+#define BT_HCI_OP_LE_READ_MAX_ADV_DATA_LEN      BT_OP(BT_OGF_LE, 0x003A) /* 0x203A */
 struct bt_hci_rp_le_read_max_adv_data_len {
 	uint8_t  status;
 	uint16_t max_adv_data_len;
 } __packed;
 
-#define BT_HCI_OP_LE_READ_NUM_ADV_SETS          BT_OP(BT_OGF_LE, 0x003b) /* 0x203b */
+#define BT_HCI_OP_LE_READ_NUM_ADV_SETS          BT_OP(BT_OGF_LE, 0x003B) /* 0x203B */
 struct bt_hci_rp_le_read_num_adv_sets {
 	uint8_t  status;
 	uint8_t  num_sets;
 } __packed;
 
-#define BT_HCI_OP_LE_REMOVE_ADV_SET             BT_OP(BT_OGF_LE, 0x003c) /* 0x203c */
+#define BT_HCI_OP_LE_REMOVE_ADV_SET             BT_OP(BT_OGF_LE, 0x003C) /* 0x203C */
 struct bt_hci_cp_le_remove_adv_set {
 	uint8_t  handle;
 } __packed;
 
-#define BT_HCI_OP_CLEAR_ADV_SETS                BT_OP(BT_OGF_LE, 0x003d) /* 0x203d */
+#define BT_HCI_OP_CLEAR_ADV_SETS                BT_OP(BT_OGF_LE, 0x003D) /* 0x203D */
 
 #define BT_HCI_LE_PER_ADV_INTERVAL_MIN          0x0006
 #define BT_HCI_LE_PER_ADV_INTERVAL_MAX          0xFFFF
 
-#define BT_HCI_OP_LE_SET_PER_ADV_PARAM          BT_OP(BT_OGF_LE, 0x003e) /* 0x203e */
+#define BT_HCI_OP_LE_SET_PER_ADV_PARAM          BT_OP(BT_OGF_LE, 0x003E) /* 0x203E */
 struct bt_hci_cp_le_set_per_adv_param {
 	uint8_t  handle;
 	uint16_t min_interval;
@@ -1895,12 +1928,13 @@ struct bt_hci_cp_le_set_per_adv_param {
 
 #define BT_HCI_LE_PER_ADV_FRAG_MAX_LEN          252
 
-#define BT_HCI_OP_LE_SET_PER_ADV_DATA           BT_OP(BT_OGF_LE, 0x003f) /* 0x203f */
+#define BT_HCI_OP_LE_SET_PER_ADV_DATA           BT_OP(BT_OGF_LE, 0x003F) /* 0x203F */
+#define BT_HCI_CP_LE_SET_PER_ADV_DATA_SZ        3
 struct bt_hci_cp_le_set_per_adv_data {
-	uint8_t  handle;
-	uint8_t  op;
-	uint8_t  len;
-	uint8_t  data[0];
+	uint8_t handle;
+	uint8_t op;
+	uint8_t len;
+	uint8_t data[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_LE_SET_PER_ADV_ENABLE_ENABLE     BIT(0)
@@ -1908,8 +1942,8 @@ struct bt_hci_cp_le_set_per_adv_data {
 
 #define BT_HCI_OP_LE_SET_PER_ADV_ENABLE         BT_OP(BT_OGF_LE, 0x0040) /* 0x2040 */
 struct bt_hci_cp_le_set_per_adv_enable {
-	uint8_t  enable;
-	uint8_t  handle;
+	uint8_t enable;
+	uint8_t handle;
 } __packed;
 
 #define BT_HCI_OP_LE_SET_EXT_SCAN_PARAM         BT_OP(BT_OGF_LE, 0x0041) /* 0x2041 */
@@ -1922,12 +1956,12 @@ struct bt_hci_ext_scan_phy {
 #define BT_HCI_LE_EXT_SCAN_PHY_1M               BIT(0)
 #define BT_HCI_LE_EXT_SCAN_PHY_2M               BIT(1)
 #define BT_HCI_LE_EXT_SCAN_PHY_CODED            BIT(2)
-
+#define BT_HCI_CP_LE_SET_EXT_SCAN_PARAM_SZ      3
 struct bt_hci_cp_le_set_ext_scan_param {
-	uint8_t  own_addr_type;
-	uint8_t  filter_policy;
-	uint8_t  phys;
-	struct bt_hci_ext_scan_phy p[0];
+	uint8_t own_addr_type;
+	uint8_t filter_policy;
+	uint8_t phys;
+	struct bt_hci_ext_scan_phy p[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 /* Extends BT_HCI_LE_SCAN_FILTER_DUP */
@@ -1954,41 +1988,46 @@ struct bt_hci_ext_conn_phy {
 	uint16_t max_ce_len;
 } __packed;
 
+#define BT_HCI_CP_LE_EXT_CREATE_CONN_SZ     10
 struct bt_hci_cp_le_ext_create_conn {
-	uint8_t      filter_policy;
-	uint8_t      own_addr_type;
+	uint8_t filter_policy;
+	uint8_t own_addr_type;
 	bt_addr_le_t peer_addr;
-	uint8_t      phys;
-	struct bt_hci_ext_conn_phy p[0];
+	uint8_t phys;
+	struct bt_hci_ext_conn_phy p[BT_ZERO_LEN_ARRAY];
 } __packed;
 
+#define BT_HCI_CP_LE_EXT_CREATE_CONN_V2_SZ  12
 struct bt_hci_cp_le_ext_create_conn_v2 {
-	uint8_t      adv_handle;
-	uint8_t      subevent;
-	uint8_t      filter_policy;
-	uint8_t      own_addr_type;
+	uint8_t adv_handle;
+	uint8_t subevent;
+	uint8_t filter_policy;
+	uint8_t own_addr_type;
 	bt_addr_le_t peer_addr;
-	uint8_t      phys;
-	struct bt_hci_ext_conn_phy p[0];
+	uint8_t phys;
+	struct bt_hci_ext_conn_phy p[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_OP_LE_SET_PER_ADV_SUBEVENT_DATA  BT_OP(BT_OGF_LE, 0x0082) /* 0x2082 */
+#define BT_HCI_CP_LE_SET_PAWR_SUBEVENT_DATA_ELEMENT_SZ  4
 struct bt_hci_cp_le_set_pawr_subevent_data_element {
 	uint8_t subevent;
 	uint8_t response_slot_start;
 	uint8_t response_slot_count;
 	uint8_t subevent_data_length;
-	uint8_t subevent_data[0];
+	uint8_t subevent_data[BT_ZERO_LEN_ARRAY];
 } __packed;
 
+#define BT_HCI_CP_LE_SET_PAWR_SUBEVENT_DATA_SZ      2
 struct bt_hci_cp_le_set_pawr_subevent_data {
 	uint8_t adv_handle;
 	uint8_t num_subevents;
-	struct bt_hci_cp_le_set_pawr_subevent_data_element subevents[0];
+	struct bt_hci_cp_le_set_pawr_subevent_data_element subevents[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 
 #define BT_HCI_OP_LE_SET_PER_ADV_RESPONSE_DATA  BT_OP(BT_OGF_LE, 0x0083) /* 0x2083 */
+#define BT_HCI_CP_LE_SET_PAWR_RESPONSE_DATA_SZ  8
 struct bt_hci_cp_le_set_pawr_response_data {
 	uint16_t sync_handle;
 	uint16_t request_event;
@@ -1996,15 +2035,16 @@ struct bt_hci_cp_le_set_pawr_response_data {
 	uint8_t  response_subevent;
 	uint8_t  response_slot;
 	uint8_t  response_data_length;
-	uint8_t  response_data[0];
+	uint8_t  response_data[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_OP_LE_SET_PER_ADV_SYNC_SUBEVENT  BT_OP(BT_OGF_LE, 0x0084) /* 0x2084 */
+#define BT_HCI_CP_LE_SET_PAWR_SYNC_SUBEVENT_SZ  5
 struct bt_hci_cp_le_set_pawr_sync_subevent {
 	uint16_t sync_handle;
 	uint16_t periodic_adv_properties;
 	uint8_t  num_subevents;
-	uint8_t  subevents[0];
+	uint8_t  subevents[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 
@@ -2040,11 +2080,11 @@ struct bt_hci_cp_le_set_per_adv_param_v2 {
 #define BT_HCI_OP_LE_PER_ADV_CREATE_SYNC        BT_OP(BT_OGF_LE, 0x0044) /* 0x2044 */
 struct bt_hci_cp_le_per_adv_create_sync {
 	uint8_t      options;
-	uint8_t      sid;
+	uint8_t sid;
 	bt_addr_le_t addr;
-	uint16_t     skip;
-	uint16_t     sync_timeout;
-	uint8_t      cte_type;
+	uint16_t skip;
+	uint16_t sync_timeout;
+	uint8_t  cte_type;
 } __packed;
 
 #define BT_HCI_OP_LE_PER_ADV_CREATE_SYNC_CANCEL BT_OP(BT_OGF_LE, 0x0045) /* 0x2045 */
@@ -2068,27 +2108,27 @@ struct bt_hci_cp_le_rem_dev_from_per_adv_list {
 
 #define BT_HCI_OP_LE_CLEAR_PER_ADV_LIST         BT_OP(BT_OGF_LE, 0x0049) /* 0x2049 */
 
-#define BT_HCI_OP_LE_READ_PER_ADV_LIST_SIZE     BT_OP(BT_OGF_LE, 0x004a) /* 0x204a */
+#define BT_HCI_OP_LE_READ_PER_ADV_LIST_SIZE     BT_OP(BT_OGF_LE, 0x004A) /* 0x204A */
 struct bt_hci_rp_le_read_per_adv_list_size {
 	uint8_t  status;
 	uint8_t  list_size;
 } __packed;
 
-#define BT_HCI_OP_LE_READ_TX_POWER              BT_OP(BT_OGF_LE, 0x004b) /* 0x204b */
+#define BT_HCI_OP_LE_READ_TX_POWER              BT_OP(BT_OGF_LE, 0x004B) /* 0x204B */
 struct bt_hci_rp_le_read_tx_power {
 	uint8_t status;
 	int8_t  min_tx_power;
 	int8_t  max_tx_power;
 } __packed;
 
-#define BT_HCI_OP_LE_READ_RF_PATH_COMP          BT_OP(BT_OGF_LE, 0x004c) /* 0x204c */
+#define BT_HCI_OP_LE_READ_RF_PATH_COMP          BT_OP(BT_OGF_LE, 0x004C) /* 0x204C */
 struct bt_hci_rp_le_read_rf_path_comp {
 	uint8_t status;
 	int16_t tx_path_comp;
 	int16_t rx_path_comp;
 } __packed;
 
-#define BT_HCI_OP_LE_WRITE_RF_PATH_COMP         BT_OP(BT_OGF_LE, 0x004d) /* 0x204d */
+#define BT_HCI_OP_LE_WRITE_RF_PATH_COMP         BT_OP(BT_OGF_LE, 0x004D) /* 0x204D */
 struct bt_hci_cp_le_write_rf_path_comp {
 	int16_t  tx_path_comp;
 	int16_t  rx_path_comp;
@@ -2097,7 +2137,7 @@ struct bt_hci_cp_le_write_rf_path_comp {
 #define BT_HCI_LE_PRIVACY_MODE_NETWORK          0x00
 #define BT_HCI_LE_PRIVACY_MODE_DEVICE           0x01
 
-#define BT_HCI_OP_LE_SET_PRIVACY_MODE           BT_OP(BT_OGF_LE, 0x004e) /* 0x204e */
+#define BT_HCI_OP_LE_SET_PRIVACY_MODE           BT_OP(BT_OGF_LE, 0x004E) /* 0x204E */
 struct bt_hci_cp_le_set_privacy_mode {
 	bt_addr_le_t id_addr;
 	uint8_t         mode;
@@ -2108,7 +2148,7 @@ struct bt_hci_cp_le_set_privacy_mode {
 #define BT_HCI_LE_TEST_SLOT_DURATION_ANY        0x00
 #define BT_HCI_LE_TEST_SWITCH_PATTERN_LEN_ANY   0x00
 
-#define BT_HCI_OP_LE_RX_TEST_V3                 BT_OP(BT_OGF_LE, 0x004f) /* 0x204f */
+#define BT_HCI_OP_LE_RX_TEST_V3                 BT_OP(BT_OGF_LE, 0x004F) /* 0x204F */
 struct bt_hci_cp_le_rx_test_v3 {
 	uint8_t  rx_ch;
 	uint8_t  phy;
@@ -2117,7 +2157,7 @@ struct bt_hci_cp_le_rx_test_v3 {
 	uint8_t  expected_cte_type;
 	uint8_t  slot_durations;
 	uint8_t  switch_pattern_len;
-	uint8_t  ant_ids[0];
+	uint8_t  ant_ids[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_OP_LE_TX_TEST_V3                 BT_OP(BT_OGF_LE, 0x0050) /* 0x2050 */
@@ -2130,7 +2170,7 @@ struct bt_hci_cp_le_tx_test_v3 {
 	uint8_t  cte_len;
 	uint8_t  cte_type;
 	uint8_t  switch_pattern_len;
-	uint8_t  ant_ids[0];
+	uint8_t  ant_ids[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 /* Min and max Constant Tone Extension length in 8us units */
@@ -2146,13 +2186,14 @@ struct bt_hci_cp_le_tx_test_v3 {
 #define BT_HCI_LE_CTE_COUNT_MAX                0x10
 
 #define BT_HCI_OP_LE_SET_CL_CTE_TX_PARAMS      BT_OP(BT_OGF_LE, 0x0051) /* 0x2051 */
+#define BT_HCI_CP_LE_SET_CL_CTE_TX_PARAMS_SZ   5
 struct bt_hci_cp_le_set_cl_cte_tx_params {
 	uint8_t handle;
 	uint8_t cte_len;
 	uint8_t cte_type;
 	uint8_t cte_count;
 	uint8_t switch_pattern_len;
-	uint8_t ant_ids[0];
+	uint8_t ant_ids[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_OP_LE_SET_CL_CTE_TX_ENABLE      BT_OP(BT_OGF_LE, 0x0052) /* 0x2052 */
@@ -2169,13 +2210,14 @@ struct bt_hci_cp_le_set_cl_cte_tx_enable {
 #define BT_HCI_LE_SAMPLE_CTE_COUNT_MAX         0x10
 
 #define BT_HCI_OP_LE_SET_CL_CTE_SAMPLING_ENABLE BT_OP(BT_OGF_LE, 0x0053) /* 0x2053 */
+#define BT_HCI_CP_LE_SET_CL_CTE_SAMPLING_ENABLE_SZ  6
 struct bt_hci_cp_le_set_cl_cte_sampling_enable {
 	uint16_t sync_handle;
 	uint8_t  sampling_enable;
 	uint8_t  slot_durations;
 	uint8_t  max_sampled_cte;
 	uint8_t  switch_pattern_len;
-	uint8_t  ant_ids[0];
+	uint8_t  ant_ids[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 struct bt_hci_rp_le_set_cl_cte_sampling_enable {
@@ -2184,12 +2226,13 @@ struct bt_hci_rp_le_set_cl_cte_sampling_enable {
 } __packed;
 
 #define BT_HCI_OP_LE_SET_CONN_CTE_RX_PARAMS BT_OP(BT_OGF_LE, 0x0054) /* 0x2054 */
+#define BT_HCI_CP_LE_SET_CONN_CTE_RX_PARAMS_SZ  5
 struct bt_hci_cp_le_set_conn_cte_rx_params {
 	uint16_t handle;
 	uint8_t  sampling_enable;
 	uint8_t  slot_durations;
 	uint8_t  switch_pattern_len;
-	uint8_t  ant_ids[0];
+	uint8_t  ant_ids[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 struct bt_hci_rp_le_set_conn_cte_rx_params {
@@ -2205,11 +2248,12 @@ struct bt_hci_rp_le_set_conn_cte_rx_params {
 #define BT_HCI_LE_SWITCH_PATTERN_LEN_MAX        0x4B
 
 #define BT_HCI_OP_LE_SET_CONN_CTE_TX_PARAMS     BT_OP(BT_OGF_LE, 0x0055) /* 0x2055 */
+#define BT_HCI_CP_LE_SET_CONN_CTE_TX_PARAMS_SZ  4
 struct bt_hci_cp_le_set_conn_cte_tx_params {
 	uint16_t handle;
 	uint8_t  cte_types;
 	uint8_t  switch_pattern_len;
-	uint8_t  ant_ids[0];
+	uint8_t  ant_ids[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 struct bt_hci_rp_le_set_conn_cte_tx_params {
@@ -2278,7 +2322,7 @@ struct bt_hci_cp_le_set_per_adv_recv_enable {
 	uint8_t  enable;
 } __packed;
 
-#define BT_HCI_OP_LE_PER_ADV_SYNC_TRANSFER      BT_OP(BT_OGF_LE, 0x005a) /* 0x205a */
+#define BT_HCI_OP_LE_PER_ADV_SYNC_TRANSFER      BT_OP(BT_OGF_LE, 0x005A) /* 0x205A */
 struct bt_hci_cp_le_per_adv_sync_transfer {
 	uint16_t conn_handle;
 	uint16_t service_data;
@@ -2290,7 +2334,7 @@ struct bt_hci_rp_le_per_adv_sync_transfer {
 	uint16_t conn_handle;
 } __packed;
 
-#define BT_HCI_OP_LE_PER_ADV_SET_INFO_TRANSFER  BT_OP(BT_OGF_LE, 0x005b) /* 0x205b */
+#define BT_HCI_OP_LE_PER_ADV_SET_INFO_TRANSFER  BT_OP(BT_OGF_LE, 0x005B) /* 0x205B */
 struct bt_hci_cp_le_per_adv_set_info_transfer {
 	uint16_t conn_handle;
 	uint16_t service_data;
@@ -2313,7 +2357,7 @@ struct bt_hci_rp_le_per_adv_set_info_transfer {
 #define BT_HCI_LE_PAST_CTE_TYPE_NO_CTE           BIT(3)
 #define BT_HCI_LE_PAST_CTE_TYPE_ONLY_CTE         BIT(4)
 
-#define BT_HCI_OP_LE_PAST_PARAM                 BT_OP(BT_OGF_LE, 0x005c) /* 0x205c */
+#define BT_HCI_OP_LE_PAST_PARAM                 BT_OP(BT_OGF_LE, 0x005C) /* 0x205C */
 struct bt_hci_cp_le_past_param {
 	uint16_t conn_handle;
 	uint8_t  mode;
@@ -2327,7 +2371,7 @@ struct bt_hci_rp_le_past_param {
 	uint16_t conn_handle;
 } __packed;
 
-#define BT_HCI_OP_LE_DEFAULT_PAST_PARAM         BT_OP(BT_OGF_LE, 0x005d) /* 0x205d */
+#define BT_HCI_OP_LE_DEFAULT_PAST_PARAM         BT_OP(BT_OGF_LE, 0x005D) /* 0x205D */
 struct bt_hci_cp_le_default_past_param {
 	uint8_t  mode;
 	uint16_t skip;
@@ -2387,6 +2431,7 @@ struct bt_hci_cis_params {
 	uint8_t  p_rtn;
 } __packed;
 
+#define BT_HCI_CP_LE_SET_CIG_PARAMS_SZ      15
 struct bt_hci_cp_le_set_cig_params {
 	uint8_t  cig_id;
 	uint8_t  c_interval[3];
@@ -2397,14 +2442,15 @@ struct bt_hci_cp_le_set_cig_params {
 	uint16_t c_latency;
 	uint16_t p_latency;
 	uint8_t  num_cis;
-	struct bt_hci_cis_params cis[0];
+	struct bt_hci_cis_params cis[BT_ZERO_LEN_ARRAY];
 } __packed;
 
+#define BT_HCI_RP_LE_SET_CIG_PARAMS_SZ      3
 struct bt_hci_rp_le_set_cig_params {
 	uint8_t  status;
 	uint8_t  cig_id;
 	uint8_t  num_handles;
-	uint16_t handle[0];
+	uint16_t handle[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_OP_LE_SET_CIG_PARAMS_TEST        BT_OP(BT_OGF_LE, 0x0063) /* 0x2063 */
@@ -2421,6 +2467,7 @@ struct bt_hci_cis_params_test {
 	uint8_t  p_bn;
 } __packed;
 
+#define BT_HCI_CP_LE_SET_CIG_PARAMS_TEST_SZ     15
 struct bt_hci_cp_le_set_cig_params_test {
 	uint8_t  cig_id;
 	uint8_t  c_interval[3];
@@ -2432,14 +2479,15 @@ struct bt_hci_cp_le_set_cig_params_test {
 	uint8_t  packing;
 	uint8_t  framing;
 	uint8_t  num_cis;
-	struct bt_hci_cis_params_test cis[0];
+	struct bt_hci_cis_params_test cis[BT_ZERO_LEN_ARRAY];
 } __packed;
 
+#define BT_HCI_RP_LE_SET_CIG_PARAMS_TEST_SZ     3
 struct bt_hci_rp_le_set_cig_params_test {
 	uint8_t  status;
 	uint8_t  cig_id;
 	uint8_t  num_handles;
-	uint16_t handle[0];
+	uint16_t handle[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_OP_LE_CREATE_CIS                 BT_OP(BT_OGF_LE, 0x0064) /* 0x2064 */
@@ -2448,9 +2496,10 @@ struct bt_hci_cis {
 	uint16_t  acl_handle;
 } __packed;
 
+#define BT_HCI_CP_LE_CREATE_CIS_SZ              1
 struct bt_hci_cp_le_create_cis {
 	uint8_t  num_cis;
-	struct bt_hci_cis cis[0];
+	struct bt_hci_cis cis[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_OP_LE_REMOVE_CIG                 BT_OP(BT_OGF_LE, 0x0065) /* 0x2065 */
@@ -2515,13 +2564,14 @@ struct bt_hci_cp_le_create_big_test {
 	uint8_t  bcode[16];
 } __packed;
 
-#define BT_HCI_OP_LE_TERMINATE_BIG              BT_OP(BT_OGF_LE, 0x006a) /* 0x206a */
+#define BT_HCI_OP_LE_TERMINATE_BIG              BT_OP(BT_OGF_LE, 0x006A) /* 0x206A */
 struct bt_hci_cp_le_terminate_big {
 	uint8_t  big_handle;
 	uint8_t  reason;
 } __packed;
 
-#define BT_HCI_OP_LE_BIG_CREATE_SYNC            BT_OP(BT_OGF_LE, 0x006b) /* 0x206b */
+#define BT_HCI_OP_LE_BIG_CREATE_SYNC            BT_OP(BT_OGF_LE, 0x006B) /* 0x206B */
+#define BT_HCI_CP_LE_BIG_CREATE_SYNC_SZ         24
 struct bt_hci_cp_le_big_create_sync {
 	uint8_t  big_handle;
 	uint16_t sync_handle;
@@ -2530,10 +2580,10 @@ struct bt_hci_cp_le_big_create_sync {
 	uint8_t  mse;
 	uint16_t sync_timeout;
 	uint8_t  num_bis;
-	uint8_t  bis[0];
+	uint8_t  bis[BT_ZERO_LEN_ARRAY];
 } __packed;
 
-#define BT_HCI_OP_LE_BIG_TERMINATE_SYNC         BT_OP(BT_OGF_LE, 0x006c) /* 0x206c */
+#define BT_HCI_OP_LE_BIG_TERMINATE_SYNC         BT_OP(BT_OGF_LE, 0x006C) /* 0x206C */
 struct bt_hci_cp_le_big_terminate_sync {
 	uint8_t  big_handle;
 } __packed;
@@ -2543,12 +2593,13 @@ struct bt_hci_rp_le_big_terminate_sync {
 	uint8_t  big_handle;
 } __packed;
 
-#define BT_HCI_OP_LE_REQ_PEER_SC                BT_OP(BT_OGF_LE, 0x006d) /* 0x206d */
+#define BT_HCI_OP_LE_REQ_PEER_SC                BT_OP(BT_OGF_LE, 0x006D) /* 0x206D */
 struct bt_hci_cp_le_req_peer_sca {
 	uint16_t handle;
 } __packed;
 
-#define BT_HCI_OP_LE_SETUP_ISO_PATH             BT_OP(BT_OGF_LE, 0x006e) /* 0x206e */
+#define BT_HCI_OP_LE_SETUP_ISO_PATH             BT_OP(BT_OGF_LE, 0x006E) /* 0x206E */
+#define BT_HCI_CP_LE_SETUP_ISO_PATH_SZ          13
 struct bt_hci_cp_le_setup_iso_path {
 	uint16_t handle;
 	uint8_t  path_dir;
@@ -2556,7 +2607,7 @@ struct bt_hci_cp_le_setup_iso_path {
 	struct bt_hci_cp_codec_id codec_id;
 	uint8_t  controller_delay[3];
 	uint8_t  codec_config_len;
-	uint8_t  codec_config[0];
+	uint8_t  codec_config[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 struct bt_hci_rp_le_setup_iso_path {
@@ -2564,7 +2615,7 @@ struct bt_hci_rp_le_setup_iso_path {
 	uint16_t handle;
 } __packed;
 
-#define BT_HCI_OP_LE_REMOVE_ISO_PATH            BT_OP(BT_OGF_LE, 0x006f) /* 0x206f */
+#define BT_HCI_OP_LE_REMOVE_ISO_PATH            BT_OP(BT_OGF_LE, 0x006F) /* 0x206F */
 struct bt_hci_cp_le_remove_iso_path {
 	uint16_t handle;
 	uint8_t  path_dir;
@@ -2654,17 +2705,17 @@ struct bt_hci_rp_le_read_iso_link_quality {
 	uint32_t duplicate_packets;
 } __packed;
 
-#define BT_HCI_OP_LE_TX_TEST_V4                 BT_OP(BT_OGF_LE, 0x007B) /* 0x207B */
-
+#define BT_HCI_OP_LE_TX_TEST_V4             BT_OP(BT_OGF_LE, 0x007B) /* 0x207B */
+#define BT_HCI_CP_LE_TX_TEST_V4_SZ          7
 struct bt_hci_cp_le_tx_test_v4 {
-	uint8_t  tx_ch;
-	uint8_t  test_data_len;
-	uint8_t  pkt_payload;
-	uint8_t  phy;
-	uint8_t  cte_len;
-	uint8_t  cte_type;
-	uint8_t  switch_pattern_len;
-	uint8_t  ant_ids[0];
+	uint8_t tx_ch;
+	uint8_t test_data_len;
+	uint8_t pkt_payload;
+	uint8_t phy;
+	uint8_t cte_len;
+	uint8_t cte_type;
+	uint8_t switch_pattern_len;
+	uint8_t ant_ids[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_OP_LE_READ_ALL_LOCAL_SUPPORTED_FEATURES BT_OP(BT_OGF_LE, 0x0087) /* 0x2087 */
@@ -3080,7 +3131,7 @@ struct bt_hci_op_le_cs_test {
 	uint8_t  channel_map_repetition;
 	uint16_t override_config;
 	uint8_t  override_parameters_length;
-	uint8_t  override_parameters_data[];
+	uint8_t  override_parameters_data[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_OP_LE_CS_CREATE_CONFIG BT_OP(BT_OGF_LE, 0x0090) /* 0x2090 */
@@ -3165,7 +3216,7 @@ struct bt_hci_op_le_read_min_supported_conn_interval {
 	uint8_t status;
 	uint8_t min_supported_conn_interval;
 	uint8_t num_groups;
-	struct bt_hci_le_read_min_supported_conn_interval_group groups[];
+	struct bt_hci_le_read_min_supported_conn_interval_group groups[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_OP_LE_READ_MIN_SUPPORTED_CONN_INTERVAL                                    \
@@ -3203,7 +3254,7 @@ struct bt_hci_op_le_connection_rate_request {
 /* Event definitions */
 
 #define BT_HCI_EVT_UNKNOWN                      0x00
-#define BT_HCI_EVT_VENDOR                       0xff
+#define BT_HCI_EVT_VENDOR                       0xFF
 
 #define BT_HCI_EVT_INQUIRY_COMPLETE             0x01
 struct bt_hci_evt_inquiry_complete {
@@ -3266,7 +3317,7 @@ struct bt_hci_evt_remote_features {
 	uint8_t  features[8];
 } __packed;
 
-#define BT_HCI_EVT_REMOTE_VERSION_INFO          0x0c
+#define BT_HCI_EVT_REMOTE_VERSION_INFO          0x0C
 struct bt_hci_evt_remote_version_info {
 	uint8_t  status;
 	uint16_t handle;
@@ -3275,7 +3326,7 @@ struct bt_hci_evt_remote_version_info {
 	uint16_t subversion;
 } __packed;
 
-#define BT_HCI_EVT_CMD_COMPLETE                 0x0e
+#define BT_HCI_EVT_CMD_COMPLETE                 0x0E
 struct bt_hci_evt_cmd_complete {
 	uint8_t  ncmd;
 	uint16_t opcode;
@@ -3285,7 +3336,7 @@ struct bt_hci_evt_cc_status {
 	uint8_t  status;
 } __packed;
 
-#define BT_HCI_EVT_CMD_STATUS                   0x0f
+#define BT_HCI_EVT_CMD_STATUS                   0x0F
 struct bt_hci_evt_cmd_status {
 	uint8_t  status;
 	uint8_t  ncmd;
@@ -3305,9 +3356,10 @@ struct bt_hci_evt_role_change {
 } __packed;
 
 #define BT_HCI_EVT_NUM_COMPLETED_PACKETS        0x13
+#define BT_HCI_EVT_NUM_COMPLETED_PACKETS_SZ     1
 struct bt_hci_evt_num_completed_packets {
-	uint8_t  num_handles;
-	struct bt_hci_handle_count h[0];
+	uint8_t num_handles;
+	struct bt_hci_handle_count h[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 /* Current mode */
@@ -3356,7 +3408,7 @@ struct bt_hci_evt_link_key_notify {
 #define BT_OVERFLOW_LINK_ACL                    0x01
 #define BT_OVERFLOW_LINK_ISO                    0x02
 
-#define BT_HCI_EVT_DATA_BUF_OVERFLOW            0x1a
+#define BT_HCI_EVT_DATA_BUF_OVERFLOW            0x1A
 struct bt_hci_evt_data_buf_overflow {
 	uint8_t  link_type;
 } __packed;
@@ -3407,7 +3459,8 @@ struct bt_hci_evt_le_per_adv_sync_established_v2 {
 	uint8_t      response_slot_spacing;
 } __packed;
 
-#define BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_V2 0x25
+#define BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_V2     0x25
+#define BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_V2_SZ  10
 struct bt_hci_evt_le_per_advertising_report_v2 {
 	uint16_t handle;
 	int8_t   tx_power;
@@ -3417,7 +3470,7 @@ struct bt_hci_evt_le_per_advertising_report_v2 {
 	uint8_t  subevent;
 	uint8_t  data_status;
 	uint8_t  length;
-	uint8_t  data[0];
+	uint8_t  data[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_EVT_LE_PAST_RECEIVED_V2 0x26
@@ -3444,8 +3497,8 @@ struct bt_hci_evt_le_per_adv_subevent_data_request {
 	uint8_t subevent_data_count;
 } __packed;
 
-#define BT_HCI_EVT_LE_PER_ADV_RESPONSE_REPORT 0x28
-
+#define BT_HCI_EVT_LE_PER_ADV_RESPONSE_REPORT   0x28
+#define BT_HCI_EVT_LE_PER_ADV_RESPONSE_SZ       6
 struct bt_hci_evt_le_per_adv_response {
 	int8_t  tx_power;
 	int8_t  rssi;
@@ -3453,15 +3506,16 @@ struct bt_hci_evt_le_per_adv_response {
 	uint8_t response_slot;
 	uint8_t data_status;
 	uint8_t data_length;
-	uint8_t data[0];
+	uint8_t data[BT_ZERO_LEN_ARRAY];
 } __packed;
 
+#define BT_HCI_EVT_LE_PER_ADV_RESPONSE_REPORT_SZ    4
 struct bt_hci_evt_le_per_adv_response_report {
 	uint8_t adv_handle;
 	uint8_t subevent;
 	uint8_t tx_status;
 	uint8_t num_responses;
-	struct bt_hci_evt_le_per_adv_response responses[0];
+	struct bt_hci_evt_le_per_adv_response responses[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_EVT_LE_ENH_CONN_COMPLETE_V2 0x29
@@ -3480,7 +3534,7 @@ struct bt_hci_evt_le_enh_conn_complete_v2 {
 	uint16_t     sync_handle;
 } __packed;
 
-#define BT_HCI_EVT_SYNC_CONN_COMPLETE           0x2c
+#define BT_HCI_EVT_SYNC_CONN_COMPLETE           0x2C
 struct bt_hci_evt_sync_conn_complete {
 	uint8_t    status;
 	uint16_t   handle;
@@ -3493,7 +3547,7 @@ struct bt_hci_evt_sync_conn_complete {
 	uint8_t    air_mode;
 } __packed;
 
-#define BT_HCI_EVT_EXTENDED_INQUIRY_RESULT      0x2f
+#define BT_HCI_EVT_EXTENDED_INQUIRY_RESULT      0x2F
 struct bt_hci_evt_extended_inquiry_result {
 	uint8_t    num_reports;
 	bt_addr_t  addr;
@@ -3541,16 +3595,17 @@ struct bt_hci_evt_ssp_complete {
 	bt_addr_t bdaddr;
 } __packed;
 
-#define BT_HCI_EVT_USER_PASSKEY_NOTIFY          0x3b
+#define BT_HCI_EVT_USER_PASSKEY_NOTIFY          0x3B
 struct bt_hci_evt_user_passkey_notify {
 	bt_addr_t bdaddr;
 	uint32_t  passkey;
 } __packed;
 
-#define BT_HCI_EVT_LE_META_EVENT                0x3e
+#define BT_HCI_EVT_LE_META_EVENT                0x3E
+#define BT_HCI_EVT_LE_META_EVENT_SZ             1
 struct bt_hci_evt_le_meta_event {
-	uint8_t  subevent;
-	uint8_t  data[];
+	uint8_t subevent;
+	uint8_t data[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_EVT_AUTH_PAYLOAD_TIMEOUT_EXP     0x57
@@ -3576,26 +3631,29 @@ struct bt_hci_evt_le_conn_complete {
 #define BT_HCI_LE_RSSI_NOT_AVAILABLE            0x7F
 
 #define BT_HCI_EVT_LE_ADVERTISING_REPORT        0x02
+#define BT_HCI_EVT_LE_ADVERTISING_INFO_SZ       9
 struct bt_hci_evt_le_advertising_info {
-	uint8_t      evt_type;
+	uint8_t evt_type;
 	bt_addr_le_t addr;
-	uint8_t      length;
-	uint8_t      data[0];
+	uint8_t length;
+	uint8_t data[BT_ZERO_LEN_ARRAY];
 } __packed;
+
+#define BT_HCI_EVT_LE_ADVERTISING_REPORT_SZ     1
 struct bt_hci_evt_le_advertising_report {
 	uint8_t num_reports;
-	struct bt_hci_evt_le_advertising_info adv_info[0];
+	struct bt_hci_evt_le_advertising_info adv_info[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 /** All limits according to BT Core Spec v5.4 [Vol 4, Part E]. */
 #define BT_HCI_LE_INTERVAL_MIN            0x0006
-#define BT_HCI_LE_INTERVAL_MAX            0x0c80
+#define BT_HCI_LE_INTERVAL_MAX            0x0C80
 #define BT_HCI_LE_PERIPHERAL_LATENCY_MIN (0x0000U)
-#define BT_HCI_LE_PERIPHERAL_LATENCY_MAX  0x01f3
+#define BT_HCI_LE_PERIPHERAL_LATENCY_MAX  0x01F3
 /** Minimum LE supervision timeout (10 ms) */
-#define BT_HCI_LE_SUPERVISION_TIMEOUT_MIN 0x000a
+#define BT_HCI_LE_SUPERVISION_TIMEOUT_MIN 0x000A
 /** Maximum LE supervision timeout (3200 ms) */
-#define BT_HCI_LE_SUPERVISION_TIMEOUT_MAX 0x0c80
+#define BT_HCI_LE_SUPERVISION_TIMEOUT_MAX 0x0C80
 /* Deprecated misspelled aliases: use BT_HCI_LE_SUPERVISION_TIMEOUT_{MIN,MAX} instead. */
 #define BT_HCI_LE_SUPERVISON_TIMEOUT_MIN BT_HCI_LE_SUPERVISION_TIMEOUT_MIN __DEPRECATED_MACRO
 #define BT_HCI_LE_SUPERVISON_TIMEOUT_MAX BT_HCI_LE_SUPERVISION_TIMEOUT_MAX __DEPRECATED_MACRO
@@ -3657,7 +3715,7 @@ struct bt_hci_evt_le_generate_dhkey_complete {
 	uint8_t dhkey[32];
 } __packed;
 
-#define BT_HCI_EVT_LE_ENH_CONN_COMPLETE         0x0a
+#define BT_HCI_EVT_LE_ENH_CONN_COMPLETE         0x0A
 struct bt_hci_evt_le_enh_conn_complete {
 	uint8_t      status;
 	uint16_t     handle;
@@ -3671,19 +3729,21 @@ struct bt_hci_evt_le_enh_conn_complete {
 	uint8_t      clock_accuracy;
 } __packed;
 
-#define BT_HCI_EVT_LE_DIRECT_ADV_REPORT         0x0b
+#define BT_HCI_EVT_LE_DIRECT_ADV_REPORT         0x0B
 struct bt_hci_evt_le_direct_adv_info {
 	uint8_t      evt_type;
 	bt_addr_le_t addr;
 	bt_addr_le_t dir_addr;
 	int8_t       rssi;
 } __packed;
+
+#define BT_HCI_EVT_LE_DIRECT_ADV_REPORT_SZ      1
 struct bt_hci_evt_le_direct_adv_report {
 	uint8_t num_reports;
-	struct bt_hci_evt_le_direct_adv_info direct_adv_info[0];
+	struct bt_hci_evt_le_direct_adv_info direct_adv_info[BT_ZERO_LEN_ARRAY];
 } __packed;
 
-#define BT_HCI_EVT_LE_PHY_UPDATE_COMPLETE       0x0c
+#define BT_HCI_EVT_LE_PHY_UPDATE_COMPLETE       0x0C
 struct bt_hci_evt_le_phy_update_complete {
 	uint8_t  status;
 	uint16_t handle;
@@ -3691,7 +3751,7 @@ struct bt_hci_evt_le_phy_update_complete {
 	uint8_t  rx_phy;
 } __packed;
 
-#define BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT    0x0d
+#define BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT    0x0D
 
 #define BT_HCI_LE_ADV_EVT_TYPE_CONN                 BIT(0)
 #define BT_HCI_LE_ADV_EVT_TYPE_SCAN                 BIT(1)
@@ -3713,6 +3773,7 @@ struct bt_hci_evt_le_phy_update_complete {
 #define BT_HCI_LE_ADV_EVT_PHY_CODED_S8          0x03
 #define BT_HCI_LE_ADV_EVT_PHY_CODED_S2          0x04
 
+#define BT_HCI_EVT_LE_EXT_ADVERTISING_INFO_SZ       24
 struct bt_hci_evt_le_ext_advertising_info {
 	uint16_t     evt_type;
 	bt_addr_le_t addr;
@@ -3724,17 +3785,18 @@ struct bt_hci_evt_le_ext_advertising_info {
 	uint16_t     interval;
 	bt_addr_le_t direct_addr;
 	uint8_t      length;
-	uint8_t      data[0];
+	uint8_t      data[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 /** Maximum number of reports in an LE Extended Advertising Report. */
-#define BT_HCI_LE_EXT_ADV_REPORT_MAX_NUM_REPORTS 0x0a
+#define BT_HCI_LE_EXT_ADV_REPORT_MAX_NUM_REPORTS 0x0A
+#define BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT_SZ  1
 struct bt_hci_evt_le_ext_advertising_report {
 	uint8_t num_reports;
-	struct bt_hci_evt_le_ext_advertising_info adv_info[0];
+	struct bt_hci_evt_le_ext_advertising_info adv_info[BT_ZERO_LEN_ARRAY];
 } __packed;
 
-#define BT_HCI_EVT_LE_PER_ADV_SYNC_ESTABLISHED  0x0e
+#define BT_HCI_EVT_LE_PER_ADV_SYNC_ESTABLISHED  0x0E
 struct bt_hci_evt_le_per_adv_sync_established {
 	uint8_t      status;
 	uint16_t     handle;
@@ -3745,7 +3807,8 @@ struct bt_hci_evt_le_per_adv_sync_established {
 	uint8_t      clock_accuracy;
 } __packed;
 
-#define BT_HCI_EVT_LE_PER_ADVERTISING_REPORT    0x0f
+#define BT_HCI_EVT_LE_PER_ADVERTISING_REPORT    0x0F
+#define BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_SZ 7
 struct bt_hci_evt_le_per_advertising_report {
 	uint16_t handle;
 	int8_t   tx_power;
@@ -3753,7 +3816,7 @@ struct bt_hci_evt_le_per_advertising_report {
 	uint8_t  cte_type;
 	uint8_t  data_status;
 	uint8_t  length;
-	uint8_t  data[0];
+	uint8_t  data[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_EVT_LE_PER_ADV_SYNC_LOST         0x10
@@ -3802,6 +3865,7 @@ struct bt_hci_le_iq_sample {
 	int8_t q;
 };
 
+#define BT_HCI_EVT_LE_CONNECTIONLESS_IQ_REPORT_SZ   12
 struct bt_hci_evt_le_connectionless_iq_report {
 	uint16_t sync_handle;
 	uint8_t  chan_idx;
@@ -3812,10 +3876,11 @@ struct bt_hci_evt_le_connectionless_iq_report {
 	uint8_t  packet_status;
 	uint16_t per_evt_counter;
 	uint8_t  sample_count;
-	struct bt_hci_le_iq_sample sample[0];
+	struct bt_hci_le_iq_sample sample[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_EVT_LE_CONNECTION_IQ_REPORT      0x16
+#define BT_HCI_EVT_LE_CONNECTION_IQ_REPORT_SZ   13
 struct bt_hci_evt_le_connection_iq_report {
 	uint16_t conn_handle;
 	uint8_t  rx_phy;
@@ -3827,7 +3892,7 @@ struct bt_hci_evt_le_connection_iq_report {
 	uint8_t  packet_status;
 	uint16_t conn_evt_counter;
 	uint8_t  sample_count;
-	struct bt_hci_le_iq_sample sample[0];
+	struct bt_hci_le_iq_sample sample[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_CTE_REQ_STATUS_RSP_WITHOUT_CTE  0x0
@@ -3843,7 +3908,7 @@ struct bt_hci_evt_le_cte_req_failed {
 	uint16_t conn_handle;
 } __packed;
 
-#define BT_HCI_EVT_LE_PAST_RECEIVED                0x18
+#define BT_HCI_EVT_LE_PAST_RECEIVED            0x18
 struct bt_hci_evt_le_past_received {
 	uint8_t      status;
 	uint16_t     conn_handle;
@@ -3897,7 +3962,7 @@ struct bt_hci_evt_le_cis_established {
 	uint16_t interval;
 } __packed;
 
-#define BT_HCI_EVT_LE_CIS_REQ                   0x1a
+#define BT_HCI_EVT_LE_CIS_REQ                   0x1A
 struct bt_hci_evt_le_cis_req {
 	uint16_t acl_handle;
 	uint16_t cis_handle;
@@ -3912,7 +3977,8 @@ struct bt_hci_evt_le_cis_req {
 #define BT_HCI_LE_TRANSPORT_LATENCY_BIG_MIN 0x000030U
 #define BT_HCI_LE_TRANSPORT_LATENCY_BIG_MAX 0x7FFFFFU
 
-#define BT_HCI_EVT_LE_BIG_COMPLETE              0x1b
+#define BT_HCI_EVT_LE_BIG_COMPLETE              0x1B
+#define BT_HCI_EVT_LE_BIG_COMPLETE_SZ           18
 struct bt_hci_evt_le_big_complete {
 	uint8_t  status;
 	uint8_t  big_handle;
@@ -3926,16 +3992,17 @@ struct bt_hci_evt_le_big_complete {
 	uint16_t max_pdu;
 	uint16_t iso_interval;
 	uint8_t  num_bis;
-	uint16_t handle[0];
+	uint16_t handle[BT_ZERO_LEN_ARRAY];
 } __packed;
 
-#define BT_HCI_EVT_LE_BIG_TERMINATE             0x1c
+#define BT_HCI_EVT_LE_BIG_TERMINATE             0x1C
 struct bt_hci_evt_le_big_terminate {
 	uint8_t  big_handle;
 	uint8_t  reason;
 } __packed;
 
-#define BT_HCI_EVT_LE_BIG_SYNC_ESTABLISHED      0x1d
+#define BT_HCI_EVT_LE_BIG_SYNC_ESTABLISHED      0x1D
+#define BT_HCI_EVT_LE_BIG_SYNC_ESTABLISHED_SZ   14
 struct bt_hci_evt_le_big_sync_established {
 	uint8_t  status;
 	uint8_t  big_handle;
@@ -3947,16 +4014,16 @@ struct bt_hci_evt_le_big_sync_established {
 	uint16_t max_pdu;
 	uint16_t iso_interval;
 	uint8_t  num_bis;
-	uint16_t handle[0];
+	uint16_t handle[BT_ZERO_LEN_ARRAY];
 } __packed;
 
-#define BT_HCI_EVT_LE_BIG_SYNC_LOST             0x1e
+#define BT_HCI_EVT_LE_BIG_SYNC_LOST             0x1E
 struct bt_hci_evt_le_big_sync_lost {
 	uint8_t  big_handle;
 	uint8_t  reason;
 } __packed;
 
-#define BT_HCI_EVT_LE_REQ_PEER_SCA_COMPLETE     0x1f
+#define BT_HCI_EVT_LE_REQ_PEER_SCA_COMPLETE     0x1F
 struct bt_hci_evt_le_req_peer_sca_complete {
 	uint8_t  status;
 	uint16_t handle;
@@ -3968,7 +4035,7 @@ struct bt_hci_evt_le_req_peer_sca_complete {
 #define	BT_HCI_LE_ZONE_ENTERED_HIGH     0x2
 #define	BT_HCI_LE_PATH_LOSS_UNAVAILABLE 0xFF
 
-#define BT_HCI_EVT_LE_PATH_LOSS_THRESHOLD                   0x20
+#define BT_HCI_EVT_LE_PATH_LOSS_THRESHOLD       0x20
 struct bt_hci_evt_le_path_loss_threshold {
 	uint16_t handle;
 	uint8_t  current_path_loss;
@@ -4014,9 +4081,9 @@ struct bt_hci_evt_le_biginfo_adv_report {
 
 /** All limits according to BT Core Spec v5.4 [Vol 4, Part E]. */
 #define BT_HCI_LE_SUBRATE_FACTOR_MIN   0x0001
-#define BT_HCI_LE_SUBRATE_FACTOR_MAX   0x01f4
+#define BT_HCI_LE_SUBRATE_FACTOR_MAX   0x01F4
 #define BT_HCI_LE_CONTINUATION_NUM_MIN (0x0000U)
-#define BT_HCI_LE_CONTINUATION_NUM_MAX 0x01f3
+#define BT_HCI_LE_CONTINUATION_NUM_MAX 0x01F3
 
 #define BT_HCI_EVT_LE_SUBRATE_CHANGE            0x23
 struct bt_hci_evt_le_subrate_change {
@@ -4028,7 +4095,7 @@ struct bt_hci_evt_le_subrate_change {
 	uint16_t supervision_timeout;
 } __packed;
 
-#define BT_HCI_EVT_LE_CIS_ESTABLISHED_V2 0x2a
+#define BT_HCI_EVT_LE_CIS_ESTABLISHED_V2 0x2A
 struct bt_hci_evt_le_cis_established_v2 {
 	uint8_t  status;
 	uint16_t conn_handle;
@@ -4054,7 +4121,7 @@ struct bt_hci_evt_le_cis_established_v2 {
 	uint8_t  framing;
 } __packed;
 
-#define BT_HCI_EVT_LE_READ_ALL_REMOTE_FEAT_COMPLETE 0x2b
+#define BT_HCI_EVT_LE_READ_ALL_REMOTE_FEAT_COMPLETE 0x2B
 
 #define BT_HCI_LE_FEATURE_PAGE_MAX          10
 #define BT_HCI_LE_BYTES_PER_FEATURE_PAGE    24
@@ -4395,7 +4462,7 @@ struct bt_hci_le_cs_step_data_tone_info {
 /** Subevent result step data format: Mode 2 */
 struct bt_hci_le_cs_step_data_mode_2 {
 	uint8_t antenna_permutation_index;
-	struct bt_hci_le_cs_step_data_tone_info tone_info[];
+	struct bt_hci_le_cs_step_data_tone_info tone_info[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 /** Subevent result step data format: Mode 3 */
@@ -4415,7 +4482,7 @@ struct bt_hci_le_cs_step_data_mode_3 {
 	} __packed;
 	uint8_t packet_antenna;
 	uint8_t antenna_permutation_index;
-	struct bt_hci_le_cs_step_data_tone_info tone_info[];
+	struct bt_hci_le_cs_step_data_tone_info tone_info[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 /** Subevent result step data format: Mode 3 with sounding sequence RTT support */
@@ -4437,16 +4504,17 @@ struct bt_hci_le_cs_step_data_mode_3_ss_rtt {
 	uint8_t packet_pct1[4];
 	uint8_t packet_pct2[4];
 	uint8_t antenna_permutation_index;
-	struct bt_hci_le_cs_step_data_tone_info tone_info[];
+	struct bt_hci_le_cs_step_data_tone_info tone_info[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 struct bt_hci_evt_le_cs_subevent_result_step {
 	uint8_t step_mode;
 	uint8_t step_channel;
 	uint8_t step_data_length;
-	uint8_t step_data[];
+	uint8_t step_data[BT_ZERO_LEN_ARRAY];
 } __packed;
 
+#define BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_SZ 15
 struct bt_hci_evt_le_cs_subevent_result {
 	uint16_t conn_handle;
 	uint8_t  config_id;
@@ -4465,11 +4533,11 @@ struct bt_hci_evt_le_cs_subevent_result {
 #endif /* CONFIG_LITTLE_ENDIAN */
 	uint8_t  num_antenna_paths;
 	uint8_t  num_steps_reported;
-	uint8_t  steps[];
+	uint8_t  steps[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_CONTINUE 0x32
-
+#define BT_HCI_EVT_LE_CS_SUBEVENT_RESULT_CONTINUE_SZ 8
 struct bt_hci_evt_le_cs_subevent_result_continue {
 	uint16_t conn_handle;
 	uint8_t  config_id;
@@ -4484,7 +4552,7 @@ struct bt_hci_evt_le_cs_subevent_result_continue {
 #endif /* CONFIG_LITTLE_ENDIAN */
 	uint8_t  num_antenna_paths;
 	uint8_t  num_steps_reported;
-	uint8_t  steps[];
+	uint8_t  steps[BT_ZERO_LEN_ARRAY];
 } __packed;
 
 #define BT_HCI_EVT_LE_CS_TEST_END_COMPLETE 0x33
@@ -4529,6 +4597,10 @@ struct bt_hci_evt_le_conn_rate_change {
 	uint16_t continuation_number;
 	uint16_t supervision_timeout;
 } __packed;
+
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#pragma pack(pop)
+#endif
 
 /* Event mask bits */
 
@@ -4651,12 +4723,12 @@ struct bt_hci_evt_le_conn_rate_change {
 #define BT_HCI_ERR_MEM_CAPACITY_EXCEEDED        0x07
 #define BT_HCI_ERR_CONN_TIMEOUT                 0x08
 #define BT_HCI_ERR_CONN_LIMIT_EXCEEDED          0x09
-#define BT_HCI_ERR_SYNC_CONN_LIMIT_EXCEEDED     0x0a
-#define BT_HCI_ERR_CONN_ALREADY_EXISTS          0x0b
-#define BT_HCI_ERR_CMD_DISALLOWED               0x0c
-#define BT_HCI_ERR_INSUFFICIENT_RESOURCES       0x0d
-#define BT_HCI_ERR_INSUFFICIENT_SECURITY        0x0e
-#define BT_HCI_ERR_BD_ADDR_UNACCEPTABLE         0x0f
+#define BT_HCI_ERR_SYNC_CONN_LIMIT_EXCEEDED     0x0A
+#define BT_HCI_ERR_CONN_ALREADY_EXISTS          0x0B
+#define BT_HCI_ERR_CMD_DISALLOWED               0x0C
+#define BT_HCI_ERR_INSUFFICIENT_RESOURCES       0x0D
+#define BT_HCI_ERR_INSUFFICIENT_SECURITY        0x0E
+#define BT_HCI_ERR_BD_ADDR_UNACCEPTABLE         0x0F
 #define BT_HCI_ERR_CONN_ACCEPT_TIMEOUT          0x10
 #define BT_HCI_ERR_UNSUPP_FEATURE_PARAM_VAL     0x11
 #define BT_HCI_ERR_INVALID_PARAM                0x12
@@ -4667,12 +4739,12 @@ struct bt_hci_evt_le_conn_rate_change {
 #define BT_HCI_ERR_REPEATED_ATTEMPTS            0x17
 #define BT_HCI_ERR_PAIRING_NOT_ALLOWED          0x18
 #define BT_HCI_ERR_UNKNOWN_LMP_PDU              0x19
-#define BT_HCI_ERR_UNSUPP_REMOTE_FEATURE        0x1a
-#define BT_HCI_ERR_SCO_OFFSET_REJECTED          0x1b
-#define BT_HCI_ERR_SCO_INTERVAL_REJECTED        0x1c
-#define BT_HCI_ERR_SCO_AIR_MODE_REJECTED        0x1d
-#define BT_HCI_ERR_INVALID_LL_PARAM             0x1e
-#define BT_HCI_ERR_UNSPECIFIED                  0x1f
+#define BT_HCI_ERR_UNSUPP_REMOTE_FEATURE        0x1A
+#define BT_HCI_ERR_SCO_OFFSET_REJECTED          0x1B
+#define BT_HCI_ERR_SCO_INTERVAL_REJECTED        0x1C
+#define BT_HCI_ERR_SCO_AIR_MODE_REJECTED        0x1D
+#define BT_HCI_ERR_INVALID_LL_PARAM             0x1E
+#define BT_HCI_ERR_UNSPECIFIED                  0x1F
 #define BT_HCI_ERR_UNSUPP_LL_PARAM_VAL          0x20
 #define BT_HCI_ERR_ROLE_CHANGE_NOT_ALLOWED      0x21
 #define BT_HCI_ERR_LL_RESP_TIMEOUT              0x22
@@ -4684,11 +4756,11 @@ struct bt_hci_evt_le_conn_rate_change {
 #define BT_HCI_ERR_INSTANT_PASSED               0x28
 /** Pairing with Unit Key Not Supported. This error is only valid for BR/EDR. */
 #define BT_HCI_ERR_PAIRING_NOT_SUPPORTED        0x29
-#define BT_HCI_ERR_DIFF_TRANS_COLLISION         0x2a
-#define BT_HCI_ERR_QOS_UNACCEPTABLE_PARAM       0x2c
-#define BT_HCI_ERR_QOS_REJECTED                 0x2d
-#define BT_HCI_ERR_CHAN_ASSESS_NOT_SUPPORTED    0x2e
-#define BT_HCI_ERR_INSUFF_SECURITY              0x2f
+#define BT_HCI_ERR_DIFF_TRANS_COLLISION         0x2A
+#define BT_HCI_ERR_QOS_UNACCEPTABLE_PARAM       0x2C
+#define BT_HCI_ERR_QOS_REJECTED                 0x2D
+#define BT_HCI_ERR_CHAN_ASSESS_NOT_SUPPORTED    0x2E
+#define BT_HCI_ERR_INSUFF_SECURITY              0x2F
 #define BT_HCI_ERR_PARAM_OUT_OF_MANDATORY_RANGE 0x30
 #define BT_HCI_ERR_ROLE_SWITCH_PENDING          0x32
 #define BT_HCI_ERR_RESERVED_SLOT_VIOLATION      0x34
@@ -4697,12 +4769,12 @@ struct bt_hci_evt_le_conn_rate_change {
 #define BT_HCI_ERR_SIMPLE_PAIR_NOT_SUPP_BY_HOST 0x37
 #define BT_HCI_ERR_HOST_BUSY_PAIRING            0x38
 #define BT_HCI_ERR_CONN_REJECTED_DUE_TO_NO_CHAN 0x39
-#define BT_HCI_ERR_CONTROLLER_BUSY              0x3a
-#define BT_HCI_ERR_UNACCEPT_CONN_PARAM          0x3b
-#define BT_HCI_ERR_ADV_TIMEOUT                  0x3c
-#define BT_HCI_ERR_TERM_DUE_TO_MIC_FAIL         0x3d
-#define BT_HCI_ERR_CONN_FAIL_TO_ESTAB           0x3e
-#define BT_HCI_ERR_MAC_CONN_FAILED              0x3f
+#define BT_HCI_ERR_CONTROLLER_BUSY              0x3A
+#define BT_HCI_ERR_UNACCEPT_CONN_PARAM          0x3B
+#define BT_HCI_ERR_ADV_TIMEOUT                  0x3C
+#define BT_HCI_ERR_TERM_DUE_TO_MIC_FAIL         0x3D
+#define BT_HCI_ERR_CONN_FAIL_TO_ESTAB           0x3F
+#define BT_HCI_ERR_MAC_CONN_FAILED              0x3F
 #define BT_HCI_ERR_CLOCK_ADJUST_REJECTED        0x40
 #define BT_HCI_ERR_SUBMAP_NOT_DEFINED           0x41
 #define BT_HCI_ERR_UNKNOWN_ADV_IDENTIFIER       0x42

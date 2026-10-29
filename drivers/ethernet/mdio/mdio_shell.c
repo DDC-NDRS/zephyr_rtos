@@ -15,6 +15,9 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(mdio_shell, CONFIG_LOG_DEFAULT_LEVEL);
 
+STRUCT_SECTION_START_EXTERN(Z_DEVICE_API_TYPE(mdio));
+STRUCT_SECTION_END_EXTERN(Z_DEVICE_API_TYPE(mdio));
+
 static bool device_is_mdio(const struct device *dev)
 {
 	return DEVICE_API_IS(mdio, dev);
@@ -140,7 +143,7 @@ static int cmd_mdio_read(const struct shell *sh, size_t argc, char **argv)
 		return -EIO;
 	}
 
-	shell_print(sh, "%x[%x]: 0x%x", port_addr, reg_addr, data);
+	shell_print(sh, "%x[%x]: 0x%04X", port_addr, reg_addr, data);
 
 	return 0;
 }
@@ -199,7 +202,7 @@ static int cmd_mdio_read_c45(const struct shell *sh, size_t argc, char **argv)
 		return -EIO;
 	}
 
-	shell_print(sh, "%x[%x:%x]: 0x%x", port_addr, dev_addr, reg_addr, data);
+	shell_print(sh, "%x[%x:%x]: 0x%04X", port_addr, dev_addr, reg_addr, data);
 
 	return 0;
 }

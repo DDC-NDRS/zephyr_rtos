@@ -367,8 +367,8 @@ static void count_mcast_routes(struct net_route_ipv6_entry_mcast *entry, void *u
 {
 	/* Only routes to a single address that MLD reports */
 	if (entry->prefix_len == 128 && mld_is_reported(&entry->group)) {
-		(*((int *)user_data))++;
-	}
+	(*((int *)user_data))++;
+}
 }
 
 static void append_mcast_routes(struct net_route_ipv6_entry_mcast *entry, void *user_data)
@@ -404,7 +404,7 @@ static int mld_v1_send(struct net_if *iface, uint8_t type, const struct net_in6_
 {
 	struct net_in6_addr all_routers;
 	const struct net_in6_addr *dst = addr;
-	struct net_pkt *pkt;
+	struct net_pkt* pkt;
 	int ret;
 
 	if (type == NET_ICMPV6_MLDv1_DONE) {
@@ -1097,8 +1097,8 @@ static enum net_verdict handle_mld_query(struct net_icmp_ctx *ctx,
 					 void *user_data)
 {
 	NET_PKT_DATA_ACCESS_CONTIGUOUS_DEFINE(mld_access, struct mld_query_common);
-	struct net_ipv6_hdr *ip_hdr = hdr->ipv6;
-	uint16_t length = net_pkt_get_len(pkt);
+	struct net_ipv6_hdr const* ip_hdr = hdr->ipv6;
+	uint16_t length = (uint16_t)net_pkt_get_len(pkt);
 	struct mld_query_common *mld_query;
 	struct net_if_mcast_addr *maddr = NULL;
 	struct net_pkt_cursor backup;
@@ -1147,7 +1147,7 @@ static enum net_verdict handle_mld_query(struct net_icmp_ctx *ctx,
 
 	net_stats_update_ipv6_mld_recv(net_pkt_iface(pkt));
 
-	pkt_len = sizeof(struct net_ipv6_hdr) + net_pkt_ipv6_ext_len(pkt) +
+	pkt_len = sizeof(struct net_ipv6_hdr) +	net_pkt_ipv6_ext_len(pkt) +
 		  (version == MLDV1 ? MLD_V1_QUERY_LEN : MLD_V2_QUERY_MIN_LEN) +
 		  sizeof(struct net_in6_addr) * num_sources;
 
@@ -1324,7 +1324,7 @@ void net_ipv6_mld_init(void)
 
 	if (!IS_ENABLED(CONFIG_NET_IPV6_MLD_V1_COMPAT)) {
 		return;
-	}
+}
 
 	ret = net_icmp_init_ctx(&report_ctx, NET_AF_INET6, NET_ICMPV6_MLDv1_REPORT, 0,
 				handle_mld_v1_report);

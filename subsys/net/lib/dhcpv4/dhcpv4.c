@@ -46,8 +46,8 @@ LOG_MODULE_REGISTER(net_dhcpv4, CONFIG_NET_DHCPV4_LOG_LEVEL);
 static K_MUTEX_DEFINE(lock);
 
 static sys_slist_t dhcpv4_ifaces;
-static void dhcpv4_timeout(struct k_work *work);
-static K_WORK_DELAYABLE_DEFINE(timeout_work, dhcpv4_timeout);
+static void dhcpv4_timeout_handler(struct k_work *work);
+static K_WORK_DELAYABLE_DEFINE(dhcpv4_timeout_work, dhcpv4_timeout_handler);
 
 static struct net_mgmt_event_callback mgmt4_if_cb;
 #if defined(CONFIG_NET_IPV4_ACD)
@@ -388,7 +388,7 @@ static void dhcpv4_immediate_timeout(struct net_if_dhcpv4 *dhcpv4)
 	NET_DBG("force timeout dhcpv4=%p", dhcpv4);
 	dhcpv4->timer_start = k_uptime_get() - 1;
 	dhcpv4->request_time = 0U;
-	k_work_reschedule(&timeout_work, K_NO_WAIT);
+	k_work_reschedule(&dhcpv4_timeout_work, K_NO_WAIT);
 }
 
 /* Must be invoked with lock held. */
@@ -403,7 +403,7 @@ static void dhcpv4_set_timeout(struct net_if_dhcpv4 *dhcpv4,
 	 * event; also this timeout may replace the current timeout
 	 * event.  Delegate scheduling to the timeout manager.
 	 */
-	k_work_reschedule(&timeout_work, K_NO_WAIT);
+	k_work_reschedule(&dhcpv4_timeout_work, K_NO_WAIT);
 }
 
 /* Set a new timeout w/o updating base time. Used for RENEWING and REBINDING to
@@ -760,17 +760,17 @@ static void dhcpv4_remove_gw(struct net_if *iface)
 {
 	struct net_if_dhcpv4 *dhcpv4 = &iface->config.dhcpv4;
 
-	if (dhcpv4->gw.s_addr == NET_INADDR_ANY) {
+	if (dhcpv4->gw.s_addr_be == NET_INADDR_ANY) {
 		return;
 	}
 
 	/* Anyone who has replaced it since keeps it. */
-	if (net_if_ipv4_get_gw(iface).s_addr == dhcpv4->gw.s_addr) {
+	if (net_if_ipv4_get_gw(iface).s_addr_be == dhcpv4->gw.s_addr_be) {
 		net_if_ipv4_set_gw(iface, &dhcpv4->gw_before);
 	}
 
-	dhcpv4->gw.s_addr = NET_INADDR_ANY;
-	dhcpv4->gw_before.s_addr = NET_INADDR_ANY;
+	dhcpv4->gw.s_addr_be = NET_INADDR_ANY;
+	dhcpv4->gw_before.s_addr_be = NET_INADDR_ANY;
 }
 
 /* Drop what the replies configured beside the address. They do so before any
@@ -839,13 +839,13 @@ static void dhcpv4_enter_selecting(struct net_if *iface)
 	iface->config.dhcpv4.renewal_time = 0U;
 	iface->config.dhcpv4.rebinding_time = 0U;
 
-	iface->config.dhcpv4.server_id.s_addr = NET_INADDR_ANY;
+	iface->config.dhcpv4.server_id.s_addr_be = NET_INADDR_ANY;
 
 	/* Nothing of the old exchange is left by the time the teardown says
 	 * so, because a handler for what it raises can start the client.
 	 */
 	addr = iface->config.dhcpv4.requested_ip;
-	iface->config.dhcpv4.requested_ip.s_addr = NET_INADDR_ANY;
+	iface->config.dhcpv4.requested_ip.s_addr_be = NET_INADDR_ANY;
 
 	dhcpv4_leave_lease(iface, NET_DHCPV4_SELECTING, &addr);
 }
@@ -1040,7 +1040,7 @@ static uint32_t dhcpv4_manage_timers(struct net_if *iface, int64_t now)
 	return UINT32_MAX;
 }
 
-static void dhcpv4_timeout(struct k_work *work)
+static void dhcpv4_timeout_handler(struct k_work *work)
 {
 	uint32_t timeout_update = UINT32_MAX;
 	int64_t now = k_uptime_get();
@@ -1067,7 +1067,7 @@ static void dhcpv4_timeout(struct k_work *work)
 	if (timeout_update != UINT32_MAX) {
 		NET_DBG("Waiting for %us", timeout_update);
 
-		k_work_reschedule(&timeout_work,
+		k_work_reschedule(&dhcpv4_timeout_work,
 				  K_SECONDS(timeout_update));
 	}
 }
@@ -1256,7 +1256,7 @@ static bool dhcpv4_parse_options(struct net_pkt *pkt,
 			NET_DBG("options_router: %s",
 				net_sprint_ipv4_addr(&router));
 
-			if (router.s_addr == NET_INADDR_ANY) {
+			if (router.s_addr_be == NET_INADDR_ANY) {
 				NET_DBG("options_router, names no router");
 				break;
 			}
@@ -1264,8 +1264,8 @@ static bool dhcpv4_parse_options(struct net_pkt *pkt,
 			/* Whatever is there now is what to put back, unless
 			 * this client is the one that put it there.
 			 */
-			if (net_if_ipv4_get_gw(iface).s_addr !=
-			    iface->config.dhcpv4.gw.s_addr) {
+			if (net_if_ipv4_get_gw(iface).s_addr_be !=
+			    iface->config.dhcpv4.gw.s_addr_be) {
 				iface->config.dhcpv4.gw_before =
 					net_if_ipv4_get_gw(iface);
 			}
@@ -1717,7 +1717,7 @@ static void dhcpv4_handle_msg_nak(struct net_if *iface)
 		LOG_DBG("NAK during INIT-REBOOT, restart config");
 
 		if (dhcpv4_entered_selecting(iface)) {
-			dhcpv4_immediate_timeout(&iface->config.dhcpv4);
+		dhcpv4_immediate_timeout(&iface->config.dhcpv4);
 		}
 
 		break;
@@ -1944,7 +1944,7 @@ static void dhcpv4_iface_event_handler(struct net_mgmt_event_callback *cb,
 					   ? NET_DHCPV4_INIT_REBOOT
 					   : NET_DHCPV4_INIT,
 					   &iface->config.dhcpv4.requested_ip);
-		}
+			}
 	} else if (IS_ENABLED(CONFIG_NET_DHCPV4_RESTART_ON_IF_UP) &&
 		   (mgmt_event == NET_EVENT_IF_UP)) {
 		NET_DBG("Interface %p coming up", iface);
@@ -2011,7 +2011,7 @@ static void dhcpv4_acd_event_handler(struct net_mgmt_event_callback *cb,
 	 * elsewhere, and then there is no decline left to send.
 	 */
 	if (iface->config.dhcpv4.state == NET_DHCPV4_DECLINE) {
-		dhcpv4_immediate_timeout(&iface->config.dhcpv4);
+	dhcpv4_immediate_timeout(&iface->config.dhcpv4);
 	}
 
 out:
@@ -2033,7 +2033,7 @@ const char *net_dhcpv4_state_name(enum net_dhcpv4_state state)
 		"decline,"
 	};
 
-	__ASSERT_NO_MSG(state >= 0 && state < ARRAY_SIZE(name));
+	__ASSERT_NO_MSG(state < ARRAY_SIZE(name));
 	return name[state];
 }
 
@@ -2069,7 +2069,7 @@ static void dhcpv4_start_internal(struct net_if *iface, bool first_start)
 	switch (iface->config.dhcpv4.state) {
 	case NET_DHCPV4_DISABLED:
 		if (IS_ENABLED(CONFIG_NET_DHCPV4_INIT_REBOOT) &&
-		    iface->config.dhcpv4.requested_ip.s_addr != NET_INADDR_ANY) {
+		    iface->config.dhcpv4.requested_ip.s_addr_be != NET_INADDR_ANY) {
 			iface->config.dhcpv4.state = NET_DHCPV4_INIT_REBOOT;
 		} else {
 			iface->config.dhcpv4.state = NET_DHCPV4_INIT;
@@ -2121,8 +2121,8 @@ static void dhcpv4_start_internal(struct net_if *iface, bool first_start)
 				 &iface->config.dhcpv4.node);
 
 		dhcpv4_set_timeout(&iface->config.dhcpv4, timeout);
-
 		break;
+
 	case NET_DHCPV4_INIT:
 	case NET_DHCPV4_INIT_REBOOT:
 	case NET_DHCPV4_SELECTING:
@@ -2236,7 +2236,7 @@ void net_dhcpv4_stop(struct net_if *iface)
 			/* Best effort cancel.  Handler is safe to invoke if
 			 * cancellation is unsuccessful.
 			 */
-			(void)k_work_cancel_delayable(&timeout_work);
+			(void)k_work_cancel_delayable(&dhcpv4_timeout_work);
 			net_mgmt_del_event_callback(&mgmt4_if_cb);
 #if defined(CONFIG_NET_IPV4_ACD)
 			net_mgmt_del_event_callback(&mgmt4_acd_cb);
@@ -2326,8 +2326,8 @@ bool net_dhcpv4_accept_unicast(struct net_pkt *pkt)
 {
 	NET_PKT_DATA_ACCESS_DEFINE(udp_access, struct net_udp_hdr);
 	struct net_pkt_cursor backup;
-	struct net_udp_hdr *udp_hdr;
-	struct net_if *iface;
+	const struct net_udp_hdr *udp_hdr;
+	const struct net_if *iface;
 	bool accept = false;
 
 	iface = net_pkt_iface(pkt);
@@ -2356,7 +2356,7 @@ bool net_dhcpv4_accept_unicast(struct net_pkt *pkt)
 	}
 
 	/* Verify destination UDP port. */
-	udp_hdr = (struct net_udp_hdr *)net_pkt_get_data(pkt, &udp_access);
+	udp_hdr = (const struct net_udp_hdr *)net_pkt_get_data(pkt, &udp_access);
 	if (udp_hdr == NULL) {
 		goto out;
 	}

@@ -172,7 +172,7 @@ static int ipcp_dns_address_parse(struct ppp_fsm *fsm, struct net_pkt *pkt,
 	}
 
 	/* Request is zeros? Give our dns address in ConfNak */
-	if (data->addr.s_addr == NET_INADDR_ANY) {
+	if (data->addr.s_addr_be == NET_INADDR_ANY) {
 		NET_DBG("[IPCP] zeroes rcvd as %s addr, sending NAK with our %s addr",
 			"DNS", "DNS");
 		return -EINVAL;
@@ -198,7 +198,7 @@ static int ipcp_ip_address_parse(struct ppp_fsm *fsm, struct net_pkt *pkt,
 
 #if defined(CONFIG_NET_L2_PPP_OPTION_SERVE_IP)
 	/* Request is zeros? Give our IP address in ConfNak */
-	if (data->addr.s_addr == NET_INADDR_ANY) {
+	if (data->addr.s_addr_be == NET_INADDR_ANY) {
 		NET_DBG("[IPCP] zeroes rcvd as %s addr, sending NAK with our %s addr",
 			"IP", "IP");
 		return -EINVAL;
@@ -373,11 +373,11 @@ static void ipcp_set_dns_servers(struct ppp_fsm *fsm)
 	int interfaces[2] = { ifindex, ifindex };
 	int ret;
 
-	if (!dns1.sin_addr.s_addr) {
+	if (!dns1.sin_addr.s_addr_be) {
 		return;
 	}
 
-	if (!dns2.sin_addr.s_addr) {
+	if (!dns2.sin_addr.s_addr_be) {
 		dns_servers[1] = NULL;
 	}
 
@@ -406,7 +406,7 @@ static int ipcp_config_info_nack(struct ppp_fsm *fsm,
 		return ret;
 	}
 
-	if (!ctx->ipcp.my_options.address.s_addr) {
+	if (!ctx->ipcp.my_options.address.s_addr_be) {
 		return -EINVAL;
 	}
 
@@ -482,7 +482,7 @@ static void ipcp_down(struct ppp_fsm *fsm)
 					       ipcp.fsm);
 
 	/* Ensure address is always removed if it exists */
-	if (ctx->ipcp.my_options.address.s_addr) {
+	if (ctx->ipcp.my_options.address.s_addr_be) {
 		(void)net_if_ipv4_addr_rm(
 			ctx->iface, &ctx->ipcp.my_options.address);
 	}

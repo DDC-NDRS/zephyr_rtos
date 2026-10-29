@@ -621,7 +621,6 @@ static int cmd_net_route_del(const struct shell *sh, size_t argc, char *argv[])
 		if (route != NULL) {
 			net_route_ipv4_del(route);
 		}
-
 	} else if (IS_ENABLED(CONFIG_NET_IPV6_ROUTE) && addr.ss_family == NET_AF_INET6) {
 		route = net_route_ipv6_lookup(iface, &net_sin6(net_sad(&addr))->sin6_addr);
 		if (route != NULL) {

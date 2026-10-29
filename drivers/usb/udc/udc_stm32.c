@@ -724,28 +724,28 @@ static void handle_msg_data_out(struct udc_stm32_data *priv, uint8_t epnum, uint
 	net_buf_add(buf, rx_count);
 
 	if (ep == USB_CONTROL_EP_OUT) {
-		/* Verify that host did not send more data than it promised */
-		__ASSERT(buf->len <= priv->ep0_out_wlength,
-				"Received more data from Host than expected!");
+			/* Verify that host did not send more data than it promised */
+			__ASSERT(buf->len <= priv->ep0_out_wlength,
+				 "Received more data from Host than expected!");
 
-		/* Check if the data stage is complete */
+			/* Check if the data stage is complete */
 		if (rx_count == UDC_STM32_EP0_MAX_PACKET_SIZE &&
 		    buf->len < priv->ep0_out_wlength) {
 			stm32_status_t __maybe_unused status;
 			uint32_t rx_size = MIN(net_buf_tailroom(buf),
 					       UDC_STM32_EP0_MAX_PACKET_SIZE);
 
-			/* Not yet - prepare to receive more data and wait */
+				/* Not yet - prepare to receive more data and wait */
 			status = hal_udc_set_endpoint_receive(&priv->pcd, ep_cfg->addr,
-							      net_buf_tail(buf), rx_size);
-			__ASSERT_NO_MSG(status == HAL_OK);
-			return;
-		} /* else: buf->len == priv->ep0_out_wlength */
+						    net_buf_tail(buf), rx_size);
+				__ASSERT_NO_MSG(status == HAL_OK);
+				return;
+			} /* else: buf->len == priv->ep0_out_wlength */
 	}
 
-	/* All data received - dequeue packet and submit it to stack */
-	buf = udc_buf_get(ep_cfg);
-	udc_submit_ep_event(dev, buf, 0);
+		/* All data received - dequeue packet and submit it to stack */
+		buf = udc_buf_get(ep_cfg);
+		udc_submit_ep_event(dev, buf, 0);
 
 	/* Prepare next transfer for EP if its queue is not empty */
 	buf = udc_buf_peek(ep_cfg);
@@ -1254,8 +1254,8 @@ static int udc_stm32_enable(const struct device *dev)
 	}
 
 	ret = udc_ep_enable_internal(dev, USB_CONTROL_EP_IN,
-				     USB_EP_TYPE_CONTROL,
-				     UDC_STM32_EP0_MAX_PACKET_SIZE, 0);
+				      USB_EP_TYPE_CONTROL,
+				      UDC_STM32_EP0_MAX_PACKET_SIZE, 0);
 	if (ret != 0) {
 		LOG_ERR("Failed enabling ep 0x%02x", USB_CONTROL_EP_IN);
 		return ret;
@@ -1411,7 +1411,7 @@ static int udc_stm32_ep_enable(const struct device *dev,
 	}
 
 	status = hal_udc_open_endpoint(&priv->pcd, ep_cfg->addr,
-				       udc_mps_ep_size(ep_cfg), ep_type);
+				 udc_mps_ep_size(ep_cfg), ep_type);
 	if (status != HAL_OK) {
 		LOG_ERR("hal_udc_open_endpoint failed(0x%02x), %d",
 			ep_cfg->addr, (int)status);
@@ -1622,7 +1622,7 @@ static enum udc_bus_speed udc_stm32_device_speed(const struct device *dev)
 	return UDC_BUS_UNKNOWN;
 }
 
-static const struct udc_api udc_stm32_api = {
+static struct udc_api const udc_stm32_api = {
 	.lock = udc_stm32_lock,
 	.unlock = udc_stm32_unlock,
 	.init = udc_stm32_init,

@@ -140,9 +140,9 @@ atomic_val_t ipi_mask_create(struct k_thread *thread)
 		return (CONFIG_MP_MAX_NUM_CPUS > 1) ? IPI_ALL_CPUS_MASK : 0;
 	}
 
-	uint32_t  ipi_mask = 0;
-	uint32_t  num_cpus = (uint32_t)arch_num_cpus();
-	uint32_t  id = _current_cpu->id;
+	uint32_t ipi_mask = 0;
+	uint32_t num_cpus = (uint32_t)arch_num_cpus();
+	uint32_t id = _current_cpu->id;
 	struct k_thread *cpu_thread;
 
 #if defined(CONFIG_IPI_OPTIMIZE_IDLE)
@@ -201,6 +201,7 @@ atomic_val_t ipi_mask_create(struct k_thread *thread)
 		if ((_kernel.sched_ipi_reserved & BIT(i)) != 0U) {
 			continue;
 		}
+
 		if (i != (uint32_t)thread->base.cpu &&
 		    z_is_idle_thread_object(cpu_thread) &&
 		    sched_ipi_idle_cpu_active(i)) {

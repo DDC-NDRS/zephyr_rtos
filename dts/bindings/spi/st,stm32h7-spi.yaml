@@ -56,3 +56,7 @@ properties:
       even when the SPI peripheral is disabled. This can be used to ensure a known
       state on the SPI lines at all times, which may be required for certain
       peripherals (e.g. LED strips) that are sensitive to line states during idle.
+
+  stpm3x-isr:
+    type: boolean
+    description: Use STPM3X interrupt service routine

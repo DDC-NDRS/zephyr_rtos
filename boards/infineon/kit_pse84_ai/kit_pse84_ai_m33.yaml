@@ -17,6 +17,7 @@ supported:
   - counter
   - dma
   - gpio
+  - hwinfo
   - i2c
   - i2s
   - pinctrl

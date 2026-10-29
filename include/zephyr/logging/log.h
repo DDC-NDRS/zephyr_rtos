@@ -62,7 +62,11 @@ extern "C" {
  * @param ... A string optionally containing printk valid conversion specifier,
  * followed by as many values as specifiers.
  */
+#if defined(_MSC_VER)                       /* #CUSTOM@NDRS */
+#define LOG_ERR(...)
+#else
 #define LOG_ERR(...) Z_LOG(LOG_LEVEL_ERR, __VA_ARGS__)
+#endif
 
 /**
  * @brief Writes a WARNING level message to the log.
@@ -73,7 +77,11 @@ extern "C" {
  * @param ... A string optionally containing printk valid conversion specifier,
  * followed by as many values as specifiers.
  */
+#if defined(_MSC_VER)                       /* #CUSTOM@NDRS */
+#define LOG_WRN(...)
+#else
 #define LOG_WRN(...) Z_LOG(LOG_LEVEL_WRN, __VA_ARGS__)
+#endif
 
 /**
  * @brief Writes an INFO level message to the log.
@@ -83,7 +91,11 @@ extern "C" {
  * @param ... A string optionally containing printk valid conversion specifier,
  * followed by as many values as specifiers.
  */
+#if defined(_MSC_VER)                       /* #CUSTOM@NDRS */
+#define LOG_INF(...)
+#else
 #define LOG_INF(...) Z_LOG(LOG_LEVEL_INF, __VA_ARGS__)
+#endif
 
 /**
  * @brief Writes a DEBUG level message to the log.
@@ -93,7 +105,11 @@ extern "C" {
  * @param ... A string optionally containing printk valid conversion specifier,
  * followed by as many values as specifiers.
  */
+#if defined(_MSC_VER)                       /* #CUSTOM@NDRS */
+#define LOG_DBG(...)
+#else
 #define LOG_DBG(...) Z_LOG(LOG_LEVEL_DBG, __VA_ARGS__)
+#endif
 
 /**
  * @brief Writes a WARNING level message to the log on the first execution only.
@@ -104,6 +120,9 @@ extern "C" {
  * @param ... A string optionally containing printk valid conversion specifier,
  * followed by as many values as specifiers.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define LOG_WRN_ONCE(...)
+#else
 #define LOG_WRN_ONCE(...)                                                                          \
 	do {                                                                                       \
 		static atomic_t __warned;                                                          \
@@ -111,6 +130,7 @@ extern "C" {
 			Z_LOG(LOG_LEVEL_WRN, __VA_ARGS__);                                         \
 		}                                                                                  \
 	} while (0)
+#endif
 
 /** @} */
 
@@ -208,8 +228,12 @@ extern "C" {
  * @param ... A string optionally containing printk valid conversion specifier,
  * followed by as many values as specifiers.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define LOG_WRN_RATELIMIT(...)
+#else
 #define LOG_WRN_RATELIMIT(...)                                                                     \
 	_LOG_RATELIMIT_LVL(LOG_LEVEL_WRN, LOG_RATELIMIT_INTERVAL_MS, __VA_ARGS__)
+#endif
 
 /**
  * @brief Writes an ERROR level message to the log with rate limiting.
@@ -222,8 +246,12 @@ extern "C" {
  * @param ... A string optionally containing printk valid conversion specifier,
  * followed by as many values as specifiers.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define LOG_ERR_RATELIMIT(...)
+#else
 #define LOG_ERR_RATELIMIT(...)                                                                     \
 	_LOG_RATELIMIT_LVL(LOG_LEVEL_ERR, LOG_RATELIMIT_INTERVAL_MS, __VA_ARGS__)
+#endif
 
 /**
  * @brief Writes an INFO level message to the log with rate limiting.
@@ -235,8 +263,12 @@ extern "C" {
  * @param ... A string optionally containing printk valid conversion specifier,
  * followed by as many values as specifiers.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define LOG_INF_RATELIMIT(...)
+#else
 #define LOG_INF_RATELIMIT(...)                                                                     \
 	_LOG_RATELIMIT_LVL(LOG_LEVEL_INF, LOG_RATELIMIT_INTERVAL_MS, __VA_ARGS__)
+#endif
 
 /**
  * @brief Writes a DEBUG level message to the log with rate limiting.
@@ -248,8 +280,12 @@ extern "C" {
  * @param ... A string optionally containing printk valid conversion specifier,
  * followed by as many values as specifiers.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define LOG_DBG_RATELIMIT(...)
+#else
 #define LOG_DBG_RATELIMIT(...)                                                                     \
 	_LOG_RATELIMIT_LVL(LOG_LEVEL_DBG, LOG_RATELIMIT_INTERVAL_MS, __VA_ARGS__)
+#endif
 
 /**
  * @brief Core rate-limited logging macro for hexdump messages
@@ -504,7 +540,11 @@ extern "C" {
  * @param ... A string optionally containing printk valid conversion specifier,
  * followed by as many values as specifiers.
  */
+#if defined(_MSC_VER)                       /* #CUSTOM@NDRS */
+#define LOG_PRINTK(...)
+#else
 #define LOG_PRINTK(...) Z_LOG_PRINTK(0, __VA_ARGS__)
+#endif
 
 /**
  * @brief Unconditionally print raw log message.
@@ -620,7 +660,11 @@ extern "C" {
  * @param _length Length of data (in bytes).
  * @param _str    Persistent, raw string.
  */
+#if defined(_MSC_VER)                       /* #CUSTOM@NDRS */
+#define LOG_HEXDUMP_INF(_data, _length, _str)
+#else
 #define LOG_HEXDUMP_INF(_data, _length, _str) Z_LOG_HEXDUMP(LOG_LEVEL_INF, _data, _length, (_str))
+#endif
 
 /**
  * @brief Writes a DEBUG level message to the log.
@@ -631,7 +675,11 @@ extern "C" {
  * @param _length Length of data (in bytes).
  * @param _str    Persistent, raw string.
  */
+#if defined(_MSC_VER)                       /* #CUSTOM@NDRS */
+#define LOG_HEXDUMP_DBG(_data, _length, _str)
+#else
 #define LOG_HEXDUMP_DBG(_data, _length, _str) Z_LOG_HEXDUMP(LOG_LEVEL_DBG, _data, _length, (_str))
+#endif
 
 /** @} */
 
@@ -739,7 +787,7 @@ void z_log_vprintk(const char *fmt, va_list ap);
 #define _LOG_MODULE_CONST_DATA_CREATE(_name, _level)                                               \
 	IF_ENABLED(CONFIG_LOG_FMT_SECTION, (							\
 		static const char UTIL_CAT(_name, _str)[]					\
-		     __in_section(_log_strings, static, _CONCAT(_name, _)) __used __noasan =	\
+		     __in_section(_log_strings, static, Z_CONCAT(_name, _)) __used __noasan =	\
 		     STRINGIFY(_name);))                                               \
 	IF_ENABLED(LOG_IN_CPLUSPLUS, (extern))                                                     \
 	const STRUCT_SECTION_ITERABLE_ALTERNATE(log_const, log_source_const_data,                  \
@@ -783,27 +831,27 @@ extern struct k_mem_partition k_log_partition;
  * definition created by LOG_MODULE_REGISTER(): redeclaring an object after its
  * definition is reported by -Wtentative-definition-compat (Clang 21).
  */
-#define Z_LOG_MODULE_DECLARE_EXTERN(...)                                                           \
-	extern const struct log_source_const_data Z_LOG_ITEM_CONST_DATA(                           \
-		GET_ARG_N(1, __VA_ARGS__));                                                        \
+#define Z_LOG_MODULE_DECLARE_EXTERN(...)                        \
+	extern const struct log_source_const_data Z_LOG_ITEM_CONST_DATA( \
+		GET_ARG_N(1, __VA_ARGS__));                     \
 	extern struct log_source_dynamic_data LOG_ITEM_DYNAMIC_DATA(GET_ARG_N(1, __VA_ARGS__))
 
 /* Create the file local pointers to the data of the log module. */
-#define Z_LOG_MODULE_DECLARE_LOCAL(...)                                                            \
-	Z_LOG_MODULE_PARTITION(K_APP_DMEM)                                                         \
-	static const struct log_source_const_data *__log_current_const_data __unused =             \
-		Z_DO_LOG_MODULE_REGISTER(__VA_ARGS__)                                              \
-			? &Z_LOG_ITEM_CONST_DATA(GET_ARG_N(1, __VA_ARGS__))                        \
-			: NULL;                                                                    \
-                                                                                                   \
-	Z_LOG_MODULE_PARTITION(K_APP_DMEM)                                                         \
-	static struct log_source_dynamic_data *__log_current_dynamic_data __unused =               \
-		(Z_DO_LOG_MODULE_REGISTER(__VA_ARGS__) &&                                          \
-		 IS_ENABLED(CONFIG_LOG_RUNTIME_FILTERING))                                         \
-			? &LOG_ITEM_DYNAMIC_DATA(GET_ARG_N(1, __VA_ARGS__))                        \
-			: NULL;                                                                    \
-                                                                                                   \
-	Z_LOG_MODULE_PARTITION(K_APP_BMEM)                                                         \
+#define Z_LOG_MODULE_DECLARE_LOCAL(...)                         \
+	Z_LOG_MODULE_PARTITION(K_APP_DMEM)                      \
+	static const struct log_source_const_data *__log_current_const_data __unused = \
+		Z_DO_LOG_MODULE_REGISTER(__VA_ARGS__)           \
+			? &Z_LOG_ITEM_CONST_DATA(GET_ARG_N(1, __VA_ARGS__)) \
+			: NULL;                                 \
+                                                                \
+	Z_LOG_MODULE_PARTITION(K_APP_DMEM)                      \
+	static struct log_source_dynamic_data *__log_current_dynamic_data __unused = \
+		(Z_DO_LOG_MODULE_REGISTER(__VA_ARGS__) &&       \
+		 IS_ENABLED(CONFIG_LOG_RUNTIME_FILTERING))      \
+			? &LOG_ITEM_DYNAMIC_DATA(GET_ARG_N(1, __VA_ARGS__)) \
+			: NULL;                                 \
+                                                                \
+	Z_LOG_MODULE_PARTITION(K_APP_BMEM)                      \
 	static const uint32_t __log_level __unused = _LOG_LEVEL_RESOLVE(__VA_ARGS__)
 
 /**
@@ -842,15 +890,19 @@ extern struct k_mem_partition k_log_partition;
  *       In other cases, this macro has no effect.
  * @see LOG_MODULE_DECLARE
  */
-#define LOG_MODULE_REGISTER(...)                                                                   \
-	Z_LOG_MODULE_DECLARE_EXTERN(__VA_ARGS__);                                                  \
-	COND_CODE_1(							\
-		Z_DO_LOG_MODULE_REGISTER(__VA_ARGS__),			\
-		(_LOG_MODULE_DATA_CREATE(GET_ARG_N(1, __VA_ARGS__),	\
+#if defined(_MSC_VER)                       /* #CUSTOM@NDRS */
+#define LOG_MODULE_REGISTER(...)
+#else
+#define LOG_MODULE_REGISTER(...)                                \
+	Z_LOG_MODULE_DECLARE_EXTERN(__VA_ARGS__);               \
+	COND_CODE_1(                                            \
+		Z_DO_LOG_MODULE_REGISTER(__VA_ARGS__),          \
+		(_LOG_MODULE_DATA_CREATE(GET_ARG_N(1, __VA_ARGS__), \
 				      _LOG_LEVEL_RESOLVE(__VA_ARGS__))),\
-		() \
-	)                                                                       \
+		()                                              \
+	)                                                       \
 	Z_LOG_MODULE_DECLARE_LOCAL(__VA_ARGS__)
+#endif
 
 /**
  * @brief Macro for declaring a log module (not registering it).
@@ -878,9 +930,13 @@ extern struct k_mem_partition k_log_partition;
  *       this macro has no effect.
  * @see LOG_MODULE_REGISTER
  */
-#define LOG_MODULE_DECLARE(...)                                                                    \
-	Z_LOG_MODULE_DECLARE_EXTERN(__VA_ARGS__);                                                  \
+#if defined(_MSC_VER)                       /* #CUSTOM@NDRS */
+#define LOG_MODULE_DECLARE(...)
+#else
+#define LOG_MODULE_DECLARE(...)                                 \
+	Z_LOG_MODULE_DECLARE_EXTERN(__VA_ARGS__);               \
 	Z_LOG_MODULE_DECLARE_LOCAL(__VA_ARGS__)
+#endif
 
 /**
  * @brief Macro for setting log level in the file or function where instance
@@ -889,7 +945,7 @@ extern struct k_mem_partition k_log_partition;
  * @param level Level used in file or in function.
  *
  */
-#define LOG_LEVEL_SET(level)                                                                       \
+#define LOG_LEVEL_SET(level) \
 	static const uint32_t __log_level __unused = Z_LOG_RESOLVED_LEVEL(level, 0)
 
 /** @} */

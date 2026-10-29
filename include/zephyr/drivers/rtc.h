@@ -42,15 +42,16 @@ extern "C" {
  * @anchor RTC_ALARM_TIME_MASK
  * @{
  */
-#define RTC_ALARM_TIME_MASK_SECOND	BIT(0) /**< Second */
-#define RTC_ALARM_TIME_MASK_MINUTE	BIT(1) /**< Minute */
-#define RTC_ALARM_TIME_MASK_HOUR	BIT(2) /**< Hour */
-#define RTC_ALARM_TIME_MASK_MONTHDAY	BIT(3) /**< Day of the month */
-#define RTC_ALARM_TIME_MASK_MONTH	BIT(4) /**< Month */
-#define RTC_ALARM_TIME_MASK_YEAR	BIT(5) /**< Year */
-#define RTC_ALARM_TIME_MASK_WEEKDAY	BIT(6) /**< Day of the week */
-#define RTC_ALARM_TIME_MASK_YEARDAY	BIT(7) /**< Day of the year */
-#define RTC_ALARM_TIME_MASK_NSEC	BIT(8) /**< Nanosecond */
+#define RTC_ALARM_TIME_MASK_SECOND   BIT(0) /**< Second */
+#define RTC_ALARM_TIME_MASK_MINUTE   BIT(1) /**< Minute */
+#define RTC_ALARM_TIME_MASK_HOUR     BIT(2) /**< Hour */
+#define RTC_ALARM_TIME_MASK_MONTHDAY BIT(3) /**< Day of the month */
+#define RTC_ALARM_TIME_MASK_MONTH    BIT(4) /**< Month */
+#define RTC_ALARM_TIME_MASK_YEAR     BIT(5) /**< Year */
+#define RTC_ALARM_TIME_MASK_WEEKDAY  BIT(6) /**< Day of the week */
+#define RTC_ALARM_TIME_MASK_YEARDAY  BIT(7) /**< Day of the year */
+#define RTC_ALARM_TIME_MASK_NSEC     BIT(8) /**< Nanosecond */
+
 /**
  * @}
  */
@@ -65,16 +66,16 @@ extern "C" {
  * pointer to a \ref tm pointer.
  */
 struct rtc_time {
-	int tm_sec;	/**< Seconds [0, 59] */
-	int tm_min;	/**< Minutes [0, 59] */
-	int tm_hour;	/**< Hours [0, 23] */
-	int tm_mday;	/**< Day of the month [1, 31] */
-	int tm_mon;	/**< Month [0, 11] */
-	int tm_year;	/**< Year - 1900 */
-	int tm_wday;	/**< Day of the week [0, 6] (Sunday = 0) (Unknown = -1) */
-	int tm_yday;	/**< Day of the year [0, 365] (Unknown = -1) */
-	int tm_isdst;	/**< Daylight saving time flag [-1] (Unknown = -1) */
-	int tm_nsec;	/**< Nanoseconds [0, 999999999] (Unknown = 0) */
+    int tm_sec;   /**< Seconds [0, 59] */
+    int tm_min;   /**< Minutes [0, 59] */
+    int tm_hour;  /**< Hours [0, 23] */
+    int tm_mday;  /**< Day of the month [1, 31] */
+    int tm_mon;   /**< Month [0, 11] */
+    int tm_year;  /**< Year - 1900 (years since 1900) */
+    int tm_wday;  /**< Day of the week [0, 6] (Sunday = 0) (Unknown = -1) */
+    int tm_yday;  /**< Day of the year [0, 365] (Unknown = -1) */
+    int tm_isdst; /**< Daylight saving time flag [-1] (Unknown = -1) */
+    int tm_nsec;  /**< Nanoseconds [0, 999999999] (Unknown = 0) */
 };
 
 /**
@@ -83,7 +84,7 @@ struct rtc_time {
  * @param dev Device instance invoking the handler
  * @param user_data Optional user data provided when update irq callback is set
  */
-typedef void (*rtc_update_callback)(const struct device *dev, void *user_data);
+typedef void (*rtc_update_callback)(const struct device* dev, void* user_data);
 
 /**
  * @brief RTC alarm triggered callback
@@ -92,7 +93,7 @@ typedef void (*rtc_update_callback)(const struct device *dev, void *user_data);
  * @param id Alarm id
  * @param user_data Optional user data passed with the alarm configuration
  */
-typedef void (*rtc_alarm_callback)(const struct device *dev, uint16_t id, void *user_data);
+typedef void (*rtc_alarm_callback)(const struct device* dev, uint16_t id, void* user_data);
 
 /**
  * @def_driverbackendgroup{RTC,rtc_interface}
@@ -105,130 +106,153 @@ typedef void (*rtc_alarm_callback)(const struct device *dev, uint16_t id, void *
  *
  * See rtc_set_time() for argument description.
  */
-typedef int (*rtc_api_set_time)(const struct device *dev, const struct rtc_time *timeptr);
+typedef int (*rtc_api_set_time)(const struct device* dev, const struct rtc_time* timeptr);
+
+/**
+ * @typedef rtc_api_set_time_ext
+ * @brief API for setting RTC time with extended time format @see rtc_dt_t
+ */
+typedef int (*rtc_api_set_time_ext)(const struct device* dev, uint8_t const* du);
 
 /**
  * @brief Callback API to get RTC time.
  *
  * See rtc_get_time() for argument description.
  */
-typedef int (*rtc_api_get_time)(const struct device *dev, struct rtc_time *timeptr);
+typedef int (*rtc_api_get_time)(const struct device* dev, struct rtc_time* timeptr);
+
+/**
+ * @typedef rtc_api_get_time_ext
+ * @brief API for getting RTC time with extended time format @see rtc_dt_t
+ */
+typedef int (*rtc_api_get_time_ext)(const struct device* dev, uint8_t* du);
 
 /**
  * @brief Callback API to get the supported fields of the RTC alarm time.
  *
  * See rtc_alarm_get_supported_fields() for argument description.
  */
-typedef int (*rtc_api_alarm_get_supported_fields)(const struct device *dev, uint16_t id,
-						  uint16_t *mask);
+typedef int (*rtc_api_alarm_get_supported_fields)(const struct device* dev, uint16_t id,
+                                                  uint16_t* mask);
 
 /**
  * @brief Callback API to set RTC alarm time.
  *
  * See rtc_alarm_set_time() for argument description.
  */
-typedef int (*rtc_api_alarm_set_time)(const struct device *dev, uint16_t id, uint16_t mask,
-				      const struct rtc_time *timeptr);
+typedef int (*rtc_api_alarm_set_time)(const struct device* dev, uint16_t id, uint16_t mask,
+                                      const struct rtc_time* timeptr);
 
 /**
  * @brief Callback API to get RTC alarm time.
  *
  * See rtc_alarm_get_time() for argument description.
  */
-typedef int (*rtc_api_alarm_get_time)(const struct device *dev, uint16_t id, uint16_t *mask,
-				      struct rtc_time *timeptr);
+typedef int (*rtc_api_alarm_get_time)(const struct device* dev, uint16_t id, uint16_t* mask,
+                                      struct rtc_time* timeptr);
 
 /**
  * @brief Callback API to test if RTC alarm is pending.
  *
  * See rtc_alarm_is_pending() for argument description.
  */
-typedef int (*rtc_api_alarm_is_pending)(const struct device *dev, uint16_t id);
+typedef int (*rtc_api_alarm_is_pending)(const struct device* dev, uint16_t id);
 
 /**
  * @brief Callback API to set RTC alarm callback.
  *
  * See rtc_alarm_set_callback() for argument description.
  */
-typedef int (*rtc_api_alarm_set_callback)(const struct device *dev, uint16_t id,
-					  rtc_alarm_callback callback, void *user_data);
+typedef int (*rtc_api_alarm_set_callback)(const struct device* dev, uint16_t id,
+                                          rtc_alarm_callback callback, void* user_data);
 
 /**
  * @brief Callback API to set RTC update callback.
  *
  * See rtc_update_set_callback() for argument description.
  */
-typedef int (*rtc_api_update_set_callback)(const struct device *dev,
-					   rtc_update_callback callback, void *user_data);
+typedef int (*rtc_api_update_set_callback)(const struct device* dev,
+                                           rtc_update_callback callback, void* user_data);
 
 /**
  * @brief Callback API to set RTC calibration.
  *
  * See rtc_set_calibration() for argument description.
  */
-typedef int (*rtc_api_set_calibration)(const struct device *dev, int32_t calibration);
+typedef int (*rtc_api_set_calibration)(const struct device* dev, int32_t calibration);
 
 /**
  * @brief Callback API to get RTC calibration.
  *
  * See rtc_get_calibration() for argument description.
  */
-typedef int (*rtc_api_get_calibration)(const struct device *dev, int32_t *calibration);
+typedef int (*rtc_api_get_calibration)(const struct device* dev, int32_t* calibration);
 
 /**
  * @driver_ops{RTC}
  */
 __subsystem struct rtc_driver_api {
-	/** @driver_ops_mandatory @copybrief rtc_set_time */
-	rtc_api_set_time set_time;
-	/** @driver_ops_mandatory @copybrief rtc_get_time */
-	rtc_api_get_time get_time;
-#if defined(CONFIG_RTC_ALARM) || defined(__DOXYGEN__)
-	/**
-	 * @driver_ops_optional @copybrief rtc_alarm_get_supported_fields
-	 * @kconfig_dep{CONFIG_RTC_ALARM}
-	 */
-	rtc_api_alarm_get_supported_fields alarm_get_supported_fields;
-	/**
-	 * @driver_ops_optional @copybrief rtc_alarm_set_time
-	 * @kconfig_dep{CONFIG_RTC_ALARM}
-	 */
-	rtc_api_alarm_set_time alarm_set_time;
-	/**
-	 * @driver_ops_optional @copybrief rtc_alarm_get_time
-	 * @kconfig_dep{CONFIG_RTC_ALARM}
-	 */
-	rtc_api_alarm_get_time alarm_get_time;
-	/**
-	 * @driver_ops_optional @copybrief rtc_alarm_is_pending
-	 * @kconfig_dep{CONFIG_RTC_ALARM}
-	 */
-	rtc_api_alarm_is_pending alarm_is_pending;
-	/**
-	 * @driver_ops_optional @copybrief rtc_alarm_set_callback
-	 * @kconfig_dep{CONFIG_RTC_ALARM}
-	 */
-	rtc_api_alarm_set_callback alarm_set_callback;
-#endif /* CONFIG_RTC_ALARM */
-#if defined(CONFIG_RTC_UPDATE) || defined(__DOXYGEN__)
-	/**
-	 * @driver_ops_optional @copybrief rtc_update_set_callback
-	 * @kconfig_dep{CONFIG_RTC_UPDATE}
-	 */
-	rtc_api_update_set_callback update_set_callback;
-#endif /* CONFIG_RTC_UPDATE */
-#if defined(CONFIG_RTC_CALIBRATION) || defined(__DOXYGEN__)
-	/**
-	 * @driver_ops_optional @copybrief rtc_set_calibration
-	 * @kconfig_dep{CONFIG_RTC_CALIBRATION}
-	 */
-	rtc_api_set_calibration set_calibration;
-	/**
-	 * @driver_ops_optional @copybrief rtc_get_calibration
-	 * @kconfig_dep{CONFIG_RTC_CALIBRATION}
-	 */
-	rtc_api_get_calibration get_calibration;
-#endif /* CONFIG_RTC_CALIBRATION */
+    /** @driver_ops_mandatory @copybrief rtc_set_time */
+    rtc_api_set_time set_time;
+
+    /** @driver_ops_mandatory @copybrief rtc_get_time */
+    rtc_api_get_time get_time;
+
+    #if defined(CONFIG_RTC_ALARM) || defined(__DOXYGEN__)
+    /**
+     * @driver_ops_optional @copybrief rtc_alarm_get_supported_fields
+     * @kconfig_dep{CONFIG_RTC_ALARM}
+     */
+    rtc_api_alarm_get_supported_fields alarm_get_supported_fields;
+
+    /**
+     * @driver_ops_optional @copybrief rtc_alarm_set_time
+     * @kconfig_dep{CONFIG_RTC_ALARM}
+     */
+    rtc_api_alarm_set_time     alarm_set_time;
+
+    /**
+     * @driver_ops_optional @copybrief rtc_alarm_get_time
+     * @kconfig_dep{CONFIG_RTC_ALARM}
+     */
+    rtc_api_alarm_get_time     alarm_get_time;
+
+    /**
+     * @driver_ops_optional @copybrief rtc_alarm_is_pending
+     * @kconfig_dep{CONFIG_RTC_ALARM}
+     */
+    rtc_api_alarm_is_pending   alarm_is_pending;
+
+    /**
+     * @driver_ops_optional @copybrief rtc_alarm_set_callback
+     * @kconfig_dep{CONFIG_RTC_ALARM}
+     */
+    rtc_api_alarm_set_callback alarm_set_callback;
+    #endif /* CONFIG_RTC_ALARM */
+
+    #if defined(CONFIG_RTC_UPDATE) || defined(__DOXYGEN__)
+    /**
+     * @driver_ops_optional @copybrief rtc_update_set_callback
+     * @kconfig_dep{CONFIG_RTC_UPDATE}
+     */
+    rtc_api_update_set_callback update_set_callback;
+    #endif /* CONFIG_RTC_UPDATE */
+
+    #if defined(CONFIG_RTC_CALIBRATION) || defined(__DOXYGEN__)
+    /**
+     * @driver_ops_optional @copybrief rtc_set_calibration
+     * @kconfig_dep{CONFIG_RTC_CALIBRATION}
+     */
+    rtc_api_set_calibration set_calibration;
+    /**
+     * @driver_ops_optional @copybrief rtc_get_calibration
+     * @kconfig_dep{CONFIG_RTC_CALIBRATION}
+     */
+    rtc_api_get_calibration get_calibration;
+    #endif /* CONFIG_RTC_CALIBRATION */
+
+    rtc_api_set_time_ext set_time_ext;      /* #CUSTOM@NDRS */
+    rtc_api_get_time_ext get_time_ext;      /* #CUSTOM@NDRS */
 };
 
 /** @} */
@@ -243,11 +267,26 @@ __subsystem struct rtc_driver_api {
  * @return -EINVAL if RTC time is invalid or exceeds hardware capabilities
  * @return -errno code if failure
  */
-__syscall int rtc_set_time(const struct device *dev, const struct rtc_time *timeptr);
+__syscall int rtc_set_time(const struct device* dev, const struct rtc_time* timeptr);
 
-static inline int z_impl_rtc_set_time(const struct device *dev, const struct rtc_time *timeptr)
-{
-	return DEVICE_API_GET(rtc, dev)->set_time(dev, timeptr);
+static inline int z_impl_rtc_set_time(const struct device* dev, const struct rtc_time* timeptr) {
+    return DEVICE_API_GET(rtc, dev)->set_time(dev, timeptr);
+}
+
+/**
+ * @brief API for setting RTC time with extended time format @see rtc_dt_t.
+ *
+ * @param dev Device instance
+ * @param du  The time to set in extended format
+ *
+ * @return 0 if successful
+ * @return -EINVAL if RTC time is invalid or exceeds hardware capabilities
+ * @return -errno code if failure
+ */
+__syscall int rtc_set_time_ext(const struct device* dev, uint8_t const* du);
+
+static inline int z_impl_rtc_set_time_ext(const struct device* dev, uint8_t const* du) {
+    return DEVICE_API_GET(rtc, dev)->set_time_ext(dev, du);
 }
 
 /**
@@ -260,11 +299,26 @@ static inline int z_impl_rtc_set_time(const struct device *dev, const struct rtc
  * @return -ENODATA if RTC time has not been set
  * @return -errno code if failure
  */
-__syscall int rtc_get_time(const struct device *dev, struct rtc_time *timeptr);
+__syscall int rtc_get_time(const struct device* dev, struct rtc_time* timeptr);
 
-static inline int z_impl_rtc_get_time(const struct device *dev, struct rtc_time *timeptr)
-{
-	return DEVICE_API_GET(rtc, dev)->get_time(dev, timeptr);
+static inline int z_impl_rtc_get_time(const struct device* dev, struct rtc_time* timeptr) {
+    return DEVICE_API_GET(rtc, dev)->get_time(dev, timeptr);
+}
+
+/**
+ * @brief API for getting RTC time with extended time format @see rtc_dt_t.
+ *
+ * @param dev Device instance
+ * @param du  Destination for the time in extended format
+ *
+ * @return 0 if successful
+ * @return -ENODATA if RTC time has not been set
+ * @return -errno code if failure
+ */
+__syscall int rtc_get_time_ext(const struct device* dev, uint8_t* du);
+
+static inline int z_impl_rtc_get_time_ext(const struct device* dev, uint8_t* du) {
+    return DEVICE_API_GET(rtc, dev)->get_time_ext(dev, du);
 }
 
 /**
@@ -287,17 +341,16 @@ static inline int z_impl_rtc_get_time(const struct device *dev, struct rtc_time 
  * @return -ENOTSUP if API is not supported by hardware
  * @return -errno code if failure
  */
-__syscall int rtc_alarm_get_supported_fields(const struct device *dev, uint16_t id,
-					     uint16_t *mask);
+__syscall int rtc_alarm_get_supported_fields(const struct device* dev, uint16_t id,
+                                             uint16_t* mask);
 
-static inline int z_impl_rtc_alarm_get_supported_fields(const struct device *dev, uint16_t id,
-							uint16_t *mask)
-{
-	if (DEVICE_API_GET(rtc, dev)->alarm_get_supported_fields == NULL) {
-		return -ENOSYS;
-	}
+static inline int z_impl_rtc_alarm_get_supported_fields(const struct device* dev, uint16_t id,
+                                                        uint16_t* mask) {
+    if (DEVICE_API_GET(rtc, dev)->alarm_get_supported_fields == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(rtc, dev)->alarm_get_supported_fields(dev, id, mask);
+    return DEVICE_API_GET(rtc, dev)->alarm_get_supported_fields(dev, id, mask);
 }
 
 /**
@@ -323,17 +376,16 @@ static inline int z_impl_rtc_alarm_get_supported_fields(const struct device *dev
  * @return -ENOTSUP if API is not supported by hardware
  * @return -errno code if failure
  */
-__syscall int rtc_alarm_set_time(const struct device *dev, uint16_t id, uint16_t mask,
-				 const struct rtc_time *timeptr);
+__syscall int rtc_alarm_set_time(const struct device* dev, uint16_t id, uint16_t mask,
+                                 const struct rtc_time* timeptr);
 
-static inline int z_impl_rtc_alarm_set_time(const struct device *dev, uint16_t id, uint16_t mask,
-					    const struct rtc_time *timeptr)
-{
-	if (DEVICE_API_GET(rtc, dev)->alarm_set_time == NULL) {
-		return -ENOSYS;
-	}
+static inline int z_impl_rtc_alarm_set_time(const struct device* dev, uint16_t id, uint16_t mask,
+                                            const struct rtc_time* timeptr) {
+    if (DEVICE_API_GET(rtc, dev)->alarm_set_time == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(rtc, dev)->alarm_set_time(dev, id, mask, timeptr);
+    return DEVICE_API_GET(rtc, dev)->alarm_set_time(dev, id, mask, timeptr);
 }
 
 /**
@@ -351,17 +403,16 @@ static inline int z_impl_rtc_alarm_set_time(const struct device *dev, uint16_t i
  * @return -ENOTSUP if API is not supported by hardware
  * @return -errno code if failure
  */
-__syscall int rtc_alarm_get_time(const struct device *dev, uint16_t id, uint16_t *mask,
-				 struct rtc_time *timeptr);
+__syscall int rtc_alarm_get_time(const struct device* dev, uint16_t id, uint16_t* mask,
+                                 struct rtc_time* timeptr);
 
-static inline int z_impl_rtc_alarm_get_time(const struct device *dev, uint16_t id, uint16_t *mask,
-					    struct rtc_time *timeptr)
-{
-	if (DEVICE_API_GET(rtc, dev)->alarm_get_time == NULL) {
-		return -ENOSYS;
-	}
+static inline int z_impl_rtc_alarm_get_time(const struct device* dev, uint16_t id, uint16_t* mask,
+                                            struct rtc_time* timeptr) {
+    if (DEVICE_API_GET(rtc, dev)->alarm_get_time == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(rtc, dev)->alarm_get_time(dev, id, mask, timeptr);
+    return DEVICE_API_GET(rtc, dev)->alarm_get_time(dev, id, mask, timeptr);
 }
 
 /**
@@ -379,15 +430,14 @@ static inline int z_impl_rtc_alarm_get_time(const struct device *dev, uint16_t i
  * @return -ENOTSUP if API is not supported by hardware
  * @return -errno code if failure
  */
-__syscall int rtc_alarm_is_pending(const struct device *dev, uint16_t id);
+__syscall int rtc_alarm_is_pending(const struct device* dev, uint16_t id);
 
-static inline int z_impl_rtc_alarm_is_pending(const struct device *dev, uint16_t id)
-{
-	if (DEVICE_API_GET(rtc, dev)->alarm_is_pending == NULL) {
-		return -ENOSYS;
-	}
+static inline int z_impl_rtc_alarm_is_pending(const struct device* dev, uint16_t id) {
+    if (DEVICE_API_GET(rtc, dev)->alarm_is_pending == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(rtc, dev)->alarm_is_pending(dev, id);
+    return DEVICE_API_GET(rtc, dev)->alarm_is_pending(dev, id);
 }
 
 /**
@@ -416,14 +466,13 @@ static inline int z_impl_rtc_alarm_is_pending(const struct device *dev, uint16_t
  * @return -ENOTSUP if API is not supported by hardware
  * @return -errno code if failure
  */
-static inline int rtc_alarm_set_callback(const struct device *dev, uint16_t id,
-					 rtc_alarm_callback callback, void *user_data)
-{
-	if (DEVICE_API_GET(rtc, dev)->alarm_set_callback == NULL) {
-		return -ENOSYS;
-	}
+static inline int rtc_alarm_set_callback(const struct device* dev, uint16_t id,
+                                         rtc_alarm_callback callback, void* user_data) {
+    if (DEVICE_API_GET(rtc, dev)->alarm_set_callback == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(rtc, dev)->alarm_set_callback(dev, id, callback, user_data);
+    return DEVICE_API_GET(rtc, dev)->alarm_set_callback(dev, id, callback, user_data);
 }
 
 #endif /* CONFIG_RTC_ALARM */
@@ -456,14 +505,13 @@ static inline int rtc_alarm_set_callback(const struct device *dev, uint16_t id,
  * @return -ENOTSUP if API is not supported by hardware
  * @return -errno code if failure
  */
-static inline int rtc_update_set_callback(const struct device *dev,
-					  rtc_update_callback callback, void *user_data)
-{
-	if (DEVICE_API_GET(rtc, dev)->update_set_callback == NULL) {
-		return -ENOSYS;
-	}
+static inline int rtc_update_set_callback(const struct device* dev,
+                                          rtc_update_callback callback, void* user_data) {
+    if (DEVICE_API_GET(rtc, dev)->update_set_callback == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(rtc, dev)->update_set_callback(dev, callback, user_data);
+    return DEVICE_API_GET(rtc, dev)->update_set_callback(dev, callback, user_data);
 }
 
 #endif /* CONFIG_RTC_UPDATE */
@@ -495,15 +543,14 @@ static inline int rtc_update_set_callback(const struct device *dev,
  * @return -ENOTSUP if API is not supported by hardware
  * @return -errno code if failure
  */
-__syscall int rtc_set_calibration(const struct device *dev, int32_t calibration);
+__syscall int rtc_set_calibration(const struct device* dev, int32_t calibration);
 
-static inline int z_impl_rtc_set_calibration(const struct device *dev, int32_t calibration)
-{
-	if (DEVICE_API_GET(rtc, dev)->set_calibration == NULL) {
-		return -ENOSYS;
-	}
+static inline int z_impl_rtc_set_calibration(const struct device* dev, int32_t calibration) {
+    if (DEVICE_API_GET(rtc, dev)->set_calibration == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(rtc, dev)->set_calibration(dev, calibration);
+    return DEVICE_API_GET(rtc, dev)->set_calibration(dev, calibration);
 }
 
 /**
@@ -516,15 +563,14 @@ static inline int z_impl_rtc_set_calibration(const struct device *dev, int32_t c
  * @return -ENOTSUP if API is not supported by hardware
  * @return -errno code if failure
  */
-__syscall int rtc_get_calibration(const struct device *dev, int32_t *calibration);
+__syscall int rtc_get_calibration(const struct device* dev, int32_t* calibration);
 
-static inline int z_impl_rtc_get_calibration(const struct device *dev, int32_t *calibration)
-{
-	if (DEVICE_API_GET(rtc, dev)->get_calibration == NULL) {
-		return -ENOSYS;
-	}
+static inline int z_impl_rtc_get_calibration(const struct device* dev, int32_t* calibration) {
+    if (DEVICE_API_GET(rtc, dev)->get_calibration == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(rtc, dev)->get_calibration(dev, calibration);
+    return DEVICE_API_GET(rtc, dev)->get_calibration(dev, calibration);
 }
 
 #endif /* CONFIG_RTC_CALIBRATION */
@@ -546,9 +592,8 @@ struct tm;
  * @brief Convenience function for safely casting a \ref rtc_time pointer
  * to a \ref tm pointer.
  */
-static inline struct tm *rtc_time_to_tm(struct rtc_time *timeptr)
-{
-	return (struct tm *)timeptr;
+static inline struct tm* rtc_time_to_tm(struct rtc_time* timeptr) {
+    return (struct tm*)timeptr;
 }
 
 /**
@@ -558,11 +603,10 @@ static inline struct tm *rtc_time_to_tm(struct rtc_time *timeptr)
  *
  * @return The required calibration in parts per billion
  */
-static inline int32_t rtc_calibration_from_frequency(uint32_t frequency)
-{
-	__ASSERT_NO_MSG(frequency > 0);
+static inline int32_t rtc_calibration_from_frequency(uint32_t frequency) {
+    __ASSERT_NO_MSG(frequency > 0);
 
-	return (int32_t)((1000000000000000000LL / frequency) - 1000000000);
+    return (int32_t)((1000000000000000000LL / frequency) - 1000000000);
 }
 
 /**

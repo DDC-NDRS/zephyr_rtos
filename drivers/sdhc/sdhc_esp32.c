@@ -830,9 +830,10 @@ static int sdmmc_host_clock_update_command(sdmmc_dev_t *sdio_hw, int slot)
 		while (true) {
 			t1 = esp_timer_get_time();
 
-			if (t1 - t0 > SDMMC_HOST_CLOCK_UPDATE_CMD_TIMEOUT_US) {
+			if ((t1 - t0) > SDMMC_HOST_CLOCK_UPDATE_CMD_TIMEOUT_US) {
 				return ESP_ERR_TIMEOUT;
 			}
+
 			/* Sending clock update command to the CIU can generate HLE error */
 			/* According to the manual, this is okay and we must retry the command */
 			if (sdmmc_ll_get_interrupt_raw(sdio_hw) & SDMMC_HLE_BIT) {
@@ -840,6 +841,7 @@ static int sdmmc_host_clock_update_command(sdmmc_dev_t *sdio_hw, int slot)
 				repeat = true;
 				break;
 			}
+
 			/* When the command is accepted by CIU, start_command bit will be */
 			/* cleared in the cmd register */
 			if (sdmmc_ll_is_command_taken(sdio_hw)) {
@@ -1723,7 +1725,7 @@ static int sdhc_esp32_controller_init(const struct device *dev)
 
 	if (sdhc_esp32_ctrl.initialized) {
 		return 0;
-	}
+		}
 
 	ret = clock_control_on(cfg->clock_dev, cfg->clock_subsys);
 
@@ -1754,8 +1756,8 @@ static int sdhc_esp32_controller_init(const struct device *dev)
 
 	/* Attach interrupt handler */
 	ret = esp_intr_alloc(cfg->irq_source,
-			     ESP_PRIO_TO_FLAGS(cfg->irq_priority) |
-				     ESP_INT_FLAGS_CHECK(cfg->irq_flags) | ESP_INTR_FLAG_IRAM,
+				ESP_PRIO_TO_FLAGS(cfg->irq_priority) |
+				ESP_INT_FLAGS_CHECK(cfg->irq_flags) | ESP_INTR_FLAG_IRAM,
 			     &sdio_esp32_isr, (void *)dev, &sdhc_esp32_ctrl.intr_handle);
 
 	if (ret != 0) {
@@ -1768,8 +1770,8 @@ static int sdhc_esp32_controller_init(const struct device *dev)
 	sdmmc_ll_enable_interrupt(
 		sdio_hw,
 		SDMMC_INTMASK_CD | SDMMC_INTMASK_CMD_DONE | SDMMC_INTMASK_DATA_OVER |
-			SDMMC_INTMASK_RCRC | SDMMC_INTMASK_DCRC | SDMMC_INTMASK_RTO |
-			SDMMC_INTMASK_DTO | SDMMC_INTMASK_HTO | SDMMC_INTMASK_SBE |
+			       SDMMC_INTMASK_RCRC | SDMMC_INTMASK_DCRC | SDMMC_INTMASK_RTO |
+			       SDMMC_INTMASK_DTO | SDMMC_INTMASK_HTO | SDMMC_INTMASK_SBE |
 			SDMMC_INTMASK_EBE | SDMMC_INTMASK_RESP_ERR | SDMMC_INTMASK_HLE,
 		true);
 
@@ -2009,7 +2011,7 @@ static DEVICE_API(sdhc, sdhc_api) = {
 		.timing = SDHC_TIMING_LEGACY,                                                      \
 		.s_host_ctx = {.event_queue = &sdhc##n##_queue}};                                  \
                                                                                                    \
-	DEVICE_DT_INST_DEFINE(n, &sdhc_esp32_init, NULL, &sdhc_esp32_##n##_data,                   \
+	DEVICE_DT_INST_DEFINE(n, sdhc_esp32_init, NULL, &sdhc_esp32_##n##_data,                    \
 			      &sdhc_esp32_##n##_config, POST_KERNEL, CONFIG_SDHC_INIT_PRIORITY,    \
 			      &sdhc_api);
 

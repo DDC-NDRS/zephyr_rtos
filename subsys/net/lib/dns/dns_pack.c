@@ -32,7 +32,7 @@ int dns_msg_pack_qname(uint16_t *len, uint8_t *buf, uint16_t size,
 
 	lb_start = 0U;
 	lb_index = 1U;
-	lb_size = 0U;
+	lb_size  = 0U;
 
 	dn_size = dns_strlen(domain_name);
 	if (dn_size == 0U) {
@@ -66,7 +66,7 @@ int dns_msg_pack_qname(uint16_t *len, uint8_t *buf, uint16_t size,
 				return -EINVAL;
 			}
 
-			buf[lb_start] = lb_size;
+			buf[lb_start] = (uint8_t)lb_size;
 			if (i == (dn_size - 1U)) {
 				/* A trailing dot explicitly represents the root label. */
 				if (lb_size > 0U) {
@@ -79,7 +79,7 @@ int dns_msg_pack_qname(uint16_t *len, uint8_t *buf, uint16_t size,
 			lb_start = lb_index;
 			break;
 		case '\0':
-			buf[lb_start] = lb_size;
+			buf[lb_start] = (uint8_t)lb_size;
 			buf[lb_index] = 0U;
 			break;
 		}
@@ -577,7 +577,7 @@ int dns_unpack_name(const uint8_t *msg, int maxlen, const uint8_t *src,
 				return -EMSGSIZE;
 			}
 
-			if ((label_len + 1 >= dest_size) ||
+			if (((size_t)(label_len + 1) >= dest_size) ||
 			    ((curr_src + label_len) >= (msg + maxlen))) {
 				return -EMSGSIZE;
 			}

@@ -17,237 +17,234 @@ LOG_MODULE_REGISTER(can_common, CONFIG_CAN_LOG_LEVEL);
 #define CAN_SYNC_SEG 1
 
 struct can_tx_default_cb_ctx {
-	struct k_sem done;
-	int status;
+    struct k_sem done;
+    int status;
 };
 
-static void can_tx_default_cb(const struct device *dev, int error, void *user_data)
-{
-	struct can_tx_default_cb_ctx *ctx = user_data;
+static void can_tx_default_cb(const struct device* dev, int error, void* user_data) {
+    struct can_tx_default_cb_ctx* ctx = user_data;
 
-	ARG_UNUSED(dev);
+    ARG_UNUSED(dev);
 
-	ctx->status = error;
-	k_sem_give(&ctx->done);
+    ctx->status = error;
+    k_sem_give(&ctx->done);
 }
 
-int z_impl_can_send(const struct device *dev, const struct can_frame *frame,
-		    k_timeout_t timeout, can_tx_callback_t callback,
-		    void *user_data)
-{
-	const struct can_driver_api *api = DEVICE_API_GET(can, dev);
-	uint32_t id_mask;
+int z_impl_can_send(const struct device* dev, const struct can_frame* frame,
+                    k_timeout_t timeout, can_tx_callback_t callback,
+                    void* user_data) {
+    const struct can_driver_api* api = DEVICE_API_GET(can, dev);
+    uint32_t id_mask;
 
-	CHECKIF(frame == NULL) {
-		return -EINVAL;
-	}
+    CHECKIF(frame == NULL) {
+        return (-EINVAL);
+    }
 
-	if ((frame->flags & CAN_FRAME_IDE) != 0U) {
-		id_mask = CAN_EXT_ID_MASK;
-	} else {
-		id_mask = CAN_STD_ID_MASK;
-	}
+    if ((frame->flags & CAN_FRAME_IDE) != 0U) {
+        id_mask = CAN_EXT_ID_MASK;
+    }
+    else {
+        id_mask = CAN_STD_ID_MASK;
+    }
 
-	CHECKIF((frame->id & ~(id_mask)) != 0U) {
-		LOG_ERR("invalid frame with %s (%d-bit) CAN ID 0x%0*x",
-			(frame->flags & CAN_FRAME_IDE) != 0 ? "extended" : "standard",
-			(frame->flags & CAN_FRAME_IDE) != 0 ? 29 : 11,
-			(frame->flags & CAN_FRAME_IDE) != 0 ? 8 : 3, frame->id);
-		return -EINVAL;
-	}
+    CHECKIF((frame->id & ~(id_mask)) != 0U) {
+        LOG_ERR("invalid frame with %s (%d-bit) CAN ID 0x%0*x",
+                (frame->flags & CAN_FRAME_IDE) != 0 ? "extended" : "standard",
+                (frame->flags & CAN_FRAME_IDE) != 0 ? 29 : 11,
+                (frame->flags & CAN_FRAME_IDE) != 0 ? 8 : 3, frame->id);
+        return (-EINVAL);
+    }
 
-	if (callback == NULL) {
-		struct can_tx_default_cb_ctx ctx;
-		int err;
+    if (callback == NULL) {
+        struct can_tx_default_cb_ctx ctx;
+        int err;
 
-		k_sem_init(&ctx.done, 0, 1);
+        k_sem_init(&ctx.done, 0, 1);
 
-		err = api->send(dev, frame, timeout, can_tx_default_cb, &ctx);
-		if (err != 0) {
-			return err;
-		}
+        err = api->send(dev, frame, timeout, can_tx_default_cb, &ctx);
+        if (err != 0) {
+            return (err);
+        }
 
-		k_sem_take(&ctx.done, K_FOREVER);
+        k_sem_take(&ctx.done, K_FOREVER);
 
-		return ctx.status;
-	}
+        return (ctx.status);
+    }
 
-	return api->send(dev, frame, timeout, callback, user_data);
+    return (api->send(dev, frame, timeout, callback, user_data));
 }
 
-int can_add_rx_filter(const struct device *dev, can_rx_callback_t callback,
-		      void *user_data, const struct can_filter *filter)
-{
-	uint32_t id_mask;
+int can_add_rx_filter(const struct device* dev, can_rx_callback_t callback,
+                      void* user_data, const struct can_filter* filter) {
+    const struct can_driver_api* api = DEVICE_API_GET(can, dev);
+    uint32_t id_mask;
 
-	CHECKIF(callback == NULL || filter == NULL) {
-		return -EINVAL;
-	}
+    CHECKIF(callback == NULL || filter == NULL) {
+        return (-EINVAL);
+    }
 
-	if ((filter->flags & CAN_FILTER_IDE) != 0U) {
-		id_mask = CAN_EXT_ID_MASK;
-	} else {
-		id_mask = CAN_STD_ID_MASK;
-	}
+    if ((filter->flags & CAN_FILTER_IDE) != 0U) {
+        id_mask = CAN_EXT_ID_MASK;
+    }
+    else {
+        id_mask = CAN_STD_ID_MASK;
+    }
 
-	CHECKIF(((filter->id & ~(id_mask)) != 0U) || ((filter->mask & ~(id_mask)) != 0U)) {
-		LOG_ERR("invalid filter with %s (%d-bit) CAN ID 0x%0*x, CAN ID mask 0x%0*x",
-			(filter->flags & CAN_FILTER_IDE) != 0 ? "extended" : "standard",
-			(filter->flags & CAN_FILTER_IDE) != 0 ? 29 : 11,
-			(filter->flags & CAN_FILTER_IDE) != 0 ? 8 : 3, filter->id,
-			(filter->flags & CAN_FILTER_IDE) != 0 ? 8 : 3, filter->mask);
-		return -EINVAL;
-	}
+    CHECKIF(((filter->id & ~(id_mask)) != 0U) || ((filter->mask & ~(id_mask)) != 0U)) {
+        LOG_ERR("invalid filter with %s (%d-bit) CAN ID 0x%0*x, CAN ID mask 0x%0*x",
+                (filter->flags & CAN_FILTER_IDE) != 0 ? "extended" : "standard",
+                (filter->flags & CAN_FILTER_IDE) != 0 ? 29 : 11,
+                (filter->flags & CAN_FILTER_IDE) != 0 ? 8 : 3, filter->id,
+                (filter->flags & CAN_FILTER_IDE) != 0 ? 8 : 3, filter->mask);
+        return (-EINVAL);
+    }
 
-	return DEVICE_API_GET(can, dev)->add_rx_filter(dev, callback, user_data, filter);
+    return api->add_rx_filter(dev, callback, user_data, filter);
 }
 
-static void can_msgq_put(const struct device *dev, struct can_frame *frame, void *user_data)
-{
-	struct k_msgq *msgq = (struct k_msgq *)user_data;
-	int ret;
+static void can_msgq_put(const struct device* dev, struct can_frame* frame, void* user_data) {
+    struct k_msgq* msgq = user_data;
+    int ret;
 
-	ARG_UNUSED(dev);
+    ARG_UNUSED(dev);
 
-	__ASSERT_NO_MSG(msgq);
-	/* k_msgq_put() copies msgq->msg_size bytes from the frame */
-	__ASSERT_NO_MSG(msgq->msg_size == sizeof(struct can_frame));
+    __ASSERT_NO_MSG(msgq);
 
-	ret = k_msgq_put(msgq, frame, K_NO_WAIT);
-	if (ret) {
-		LOG_ERR("Msgq %p overflowed. Frame ID: 0x%x", msgq, frame->id);
-	}
+    /* k_msgq_put() copies msgq->msg_size bytes from the frame */
+    __ASSERT_NO_MSG(msgq->msg_size == sizeof(struct can_frame));
+
+    ret = k_msgq_put(msgq, frame, K_NO_WAIT);
+    if (ret) {
+        LOG_ERR("Msgq %p overflowed. Frame ID: 0x%x", msgq, frame->id);
+    }
 }
 
-int z_impl_can_add_rx_filter_msgq(const struct device *dev, struct k_msgq *msgq,
-				  const struct can_filter *filter)
-{
-	if (msgq->msg_size != sizeof(struct can_frame)) {
-		LOG_ERR("msgq %p message size %zu, expected %zu", msgq, msgq->msg_size,
-			sizeof(struct can_frame));
-		return -EINVAL;
-	}
+int z_impl_can_add_rx_filter_msgq(const struct device* dev, struct k_msgq* msgq,
+                                  const struct can_filter* filter) {
+    const struct can_driver_api* api = DEVICE_API_GET(can, dev);
 
-	return DEVICE_API_GET(can, dev)->add_rx_filter(dev, can_msgq_put, msgq, filter);
+    if (msgq->msg_size != sizeof(struct can_frame)) {
+        LOG_ERR("msgq %p message size %zu, expected %zu", msgq, msgq->msg_size,
+                sizeof(struct can_frame));
+        return (-EINVAL);
+    }
+
+    return api->add_rx_filter(dev, can_msgq_put, msgq, filter);
 }
 
 /* This is used for emulating the deprecated can_set_state_change_callback() API */
-static void can_state_change_callback_legacy_handler(const struct device *dev,
-						     struct can_state_change_callback *callback,
-						     enum can_state state,
-						     struct can_bus_err_cnt err_cnt)
-{
-	struct can_driver_data *common = (struct can_driver_data *)dev->data;
-	can_state_change_callback_t cb;
-	void *user_data;
-	int key = irq_lock();
+static void can_state_change_callback_legacy_handler(const struct device* dev,
+                                                     struct can_state_change_callback* callback,
+                                                     enum can_state state,
+                                                     struct can_bus_err_cnt err_cnt) {
+    struct can_driver_data* common = (struct can_driver_data*)dev->data;
+    can_state_change_callback_t cb;
+    void* user_data;
+    int key = irq_lock();
 
-	cb = common->legacy_state_change_cb_handler;
-	user_data = common->legacy_state_change_cb_user_data;
+    cb = common->legacy_state_change_cb_handler;
+    user_data = common->legacy_state_change_cb_user_data;
 
-	irq_unlock(key);
+    irq_unlock(key);
 
-	if (cb != NULL) {
-		cb(dev, state, err_cnt, user_data);
-	}
+    if (cb != NULL) {
+        cb(dev, state, err_cnt, user_data);
+    }
 }
 
 /* This is the deprecated can_set_state_change_callback() API */
-void can_set_state_change_callback(const struct device *dev, can_state_change_callback_t callback,
-				   void *user_data)
-{
-	struct can_driver_data *common = (struct can_driver_data *)dev->data;
-	k_spinlock_key_t key;
+void can_set_state_change_callback(const struct device* dev, can_state_change_callback_t callback,
+                                   void* user_data) {
+    struct can_driver_data* common = (struct can_driver_data*)dev->data;
+    k_spinlock_key_t key;
 
-	key = k_spin_lock(&common->state_change_callback_lock);
+    key = k_spin_lock(&common->state_change_callback_lock);
 
-	common->legacy_state_change_cb_handler = callback;
-	common->legacy_state_change_cb_user_data = user_data;
+    common->legacy_state_change_cb_handler   = callback;
+    common->legacy_state_change_cb_user_data = user_data;
 
-	can_init_state_change_callback(&common->legacy_state_change_cb,
-				       can_state_change_callback_legacy_handler);
+    can_init_state_change_callback(&common->legacy_state_change_cb,
+                                   can_state_change_callback_legacy_handler);
 
-	k_spin_unlock(&common->state_change_callback_lock, key);
+    k_spin_unlock(&common->state_change_callback_lock, key);
 
-	if (callback != NULL) {
-		(void)can_add_state_change_callback(dev, &common->legacy_state_change_cb);
-	} else {
-		(void)can_remove_state_change_callback(dev, &common->legacy_state_change_cb);
-	}
+    if (callback != NULL) {
+        (void)can_add_state_change_callback(dev, &common->legacy_state_change_cb);
+    }
+    else {
+        (void)can_remove_state_change_callback(dev, &common->legacy_state_change_cb);
+    }
 }
 
-int can_add_state_change_callback(const struct device *dev,
-				  struct can_state_change_callback *callback)
-{
-	struct can_driver_data *common = (struct can_driver_data *)dev->data;
-	const struct can_driver_api *api = DEVICE_API_GET(can, dev);
-	k_spinlock_key_t key;
-	int err = 0;
+int can_add_state_change_callback(const struct device* dev,
+                                  struct can_state_change_callback* callback) {
+    struct can_driver_data* common = (struct can_driver_data*)dev->data;
+    const struct can_driver_api* api = DEVICE_API_GET(can, dev);
+    k_spinlock_key_t key;
+    int err = 0;
 
-	__ASSERT_NO_MSG(callback != NULL);
-	__ASSERT_NO_MSG(callback->handler != NULL);
+    __ASSERT_NO_MSG(callback != NULL);
+    __ASSERT_NO_MSG(callback->handler != NULL);
 
-	key = k_spin_lock(&common->state_change_callback_lock);
+    key = k_spin_lock(&common->state_change_callback_lock);
 
-	if (api->state_change_callbacks_enabled != NULL) {
-		if (sys_slist_is_empty(&common->state_change_callbacks)) {
-			err = api->state_change_callbacks_enabled(dev, true);
-		}
-	}
+    if (api->state_change_callbacks_enabled != NULL) {
+        if (sys_slist_is_empty(&common->state_change_callbacks)) {
+            err = api->state_change_callbacks_enabled(dev, true);
+        }
+    }
 
-	(void)sys_slist_find_and_remove(&common->state_change_callbacks, &callback->node);
-	sys_slist_append(&common->state_change_callbacks, &callback->node);
+    (void) sys_slist_find_and_remove(&common->state_change_callbacks, &callback->node);
+    sys_slist_append(&common->state_change_callbacks, &callback->node);
 
-	k_spin_unlock(&common->state_change_callback_lock, key);
+    k_spin_unlock(&common->state_change_callback_lock, key);
 
-	return err;
+    return (err);
 }
 
-int can_remove_state_change_callback(const struct device *dev,
-				     struct can_state_change_callback *callback)
-{
-	struct can_driver_data *common = (struct can_driver_data *)dev->data;
-	const struct can_driver_api *api = DEVICE_API_GET(can, dev);
-	k_spinlock_key_t key;
-	int err = 0;
+int can_remove_state_change_callback(const struct device* dev,
+                                     struct can_state_change_callback* callback) {
+    struct can_driver_data* common = (struct can_driver_data*)dev->data;
+    const struct can_driver_api* api = DEVICE_API_GET(can, dev);
+    k_spinlock_key_t key;
+    int err = 0;
 
-	__ASSERT_NO_MSG(callback != NULL);
+    __ASSERT_NO_MSG(callback != NULL);
 
-	key = k_spin_lock(&common->state_change_callback_lock);
+    key = k_spin_lock(&common->state_change_callback_lock);
 
-	if (!sys_slist_find_and_remove(&common->state_change_callbacks, &callback->node)) {
-		err = -EINVAL;
-		goto unlock;
-	}
+    if (!sys_slist_find_and_remove(&common->state_change_callbacks, &callback->node)) {
+        err = -EINVAL;
+        goto unlock;
+    }
 
-	if (api->state_change_callbacks_enabled != NULL) {
-		if (sys_slist_is_empty(&common->state_change_callbacks)) {
-			err = api->state_change_callbacks_enabled(dev, false);
-		}
-	}
+    if (api->state_change_callbacks_enabled != NULL) {
+        if (sys_slist_is_empty(&common->state_change_callbacks)) {
+            err = api->state_change_callbacks_enabled(dev, false);
+        }
+    }
 
-unlock:
-	k_spin_unlock(&common->state_change_callback_lock, key);
+unlock :
+    k_spin_unlock(&common->state_change_callback_lock, key);
 
-	return err;
+    return (err);
 }
 
-void can_fire_state_change_callbacks(const struct device *dev, enum can_state state,
-				     struct can_bus_err_cnt err_cnt)
-{
-	struct can_driver_data *common = (struct can_driver_data *)dev->data;
-	struct can_state_change_callback *cb;
-	k_spinlock_key_t key;
+void can_fire_state_change_callbacks(const struct device* dev, enum can_state state,
+                                     struct can_bus_err_cnt err_cnt) {
+    struct can_driver_data* common = (struct can_driver_data*)dev->data;
+    struct can_state_change_callback* cb;
+    k_spinlock_key_t key;
 
-	key = k_spin_lock(&common->state_change_callback_lock);
+    key = k_spin_lock(&common->state_change_callback_lock);
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&common->state_change_callbacks, cb, node) {
-		__ASSERT_NO_MSG(cb->handler != NULL);
+    SYS_SLIST_FOR_EACH_CONTAINER(&common->state_change_callbacks, cb, node) {
+        __ASSERT_NO_MSG(cb->handler != NULL);
 
-		cb->handler(dev, cb, state, err_cnt);
-	}
+        cb->handler(dev, cb, state, err_cnt);
+    }
 
-	k_spin_unlock(&common->state_change_callback_lock, key);
+    k_spin_unlock(&common->state_change_callback_lock, key);
 }
 
 /**
@@ -276,66 +273,69 @@ void can_fire_state_change_callbacks(const struct device *dev, enum can_state st
  * @retval           0 or positive sample point error on success.
  * @retval           -ENOTSUP if the requested sample point cannot be met.
  */
-static int update_sample_pnt(uint32_t total_tq, uint32_t sample_pnt, struct can_timing *res,
-			     const struct can_timing *min, const struct can_timing *max)
-{
-	uint16_t tseg1_max = max->phase_seg1 + max->prop_seg;
-	uint16_t tseg1_min = min->phase_seg1 + min->prop_seg;
-	uint32_t sample_pnt_res;
-	uint16_t tseg1;
-	uint16_t tseg2;
+static int update_sample_pnt(uint32_t total_tq, uint32_t sample_pnt, struct can_timing* res,
+                             const struct can_timing* min, const struct can_timing* max) {
+    uint16_t tseg1_max = max->phase_seg1 + max->prop_seg;
+    uint16_t tseg1_min = min->phase_seg1 + min->prop_seg;
+    uint32_t sample_pnt_res;
+    uint16_t tseg1;
+    uint16_t tseg2;
 
-	/* Calculate number of time quanta in tseg2 for given sample point */
-	tseg2 = total_tq - (total_tq * sample_pnt) / 1000;
-	tseg2 = CLAMP(tseg2, min->phase_seg2, max->phase_seg2);
+    /* Calculate number of time quanta in tseg2 for given sample point */
+    tseg2 = total_tq - (total_tq * sample_pnt) / 1000;
+    tseg2 = CLAMP(tseg2, min->phase_seg2, max->phase_seg2);
 
-	/* Calculate number of time quanta in tseg1 */
-	tseg1 = total_tq - CAN_SYNC_SEG - tseg2;
-	if (tseg1 > tseg1_max) {
-		/* Sample point location must be decreased */
-		tseg1 = tseg1_max;
-		tseg2 = total_tq - CAN_SYNC_SEG - tseg1;
+    /* Calculate number of time quanta in tseg1 */
+    tseg1 = total_tq - CAN_SYNC_SEG - tseg2;
+    if (tseg1 > tseg1_max) {
+        /* Sample point location must be decreased */
+        tseg1 = tseg1_max;
+        tseg2 = total_tq - CAN_SYNC_SEG - tseg1;
 
-		if (tseg2 > max->phase_seg2) {
-			return -ENOTSUP;
-		}
-	} else if (tseg1 < tseg1_min) {
-		/* Sample point location must be increased */
-		tseg1 = tseg1_min;
-		tseg2 = total_tq - CAN_SYNC_SEG - tseg1;
+        if (tseg2 > max->phase_seg2) {
+            return (-ENOTSUP);
+        }
+    }
+    else if (tseg1 < tseg1_min) {
+        /* Sample point location must be increased */
+        tseg1 = tseg1_min;
+        tseg2 = total_tq - CAN_SYNC_SEG - tseg1;
 
-		if (tseg2 < min->phase_seg2) {
-			return -ENOTSUP;
-		}
-	} else {
-		/* Sample point location within range */
-	}
+        if (tseg2 < min->phase_seg2) {
+            return (-ENOTSUP);
+        }
+    }
+    else {
+        /* Sample point location within range */
+    }
 
-	res->phase_seg2 = tseg2;
+    res->phase_seg2 = tseg2;
 
-	/* Attempt to distribute tseg1 evenly between prop_seq and phase_seg1 */
-	res->prop_seg = CLAMP(tseg1 / 2, min->prop_seg, max->prop_seg);
-	res->phase_seg1 = tseg1 - res->prop_seg;
+    /* Attempt to distribute tseg1 evenly between prop_seq and phase_seg1 */
+    res->prop_seg   = CLAMP(tseg1 / 2, min->prop_seg, max->prop_seg);
+    res->phase_seg1 = tseg1 - res->prop_seg;
 
-	if (res->phase_seg1 > max->phase_seg1) {
-		/* Even tseg1 distribution not possible, decrease phase_seg1 */
-		res->phase_seg1 = max->phase_seg1;
-		res->prop_seg = tseg1 - res->phase_seg1;
-	} else if (res->phase_seg1 < min->phase_seg1) {
-		/* Even tseg1 distribution not possible, increase phase_seg1 */
-		res->phase_seg1 = min->phase_seg1;
-		res->prop_seg = tseg1 - res->phase_seg1;
-	} else {
-		/* No redistribution necessary */
-	}
+    if (res->phase_seg1 > max->phase_seg1) {
+        /* Even tseg1 distribution not possible, decrease phase_seg1 */
+        res->phase_seg1 = max->phase_seg1;
+        res->prop_seg   = tseg1 - res->phase_seg1;
+    }
+    else if (res->phase_seg1 < min->phase_seg1) {
+        /* Even tseg1 distribution not possible, increase phase_seg1 */
+        res->phase_seg1 = min->phase_seg1;
+        res->prop_seg   = tseg1 - res->phase_seg1;
+    }
+    else {
+        /* No redistribution necessary */
+    }
 
-	/* Calculate the resulting sample point */
-	sample_pnt_res = (CAN_SYNC_SEG + tseg1) * 1000 / total_tq;
+    /* Calculate the resulting sample point */
+    sample_pnt_res = (CAN_SYNC_SEG + tseg1) * 1000 / total_tq;
 
-	/* Return the absolute sample point error */
-	return sample_pnt_res > sample_pnt ?
-		sample_pnt_res - sample_pnt :
-		sample_pnt - sample_pnt_res;
+    /* Return the absolute sample point error */
+    return sample_pnt_res > sample_pnt ?
+           sample_pnt_res - sample_pnt :
+           sample_pnt - sample_pnt_res;
 }
 
 /**
@@ -344,22 +344,23 @@ static int update_sample_pnt(uint32_t total_tq, uint32_t sample_pnt, struct can_
  * @param  bitrate The bitrate in bits/second.
  * @return The sample point in permille.
  */
-static uint16_t sample_point_for_bitrate(uint32_t bitrate)
-{
-	uint16_t sample_pnt;
+static uint16_t sample_point_for_bitrate(uint32_t bitrate) {
+    uint16_t sample_pnt;
 
-	if (bitrate > 800000) {
-		/* 75.0% */
-		sample_pnt = 750;
-	} else if (bitrate > 500000) {
-		/* 80.0% */
-		sample_pnt = 800;
-	} else {
-		/* 87.5% */
-		sample_pnt = 875;
-	}
+    if (bitrate > 800000) {
+        /* 75.0% */
+        sample_pnt = 750;
+    }
+    else if (bitrate > 500000) {
+        /* 80.0% */
+        sample_pnt = 800;
+    }
+    else {
+        /* 87.5% */
+        sample_pnt = 875;
+    }
 
-	return sample_pnt;
+    return (sample_pnt);
 }
 
 /**
@@ -377,202 +378,199 @@ static uint16_t sample_point_for_bitrate(uint32_t bitrate)
  * @retval -ENOTSUP if the requested bitrate is not supported.
  * @retval -EIO if @a can_get_core_clock() is not available.
  */
-static int can_calc_timing_internal(const struct device *dev, struct can_timing *res,
-				    const struct can_timing *min, const struct can_timing *max,
-				    uint32_t bitrate, uint16_t sample_pnt)
-{
-	uint32_t total_tq = CAN_SYNC_SEG + max->prop_seg + max->phase_seg1 + max->phase_seg2;
-	struct can_timing tmp_res = { 0 };
-	int err_min = INT_MAX;
-	uint32_t core_clock;
-	int err;
+static int can_calc_timing_internal(const struct device* dev, struct can_timing* res,
+                                    const struct can_timing* min, const struct can_timing* max,
+                                    uint32_t bitrate, uint16_t sample_pnt) {
+    uint32_t total_tq = CAN_SYNC_SEG + max->prop_seg + max->phase_seg1 + max->phase_seg2;
+    struct can_timing tmp_res;
+    int err_min = INT_MAX;
+    uint32_t core_clock;
+    int err;
 
-	if (bitrate == 0 || sample_pnt >= 1000) {
-		return -EINVAL;
-	}
+    if ((bitrate == 0) || (sample_pnt >= 1000)) {
+        return (-EINVAL);
+    }
 
-	err = can_get_core_clock(dev, &core_clock);
-	if (err != 0) {
-		return -EIO;
-	}
+    err = can_get_core_clock(dev, &core_clock);
+    if (err != 0) {
+        return (-EIO);
+    }
 
-	if (sample_pnt == 0U) {
-		sample_pnt = sample_point_for_bitrate(bitrate);
-	}
+    if (sample_pnt == 0U) {
+        sample_pnt = sample_point_for_bitrate(bitrate);
+    }
 
-	for (int prescaler = MAX(core_clock / (total_tq * bitrate), min->prescaler);
-	     prescaler <= max->prescaler;
-	     prescaler++) {
+    for (int prescaler = MAX(core_clock / (total_tq * bitrate), min->prescaler);
+         prescaler <= max->prescaler;
+         prescaler++) {
 
-		if (core_clock % (prescaler * bitrate)) {
-			/* No integer total_tq for this prescaler setting */
-			continue;
-		}
+        if (core_clock % (prescaler * bitrate)) {
+            /* No integer total_tq for this prescaler setting */
+            continue;
+        }
 
-		total_tq = core_clock / (prescaler * bitrate);
+        total_tq = core_clock / (prescaler * bitrate);
 
-		err = update_sample_pnt(total_tq, sample_pnt, &tmp_res, min, max);
-		if (err < 0) {
-			/* Sample point cannot be met for this prescaler setting */
-			continue;
-		}
+        err = update_sample_pnt(total_tq, sample_pnt, &tmp_res, min, max);
+        if (err < 0) {
+            /* Sample point cannot be met for this prescaler setting */
+            continue;
+        }
 
-		if (err < err_min) {
-			/* Improved sample point match */
-			err_min = err;
-			res->prop_seg = tmp_res.prop_seg;
-			res->phase_seg1 = tmp_res.phase_seg1;
-			res->phase_seg2 = tmp_res.phase_seg2;
-			res->prescaler = (uint16_t)prescaler;
+        if (err < err_min) {
+            /* Improved sample point match */
+            err_min = err;
+            res->prop_seg   = tmp_res.prop_seg;
+            res->phase_seg1 = tmp_res.phase_seg1;
+            res->phase_seg2 = tmp_res.phase_seg2;
+            res->prescaler  = (uint16_t)prescaler;
 
-			if (err == 0) {
-				/* Perfect sample point match */
-				break;
-			}
-		}
-	}
+            if (err == 0) {
+                /* Perfect sample point match */
+                break;
+            }
+        }
+    }
 
-	if (err_min != 0U) {
-		LOG_DBG("Sample point error: %d 1/1000", err_min);
-	}
+    if (err_min != 0U) {
+        LOG_DBG("Sample point error: %d 1/1000", err_min);
+    }
 
-	/* Calculate default sjw as phase_seg2 / 2 and clamp the result */
-	res->sjw = MIN(res->phase_seg1, res->phase_seg2 / 2);
-	res->sjw = CLAMP(res->sjw, min->sjw, max->sjw);
+    /* Calculate default sjw as phase_seg2 / 2 and clamp the result */
+    res->sjw = MIN(res->phase_seg1, res->phase_seg2 / 2);
+    res->sjw = CLAMP(res->sjw, min->sjw, max->sjw);
 
-	return err_min == INT_MAX ? -ENOTSUP : err_min;
+    return ((err_min == INT_MAX) ? -ENOTSUP : err_min);
 }
 
-int z_impl_can_calc_timing(const struct device *dev, struct can_timing *res,
-			   uint32_t bitrate, uint16_t sample_pnt)
-{
-	const struct can_timing *min = can_get_timing_min(dev);
-	const struct can_timing *max = can_get_timing_max(dev);
+int z_impl_can_calc_timing(const struct device* dev, struct can_timing* res,
+                           uint32_t bitrate, uint16_t sample_pnt) {
+    const struct can_timing* min = can_get_timing_min(dev);
+    const struct can_timing* max = can_get_timing_max(dev);
 
-	if (bitrate > 1000000) {
-		return -EINVAL;
-	}
+    if (bitrate > 1000000) {
+        return (-EINVAL);
+    }
 
-	return can_calc_timing_internal(dev, res, min, max, bitrate, sample_pnt);
+    return can_calc_timing_internal(dev, res, min, max, bitrate, sample_pnt);
 }
 
 #ifdef CONFIG_CAN_FD_MODE
-int z_impl_can_calc_timing_data(const struct device *dev, struct can_timing *res,
-				uint32_t bitrate, uint16_t sample_pnt)
-{
-	const struct can_timing *min = can_get_timing_data_min(dev);
-	const struct can_timing *max = can_get_timing_data_max(dev);
+int z_impl_can_calc_timing_data(const struct device* dev, struct can_timing* res,
+                                uint32_t bitrate, uint16_t sample_pnt) {
+    const struct can_timing* min = can_get_timing_data_min(dev);
+    const struct can_timing* max = can_get_timing_data_max(dev);
 
-	if (bitrate > 8000000) {
-		return -EINVAL;
-	}
+    if (bitrate > 8000000) {
+        return (-EINVAL);
+    }
 
-	return can_calc_timing_internal(dev, res, min, max, bitrate, sample_pnt);
+    return can_calc_timing_internal(dev, res, min, max, bitrate, sample_pnt);
 }
 #endif /* CONFIG_CAN_FD_MODE */
 
-static int check_timing_in_range(const struct can_timing *timing,
-				 const struct can_timing *min,
-				 const struct can_timing *max)
-{
-	if (!IN_RANGE(timing->sjw, min->sjw, max->sjw) ||
-	    !IN_RANGE(timing->prop_seg, min->prop_seg, max->prop_seg) ||
-	    !IN_RANGE(timing->phase_seg1, min->phase_seg1, max->phase_seg1) ||
-	    !IN_RANGE(timing->phase_seg2, min->phase_seg2, max->phase_seg2) ||
-	    !IN_RANGE(timing->prescaler, min->prescaler, max->prescaler)) {
-		return -ENOTSUP;
-	}
+static int check_timing_in_range(const struct can_timing* timing,
+                                 const struct can_timing* min,
+                                 const struct can_timing* max) {
+    if (!IN_RANGE(timing->sjw, min->sjw, max->sjw) ||
+        !IN_RANGE(timing->prop_seg, min->prop_seg, max->prop_seg) ||
+        !IN_RANGE(timing->phase_seg1, min->phase_seg1, max->phase_seg1) ||
+        !IN_RANGE(timing->phase_seg2, min->phase_seg2, max->phase_seg2) ||
+        !IN_RANGE(timing->prescaler, min->prescaler, max->prescaler)) {
+        return (-ENOTSUP);
+    }
 
-	if ((timing->sjw > timing->phase_seg1) || (timing->sjw > timing->phase_seg2)) {
-		return -ENOTSUP;
-	}
+    if ((timing->sjw > timing->phase_seg1) || (timing->sjw > timing->phase_seg2)) {
+        return (-ENOTSUP);
+    }
 
-	return 0;
+    return (0);
 }
 
-int z_impl_can_set_timing(const struct device *dev,
-			  const struct can_timing *timing)
-{
-	const struct can_timing *min = can_get_timing_min(dev);
-	const struct can_timing *max = can_get_timing_max(dev);
-	int err;
+int z_impl_can_set_timing(const struct device* dev,
+                          const struct can_timing* timing) {
+    const struct can_driver_api* api = DEVICE_API_GET(can, dev);
+    const struct can_timing* min = can_get_timing_min(dev);
+    const struct can_timing* max = can_get_timing_max(dev);
+    int err;
 
-	err = check_timing_in_range(timing, min, max);
-	if (err != 0) {
-		return err;
-	}
+    err = check_timing_in_range(timing, min, max);
+    if (err != 0) {
+        return (err);
+    }
 
-	return DEVICE_API_GET(can, dev)->set_timing(dev, timing);
+    return api->set_timing(dev, timing);
 }
 
-int z_impl_can_set_bitrate(const struct device *dev, uint32_t bitrate)
-{
-	struct can_timing timing = { 0 };
-	uint32_t min = can_get_bitrate_min(dev);
-	uint32_t max = can_get_bitrate_max(dev);
-	uint16_t sample_pnt;
-	int ret;
+int z_impl_can_set_bitrate(const struct device* dev, uint32_t bitrate) {
+    struct can_timing timing;
+    uint32_t min = can_get_bitrate_min(dev);
+    uint32_t max = can_get_bitrate_max(dev);
+    uint16_t sample_pnt;
+    int ret;
 
-	if ((bitrate < min) || (bitrate > max)) {
-		return -ENOTSUP;
-	}
+    if ((bitrate < min) || (bitrate > max)) {
+        return (-ENOTSUP);
+    }
 
-	sample_pnt = sample_point_for_bitrate(bitrate);
-	ret = can_calc_timing(dev, &timing, bitrate, sample_pnt);
-	if (ret < 0) {
-		return ret;
-	}
+    sample_pnt = sample_point_for_bitrate(bitrate);
+    ret = can_calc_timing(dev, &timing, bitrate, sample_pnt);
+    if (ret < 0) {
+        return (ret);
+    }
 
-	if (ret > CONFIG_CAN_SAMPLE_POINT_MARGIN) {
-		return -ERANGE;
-	}
+    if (ret > CONFIG_CAN_SAMPLE_POINT_MARGIN) {
+        return (-ERANGE);
+    }
 
-	return can_set_timing(dev, &timing);
+    ret = can_set_timing(dev, &timing);
+
+    return (ret);
 }
 
 #ifdef CONFIG_CAN_FD_MODE
-int z_impl_can_set_timing_data(const struct device *dev,
-			       const struct can_timing *timing_data)
-{
-	const struct can_driver_api *api = DEVICE_API_GET(can, dev);
-	const struct can_timing *min = can_get_timing_data_min(dev);
-	const struct can_timing *max = can_get_timing_data_max(dev);
-	int err;
+int z_impl_can_set_timing_data(const struct device* dev,
+                               const struct can_timing* timing_data) {
+    const struct can_driver_api* api = DEVICE_API_GET(can, dev);
+    const struct can_timing* min = can_get_timing_data_min(dev);
+    const struct can_timing* max = can_get_timing_data_max(dev);
+    int err;
 
-	if (api->set_timing_data == NULL) {
-		return -ENOSYS;
-	}
+    if (api->set_timing_data == NULL) {
+        return (-ENOSYS);
+    }
 
-	err = check_timing_in_range(timing_data, min, max);
-	if (err != 0) {
-		return err;
-	}
+    err = check_timing_in_range(timing_data, min, max);
+    if (err != 0) {
+        return (err);
+    }
 
-	return api->set_timing_data(dev, timing_data);
+    return api->set_timing_data(dev, timing_data);
 }
 
-int z_impl_can_set_bitrate_data(const struct device *dev, uint32_t bitrate_data)
-{
-	struct can_timing timing_data = { 0 };
-	uint32_t min = can_get_bitrate_min(dev);
-	uint32_t max = can_get_bitrate_max(dev);
-	uint16_t sample_pnt;
-	int ret;
+int z_impl_can_set_bitrate_data(const struct device* dev, uint32_t bitrate_data) {
+    struct can_timing timing_data;
+    uint32_t min = can_get_bitrate_min(dev);
+    uint32_t max = can_get_bitrate_max(dev);
+    uint16_t sample_pnt;
+    int ret;
 
-	if ((bitrate_data < min) || (bitrate_data > max)) {
-		return -ENOTSUP;
-	}
+    if ((bitrate_data < min) || (bitrate_data > max)) {
+        return (-ENOTSUP);
+    }
 
-	sample_pnt = sample_point_for_bitrate(bitrate_data);
-	ret = can_calc_timing_data(dev, &timing_data, bitrate_data, sample_pnt);
-	if (ret < 0) {
-		return ret;
-	}
+    sample_pnt = sample_point_for_bitrate(bitrate_data);
+    ret = can_calc_timing_data(dev, &timing_data, bitrate_data, sample_pnt);
+    if (ret < 0) {
+        return (ret);
+    }
 
-	if (ret > CONFIG_CAN_SAMPLE_POINT_MARGIN) {
-		return -ERANGE;
-	}
+    if (ret > CONFIG_CAN_SAMPLE_POINT_MARGIN) {
+        return (-ERANGE);
+    }
 
-	return can_set_timing_data(dev, &timing_data);
+    ret = can_set_timing_data(dev, &timing_data);
+
+    return (ret);
 }
 #endif /* CONFIG_CAN_FD_MODE */

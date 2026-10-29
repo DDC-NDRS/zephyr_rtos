@@ -28,14 +28,20 @@ static sys_slist_t sockets = SYS_SLIST_STATIC_INIT(&sockets);
 #define DNS_RESOLVER_BUF_CTR	(DNS_RESOLVER_MIN_BUF + \
 				 CONFIG_DNS_RESOLVER_ADDITIONAL_BUF_CTR)
 
+#if !defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define DNS_RESOLVER_BUF_UD_SIZE 0
+#else
+#define DNS_RESOLVER_BUF_UD_SIZE 4
+#endif
+
 NET_BUF_POOL_DEFINE(dns_msg_pool, DNS_RESOLVER_BUF_CTR,
-		    DNS_RESOLVER_MAX_BUF_SIZE, 0, NULL);
+		    DNS_RESOLVER_MAX_BUF_SIZE, DNS_RESOLVER_BUF_UD_SIZE, NULL);
 
 static struct socket_dispatch_table {
 	struct dns_socket_dispatcher *ctx;
 } dispatch_table[ZVFS_OPEN_SIZE];
 
-static uint16_t dns_dispatcher_addr_port(const struct net_sockaddr_storage *addr)
+static uint16_t dns_dispatcher_addr_port(struct net_sockaddr_storage *addr)
 {
 	if (IS_ENABLED(CONFIG_NET_IPV6) && addr->ss_family == NET_AF_INET6) {
 		return net_sin6(net_sad(addr))->sin6_port;

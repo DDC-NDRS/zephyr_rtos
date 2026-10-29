@@ -28,7 +28,13 @@ LOG_MODULE_DECLARE(net_pmtu, CONFIG_NET_PMTU_LOG_LEVEL);
 #define NET_IPV6_DPLPMTUD_ENTRIES 0
 #endif
 
+#if !defined(_MSC_VER) /* #CUSTOM@NDRS */
 #define NET_DPLPMTUD_MAX_ENTRIES (NET_IPV4_DPLPMTUD_ENTRIES + NET_IPV6_DPLPMTUD_ENTRIES)
+#elif ((NET_IPV4_DPLPMTUD_ENTRIES + NET_IPV6_DPLPMTUD_ENTRIES) > 0)
+#define NET_DPLPMTUD_MAX_ENTRIES (NET_IPV4_DPLPMTUD_ENTRIES + NET_IPV6_DPLPMTUD_ENTRIES)	
+#else
+#define NET_DPLPMTUD_MAX_ENTRIES 1
+#endif
 
 static struct net_dplpmtud_entry dplpmtud_entries[NET_DPLPMTUD_MAX_ENTRIES];
 static K_MUTEX_DEFINE(dplpmtud_lock);
@@ -530,7 +536,7 @@ int net_dplpmtud_get_path_mtu(struct net_dplpmtud_path *path)
 
 int net_dplpmtud_get_path_probe_size(struct net_dplpmtud_path *path)
 {
-	struct net_dplpmtud_entry *entry;
+	const struct net_dplpmtud_entry *entry;
 	uint16_t path_limit;
 	uint16_t search_high;
 	int probe_size;
@@ -567,7 +573,7 @@ int net_dplpmtud_get_path_probe_size(struct net_dplpmtud_path *path)
 
 bool net_dplpmtud_path_probe_in_flight(struct net_dplpmtud_path *path)
 {
-	struct net_dplpmtud_entry *entry;
+	const struct net_dplpmtud_entry *entry;
 	bool in_flight;
 
 	k_mutex_lock(&dplpmtud_lock, K_FOREVER);
@@ -938,7 +944,6 @@ void net_dplpmtud_sync_from_pmtu(const struct net_sockaddr *dst, uint16_t pmtu)
 int net_dplpmtud_foreach(net_dplpmtud_cb_t cb, void *user_data)
 {
 	int count = 0;
-	int i;
 
 	if (cb == NULL) {
 		return -EINVAL;
@@ -946,7 +951,7 @@ int net_dplpmtud_foreach(net_dplpmtud_cb_t cb, void *user_data)
 
 	k_mutex_lock(&dplpmtud_lock, K_FOREVER);
 
-	for (i = 0; i < ARRAY_SIZE(dplpmtud_entries); i++) {
+	for (int i = 0; i < ARRAY_SIZE(dplpmtud_entries); i++) {
 		if (!dplpmtud_entries[i].in_use) {
 			continue;
 		}
@@ -960,6 +965,7 @@ int net_dplpmtud_foreach(net_dplpmtud_cb_t cb, void *user_data)
 	return count;
 }
 
+#if defined(CONFIG_NET_PMTU_DPLPMTUD)
 void net_dplpmtud_init(void)
 {
 	k_mutex_lock(&dplpmtud_lock, K_FOREVER);
@@ -970,3 +976,4 @@ void net_dplpmtud_init(void)
 
 	k_mutex_unlock(&dplpmtud_lock);
 }
+#endif

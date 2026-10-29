@@ -95,6 +95,11 @@ config PHY_MICROCHIP_KSZ9131
 	  Enable Microchip KSZ9131 Ethernet PHY Driver
 	  This driver supports both KSZ9131 and LAN8840 PHY chips.
 
+config PHY_MICROCHIP_LAN8710AI
+	bool "Microchip LAN8710AI PHY Driver"
+	default y
+	depends on DT_HAS_MICROCHIP_LAN8710AI_ENABLED
+
 config PHY_MICROCHIP_LAN8742
 	bool "Microchip LAN8742 PHY Driver"
 	default y
@@ -143,6 +148,15 @@ config PHY_REALTEK_RTL8211F
 			$(dt_compat_any_has_prop,$(DT_COMPAT_REALTEK_RTL8211F),int-gpios))
 	help
 	  Enable Realtek RTL8211F Ethernet PHY Driver
+
+config PHY_MARVELL_88E1510
+	bool "Marvell 88E1510 Gigabit Ethernet PHY Driver"
+	default y
+	depends on DT_HAS_MARVELL_88E1510_ENABLED
+	select MDIO
+	select GPIO if $(dt_compat_any_has_prop,$(DT_COMPAT_MARVELL_88E1510),reset-gpios)
+	help
+	  Enable Marvell 88E1510 Gigabit Ethernet PHY Driver.
 
 config PHY_QUALCOMM_AR8031
 	bool "Qualcomm Atheros AR8031 Ethernet PHY Driver"

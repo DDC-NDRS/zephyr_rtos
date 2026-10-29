@@ -294,7 +294,7 @@ static void le_rpa_invalidate(void)
 		if (bt_dev.id_count == 0) {
 			return;
 		}
-		bool rpa_expired_data[bt_dev.id_count];
+		bool rpa_expired_data[CONFIG_BT_ID_MAX];
 		for (uint8_t i = 0; i < bt_dev.id_count; i++) {
 			rpa_expired_data[i] = true;
 		}
@@ -1359,9 +1359,7 @@ void bt_id_get(bt_addr_le_t *addrs, size_t *count)
 
 static int id_find(const bt_addr_le_t *addr)
 {
-	uint8_t id;
-
-	for (id = 0U; id < bt_dev.id_count; id++) {
+	for (size_t id = 0U; id < bt_dev.id_count; id++) {
 		if (bt_addr_le_eq(addr, &bt_dev.id_addr[id])) {
 			return id;
 		}

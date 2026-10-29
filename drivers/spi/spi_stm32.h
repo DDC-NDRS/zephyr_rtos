@@ -9,7 +9,7 @@
 
 #include "spi_context.h"
 
-typedef void (*irq_config_func_t)(const struct device *port);
+typedef void (*irq_config_func_t)(const struct device* port);
 
 /* This symbol takes the value 1 if one of the device instances */
 /* is configured in dts with a domain clock */
@@ -20,321 +20,423 @@ typedef void (*irq_config_func_t)(const struct device *port);
 #endif
 
 struct spi_stm32_config {
-	SPI_TypeDef *spi;
-	const struct pinctrl_dev_config *pcfg;
-	const struct stm32_pclken *pclken;
-	size_t pclk_len;
-	int datawidth;
-	int fifo_byte_threshold; /* Threshold value (in bytes) */
-#ifdef CONFIG_SPI_STM32_INTERRUPT
-	irq_config_func_t irq_config;
-#ifdef CONFIG_SOC_SERIES_STM32H7X
-	uint32_t irq_line;
-#endif /* CONFIG_SOC_SERIES_STM32H7X */
-#endif
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	int midi_clocks;
-	int mssi_clocks;
-	uint32_t fifo_max_transfer_size;
-	uint8_t fifo_size;
-	bool gpio_control: 1;
-#endif
-	bool ioswp: 1;
-	bool soft_nss: 1;
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_subghz)
-	bool is_subghzspi: 1;
-#endif
+    SPI_TypeDef* spi;
+    const struct pinctrl_dev_config* pcfg;
+    const struct stm32_pclken* pclken;
+    size_t pclk_len;
+    uint32_t orc;                           /* Overrun character (ORC): word shifted out when TX has no data */
+    int datawidth;
+    int fifo_byte_threshold;                /* Threshold value (in bytes) */
+
+    #if defined(CONFIG_SPI_STM32_INTERRUPT)
+    irq_config_func_t irq_config;
+    uint32_t irq_line;
+    #endif
+
+    /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) */
+    int midi_clocks;
+    int mssi_clocks;
+    uint32_t fifo_max_transfer_size;
+    uint8_t  fifo_size;
+    bool gpio_control: 1;
+
+    bool ioswp: 1;
+    bool soft_nss: 1;
+
+    /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_subghz) */
+    bool is_subghzspi: 1;
 };
 
 #ifdef CONFIG_SPI_STM32_DMA
 
-#define SPI_STM32_DMA_ERROR_FLAG	0x01
-#define SPI_STM32_DMA_RX_DONE_FLAG	0x02
-#define SPI_STM32_DMA_TX_DONE_FLAG	0x04
-#define SPI_STM32_DMA_DONE_FLAG	\
-	(SPI_STM32_DMA_RX_DONE_FLAG | SPI_STM32_DMA_TX_DONE_FLAG)
+#define SPI_STM32_DMA_ERROR_FLAG    0x01
+#define SPI_STM32_DMA_RX_DONE_FLAG  0x02
+#define SPI_STM32_DMA_TX_DONE_FLAG  0x04
+#define SPI_STM32_DMA_DONE_FLAG \
+    (SPI_STM32_DMA_RX_DONE_FLAG | SPI_STM32_DMA_TX_DONE_FLAG)
 
-#define SPI_STM32_DMA_TX	0x01
-#define SPI_STM32_DMA_RX	0x02
+#define SPI_STM32_DMA_TX 0x01
+#define SPI_STM32_DMA_RX 0x02
 
 struct stream {
-	const struct device *dma_dev;
-	uint32_t channel; /* stores the channel for dma or mux */
-	struct dma_config dma_cfg;
-	struct dma_block_config dma_blk_cfg;
-	uint8_t priority;
-	bool src_addr_increment;
-	bool dst_addr_increment;
-	int fifo_threshold;
+    const struct device* dma_dev;
+    uint32_t channel;                       /* stores the channel for dma or mux */
+    struct dma_config dma_cfg;
+    struct dma_block_config dma_blk_cfg;
+    uint8_t priority;
+    bool src_addr_increment;
+    bool dst_addr_increment;
+    int  fifo_threshold;
 };
 #endif
 
 struct spi_stm32_data {
-#ifdef CONFIG_SPI_RTIO
-	struct spi_rtio *rtio_ctx;
-#endif /* CONFIG_SPI_RTIO */
-	struct spi_context ctx;
-	uint32_t tx_len;
-	uint32_t rx_len;
-	uint8_t fifo_threshold; /* Threshold value (in number of data frames) */
-#ifdef CONFIG_SPI_STM32_DMA
-	struct k_sem status_sem;
-	volatile uint32_t status_flags;
-	struct stream dma_rx;
-	struct stream dma_tx;
-#endif /* CONFIG_SPI_STM32_DMA */
-	bool pm_policy_state_on;
+    #ifdef CONFIG_SPI_RTIO
+    struct spi_rtio* rtio_ctx;
+    #endif /* CONFIG_SPI_RTIO */
+
+    struct spi_context ctx;
+    uint32_t tx_len;
+    uint32_t rx_len;
+    uint8_t fifo_threshold;                 /* Threshold value (in number of data frames) */
+
+    HAL_SPI_StateTypeDef State;
+    uint32_t ErrorCode;
+    uint32_t orc;                           /* Overrun character (ORC): word shifted out when TX has no data */
+
+    #ifdef CONFIG_SPI_STM32_DMA
+    struct k_sem status_sem;
+    volatile uint32_t status_flags;
+    struct stream dma_rx;
+    struct stream dma_tx;
+    #endif /* CONFIG_SPI_STM32_DMA */
+
+    bool pm_policy_state_on;
 };
 
 #ifdef CONFIG_SPI_STM32_DMA
-static inline uint32_t ll_dma_get_reg_addr(SPI_TypeDef *spi, uint32_t location)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	if (location == SPI_STM32_DMA_TX) {
-		return LL_SPI_DMA_GetTxRegAddr(spi);
-	}
-	return LL_SPI_DMA_GetRxRegAddr(spi);
-#else
-	ARG_UNUSED(location);
-	return (uint32_t)LL_SPI_DMA_GetRegAddr(spi);
-#endif /* st_stm32h7_spi */
+static inline uint32_t ll_dma_get_reg_addr(SPI_TypeDef* spi, uint32_t location) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    if (location == SPI_STM32_DMA_TX) {
+        return LL_SPI_DMA_GetTxRegAddr(spi);
+    }
+
+    return LL_SPI_DMA_GetRxRegAddr(spi);
+    #else
+    ARG_UNUSED(location);
+    return (uint32_t)LL_SPI_DMA_GetRegAddr(spi);
+    #endif /* st_stm32h7_spi */
 }
 
 /* checks that DMA Tx packet is fully transmitted over the SPI */
-static inline uint32_t ll_spi_dma_busy(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	if (LL_SPI_GetTransferSize(spi) == 0) {
-		return LL_SPI_IsActiveFlag_TXC(spi) == 0;
-	} else {
-		return LL_SPI_IsActiveFlag_EOT(spi) == 0;
-	}
-#else
-	/* the SPI Tx empty and busy flags are needed */
-	return (!LL_SPI_IsActiveFlag_TXE(spi) ||
-		LL_SPI_IsActiveFlag_BSY(spi));
-#endif /* LL_SPI_SR_TXC */
+static inline uint32_t ll_spi_dma_busy(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    if (LL_SPI_GetTransferSize(spi) == 0) {
+        return (LL_SPI_IsActiveFlag_TXC(spi) == 0);
+    }
+    else {
+        return (LL_SPI_IsActiveFlag_EOT(spi) == 0);
+    }
+    #else
+    /* the SPI Tx empty and busy flags are needed */
+    return (!LL_SPI_IsActiveFlag_TXE(spi) ||
+            LL_SPI_IsActiveFlag_BSY(spi));
+    #endif /* LL_SPI_SR_TXC */
+}
+
+/* Only the STM32H7 LL provides the combined TX+RX DMA request helpers. The other series
+ * (F4, F7, L4, G0, H7RS, WBA, ...) only have the per-direction ones, RX first as upstream does.
+ */
+static inline void ll_dma_enable_req_tx_rx(SPI_TypeDef* spi) {
+    #if defined(CONFIG_SOC_SERIES_STM32H7X)
+    LL_SPI_EnableDMAReq_TX_RX(spi);
+    #else
+    LL_SPI_EnableDMAReq_RX(spi);
+    LL_SPI_EnableDMAReq_TX(spi);
+    #endif /* CONFIG_SOC_SERIES_STM32H7X */
+}
+
+static inline void ll_dma_disable_req_tx_rx(SPI_TypeDef* spi) {
+    #if defined(CONFIG_SOC_SERIES_STM32H7X)
+    LL_SPI_DisableDMAReq_TX_RX(spi);
+    #else
+    LL_SPI_DisableDMAReq_TX(spi);
+    LL_SPI_DisableDMAReq_RX(spi);
+    #endif /* CONFIG_SOC_SERIES_STM32H7X */
 }
 #endif /* st_stm32h7_spi */
 
-static inline void ll_set_transfer_direction(SPI_TypeDef *spi, uint32_t direction)
-{
-	LL_SPI_SetTransferDirection(spi, direction);
-#if defined(CONFIG_STM32_HAL2)
-	LL_SPI_SetHalfDuplexDirection(spi, direction);
-#endif /* CONFIG_STM32_HAL2 */
+static inline void ll_set_transfer_direction(SPI_TypeDef* spi, uint32_t direction) {
+    LL_SPI_SetTransferDirection(spi, direction);
+
+    #if defined(CONFIG_STM32_HAL2)
+    LL_SPI_SetHalfDuplexDirection(spi, direction);
+    #endif /* CONFIG_STM32_HAL2 */
 }
 
-static inline uint32_t ll_get_transfer_direction(SPI_TypeDef *spi)
-{
-#if defined(CONFIG_STM32_HAL2)
-	uint32_t xfer_dir = LL_SPI_GetTransferDirection(spi);
-	uint32_t hd_dir = LL_SPI_GetHalfDuplexDirection(spi);
+static inline uint32_t ll_get_transfer_direction(SPI_TypeDef* spi) {
+    #if defined(CONFIG_STM32_HAL2)
+    uint32_t xfer_dir = LL_SPI_GetTransferDirection(spi);
+    uint32_t hd_dir   = LL_SPI_GetHalfDuplexDirection(spi);
 
-	return hd_dir | xfer_dir;
-#else
-	return LL_SPI_GetTransferDirection(spi);
-#endif /* CONFIG_STM32_HAL2 */
+    return (hd_dir | xfer_dir);
+    #else
+    return LL_SPI_GetTransferDirection(spi);
+    #endif /* CONFIG_STM32_HAL2 */
 }
 
-static inline void ll_set_transfer_size(SPI_TypeDef *spi, uint32_t size)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_SetTransferSize(spi, size);
-#endif /* st_stm32h7_spi */
+static inline void ll_set_transfer_size(SPI_TypeDef* spi, uint32_t size) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_SetTransferSize(spi, size);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline uint32_t ll_get_transfer_size(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	return LL_SPI_GetTransferSize(spi);
-#else
-	/* Series that don't support transfer sizes behave the same way as st_stm32h7_spi
-	 * compatibles with a TSIZE set to 0.
-	 */
-	return 0;
-#endif /* st_stm32h7_spi */
+static inline uint32_t ll_get_transfer_size(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    return LL_SPI_GetTransferSize(spi);
+    #else
+    /* Series that don't support transfer sizes behave the same way as st_stm32h7_spi
+     * compatibles with a TSIZE set to 0.
+     */
+    return 0;
+    #endif /* st_stm32h7_spi */
 }
 
-static inline uint32_t ll_tx_is_not_full(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	return LL_SPI_IsActiveFlag_TXP(spi);
-#else
-	return LL_SPI_IsActiveFlag_TXE(spi);
-#endif /* st_stm32h7_spi */
+static inline uint32_t ll_tx_is_not_full(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    return LL_SPI_IsActiveFlag_TXP(spi);
+    #else
+    return LL_SPI_IsActiveFlag_TXE(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline uint32_t ll_rx_is_not_empty(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	return LL_SPI_IsActiveFlag_RXP(spi);
-#else
-	return LL_SPI_IsActiveFlag_RXNE(spi);
-#endif /* st_stm32h7_spi */
+static inline uint32_t ll_rx_is_not_empty(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    return LL_SPI_IsActiveFlag_RXP(spi);
+    #else
+    return LL_SPI_IsActiveFlag_RXNE(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_enable_int_tx_empty(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_EnableIT_TXP(spi);
-#else
-	LL_SPI_EnableIT_TXE(spi);
-#endif /* st_stm32h7_spi */
+static inline void ll_enable_int_tx_empty(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_EnableIT_TXP(spi);
+    #else
+    LL_SPI_EnableIT_TXE(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_enable_int_rx_not_empty(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_EnableIT_RXP(spi);
-#else
-	LL_SPI_EnableIT_RXNE(spi);
-#endif /* st_stm32h7_spi */
+static inline void ll_enable_int_rx_not_empty(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_EnableIT_RXP(spi);
+    #else
+    LL_SPI_EnableIT_RXNE(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_enable_int_errors(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_EnableIT_UDR(spi);
-	LL_SPI_EnableIT_OVR(spi);
-	LL_SPI_EnableIT_CRCERR(spi);
-	LL_SPI_EnableIT_FRE(spi);
-	LL_SPI_EnableIT_MODF(spi);
-#else
-	LL_SPI_EnableIT_ERR(spi);
-#endif /* st_stm32h7_spi */
+static inline void ll_enable_int_errors(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    /* #CUSTOM@NDRS */
+    /* Enable UDR, OVR, CRCERR, FRE and MODF in SPI_IER register with one function call */
+    LL_SPI_EnableIT(spi, (SPI_IER_UDRIE   | SPI_IER_OVRIE | SPI_IER_CRCEIE |
+                          SPI_IER_TIFREIE | SPI_IER_MODFIE));
+    #else
+    LL_SPI_EnableIT_ERR(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_enable_int_dxp(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_EnableIT_DXP(spi);
-#endif /* st_stm32h7_spi */
+static inline void ll_enable_int_dxp(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_EnableIT_DXP(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_enable_int_eot(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_EnableIT_EOT(spi);
-#endif /* st_stm32h7_spi */
+static inline void ll_enable_int_eot(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_EnableIT_EOT(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_disable_int_tx_empty(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_DisableIT_TXP(spi);
-#else
-	LL_SPI_DisableIT_TXE(spi);
-#endif /* st_stm32h7_spi */
+/* #CUSTOM@NDRS */
+static inline void ll_disable_int_txe_rxne(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_DisableIT(spi, (SPI_IER_TXPIE | SPI_IER_RXPIE));
+    #else
+    LL_SPI_DisableIT_TXE(spi);
+    LL_SPI_DisableIT_RXNE(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_disable_int_rx_not_empty(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_DisableIT_RXP(spi);
-#else
-	LL_SPI_DisableIT_RXNE(spi);
-#endif /* st_stm32h7_spi */
+static inline void ll_disable_int_tx_empty(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_DisableIT_TXP(spi);
+    #else
+    LL_SPI_DisableIT_TXE(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_disable_int_errors(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_DisableIT_UDR(spi);
-	LL_SPI_DisableIT_OVR(spi);
-	LL_SPI_DisableIT_CRCERR(spi);
-	LL_SPI_DisableIT_FRE(spi);
-	LL_SPI_DisableIT_MODF(spi);
-#else
-	LL_SPI_DisableIT_ERR(spi);
-#endif /* st_stm32h7_spi */
+static inline void ll_disable_int_rx_not_empty(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_DisableIT_RXP(spi);
+    #else
+    LL_SPI_DisableIT_RXNE(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_disable_int_dxp(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_DisableIT_DXP(spi);
-#endif /* st_stm32h7_spi */
+static inline void ll_disable_int_errors(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    /* #CUSTOM@NDRS */
+    /* Disable UDR, OVR, CRCERR, FRE and MODF in SPI_IER register with one function call */
+    LL_SPI_DisableIT(spi, (SPI_IER_UDRIE   | SPI_IER_OVRIE | SPI_IER_CRCEIE |
+                           SPI_IER_TIFREIE | SPI_IER_MODFIE));
+    #else
+    LL_SPI_DisableIT_ERR(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_disable_int_eot(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_DisableIT_EOT(spi);
-#endif /* st_stm32h7_spi */
+/* #CUSTOM@NDRS */
+static inline void ll_disable_int_eot_dxp(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_DisableIT(spi, (SPI_IER_EOTIE | SPI_IER_DXPIE));
+    #endif /* st_stm32h7_spi */
 }
 
-static inline bool ll_are_int_disabled(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	return (spi->IER == 0U);
-#else
-	return !LL_SPI_IsEnabledIT_ERR(spi) &&
-	       !LL_SPI_IsEnabledIT_RXNE(spi) &&
-	       !LL_SPI_IsEnabledIT_TXE(spi);
-#endif
+static inline void ll_disable_int_dxp(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_DisableIT_DXP(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_clear_eot_flag(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_ClearFlag_EOT(spi);
-#endif /* st_stm32h7_spi */
+static inline void ll_disable_int_eot(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_DisableIT_EOT(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_clear_txtf_flag(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	LL_SPI_ClearFlag_TXTF(spi);
-#endif /* st_stm32h7_spi */
+static inline bool ll_are_int_disabled(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    return (spi->IER == 0U);
+    #else
+    return !LL_SPI_IsEnabledIT_ERR(spi)  &&
+           !LL_SPI_IsEnabledIT_RXNE(spi) &&
+           !LL_SPI_IsEnabledIT_TXE(spi);
+    #endif
 }
 
-static inline uint32_t ll_spi_is_busy(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-	if (LL_SPI_GetTransferSize(spi) == 0) {
-		return LL_SPI_IsActiveFlag_TXC(spi) == 0;
-	} else {
-		return LL_SPI_IsActiveFlag_EOT(spi) == 0;
-	}
-#else
-	return LL_SPI_IsActiveFlag_BSY(spi);
-#endif /* st_stm32h7_spi */
+/* #CUSTOM@NDRS */
+static inline void ll_clear_txtf_ovr_eot_flag(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_ClearFlag(spi, (SPI_IFCR_TXTFC | SPI_IFCR_OVRC | SPI_IFCR_EOTC));
+    #else
+    LL_SPI_ClearFlag_OVR(spi);
+    #endif /* st_stm32h7_spi */
 }
 
-static inline void ll_disable_spi(SPI_TypeDef *spi)
-{
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_fifo)
-	/* Flush RX buffer */
-	while (ll_rx_is_not_empty(spi)) {
-		(void) LL_SPI_ReceiveData8(spi);
-	}
-#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_fifo) */
-
-#if defined(CONFIG_SPI_STM32_INTERRUPT) && defined(CONFIG_SOC_SERIES_STM32H7X)
-	/* Errata ES0392, ES0445, ES0491, ES0478: TXP interrupt occurring while SPI disabled.
-	 * Workaround: disable TXP and EOT interrupts before disabling SPI.
-	 */
-	LL_SPI_DisableIT_EOT(spi);
-	LL_SPI_DisableIT_TXP(spi);
-#endif /* CONFIG_SPI_STM32_INTERRUPT && CONFIG_SOC_SERIES_STM32H7X */
-
-	LL_SPI_Disable(spi);
-
-	while (LL_SPI_IsEnabled(spi)) {
-		/* NOP */
-	}
+static inline void ll_clear_eot_flag(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_ClearFlag_EOT(spi);
+    #endif /* st_stm32h7_spi */
 }
+
+static inline void ll_clear_txtf_flag(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    LL_SPI_ClearFlag_TXTF(spi);
+    #endif /* st_stm32h7_spi */
+}
+
+static inline uint32_t ll_spi_is_busy(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+    if (LL_SPI_GetTransferSize(spi) == 0) {
+        return (LL_SPI_IsActiveFlag_TXC(spi) == 0);
+    }
+    else {
+        return (LL_SPI_IsActiveFlag_EOT(spi) == 0);
+    }
+    #else
+    return LL_SPI_IsActiveFlag_BSY(spi);
+    #endif /* st_stm32h7_spi */
+}
+
+static inline void ll_disable_spi(SPI_TypeDef* spi) {
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_fifo)
+    /* Flush RX buffer */
+    while (ll_rx_is_not_empty(spi)) {
+        (void) LL_SPI_ReceiveData8(spi);
+        if (IS_ENABLED(__GTEST)) {
+            break;
+        }
+    }
+    #endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_fifo) */
+
+    #if defined(CONFIG_SPI_STM32_INTERRUPT) && defined(CONFIG_SOC_SERIES_STM32H7X)
+    /* Errata ES0392, ES0445, ES0491, ES0478: TXP interrupt occurring while SPI disabled.
+     * Workaround: disable TXP and EOT interrupts before disabling SPI.
+     */
+    LL_SPI_DisableIT(spi, (SPI_IER_EOTIE | SPI_IER_TXPIE));
+    #endif /* CONFIG_SPI_STM32_INTERRUPT && CONFIG_SOC_SERIES_STM32H7X */
+
+    LL_SPI_Disable(spi);
+
+    while (LL_SPI_IsEnabled(spi)) {
+        if (IS_ENABLED(__GTEST)) {
+            break;
+        }
+    }
+}
+
+#if !DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) /* #CUSTOM@NDRS */
+/* Provide dummy definitions for the symbols that are not available on this SoC.
+ * Ordered to match their declaration order in stm32h7xx_ll_spi.h.
+ */
+#define LL_SPI_SS_LEVEL_HIGH        (0x1UL << 12)
+#define LL_SPI_SS_LEVEL_LOW         (0x00000000UL)
+
+#define LL_SPI_NSS_POLARITY_LOW     (0x00000000UL)
+#define LL_SPI_NSS_POLARITY_HIGH    (0x1UL << 28)
+
+/* CMSIS register bits (stm32h7xx.h), not part of the LL API */
+#define SPI_CFG2_MIDI_Pos           (4U)
+#define SPI_IFCR_EOTC               (0x1UL << 3)
+#define SPI_IFCR_TXTFC              (0x1UL << 4)
+#define SPI_IFCR_OVRC               (0x1UL << 6)
+
+static inline void LL_SPI_EnableGPIOControl(SPI_TypeDef* SPIx) {
+    /* pass */
+}
+
+static inline void LL_SPI_SetMasterSSIdleness(SPI_TypeDef* SPIx, uint32_t MasterSSIdleness) {
+    /* pass */
+}
+
+static inline void LL_SPI_SetInterDataIdleness(SPI_TypeDef* SPIx, uint32_t MasterInterDataIdleness) {
+    /* pass */
+}
+
+static inline void LL_SPI_SetTransferSize(SPI_TypeDef* SPIx, uint32_t Count) {
+    /* pass */
+}
+
+static inline uint32_t LL_SPI_GetTransferSize(const SPI_TypeDef* SPIx) {
+    return (0);
+}
+
+static inline void LL_SPI_SetInternalSSLevel(SPI_TypeDef* SPIx, uint32_t SSLevel) {
+    /* pass */
+}
+
+static inline void LL_SPI_StartMasterTransfer(SPI_TypeDef *SPIx) {
+    /* pass */
+}
+
+static inline uint32_t LL_SPI_IsActiveMasterTransfer(const SPI_TypeDef* SPIx) {
+  return (1UL);
+}
+
+static inline uint32_t LL_SPI_GetNSSPolarity(const SPI_TypeDef* SPIx) {
+    return (LL_SPI_NSS_POLARITY_LOW);
+}
+
+static inline void LL_SPI_ClearFlag(SPI_TypeDef* SPIx, uint32_t ClearBits) {
+    /* pass */
+}
+
+static inline uint32_t LL_SPI_ReceiveData32(SPI_TypeDef* SPIx) {
+    return (0);
+}
+
+static inline void LL_SPI_TransmitData32(SPI_TypeDef* SPIx, uint32_t TxData) {
+    /* pass */
+}
+#endif /* !DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) */
 
 #if defined(SPI_CFG2_IOSWP)
-static inline void ll_spi_swap_sdo_sdi(SPI_TypeDef *spi)
-{
-#if defined(CONFIG_STM32_HAL2)
-	LL_SPI_EnableMosiMisoSwap(spi);
-#else /* CONFIG_STM32_HAL2 */
-	LL_SPI_EnableIOSwap(spi);
-#endif /* CONFIG_STM32_HAL2 */
+static inline void ll_spi_swap_sdo_sdi(SPI_TypeDef* spi) {
+    #if defined(CONFIG_STM32_HAL2)
+    LL_SPI_EnableMosiMisoSwap(spi);
+    #else /* CONFIG_STM32_HAL2 */
+    LL_SPI_EnableIOSwap(spi);
+    #endif /* CONFIG_STM32_HAL2 */
 }
 #endif /* SPI_CFG2_IOSWP */
 
-#endif	/* ZEPHYR_DRIVERS_SPI_SPI_LL_STM32_H_ */
+#endif /* ZEPHYR_DRIVERS_SPI_SPI_STM32_H_ */

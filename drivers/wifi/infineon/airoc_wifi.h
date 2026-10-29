@@ -11,6 +11,7 @@
 #include <zephyr/net/wifi_mgmt.h>
 
 #ifdef CONFIG_AIROC_WIFI_BUS_SDIO
+#include <zephyr/drivers/pinctrl.h>
 #include <zephyr/sd/sd.h>
 #include <zephyr/sd/sdio.h>
 #endif
@@ -31,6 +32,11 @@
 #endif
 
 #define DT_DRV_COMPAT infineon_airoc_wifi
+
+/* Hold SDIO DAT2 high across the WL_REG_ON rising edge, see airoc_wifi_power_on() */
+#if defined(CONFIG_AIROC_WIFI_BUS_SDIO) && DT_INST_NODE_HAS_PROP(0, wifi_sdio_dat2_gpios)
+#define AIROC_WIFI_SDIO_DAT2_HOLD
+#endif
 
 #if DT_PROP(DT_DRV_INST(0), spi_data_irq_shared)
 #define SPI_DATA_IRQ_SHARED
@@ -119,6 +125,11 @@ struct airoc_wifi_config {
 	struct gpio_dt_spec wifi_reg_on_gpio;
 	struct gpio_dt_spec wifi_host_wake_gpio;
 	struct gpio_dt_spec wifi_dev_wake_gpio;
+	struct gpio_dt_spec wifi_bt_reg_on_gpio;
+#if defined(AIROC_WIFI_SDIO_DAT2_HOLD)
+	struct gpio_dt_spec wifi_sdio_dat2_gpio;
+	const struct pinctrl_dev_config *sdio_pcfg;
+#endif
 #if defined(CONFIG_AIROC_WIFI_BUS_SPI)
 	struct gpio_dt_spec bus_select_gpio;
 #if defined(SPI_DATA_IRQ_SHARED)

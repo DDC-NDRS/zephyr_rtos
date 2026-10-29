@@ -12,6 +12,10 @@ config PWM_INFINEON_TCPWM
 	depends on !SOC_FAMILY_INFINEON_PSOC4
 	select USE_INFINEON_PWM
 	select PINCTRL
+	# Capture-mode instances (see pwm_infineon_tcpwm.c's capture-input support) drive the
+	# TCPWM block via the Counter PDL API (Cy_TCPWM_Counter_Init() etc.), not the PWM one -
+	# pull in cy_tcpwm_counter.c the same way the actual Counter driver does.
+	select USE_INFINEON_TIMER if PWM_CAPTURE
 	help
 	  This option enables the PWM driver in the Infineon TCPWM peripheral.
 

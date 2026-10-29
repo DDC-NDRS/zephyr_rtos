@@ -1166,9 +1166,9 @@ int net_get_if_addr(struct net_ip_config *addr, void *intrfc_handle)
 
 		for (i = 0; i < CONFIG_DNS_RESOLVER_MAX_SERVERS; i++) {
 			struct net_sockaddr *server_addr =
-				net_sad(&ctx->servers[i].dns_server_addr);
+				net_sad(&ctx->servers[i].u.dns_server_addr);
 
-			if (ctx->servers[i].dns_server_addr.ss_family == AF_INET) {
+			if (ctx->servers[i].u.dns_server_addr.ss_family == AF_INET) {
 				if (i == 0) {
 					addr->ipv4.dns1 =
 						net_sin(server_addr)->sin_addr.s_addr;

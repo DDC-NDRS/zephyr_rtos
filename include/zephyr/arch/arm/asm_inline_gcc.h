@@ -41,124 +41,119 @@ extern "C" {
  * except NMI.
  */
 
-static ALWAYS_INLINE unsigned int arch_irq_lock(void)
-{
-	unsigned int key;
+static ALWAYS_INLINE unsigned int arch_irq_lock(void) {
+    unsigned int key;
 
-#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
-#if CONFIG_MP_MAX_NUM_CPUS == 1 || defined(CONFIG_ARMV8_M_BASELINE)
-	key = __get_PRIMASK();
-	__disable_irq();
-#else
-#error "Cortex-M0 and Cortex-M0+ require SoC specific support for cross core synchronisation."
-#endif
-#elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
-	key = __get_BASEPRI();
-	__set_BASEPRI_MAX(_EXC_IRQ_DEFAULT_PRIO);
-#if defined(CONFIG_CORTEX_M_ERRATUM_440977_WORKAROUND)
-	/* Arm erratum 440977 (formerly 837070): the next instruction can
-	 * still be preempted. Keep the ISB before the critical region
-	 * without masking higher-priority interrupts through PRIMASK.
-	 */
-	__ISB();
-#endif
-	/* Priority-raising writes to PRIMASK/FAULTMASK/BASEPRI are
-	 * serialized to the instruction stream, so (other than the above
-	 * erratum) no ISB is needed here; see Arm DAI0321A, section 4.8.
-	 */
-#elif defined(CONFIG_ARMV7_R) || defined(CONFIG_AARCH32_ARMV8_R) ||                                \
-	defined(CONFIG_ARM_A_PROFILE_AARCH32)
-	__asm__ volatile(
-		"mrs %0, cpsr;"
-		"and %0, #" STRINGIFY(I_BIT) ";"
-		"cpsid i;"
-		: "=r" (key)
-		:
-		: "memory", "cc");
-#else
-#error Unknown ARM architecture
-#endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
+    #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+    #if ((CONFIG_MP_MAX_NUM_CPUS == 1) || defined(CONFIG_ARMV8_M_BASELINE))
+    key = __get_PRIMASK();
+    __disable_irq();
+    #else
+    #error "Cortex-M0 and Cortex-M0+ require SoC specific support for cross core synchronisation."
+    #endif
+    #elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
+    key = __get_BASEPRI();
+    __set_BASEPRI_MAX(_EXC_IRQ_DEFAULT_PRIO);
 
-	return key;
+    #if defined(CONFIG_CORTEX_M_ERRATUM_440977_WORKAROUND)
+    /* Arm erratum 440977 (formerly 837070): the next instruction can
+     * still be preempted. Keep the ISB before the critical region
+     * without masking higher-priority interrupts through PRIMASK.
+     */
+    __ISB();
+    #endif
+
+    /* Priority-raising writes to PRIMASK/FAULTMASK/BASEPRI are
+     * serialized to the instruction stream, so (other than the above
+     * erratum) no ISB is needed here; see Arm DAI0321A, section 4.8.
+     */
+    #elif (defined(CONFIG_ARMV7_R) || defined(CONFIG_AARCH32_ARMV8_R) || \
+           defined(CONFIG_ARM_A_PROFILE_AARCH32))
+    __asm__ volatile(
+        "mrs %0, cpsr;"
+        "and %0, #" STRINGIFY(I_BIT) ";"
+        "cpsid i;"
+        : "=r"(key)
+        :
+        : "memory", "cc");
+    #else
+    #error Unknown ARM architecture
+    #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
+
+    return (key);
 }
-
 
 /* On Cortex-M0/M0+, this enables all interrupts if they were not
  * previously disabled.
  */
 
-static ALWAYS_INLINE void arch_irq_unlock(unsigned int key)
-{
-	/* No barrier is used when unmasking: on Cortex-M an interrupt
-	 * that is (or becomes) pended is taken after at most a couple of
-	 * instructions; unlocking makes no promise that it is taken
-	 * *before* the next instruction (see Arm DAI0321A, section 4.7).
-	 * The one spot that does need synchronous recognition of a pended
-	 * exception, the Cortex-M arch_swap(), inserts its own ISB.
-	 */
-#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
-	if (key != 0U) {
-		return;
-	}
-	__enable_irq();
-#elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
-	__set_BASEPRI(key);
-#elif defined(CONFIG_ARMV7_R) || defined(CONFIG_AARCH32_ARMV8_R) ||                                \
-	defined(CONFIG_ARM_A_PROFILE_AARCH32)
-	if (key != 0U) {
-		return;
-	}
-	__enable_irq();
-#else
-#error Unknown ARM architecture
-#endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
+static ALWAYS_INLINE void arch_irq_unlock(unsigned int key) {
+    /* No barrier is used when unmasking: on Cortex-M an interrupt
+     * that is (or becomes) pended is taken after at most a couple of
+     * instructions; unlocking makes no promise that it is taken
+     * *before* the next instruction (see Arm DAI0321A, section 4.7).
+     * The one spot that does need synchronous recognition of a pended
+     * exception, the Cortex-M arch_swap(), inserts its own ISB.
+     */
+    #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+    if (key != 0U) {
+        return;
+    }
+    __enable_irq();
+    #elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
+    __set_BASEPRI(key);
+    #elif (defined(CONFIG_ARMV7_R) || defined(CONFIG_AARCH32_ARMV8_R) || \
+           defined(CONFIG_ARM_A_PROFILE_AARCH32))
+    if (key != 0U) {
+        return;
+    }
+    __enable_irq();
+    #else
+    #error Unknown ARM architecture
+    #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
 }
 
-static ALWAYS_INLINE bool arch_irq_unlocked(unsigned int key)
-{
-	/* This convention works for both PRIMASK and BASEPRI */
-	return key == 0U;
+static ALWAYS_INLINE bool arch_irq_unlocked(unsigned int key) {
+    /* This convention works for both PRIMASK and BASEPRI */
+    return (key == 0U);
 }
 
 /** Implementation of @ref arch_cpu_irqs_are_enabled. */
-static ALWAYS_INLINE bool arch_cpu_irqs_are_enabled(void)
-{
-#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
-	return __get_PRIMASK() == 0U;
-#elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
-	return __get_BASEPRI() == 0U;
-#elif defined(CONFIG_ARMV7_R) || defined(CONFIG_AARCH32_ARMV8_R) ||                                \
-	defined(CONFIG_ARM_A_PROFILE_AARCH32)
-	unsigned int cpsr;
+static ALWAYS_INLINE bool arch_cpu_irqs_are_enabled(void) {
+    #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+    return (__get_PRIMASK() == 0U);
+    #elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
+    return (__get_BASEPRI() == 0U);
+    #elif (defined(CONFIG_ARMV7_R) || defined(CONFIG_AARCH32_ARMV8_R) || \
+           defined(CONFIG_ARM_A_PROFILE_AARCH32))
+    unsigned int cpsr;
 
-	__asm__ volatile("mrs %0, cpsr" : "=r" (cpsr));
-	return (cpsr & I_BIT) == 0U;
-#else
-#error Unknown ARM architecture
-#endif
+    __asm__ volatile("mrs %0, cpsr" : "=r" (cpsr));
+    return ((cpsr & I_BIT) == 0U);
+    #else
+    #error Unknown ARM architecture
+    #endif
 }
 
 #ifdef CONFIG_ZERO_LATENCY_IRQS
 
-static ALWAYS_INLINE unsigned int arch_zli_lock(void)
-{
-	unsigned int key;
+static ALWAYS_INLINE unsigned int arch_zli_lock(void) {
+    unsigned int key;
 
-	key = __get_PRIMASK();
+    key = __get_PRIMASK();
 
-	/*
-	 * The cpsid instruction is self synchronizing within the instruction stream, no need for
-	 * an explicit __ISB().
-	 */
-	__disable_irq();
+    /*
+     * The cpsid instruction is self synchronizing within the instruction stream, no need for
+     * an explicit __ISB().
+     */
+    __disable_irq();
 
-	return key;
+    return key;
 }
 
-static ALWAYS_INLINE void arch_zli_unlock(unsigned int key)
-{
-	__set_PRIMASK(key);
-	__ISB();
+static ALWAYS_INLINE void arch_zli_unlock(unsigned int key) {
+    __set_PRIMASK(key);
+    __ISB();
 }
 
 #endif /* CONFIG_ZERO_LATENCY_IRQS */

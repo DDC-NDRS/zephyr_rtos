@@ -278,7 +278,7 @@ void sys_clock_set_timeout(uint32_t ticks, bool idle)
 
 #if defined(CONFIG_TICKLESS_KERNEL)
 	uint32_t delay;
-	uint32_t key;
+	unsigned int key;
 
 	ticks = MIN(MAX_TICKS, ticks);
 

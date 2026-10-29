@@ -62,10 +62,23 @@ function(pse84_add_extboot_metadata INPUT_FILE OUTPUT_FILE)
     set(hex_addr ${part_addr})
   endif()
 
+  # Optional OEM signing key / security counter for a provisioned device.
+  # When CONFIG_PSE84_SECURE_IMAGE_KEY_FILE is unset the command is
+  # unchanged (format + hash only), matching a non-provisioned device.
+  set(_imgtool_key_args)
+  if(CONFIG_PSE84_SECURE_IMAGE_KEY_FILE)
+    list(APPEND _imgtool_key_args --key "${CONFIG_PSE84_SECURE_IMAGE_KEY_FILE}")
+  endif()
+  if(CONFIG_PSE84_SECURE_IMAGE_SECURITY_COUNTER)
+    list(APPEND _imgtool_key_args
+         --security-counter "${CONFIG_PSE84_SECURE_IMAGE_SECURITY_COUNTER}")
+  endif()
+
   set_property(GLOBAL APPEND PROPERTY extra_post_build_commands
     COMMAND ${PYTHON_EXECUTABLE} ${IMGTOOL} sign --version "0.0.0+0"
       --header-size ${header_size} --erased-val 0xff ${pad_header_arg}
       --slot-size ${slot_size} --hex-addr ${hex_addr}
+      ${_imgtool_key_args}
       ${INPUT_FILE} ${OUTPUT_FILE}
   )
   set_property(GLOBAL APPEND PROPERTY extra_post_build_byproducts ${OUTPUT_FILE})

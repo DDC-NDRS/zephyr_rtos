@@ -48,6 +48,13 @@ extern "C" {
  */
 #if defined(CONFIG_PRINTK) || defined(__DOXYGEN__)
 
+#if defined(_MSC_VER)                       /* #CUSTOM@NDRS */
+#include <stdio.h>
+#define printk            printf
+#define vprintk           vprintf
+#define printk_unlocked   printf
+#define vprintk_unlocked  vprintf
+#else
 #ifdef CONFIG_LOG_PRINTK_STATIC
 /* If printk is redirected to the logging use the macro which allow build time
  * logging message creation which is faster and allows format string stripping in
@@ -96,6 +103,7 @@ __printf_like(1, 2) void printk_unlocked(const char *fmt, ...);
  * @param ap Format arguments.
  */
 __printf_like(1, 0) void vprintk_unlocked(const char *fmt, va_list ap);
+#endif /* defined(_MSC_VER) */
 
 /**
  * @brief Stop printk() taking its lock, for crash reporting
@@ -137,10 +145,15 @@ static inline __printf_like(1, 0) void vprintk_unlocked(const char *fmt, va_list
 
 static inline void printk_panic(void)
 {
+	/* pass */
 }
 #endif /* defined(CONFIG_PRINTK) || defined(__DOXYGEN__) */
 
-#ifdef CONFIG_PICOLIBC
+#if defined(_MSC_VER)                       /* #CUSTOM@NDRS */
+extern int snprintk(char* str, size_t size, const char* fmt, ...);
+extern int vsnprintk(char* str, size_t size, const char* fmt, va_list ap);
+
+#elif defined(CONFIG_PICOLIBC)
 
 #include <stdio.h>
 

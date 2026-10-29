@@ -23,6 +23,8 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
     - name: babblesim
       url-base: https://github.com/BabbleSim
+    - name: nxp-mcuxpresso
+      url-base: https://github.com/nxp-mcuxpresso
 
   group-filter: [-babblesim, -optional, -testing]
 
@@ -117,7 +119,7 @@ manifest:
       groups:
         - babblesim
     - name: cmsis
-      revision: 512cc7e895e8491696b61f7ba8066b4a182569b8
+      revision: a863984ece5a74a49ce3eb0f68cd0f44eef7b505
       path: modules/hal/cmsis
       groups:
         - hal
@@ -129,7 +131,7 @@ manifest:
       path: modules/lib/cmsis-nn
     - name: cmsis_6
       repo-path: CMSIS_6
-      revision: 1c1840af7a7e757d6e2fec3ddb0e5ce0dfcc93c8
+      revision: d0462baee3fff6a02584564a3d436ed81d93dd5b
       path: modules/hal/cmsis_6
       groups:
         - hal
@@ -142,7 +144,7 @@ manifest:
       groups:
         - tools
     - name: fatfs
-      revision: 4f60a12c58c3de4246857ad87c40239ecd93349b
+      revision: 353a386386ccc13b97a786d80ecb2d71a42626ea
       path: modules/fs/fatfs
       groups:
         - fs
@@ -162,7 +164,7 @@ manifest:
       groups:
         - hal
     - name: hal_atmel
-      revision: 8f95c79f2a80427ef446563cc9addefa959e92a9
+      revision: 8254d22c3d53fc57222a4106e7ba74318208390c
       path: modules/hal/atmel
       groups:
         - hal
@@ -188,7 +190,7 @@ manifest:
       groups:
         - hal
     - name: hal_infineon
-      revision: eae914ed1ad0b54af28191d13da9b8e98fb5cb2b
+      revision: 04ad498766532942902221db7a3f1f6a7279b037
       path: modules/hal/infineon
       groups:
         - hal
@@ -213,7 +215,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: a8b437ef366ff9a6f9bee3377dc189c4d2623f5b
+      revision: 56149a4041d46638ff12aaad35d5129751cdca0d
       path: modules/hal/nxp
       groups:
         - hal
@@ -259,7 +261,7 @@ manifest:
       groups:
         - hal
     - name: hal_stm32
-      revision: c9550199186236d610092f4005f8c9bae2a6bfcf
+      revision: 933df0efd409e1fe864fa932a1fed127c80903a6
       path: modules/hal/stm32
       groups:
         - hal
@@ -314,12 +316,12 @@ manifest:
       path: modules/fs/littlefs
       groups:
         - fs
-      revision: e9a8638fc228e43a3156ed3ac602229af3e3c1d5
+      revision: e18401a3a6e2c3217b686295b9f35c32c7d4cf89
     - name: lora-basics-modem
       revision: a8ddc544043e72807cf7db532478e1dda734ae7c
       path: modules/lib/lora-basics-modem
     - name: loramac-node
-      revision: 874544f2a8a0212a0cc12e5eea51a024fd3d93d1
+      revision: 220328016723d7138374c6da2e8626f1847cc7cb
       path: modules/lib/loramac-node
     - name: lvgl
       revision: c9ffd4692de246eb911c7ba49b78a331b2c63c74
@@ -330,7 +332,7 @@ manifest:
       groups:
         - crypto
     - name: mcuboot
-      revision: 725d63c9d5bc1bb572d802e7a768daf504186daf
+      revision: fdc49e391e4f9e599da682ac0e664e95d78e9494
       path: bootloader/mcuboot
       groups:
         - bootloader
@@ -408,7 +410,7 @@ manifest:
       groups:
         - tee
     - name: trusted-firmware-m
-      revision: 3d46d29fb296af1ff278ea3216e6fe0289a8fa7a
+      revision: 05262ef4c4925373f8eecd27f8b93de372d18ba2
       path: modules/tee/tf-m/trusted-firmware-m
       groups:
         - tee
@@ -416,14 +418,28 @@ manifest:
       revision: dc0ab6345450668de3f9597320a48c5a2d409bb6
       path: modules/lib/uoscore-uedhoc
     - name: zcbor
-      revision: 9164bd18dcd88ff9d9ef98279501fc1093571017
+      revision: 1189c5c9f5acad9ce750e41dbb571cca20eb5a9a
       path: modules/lib/zcbor
     - name: zephyr-xenlib
       revision: 8b13d0b709314b7de6cb5877c286d52e71095cc8
       path: modules/lib/zephyr-xenlib
   # zephyr-keep-sorted-stop
+    - name: thingset
+      path: modules/lib/thingset
+      revision: 37fc4ed34b64b74eb25b9ac88f0a6cebcacb27d5
+    - name: thingset-node-c
+      path: modules/lib/thingset-node-c
+      revision: b0b13262e9ddf144551bc05d8764ffbb462e8c89
+    - name: FlashDB
+      path: modules/lib/flashdb
+      revision: 50f28b37f3e00ed2953c0e348b5d59c26bd90dde
+    - name: freemaster
+      remote: nxp-mcuxpresso
+      repo-path: mcux-freemaster
+      revision: 52dd288482aab2a13b8c21926d0fe27ea32eb44d
+      path: modules/debug/freemaster
 
   self:
-    path: zephyr
+    path: zephyr_rtos
     west-commands: scripts/west-commands.yml
     import: submanifests

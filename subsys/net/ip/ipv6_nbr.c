@@ -850,8 +850,8 @@ static inline bool dad_failed(struct net_if *iface, struct net_in6_addr *addr)
 
 #if defined(CONFIG_NET_IPV6_NBR_CACHE)
 static struct net_in6_addr *check_route(struct net_if *iface,
-				    struct net_in6_addr *dst,
-				    bool *try_route)
+					struct net_in6_addr *dst,
+					bool *try_route)
 {
 	struct net_in6_addr *nexthop = NULL;
 	struct net_route_entry *route;
@@ -1049,16 +1049,16 @@ use_interface_mtu:
 
 try_send:
 	if (IS_ENABLED(CONFIG_NET_IPV6_PMTU)) {
-		struct net_pmtu_entry *entry;
+		struct net_pmtu_entry const* entry;
 		struct net_sockaddr_in6 dst = {
 			.sin6_family = NET_AF_INET6,
 		};
 
-		net_ipaddr_copy(&dst.sin6_addr, (struct net_in6_addr *)ip_hdr->dst);
+		net_ipaddr_copy(&dst.sin6_addr, (struct net_in6_addr*)ip_hdr->dst);
 
-		entry = net_pmtu_get_entry((struct net_sockaddr *)&dst);
+		entry = net_pmtu_get_entry((struct net_sockaddr*)&dst);
 		if (entry == NULL) {
-			ret = net_pmtu_update_mtu((struct net_sockaddr *)&dst,
+			ret = net_pmtu_update_mtu((struct net_sockaddr*)&dst,
 						  net_if_get_mtu(net_pkt_iface(pkt)));
 			if (ret < 0) {
 				NET_DBG("Cannot update PMTU for %s (%d)",
@@ -1392,7 +1392,7 @@ static enum net_verdict handle_ns_input(struct net_icmp_ctx *ctx,
 					      struct net_icmpv6_ns_hdr);
 	NET_PKT_DATA_ACCESS_DEFINE(nd_access, struct net_icmpv6_nd_opt_hdr);
 	struct net_ipv6_hdr *ip_hdr = hdr->ipv6;
-	uint16_t length = net_pkt_get_len(pkt);
+	uint16_t length = (uint16_t)net_pkt_get_len(pkt);
 	uint8_t flags = 0U;
 	bool routing = false;
 	struct net_icmpv6_nd_opt_hdr *nd_opt_hdr;
@@ -1641,6 +1641,8 @@ nexthop_found:
 
 	if (routing) {
 		/* No need to do NUD here when the target is being routed. */
+		na_src = NULL;
+		na_dst = NULL;
 		goto send_na;
 	}
 
@@ -1707,7 +1709,7 @@ static void ipv6_nd_restart_reachable_timer(struct net_nbr *nbr, int64_t time)
 
 	if (nbr) {
 		net_ipv6_nbr_data(nbr)->reachable = k_uptime_get();
-		net_ipv6_nbr_data(nbr)->reachable_timeout = time;
+		net_ipv6_nbr_data(nbr)->reachable_timeout = (int32_t)time;
 	}
 
 	remaining = k_ticks_to_ms_ceil32(
@@ -2052,7 +2054,7 @@ static enum net_verdict handle_na_input(struct net_icmp_ctx *ctx,
 					      struct net_icmpv6_na_hdr);
 	NET_PKT_DATA_ACCESS_DEFINE(nd_access, struct net_icmpv6_nd_opt_hdr);
 	struct net_ipv6_hdr *ip_hdr = hdr->ipv6;
-	uint16_t length = net_pkt_get_len(pkt);
+	uint16_t length = (uint16_t)net_pkt_get_len(pkt);
 	uint16_t tllao_offset = 0U;
 	struct net_icmpv6_nd_opt_hdr *nd_opt_hdr;
 	struct net_icmpv6_na_hdr *na_hdr;
@@ -3199,7 +3201,7 @@ static enum net_verdict handle_ra_input(struct net_icmp_ctx *ctx,
 					      struct net_icmpv6_ra_hdr);
 	NET_PKT_DATA_ACCESS_DEFINE(nd_access, struct net_icmpv6_nd_opt_hdr);
 	struct net_ipv6_hdr *ip_hdr = hdr->ipv6;
-	uint16_t length = net_pkt_get_len(pkt);
+	uint16_t length = (uint16_t)net_pkt_get_len(pkt);
 	struct net_nbr *nbr = NULL;
 	struct net_icmpv6_nd_opt_hdr *nd_opt_hdr;
 	struct net_icmpv6_ra_hdr *ra_hdr;
@@ -3451,7 +3453,7 @@ static enum net_verdict handle_ptb_input(struct net_icmp_ctx *ctx,
 {
 	NET_PKT_DATA_ACCESS_CONTIGUOUS_DEFINE(ptb_access, struct net_icmpv6_ptb);
 	struct net_ipv6_hdr *ip_hdr = hdr->ipv6;
-	uint16_t length = net_pkt_get_len(pkt);
+	uint16_t length = (uint16_t)net_pkt_get_len(pkt);
 	struct net_icmpv6_ptb *ptb_hdr;
 	struct net_sockaddr_in6 sockaddr_src = {
 		.sin6_family = NET_AF_INET6,

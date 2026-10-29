@@ -41,13 +41,13 @@ author = "The Zephyr Project Contributors"
 
 # parse version from 'VERSION' file
 with open(ZEPHYR_BASE / "VERSION") as f:
-    m = re.match(
+    m = re.search(
         (
             r"^VERSION_MAJOR\s*=\s*(\d+)$\n"
             + r"^VERSION_MINOR\s*=\s*(\d+)$\n"
             + r"^PATCHLEVEL\s*=\s*(\d+)$\n"
             + r"^VERSION_TWEAK\s*=\s*\d+$\n"
-            + r"^EXTRAVERSION\s*=\s*(.*)$"
+            + r"^EXTRAVERSION[ \t]*=[ \t]*(.*)$"
         ),
         f.read(),
         re.MULTILINE,

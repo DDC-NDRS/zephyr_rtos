@@ -112,6 +112,7 @@ static int char_out(int c, void *ctx_p)
 	return _char_out(c);
 }
 
+#if !defined(_MSC_VER)
 /*
  * Format straight to the platform's character output hook, through a
  * private unbuffered stream. Never stdout, never the logging subsystem,
@@ -119,7 +120,7 @@ static int char_out(int c, void *ctx_p)
  */
 static void vprintk_core(const char *fmt, va_list ap)
 {
-#ifdef CONFIG_PICOLIBC
+#if defined(CONFIG_PICOLIBC)
 	FILE console = FDEV_SETUP_STREAM((int(*)(char, FILE *))char_out,
 					 NULL, NULL, _FDEV_SETUP_WRITE);
 	(void) vfprintf(&console, fmt, ap);
@@ -136,7 +137,7 @@ static void vprintk_core(const char *fmt, va_list ap)
 static void vprintk_user(const char *fmt, va_list ap)
 {
 	struct buf_out_context ctx = {
-#ifdef CONFIG_PICOLIBC
+#if defined(CONFIG_PICOLIBC)
 		.file = FDEV_SETUP_STREAM((int(*)(char, FILE *))buf_char_out,
 					  NULL, NULL, _FDEV_SETUP_WRITE),
 #else
@@ -144,7 +145,7 @@ static void vprintk_user(const char *fmt, va_list ap)
 #endif
 	};
 
-#ifdef CONFIG_PICOLIBC
+#if defined(CONFIG_PICOLIBC)
 	(void) vfprintf(&ctx.file, fmt, ap);
 #else
 	cbvprintf(buf_char_out, &ctx, fmt, ap);
@@ -203,6 +204,7 @@ void vprintk(const char *fmt, va_list ap)
 	}
 }
 EXPORT_SYMBOL(vprintk);
+#endif /* !defined(_MSC_VER) */
 
 static void str_out_chars(const char *c, size_t n)
 {
@@ -256,7 +258,7 @@ static inline void z_vrfy_k_str_out(char *c, size_t n)
  *
  * @param fmt formatted string to output
  */
-
+#if !defined(_MSC_VER)
 #ifndef CONFIG_LOG_PRINTK_STATIC
 void printk(const char *fmt, ...)
 {
@@ -269,8 +271,8 @@ void printk(const char *fmt, ...)
 	va_end(ap);
 }
 EXPORT_SYMBOL(printk);
-#endif
-
+#endif /* !defined(_MSC_VER) */
+#endif /* !defined(CONFIG_LOG_PRINTK_STATIC) */
 #endif /* defined(CONFIG_PRINTK) */
 
 #ifndef CONFIG_PICOLIBC

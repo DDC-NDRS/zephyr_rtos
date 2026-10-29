@@ -38,4 +38,10 @@ static void sys_work_q_init(void)
  * so it (and this init) is linked only when something references the system
  * work queue (e.g. k_sys_work_q), preserving pay-per-use linkage.
  */
+#if !defined(_MSC_VER) /* #CUSTOM@NDRS */
 K_KERNEL_INIT_POST(sys_work_q_init);
+#else
+#pragma data_seg("._k_kernel_init_post_entry.static")
+K_KERNEL_INIT_POST(sys_work_q_init);
+#pragma data_seg()
+#endif

@@ -44,9 +44,10 @@
 	status = "okay";
 };
 
-&peri0_group1_16_5bit_0 {
+&peri0_group1_16_5bit_0 { /* HF10 (80 MHz) / 86.(26/32) = 80 MHz / 86.8125 = 921.526 kHz */
 	status = "okay";
-	clock-div = <1>;
+	clock-div = <86>;
+	div-frac-value = <26>;
 };
 
 uart4: &scb4 {
@@ -78,7 +79,7 @@ uart4: &scb4 {
 	};
 };
 
-&peri1_group2_8bit_0 {
+&peri1_group2_8bit_0 { /* HF5 (160 MHz) / 2 = 80 MHz */
 	status = "okay";
 	clock-div = <2>;
 };
@@ -94,7 +95,7 @@ uart4: &scb4 {
 
 	clocks = <&peri1_group2_8bit_0>;
 	bus-width = <4>;
-	max-bus-freq = <50000000>;
+	max-bus-freq = <40000000>;
 	min-bus-freq = <400000>;
 	power-delay-ms = <1000>;
 	no-1-8-v;

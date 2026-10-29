@@ -50,7 +50,7 @@ LOG_MODULE_REGISTER(net_pkt, CONFIG_NET_PKT_LOG_LEVEL);
  * value if really needed.
  */
 #if defined(CONFIG_NET_BUF_FIXED_DATA_SIZE) && defined(CONFIG_NET_NATIVE_IPV6)
-BUILD_ASSERT(CONFIG_NET_BUF_DATA_SIZE >= 96);
+BUILD_ASSERT((CONFIG_NET_BUF_DATA_SIZE >= 96), "NET_BUF_DATA_SIZE shall >= 96");
 #endif /* CONFIG_NET_BUF_FIXED_DATA_SIZE */
 
 /* Find max header size of IP protocol (IPv4 or IPv6) */
@@ -892,7 +892,7 @@ void net_pkt_compact(struct net_pkt *pkt)
 				frag->frags->data + copy_len,
 				frag->frags->len - copy_len);
 
-			frag->frags->len -= copy_len;
+			frag->frags->len -= (uint16_t)copy_len;
 
 			/* Is there any more space in this fragment */
 			if (net_buf_tailroom(frag)) {
@@ -1048,8 +1048,8 @@ static struct net_buf *pkt_alloc_buffer(struct net_pkt *pkt,
 		new = net_buf_alloc_fixed(pool, K_NO_WAIT);
 		if (new == NULL) {
 			if (K_TIMEOUT_EQ(timeout, K_NO_WAIT)) {
-				goto error;
-			}
+			goto error;
+		}
 
 			new = net_buf_alloc_fixed(pool,
 						  sys_timepoint_timeout(end));
@@ -1071,7 +1071,7 @@ static struct net_buf *pkt_alloc_buffer(struct net_pkt *pkt,
 		 */
 		if (current == first && headroom > 0) {
 			if (current->size > (headroom + size)) {
-				current->size = size + headroom;
+				current->size = (uint16_t)(size + headroom);
 
 				size = 0U;
 			} else {
@@ -1079,7 +1079,7 @@ static struct net_buf *pkt_alloc_buffer(struct net_pkt *pkt,
 			}
 		} else {
 			if (current->size > size) {
-				current->size = size;
+				current->size = (uint16_t)size;
 			}
 
 			size -= current->size;
@@ -1340,7 +1340,7 @@ int net_pkt_remove_tail(struct net_pkt *pkt, size_t length)
 
 	while (buf) {
 		if (buf->len >= remaining_len) {
-			buf->len = remaining_len;
+			buf->len = (uint16_t)remaining_len;
 
 			if (buf->frags) {
 				net_pkt_frag_unref(buf->frags);
@@ -1799,19 +1799,19 @@ pkt_alloc_with_buffer(struct k_mem_slab *slab,
 		end = sys_timepoint_calc(timeout);
 
 #if NET_LOG_LEVEL >= LOG_LEVEL_DBG
-		pkt = pkt_alloc_on_iface(slab, iface, timeout, caller, line);
+	pkt = pkt_alloc_on_iface(slab, iface, timeout, caller, line);
 #else
-		pkt = pkt_alloc_on_iface(slab, iface, timeout);
+	pkt = pkt_alloc_on_iface(slab, iface, timeout);
 #endif
 		if (pkt == NULL) {
-			return NULL;
-		}
+		return NULL;
+	}
 
 		/* Waiting for the slab used up part of the caller's budget. */
 		timeout = sys_timepoint_timeout(end);
 	}
 
-	net_pkt_set_family(pkt, family);
+	net_pkt_set_family(pkt, (uint8_t)family);
 #if NET_LOG_LEVEL >= LOG_LEVEL_DBG
 	ret = net_pkt_alloc_buffer_debug(pkt, size, proto, timeout,
 					 caller, line);
@@ -2031,18 +2031,18 @@ static int net_pkt_cursor_operate(struct net_pkt *pkt,
 	return 0;
 }
 
-int net_pkt_skip(struct net_pkt *pkt, size_t skip)
+int net_pkt_skip(struct net_pkt *pkt, size_t length)
 {
-	NET_DBG("pkt %p skip %zu", pkt, skip);
+	NET_DBG("pkt %p skip %zu", pkt, length);
 
-	return net_pkt_cursor_operate(pkt, NULL, skip, false, true);
+	return net_pkt_cursor_operate(pkt, NULL, length, false, true);
 }
 
-int net_pkt_memset(struct net_pkt *pkt, int byte, size_t amount)
+int net_pkt_memset(struct net_pkt *pkt, int byte, size_t length)
 {
-	NET_DBG("pkt %p byte %d amount %zu", pkt, byte, amount);
+	NET_DBG("pkt %p byte %d amount %zu", pkt, byte, length);
 
-	return net_pkt_cursor_operate(pkt, &byte, amount, false, true);
+	return net_pkt_cursor_operate(pkt, &byte, length, false, true);
 }
 
 int net_pkt_read(struct net_pkt *pkt, void *data, size_t length)
@@ -2381,7 +2381,7 @@ int net_pkt_update_length(struct net_pkt *pkt, size_t length)
 		if (buf->len < length) {
 			length -= buf->len;
 		} else {
-			buf->len = length;
+			buf->len = (uint16_t)length;
 			length = 0;
 		}
 	}
@@ -2394,7 +2394,8 @@ int net_pkt_pull(struct net_pkt *pkt, size_t length)
 	struct net_pkt_cursor *c_op = &pkt->cursor;
 
 	while (length) {
-		size_t left, rem;
+		size_t left;
+		size_t rem;
 
 		pkt_cursor_advance(pkt, false);
 
@@ -2423,10 +2424,10 @@ int net_pkt_pull(struct net_pkt *pkt, size_t length)
 			continue;
 		}
 
-		c_op->buf->len -= rem;
+		c_op->buf->len -= (uint16_t)rem;
 		left -= rem;
 		if (left) {
-			memmove(c_op->pos, c_op->pos+rem, left);
+			memmove(c_op->pos, (c_op->pos + rem), left);
 		} else {
 			struct net_buf *buf = pkt->buffer;
 

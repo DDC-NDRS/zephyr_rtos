@@ -4,11 +4,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 if(CONFIG_SOC_FAMILY_INFINEON_EDGE)
-
   if(CONFIG_BOARD_KIT_PSE84_EVAL)
     set(zephyr_ifx_cycfg_dir ${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/kit_pse84_eval)
   elseif(CONFIG_BOARD_KIT_PSE84_AI)
     set(zephyr_ifx_cycfg_dir ${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/kit_pse84_ai)
+  elseif(CONFIG_BOARD_BCU_MV25) #CUSTOM@NDRS
+    set(zephyr_ifx_cycfg_dir ${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/bcu_mv25)
   else()
     message(FATAL_ERROR "No supported board selected.")
   endif()

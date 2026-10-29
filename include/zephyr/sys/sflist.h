@@ -217,10 +217,18 @@ static inline void sys_sflist_init(sys_sflist_t *list)
 #define SYS_SFLIST_STATIC_INIT(ptr_to_list) {NULL, NULL}
 
 /** Mask of flag bits available in a node pointer on this ABI. */
-#define SYS_SFLIST_FLAGS_MASK	((uintptr_t)(__alignof__(sys_sfnode_t) - 1))
+#define SYS_SFLIST_FLAGS_MASK ((uintptr_t)(__alignof__(sys_sfnode_t) - 1))
 
 /** Number of flag bits available in a node pointer on this ABI. */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS: LOG2() pulls in __typeof__ and the non-constexpr __builtin_clz shim */
+#define SYS_SFLIST_FLAG_BITS                                    \
+	((__alignof__(sys_sfnode_t) >= 16) ? 4 :                \
+	 (__alignof__(sys_sfnode_t) >=  8) ? 3 :                \
+	 (__alignof__(sys_sfnode_t) >=  4) ? 2 :                \
+	 (__alignof__(sys_sfnode_t) >=  2) ? 1 : 0)
+#else
 #define SYS_SFLIST_FLAG_BITS LOG2(__alignof__(sys_sfnode_t))
+#endif
 
 static inline sys_sfnode_t *z_sfnode_next_peek(const sys_sfnode_t *node)
 {

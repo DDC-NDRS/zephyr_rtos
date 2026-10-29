@@ -189,10 +189,10 @@ static int modem_backend_uart_isr_transmit_chain(void *data,
 	}
 
 	uart_irq_tx_disable(backend->uart);
-	for (int i = 0; i < num_frags; i++) {
+	for (size_t i = 0; i < num_frags; i++) {
 		put = ring_buf_put(&backend->isr.transmit_rb, frags[i].data, frags[i].size);
 		written += put;
-		if (put < frags[i].size) {
+		if ((size_t)put < frags[i].size) {
 			/* No more space in buffer, terminate */
 			break;
 		}
@@ -272,7 +272,7 @@ static int modem_backend_uart_isr_close(void *data)
 	return 0;
 }
 
-static const struct modem_pipe_api modem_backend_uart_isr_api = {
+static struct modem_pipe_api const modem_backend_uart_isr_api = {
 	.open = modem_backend_uart_isr_open,
 	.transmit_chain = modem_backend_uart_isr_transmit_chain,
 	.receive = modem_backend_uart_isr_receive,

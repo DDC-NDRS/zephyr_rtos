@@ -8,7 +8,7 @@
 #define DT_DRV_COMPAT infineon_spi
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(cat1_spi, CONFIG_SPI_LOG_LEVEL);
+LOG_MODULE_REGISTER(spi_ifx, CONFIG_SPI_LOG_LEVEL);
 
 #include <infineon_kconfig.h>
 
@@ -27,29 +27,21 @@ LOG_MODULE_REGISTER(cat1_spi, CONFIG_SPI_LOG_LEVEL);
 #include <cy_scb_spi.h>
 #include <cy_trigmux.h>
 
-#define IFX_SPI_OVERSAMPLE_MIN 4
-#define IFX_SPI_OVERSAMPLE_MAX 16
+#define IFX_SPI_OVERSAMPLE_MIN   4
+#define IFX_SPI_OVERSAMPLE_MAX  16
 
-#define IFX_SPI_PENDING_NONE  (0)
-#define IFX_SPI_PENDING_RX    (1)
-#define IFX_SPI_PENDING_TX    (2)
-#define IFX_SPI_PENDING_TX_RX (3)
+#define IFX_SPI_PENDING_NONE    (0)
+#define IFX_SPI_PENDING_RX      (1)
+#define IFX_SPI_PENDING_TX      (2)
+#define IFX_SPI_PENDING_TX_RX   (3)
 
-#define IFX_SPI_DEFAULT_SPEED 100000
+#define IFX_SPI_DEFAULT_SPEED   100000
 
 #define IFX_SPI_RSLT_TRANSFER_ERROR (-2)
 #define IFX_SPI_RSLT_CLOCK_ERROR    (-3)
 
-#if CY_SCB_DRV_VERSION_MINOR >= 20 && defined(COMPONENT_CAT1) && CY_SCB_DRV_VERSION_MAJOR == 3
+#if (CY_SCB_DRV_VERSION_MINOR >= 20) && defined(COMPONENT_CAT1) && (CY_SCB_DRV_VERSION_MAJOR == 3)
 #define IFX_SPI_ASYMM_PDL_FUNC_AVAIL
-#endif
-
-#if defined(CY_IP_MXSCB_INSTANCES)
-#define IFX_SCB_ARRAY_SIZE (CY_IP_MXSCB_INSTANCES)
-#elif defined(CY_IP_MXS22SCB_INSTANCES)
-#define IFX_SCB_ARRAY_SIZE (CY_IP_MXS22SCB_INSTANCES)
-#elif defined(CY_IP_M0S8SCB_INSTANCES)
-#define IFX_SCB_ARRAY_SIZE (CY_IP_M0S8SCB_INSTANCES)
 #endif
 
 #ifdef CONFIG_SPI_INFINEON_DMA
@@ -59,710 +51,697 @@ LOG_MODULE_REGISTER(cat1_spi, CONFIG_SPI_LOG_LEVEL);
 static uint32_t tx_dummy_data;
 static uint32_t rx_dummy_data;
 
-#define IFX_CAT1_SPI_DMA_BURST_SIZE 256
+#define SPI_IFX_DMA_BURST_SIZE 256
 #endif
 
-typedef void (*ifx_cat1_spi_event_callback_t)(void *callback_arg, uint32_t event);
+typedef void (*spi_ifx_event_callback_t)(void* callback_arg, uint32_t event);
 
 /* Device config structure */
-struct ifx_cat1_spi_config {
-	CySCB_Type *reg_addr;
-	const struct pinctrl_dev_config *pcfg;
-	cy_stc_scb_spi_config_t scb_spi_config;
-	cy_cb_scb_spi_handle_events_t spi_handle_events_func;
-	en_clk_dst_t clk_dst;
+struct spi_ifx_config {
+    CySCB_Type* reg_addr;
+    const struct pinctrl_dev_config* pcfg;
+    cy_stc_scb_spi_config_t scb_spi_config;
+    cy_cb_scb_spi_handle_events_t spi_handle_events_func;
+    en_clk_dst_t clk_dst;
 
-	uint32_t irq_num;
-	void (*irq_config_func)(const struct device *dev);
-	cy_stc_syspm_callback_params_t spi_deep_sleep_param;
+    uint32_t irq_num;
+    void (*irq_config_func)(const struct device* dev);
+    cy_stc_syspm_callback_params_t spi_deep_sleep_param;
 
-	uint8_t cs_oversample[32];
-	uint8_t cs_oversample_cnt;
+    uint8_t cs_oversample[32];
+    uint8_t cs_oversample_cnt;
+    uint8_t scb_num;
 };
 
 #ifdef CONFIG_SPI_INFINEON_DMA
 struct ifx_cat1_dma_stream {
-	const struct device *dev_dma;
-	uint32_t dma_channel;
-	struct dma_config dma_cfg;
-	struct dma_block_config blk_cfg;
+    const struct device* dev_dma;
+    uint32_t dma_channel;
+    struct dma_config dma_cfg;
+    struct dma_block_config blk_cfg;
 };
 #endif
 
 typedef struct {
-	cy_israddress callback;
-	void *callback_arg;
+    cy_israddress callback;
+    void* callback_arg;
 } ifx_cat1_event_callback_data_t;
 
 /* Data structure */
-struct ifx_cat1_spi_data {
-	struct spi_context ctx;
-	uint8_t dfs_value;
-	size_t chunk_len;
+struct spi_ifx_data {
+    struct spi_context ctx;
+    uint8_t dfs_value;
+    size_t chunk_len;
 
-#ifdef CONFIG_SPI_INFINEON_DMA
-	struct ifx_cat1_dma_stream dma_rx;
-	struct ifx_cat1_dma_stream dma_tx;
-#endif
+    #ifdef CONFIG_SPI_INFINEON_DMA
+    struct ifx_cat1_dma_stream dma_rx;
+    struct ifx_cat1_dma_stream dma_tx;
+    #endif
 
-#if defined(COMPONENT_CAT1B) || defined(COMPONENT_CAT1C) || defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
-	uint8_t clock_peri_group;
-#endif
+    #if defined(COMPONENT_CAT1B) || defined(COMPONENT_CAT1C) || defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
+    uint8_t clock_peri_group;
+    #endif
 
-	struct ifx_cat1_resource_inst resource;
-	struct ifx_cat1_clock clock;
-	cy_en_scb_spi_sclk_mode_t clk_mode;
-	uint8_t data_bits;
-	bool is_peripheral;
-	uint8_t oversample_value;
-	bool msb_first;
-	cy_stc_scb_spi_context_t context;
-	uint32_t irq_cause;
+    struct ifx_cat1_resource_inst resource;
+    struct ifx_cat1_clock clock;
+    cy_en_scb_spi_sclk_mode_t clk_mode;
+    uint8_t data_bits;
+    bool is_peripheral;
+    uint8_t oversample_value;
+    bool msb_first;
+    cy_stc_scb_spi_context_t context;
+    uint32_t irq_cause;
 
-	uint16_t volatile pending;
+    volatile uint16_t pending;
 
-	uint8_t write_fill;
-	bool is_async;
-	void *rx_buffer;
-	uint32_t rx_buffer_size;
-	const void *tx_buffer;
-	uint32_t tx_buffer_size;
-	ifx_cat1_event_callback_data_t callback_data;
-	cy_stc_syspm_callback_t spi_deep_sleep;
+    uint8_t write_fill;
+    bool  is_async;
+    void* rx_buffer;
+    uint32_t rx_buffer_size;
+    void const* tx_buffer;
+    uint32_t tx_buffer_size;
+    ifx_cat1_event_callback_data_t callback_data;
+    cy_stc_syspm_callback_t spi_deep_sleep;
 };
 
-cy_rslt_t ifx_cat1_spi_init_cfg(const struct device *dev, cy_stc_scb_spi_config_t *scb_spi_config);
-void ifx_cat1_spi_register_callback(const struct device *dev,
-				    ifx_cat1_spi_event_callback_t callback, void *callback_arg);
-void spi_free(const struct device *dev);
-cy_rslt_t spi_set_frequency(const struct device *dev, uint32_t hz);
-static void spi_irq_handler(const struct device *dev);
-static void ifx_cat1_spi_cb_wrapper(const struct device *dev, uint32_t event);
-cy_rslt_t ifx_cat1_spi_transfer_async(const struct device *dev, const uint8_t *tx, size_t tx_length,
-				      uint8_t *rx, size_t rx_length);
+static cy_rslt_t spi_ifx_init_cfg(const struct device* dev, cy_stc_scb_spi_config_t* scb_spi_config);
+static void spi_ifx_register_callback(const struct device* dev,
+                                      spi_ifx_event_callback_t callback, void* callback_arg);
+static void spi_ifx_free(const struct device* dev);
+static cy_rslt_t spi_ifx_set_frequency(const struct device* dev, uint32_t hz);
+static void spi_ifx_irq_handler(const struct device* dev);
+static void spi_ifx_cb_wrapper(const struct device* dev, uint32_t event);
+__maybe_unused static void spi_ifx_dma_stop(struct spi_ifx_data* data);
+cy_rslt_t spi_ifx_transfer_async(const struct device* dev, uint8_t const* tx, size_t tx_length,
+                                 uint8_t* rx, size_t rx_length);
 
-CySCB_Type *const IFX_SCB_BASE_ADDR[IFX_SCB_ARRAY_SIZE] = {
-#ifdef SCB0
-	SCB0,
-#endif
-#ifdef SCB1
-	SCB1,
-#endif
-#ifdef SCB2
-	SCB2,
-#endif
-#ifdef SCB3
-	SCB3,
-#endif
-#ifdef SCB4
-	SCB4,
-#endif
-#ifdef SCB5
-	SCB5,
-#endif
-#ifdef SCB6
-	SCB6,
-#endif
-#ifdef SCB7
-	SCB7,
-#endif
-#ifdef SCB8
-	SCB8,
-#endif
-#ifdef SCB9
-	SCB9,
-#endif
-#ifdef SCB10
-	SCB10,
-#endif
-#ifdef SCB11
-	SCB11,
-#endif
-#ifdef SCB12
-	SCB12,
-#endif
-#ifdef SCB13
-	SCB13,
-#endif
-#ifdef SCB14
-	SCB14,
-#endif
-#ifdef SCB15
-	SCB15,
-#endif
-};
+static uint8_t get_dfs_value(struct spi_context* ctx) {
+    uint8_t word_size = SPI_WORD_SIZE_GET(ctx->config->operation);
 
-const uint8_t IFX_SCB_BASE_ADDR_IDX[IFX_SCB_ARRAY_SIZE] = {
-#ifdef SCB0
-	0u,
-#endif
-#ifdef SCB1
-	1u,
-#endif
-#ifdef SCB2
-	2u,
-#endif
-#ifdef SCB3
-	3u,
-#endif
-#ifdef SCB4
-	4u,
-#endif
-#ifdef SCB5
-	5u,
-#endif
-#ifdef SCB6
-	6u,
-#endif
-#ifdef SCB7
-	7u,
-#endif
-#ifdef SCB8
-	8u,
-#endif
-#ifdef SCB9
-	9u,
-#endif
-#ifdef SCB10
-	10u,
-#endif
-#ifdef SCB11
-	11u,
-#endif
-#ifdef SCB12
-	12u,
-#endif
-#ifdef SCB13
-	13u,
-#endif
-#ifdef SCB14
-	14u,
-#endif
-#ifdef SCB15
-	15u,
-#endif
-};
-
-int32_t ifx_get_hw_block_num(CySCB_Type *reg_addr)
-{
-	uint32_t val;
-
-	for (val = 0u; val < IFX_SCB_ARRAY_SIZE; val++) {
-		if (IFX_SCB_BASE_ADDR[val] == reg_addr) {
-			return IFX_SCB_BASE_ADDR_IDX[val];
-		}
-	}
-
-	return -1;
+    if (word_size <= 8) {
+        return (1);
+    }
+    else if (word_size <= 16) {
+        return (2);
+    }
+    else if (word_size <= 24) {
+        return (3);
+    }
+    else {
+        return (4);
+    }
 }
 
-static uint8_t get_dfs_value(struct spi_context *ctx)
-{
-	uint8_t word_size = SPI_WORD_SIZE_GET(ctx->config->operation);
+static void spi_ifx_transfer_chunk(const struct device* dev) {
+    struct spi_ifx_data* const data = dev->data;
+    struct spi_context* ctx = &data->ctx;
+    size_t chunk_len = spi_context_max_continuous_chunk(ctx);
+    bool tx_on = spi_context_tx_buf_on(ctx);
+    bool rx_on = spi_context_rx_buf_on(ctx);
+    size_t tx_len = 0U;
+    size_t rx_len = 0U;
+    int ret = 0;
 
-	if (word_size <= 8) {
-		return 1;
-	} else if (word_size <= 16) {
-		return 2;
-	} else if (word_size <= 24) {
-		return 3;
-	} else {
-		return 4;
-	}
+    if (chunk_len == 0) {
+        goto exit;
+    }
+    data->chunk_len = chunk_len;
+
+    if (tx_on) {
+        tx_len = chunk_len;
+    }
+
+    if (rx_on) {
+        rx_len = chunk_len;
+    }
+
+    #ifdef CONFIG_SPI_INFINEON_DMA
+    const struct spi_ifx_config* const config = dev->config;
+    struct ifx_cat1_dma_stream* dma_tx = &data->dma_tx;
+    struct ifx_cat1_dma_stream* dma_rx = &data->dma_rx;
+    uint32_t fifo_size = Cy_SCB_GetFifoSize(config->reg_addr);
+
+    /* An instance without both DMA channels in devicetree stays on the
+     * interrupt-driven path for every chunk size.
+     */
+    if ((chunk_len <= fifo_size) || (dma_tx->dev_dma == NULL) || (dma_rx->dev_dma == NULL)) {
+        cy_rslt_t result = spi_ifx_transfer_async(dev, ctx->tx_buf, tx_len, ctx->rx_buf,
+                                                  rx_len);
+        if (result == CY_RSLT_SUCCESS) {
+            return;
+        }
+        ret = -EIO;
+    }
+    else {
+        struct dma_config* rx_cfg = &dma_rx->dma_cfg;
+        struct dma_config* tx_cfg = &dma_tx->dma_cfg;
+
+        Cy_SCB_SetTxFifoLevel(config->reg_addr, 1U);
+        Cy_SCB_SetRxFifoLevel(config->reg_addr, 0U);
+
+        if (chunk_len > SPI_IFX_DMA_BURST_SIZE) {
+            rx_cfg->source_burst_length = tx_cfg->source_burst_length = 1;
+            rx_cfg->dest_burst_length   = tx_cfg->dest_burst_length   = SPI_IFX_DMA_BURST_SIZE;
+
+            if ((chunk_len % SPI_IFX_DMA_BURST_SIZE) != 0) {
+                LOG_ERR("DMA (DW) only supports lengths is multiple of burst "
+                        "length (%d)",
+                        SPI_IFX_DMA_BURST_SIZE);
+                ret = -EINVAL;
+                goto exit;
+            }
+            rx_cfg->block_count = tx_cfg->block_count = 1;
+        }
+        else {
+            rx_cfg->source_burst_length = tx_cfg->source_burst_length = 1;
+            rx_cfg->dest_burst_length   = tx_cfg->dest_burst_length   = 0;
+            rx_cfg->block_count         = tx_cfg->block_count         = 1;
+        }
+
+        struct dma_block_config* rx_blk = &dma_rx->blk_cfg;
+        struct dma_block_config* tx_blk = &dma_tx->blk_cfg;
+
+        rx_blk->block_size = tx_blk->block_size = chunk_len;
+
+        if (rx_on) {
+            rx_blk->dest_address = (uint32_t)ctx->rx_buf;
+            rx_blk->dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
+        }
+        else {
+            rx_blk->dest_address = (uint32_t)&rx_dummy_data;
+            rx_blk->dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
+        }
+
+        if (tx_on) {
+            tx_blk->source_address = (uint32_t)ctx->tx_buf;
+            tx_blk->source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
+        }
+        else {
+            tx_dummy_data = 0;
+            tx_blk->source_address = (uint32_t)&tx_dummy_data;
+            tx_blk->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
+        }
+
+        ret = dma_config(dma_rx->dev_dma, dma_rx->dma_channel, &dma_rx->dma_cfg);
+        if (ret < 0) {
+            goto exit;
+        }
+
+        ret = dma_config(dma_tx->dev_dma, dma_tx->dma_channel, &dma_tx->dma_cfg);
+        if (ret < 0) {
+            goto exit;
+        }
+
+        ret = dma_start(dma_rx->dev_dma, dma_rx->dma_channel);
+        if (ret < 0) {
+            goto exit;
+        }
+
+        ret = dma_start(dma_tx->dev_dma, dma_tx->dma_channel);
+        if (ret == 0) {
+            return;
+        }
+    }
+    #else
+    cy_rslt_t result = spi_ifx_transfer_async(dev, ctx->tx_buf, tx_len, ctx->rx_buf, rx_len);
+    if (result == CY_RSLT_SUCCESS) {
+        return;
+    }
+    ret = -EIO;
+    #endif
+
+exit :
+    #ifdef CONFIG_SPI_INFINEON_DMA
+    spi_ifx_dma_stop(data);
+    #endif
+
+    spi_context_cs_control(ctx, false);
+    spi_context_complete(ctx, dev, ret);
 }
 
-static void transfer_chunk(const struct device *dev)
-{
-	struct ifx_cat1_spi_data *const data = dev->data;
-	struct spi_context *ctx = &data->ctx;
-	size_t chunk_len = spi_context_max_continuous_chunk(ctx);
-	int ret = 0;
+static void spi_ifx_interrupt_callback(void* arg, uint32_t event) {
+    const struct device* dev = (const struct device*)arg;
+    struct spi_ifx_data* const data = dev->data;
+    struct spi_context* ctx = &data->ctx;
 
-	if (chunk_len == 0) {
-		goto exit;
-	}
-	data->chunk_len = chunk_len;
+    if (event & CY_SCB_SPI_TRANSFER_ERR_EVENT) {
+        const struct spi_ifx_config* const config = dev->config;
 
-#ifdef CONFIG_SPI_INFINEON_DMA
-	const struct ifx_cat1_spi_config *const config = dev->config;
-	register struct ifx_cat1_dma_stream *dma_tx = &data->dma_tx;
-	register struct ifx_cat1_dma_stream *dma_rx = &data->dma_rx;
+        Cy_SCB_SPI_AbortTransfer(config->reg_addr, &(data->context));
+        data->pending = IFX_SPI_PENDING_NONE;
+    }
 
-	if (chunk_len <= Cy_SCB_GetFifoSize(config->reg_addr)) {
+    if (event & CY_SCB_SPI_TRANSFER_CMPLT_EVENT) {
+        spi_context_update_tx(ctx, data->dfs_value, data->chunk_len);
+        spi_context_update_rx(ctx, data->dfs_value, data->chunk_len);
 
-		cy_rslt_t result = ifx_cat1_spi_transfer_async(
-			dev, ctx->tx_buf, spi_context_tx_buf_on(ctx) ? chunk_len : 0, ctx->rx_buf,
-			spi_context_rx_buf_on(ctx) ? chunk_len : 0);
-		if (result == CY_RSLT_SUCCESS) {
-			return;
-		}
-		ret = -EIO;
-	} else {
-		Cy_SCB_SetTxFifoLevel(config->reg_addr, 1U);
-		Cy_SCB_SetRxFifoLevel(config->reg_addr, 0U);
-
-		if (chunk_len > IFX_CAT1_SPI_DMA_BURST_SIZE) {
-			dma_rx->dma_cfg.source_burst_length = dma_tx->dma_cfg.source_burst_length =
-				1;
-			dma_rx->dma_cfg.dest_burst_length = dma_tx->dma_cfg.dest_burst_length =
-				IFX_CAT1_SPI_DMA_BURST_SIZE;
-			if (chunk_len % IFX_CAT1_SPI_DMA_BURST_SIZE != 0) {
-				LOG_ERR("DMA (DW) only supports lengths is multiple of burst "
-					"length (%d)",
-					IFX_CAT1_SPI_DMA_BURST_SIZE);
-				goto exit;
-			}
-			dma_rx->dma_cfg.block_count = dma_tx->dma_cfg.block_count = 1;
-		} else {
-			dma_rx->dma_cfg.source_burst_length = dma_tx->dma_cfg.source_burst_length =
-				1;
-			dma_rx->dma_cfg.dest_burst_length = dma_tx->dma_cfg.dest_burst_length = 0;
-			dma_rx->dma_cfg.block_count = dma_tx->dma_cfg.block_count = 1;
-		}
-
-		dma_rx->blk_cfg.block_size = dma_tx->blk_cfg.block_size = chunk_len;
-
-		if (spi_context_rx_buf_on(ctx)) {
-			dma_rx->blk_cfg.dest_address = (uint32_t)ctx->rx_buf;
-			dma_rx->blk_cfg.dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
-		} else {
-			dma_rx->blk_cfg.dest_address = (uint32_t)&rx_dummy_data;
-			dma_rx->blk_cfg.dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
-		}
-
-		if (spi_context_tx_buf_on(ctx)) {
-			dma_tx->blk_cfg.source_address = (uint32_t)ctx->tx_buf;
-			dma_tx->blk_cfg.source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
-
-		} else {
-			tx_dummy_data = 0;
-			dma_tx->blk_cfg.source_address = (uint32_t)&tx_dummy_data;
-			dma_tx->blk_cfg.source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
-		}
-
-		ret = dma_config(dma_rx->dev_dma, dma_rx->dma_channel, &dma_rx->dma_cfg);
-		if (ret < 0) {
-			goto exit;
-		}
-
-		ret = dma_config(dma_tx->dev_dma, dma_tx->dma_channel, &dma_tx->dma_cfg);
-		if (ret < 0) {
-			goto exit;
-		}
-
-		ret = dma_start(dma_rx->dev_dma, dma_rx->dma_channel);
-		if (ret < 0) {
-			goto exit;
-		}
-
-		ret = dma_start(dma_tx->dev_dma, dma_tx->dma_channel);
-		if (ret == 0) {
-			return;
-		}
-	}
-#else
-	cy_rslt_t result = ifx_cat1_spi_transfer_async(
-		dev, ctx->tx_buf, spi_context_tx_buf_on(ctx) ? chunk_len : 0, ctx->rx_buf,
-		spi_context_rx_buf_on(ctx) ? chunk_len : 0);
-	if (result == CY_RSLT_SUCCESS) {
-		return;
-	}
-	ret = -EIO;
-#endif
-
-exit:
-#ifdef CONFIG_SPI_INFINEON_DMA
-	dma_stop(data->dma_tx.dev_dma, data->dma_tx.dma_channel);
-	dma_stop(data->dma_rx.dev_dma, data->dma_rx.dma_channel);
-#endif
-	spi_context_cs_control(ctx, false);
-	spi_context_complete(ctx, dev, ret);
-}
-
-static void spi_interrupt_callback(void *arg, uint32_t event)
-{
-	const struct device *dev = (const struct device *)arg;
-	struct ifx_cat1_spi_data *const data = dev->data;
-	struct spi_context *ctx = &data->ctx;
-
-	if (event & CY_SCB_SPI_TRANSFER_ERR_EVENT) {
-		const struct ifx_cat1_spi_config *const config = dev->config;
-
-		Cy_SCB_SPI_AbortTransfer(config->reg_addr, &(data->context));
-		data->pending = IFX_SPI_PENDING_NONE;
-	}
-
-	if (event & CY_SCB_SPI_TRANSFER_CMPLT_EVENT) {
-		spi_context_update_tx(ctx, data->dfs_value, data->chunk_len);
-		spi_context_update_rx(ctx, data->dfs_value, data->chunk_len);
-
-		transfer_chunk(dev);
-	}
+        spi_ifx_transfer_chunk(dev);
+    }
 }
 
 #ifdef CONFIG_SPI_INFINEON_DMA
-static void dma_callback(const struct device *dma_dev, void *arg, uint32_t channel, int status)
-{
-	struct device *dev = arg;
-	struct ifx_cat1_spi_data *const data = dev->data;
-	struct spi_context *ctx = &data->ctx;
+static void spi_ifx_dma_callback(const struct device* dma_dev, void* arg,
+                                 uint32_t channel, int status) {
+    struct device* dev = arg;
+    struct spi_ifx_data* const data = dev->data;
+    struct spi_context* ctx = &data->ctx;
 
-	if (channel == data->dma_rx.dma_channel) {
-		spi_context_update_tx(ctx, get_dfs_value(ctx), data->chunk_len);
-		spi_context_update_rx(ctx, get_dfs_value(ctx), data->chunk_len);
+    if (channel == data->dma_rx.dma_channel) {
+        if (status == 0) {
+            spi_context_update_tx(ctx, get_dfs_value(ctx), data->chunk_len);
+            spi_context_update_rx(ctx, get_dfs_value(ctx), data->chunk_len);
 
-		transfer_chunk(dev);
-	} else if (channel == data->dma_tx.dma_channel) {
+            spi_ifx_transfer_chunk(dev);
+        }
+        else {
+            /* Chunk data is invalid: abort the transfer instead of advancing */
+            dma_stop(data->dma_tx.dev_dma, data->dma_tx.dma_channel);
+            dma_stop(data->dma_rx.dev_dma, data->dma_rx.dma_channel);
 
-	} else {
-		LOG_ERR("Unknown\n");
-	}
+            spi_context_cs_control(ctx, false);
+            spi_context_complete(ctx, dev, status);
+        }
+    }
+    else if (channel == data->dma_tx.dma_channel) {
+        /* Completion is driven by RX. A TX error stalls RX, which then ends
+         * via the SPI timeout; completing here could race a late RX callback.
+         */
+    }
+    else {
+        LOG_ERR("Unknown\n");
+    }
 }
 #endif
 
-int spi_config(const struct device *dev, const struct spi_config *spi_cfg)
-{
-	cy_rslt_t result;
-	struct ifx_cat1_spi_data *const data = dev->data;
-	const struct ifx_cat1_spi_config *const config = dev->config;
-	cy_stc_scb_spi_config_t scb_spi_config = config->scb_spi_config;
-	struct spi_context *ctx = &data->ctx;
-	bool spi_mode_cpol = false;
-	bool spi_mode_cpha = false;
+static int spi_ifx_configure(const struct device* dev, const struct spi_config* spi_cfg) {
+    cy_rslt_t result;
+    struct spi_ifx_data* const data = dev->data;
+    const struct spi_ifx_config* const config = dev->config;
+    cy_stc_scb_spi_config_t scb_spi_config = config->scb_spi_config;
+    struct spi_context* ctx = &data->ctx;
+    bool spi_mode_cpol = false;
+    bool spi_mode_cpha = false;
+    spi_operation_t spi_mode = SPI_MODE_GET(spi_cfg->operation);
+    uint32_t word_size = SPI_WORD_SIZE_GET(spi_cfg->operation);
+    bool is_peripheral = ((spi_cfg->operation & SPI_OP_MODE_PERIPHERAL) != 0U);
+    bool cs_is_gpio = spi_cs_is_gpio(spi_cfg);
+    bool is_configured;
 
-	if (SPI_MODE_GET(spi_cfg->operation) & SPI_MODE_LOOP) {
-		return -ENOTSUP;
-	}
+    if ((spi_mode & SPI_MODE_LOOP) != 0) {
+        return (-ENOTSUP);
+    }
 
-	if (SPI_WORD_SIZE_GET(spi_cfg->operation) > CONFIG_IFX_SPI_MAX_DATA_WIDTH) {
-		LOG_ERR("Word size %d is greater than %d", SPI_WORD_SIZE_GET(spi_cfg->operation),
-			CONFIG_IFX_SPI_MAX_DATA_WIDTH);
-		return -EINVAL;
-	}
+    if (word_size > CONFIG_IFX_SPI_MAX_DATA_WIDTH) {
+        LOG_ERR("Word size %d is greater than %d", word_size,
+                CONFIG_IFX_SPI_MAX_DATA_WIDTH);
+        return (-EINVAL);
+    }
 
-	if (SPI_WORD_SIZE_GET(spi_cfg->operation) < CONFIG_IFX_SPI_MIN_DATA_WIDTH) {
-		LOG_ERR("Word size %d is less than %d", SPI_WORD_SIZE_GET(spi_cfg->operation),
-			CONFIG_IFX_SPI_MIN_DATA_WIDTH);
-		return -EINVAL;
-	}
+    if (word_size < CONFIG_IFX_SPI_MIN_DATA_WIDTH) {
+        LOG_ERR("Word size %d is less than %d", word_size,
+                CONFIG_IFX_SPI_MIN_DATA_WIDTH);
+        return (-EINVAL);
+    }
 
-	/* check if configuration was changed from previous run, if so skip setup again */
-	if (spi_context_configured(ctx, spi_cfg)) {
-		/* Already configured. No need to do it again. */
-		return 0;
-	}
+    /* check if configuration was changed from previous run, if so skip setup again */
+    is_configured = spi_context_configured(ctx, spi_cfg);
+    if (is_configured) {
+        return (0);
+    }
 
-	/* Store spi config in context */
-	ctx->config = spi_cfg;
+    /* Validate the hardware CS index before caching the config, so a
+     * rejected config is not later short-circuited as already configured.
+     */
+    if ((is_peripheral == false) && (cs_is_gpio == false)) {
+        if (spi_cfg->peripheral > (uint32_t)CY_SCB_SPI_SLAVE_SELECT3) {
+            LOG_ERR("HW peripheral %u exceeds max SSEL index 3", spi_cfg->peripheral);
+            return (-EINVAL);
+        }
+    }
 
-	if (spi_context_is_peripheral(ctx)) {
-		scb_spi_config.spiMode = CY_SCB_SPI_SLAVE;
-		scb_spi_config.oversample = 0;
-		scb_spi_config.enableMisoLateSample = false;
-	} else {
-		scb_spi_config.spiMode = CY_SCB_SPI_MASTER;
+    /* Store spi config in context */
+    ctx->config = spi_cfg;
 
-		/* If an oversample value for a given target is not defined in the relevant
-		 * devicetree/overlay files, the default of four will be used from the
-		 * default configuration
-		 */
-		if (config->cs_oversample_cnt > 0 &&
-		    spi_cfg->peripheral < config->cs_oversample_cnt) {
-			scb_spi_config.oversample = config->cs_oversample[spi_cfg->peripheral];
-		}
-	}
+    if (is_peripheral) {
+        scb_spi_config.spiMode    = CY_SCB_SPI_SLAVE;
+        scb_spi_config.oversample = 0;
+        scb_spi_config.enableMisoLateSample = false;
+    }
+    else {
+        scb_spi_config.spiMode = CY_SCB_SPI_MASTER;
 
-	if (SPI_MODE_GET(spi_cfg->operation) & SPI_MODE_CPOL) {
-		spi_mode_cpol = true;
-	}
+        /* If an oversample value for a given target is not defined in the relevant
+         * devicetree/overlay files, the default of four will be used from the
+         * default configuration
+         */
+        if ((config->cs_oversample_cnt > 0) &&
+            (spi_cfg->peripheral < config->cs_oversample_cnt)) {
+            scb_spi_config.oversample = config->cs_oversample[spi_cfg->peripheral];
+        }
+    }
 
-	if (SPI_MODE_GET(spi_cfg->operation) & SPI_MODE_CPHA) {
-		spi_mode_cpha = true;
-	}
+    if ((spi_mode & SPI_MODE_CPOL) != 0) {
+        spi_mode_cpol = true;
+    }
 
-	if (SPI_WORD_SIZE_GET(spi_cfg->operation)) {
-		scb_spi_config.txDataWidth = SPI_WORD_SIZE_GET(spi_cfg->operation);
-		scb_spi_config.rxDataWidth = SPI_WORD_SIZE_GET(spi_cfg->operation);
-	}
+    if ((spi_mode & SPI_MODE_CPHA) != 0) {
+        spi_mode_cpha = true;
+    }
 
-	if (spi_mode_cpha) {
-		scb_spi_config.sclkMode =
-			spi_mode_cpol ? CY_SCB_SPI_CPHA1_CPOL1 : CY_SCB_SPI_CPHA1_CPOL0;
-	} else {
-		scb_spi_config.sclkMode =
-			spi_mode_cpol ? CY_SCB_SPI_CPHA0_CPOL1 : CY_SCB_SPI_CPHA0_CPOL0;
-	}
+    scb_spi_config.txDataWidth = word_size;
+    scb_spi_config.rxDataWidth = word_size;
 
-	scb_spi_config.enableMsbFirst = (spi_cfg->operation & SPI_TRANSFER_LSB) ? false : true;
+    if (spi_mode_cpha) {
+        if (spi_mode_cpol) {
+            scb_spi_config.sclkMode = CY_SCB_SPI_CPHA1_CPOL1;
+        }
+        else {
+            scb_spi_config.sclkMode = CY_SCB_SPI_CPHA1_CPOL0;
+        }
+    }
+    else {
+        if (spi_mode_cpol) {
+            scb_spi_config.sclkMode = CY_SCB_SPI_CPHA0_CPOL1;
+        }
+        else {
+            scb_spi_config.sclkMode = CY_SCB_SPI_CPHA0_CPOL0;
+        }
+    }
 
-	/* Force free resource */
-	if (config->reg_addr != NULL) {
-		spi_free(dev);
-	}
+    if ((spi_cfg->operation & SPI_TRANSFER_LSB) != 0U) {
+        scb_spi_config.enableMsbFirst = false;
+    }
+    else {
+        scb_spi_config.enableMsbFirst = true;
+    }
 
-	/* Initialize the SPI peripheral */
-	result = ifx_cat1_spi_init_cfg(dev, &scb_spi_config);
-	if (result != CY_RSLT_SUCCESS) {
-		return -ENOTSUP;
-	}
+    /* Force free resource */
+    if (config->reg_addr != NULL) {
+        spi_ifx_free(dev);
+    }
 
-	/* Configure chip select polarity */
-	if (spi_context_is_peripheral(ctx)) {
-		Cy_SCB_SPI_SetActiveSlaveSelectPolarity(config->reg_addr, CY_SCB_SPI_SLAVE_SELECT0,
-							scb_spi_config.ssPolarity);
-	}
+    /* Initialize the SPI peripheral. On failure, drop the cached config so
+     * the next call reconfigures instead of reusing a half-set-up SCB.
+     */
+    result = spi_ifx_init_cfg(dev, &scb_spi_config);
+    if (result != CY_RSLT_SUCCESS) {
+        ctx->config = NULL;
+        return (-ENOTSUP);
+    }
 
-	/* Set the data rate */
-	result = spi_set_frequency(dev, spi_cfg->frequency);
-	if (result != CY_RSLT_SUCCESS) {
-		return -EIO;
-	}
+    /* Configure chip select polarity */
+    if (is_peripheral) {
+        Cy_SCB_SPI_SetActiveSlaveSelectPolarity(config->reg_addr, CY_SCB_SPI_SLAVE_SELECT0,
+                                                scb_spi_config.ssPolarity);
+    }
 
-	/* Write 0 when NULL buffer is provided for Tx/Rx */
-	data->write_fill = 0;
+    /* Set the data rate */
+    result = spi_ifx_set_frequency(dev, spi_cfg->frequency);
+    if (result != CY_RSLT_SUCCESS) {
+        ctx->config = NULL;
+        return (-EIO);
+    }
 
-	/* Register common SPI callback */
-	ifx_cat1_spi_register_callback(dev, spi_interrupt_callback, (void *)dev);
+    /* Select hardware SSEL line.
+     * SPI_CTRL.SSEL may be written while the controller is idle without disabling the SCB block.
+     * spi_ifx_set_frequency() above leaves SCB enabled and idle, so no
+     * Disable/Enable cycle is needed here.
+     */
+    if ((is_peripheral == false) && (cs_is_gpio == false)) {
+        cy_en_scb_spi_slave_select_t hw_sel =
+            (cy_en_scb_spi_slave_select_t)spi_cfg->peripheral;
+        cy_en_scb_spi_polarity_t hw_pol;
 
-	/* Enable the spi event */
-	data->irq_cause |= CY_SCB_SPI_TRANSFER_CMPLT_EVENT;
+        if ((spi_cfg->operation & SPI_CS_ACTIVE_HIGH) != 0U) {
+            hw_pol = CY_SCB_SPI_ACTIVE_HIGH;
+        }
+        else {
+            hw_pol = CY_SCB_SPI_ACTIVE_LOW;
+        }
 
-	/* Store spi config in context */
-	ctx->config = spi_cfg;
+        Cy_SCB_SPI_SetActiveSlaveSelect(config->reg_addr, hw_sel);
+        Cy_SCB_SPI_SetActiveSlaveSelectPolarity(config->reg_addr, hw_sel, hw_pol);
+    }
 
-	data->dfs_value = get_dfs_value(ctx);
-#ifdef CONFIG_SPI_INFINEON_DMA
-	data->dma_rx.dma_cfg.source_data_size = data->dfs_value;
-	data->dma_rx.dma_cfg.dest_data_size = data->dfs_value;
-	data->dma_tx.dma_cfg.source_data_size = data->dfs_value;
-	data->dma_tx.dma_cfg.dest_data_size = data->dfs_value;
-#endif
+    /* Write 0 when NULL buffer is provided for Tx/Rx */
+    data->write_fill = 0;
 
-	return 0;
+    /* Register common SPI callback */
+    spi_ifx_register_callback(dev, spi_ifx_interrupt_callback, (void*)dev);
+
+    /* Enable the spi event */
+    data->irq_cause |= CY_SCB_SPI_TRANSFER_CMPLT_EVENT;
+
+    data->dfs_value = get_dfs_value(ctx);
+
+    #ifdef CONFIG_SPI_INFINEON_DMA
+    data->dma_rx.dma_cfg.source_data_size = data->dfs_value;
+    data->dma_rx.dma_cfg.dest_data_size   = data->dfs_value;
+    data->dma_tx.dma_cfg.source_data_size = data->dfs_value;
+    data->dma_tx.dma_cfg.dest_data_size   = data->dfs_value;
+    #endif
+
+    return (0);
 }
 
-static int transceive(const struct device *dev, const struct spi_config *spi_cfg,
-		      const struct spi_buf_set *tx_bufs, const struct spi_buf_set *rx_bufs,
-		      bool asynchronous, spi_callback_t cb, void *userdata)
-{
-	int result;
-	struct ifx_cat1_spi_data *const data = dev->data;
-	struct spi_context *ctx = &data->ctx;
+static int spi_ifx_pdl_transceive(const struct device* dev, const struct spi_config* spi_cfg,
+                                  const struct spi_buf_set* tx_bufs, const struct spi_buf_set* rx_bufs,
+                                  bool asynchronous, spi_callback_t cb, void* userdata) {
+    struct spi_ifx_data* const data = dev->data;
+    struct spi_context* ctx = &data->ctx;
+    int ret;
 
-	spi_context_lock(ctx, asynchronous, cb, userdata, spi_cfg);
+    spi_context_lock(ctx, asynchronous, cb, userdata, spi_cfg);
 
-	result = spi_config(dev, spi_cfg);
-	if (result) {
-		LOG_ERR("Error in SPI Configuration (result: 0x%x)", result);
-		spi_context_release(ctx, result);
-		return result;
-	}
+    ret = spi_ifx_configure(dev, spi_cfg);
+    if (ret != 0) {
+        LOG_ERR("Error in SPI Configuration (result: 0x%x)", ret);
+        spi_context_release(ctx, ret);
+        return (ret);
+    }
 
-	spi_context_buffers_setup(ctx, tx_bufs, rx_bufs, data->dfs_value);
-	spi_context_cs_control(ctx, true);
+    spi_context_buffers_setup(ctx, tx_bufs, rx_bufs, data->dfs_value);
+    spi_context_cs_control(ctx, true);
 
-	transfer_chunk(dev);
-	result = spi_context_wait_for_completion(&data->ctx);
+    spi_ifx_transfer_chunk(dev);
+    ret = spi_context_wait_for_completion(&data->ctx);
 
-	spi_context_release(ctx, result);
+    spi_context_release(ctx, ret);
 
-	return result;
+    return (ret);
 }
 
-static int ifx_cat1_spi_transceive_sync(const struct device *dev, const struct spi_config *spi_cfg,
-					const struct spi_buf_set *tx_bufs,
-					const struct spi_buf_set *rx_bufs)
-{
-	return transceive(dev, spi_cfg, tx_bufs, rx_bufs, false, NULL, NULL);
+static int spi_ifx_transceive_sync(const struct device* dev, const struct spi_config* spi_cfg,
+                                   const struct spi_buf_set* tx_bufs,
+                                   const struct spi_buf_set* rx_bufs) {
+    return spi_ifx_pdl_transceive(dev, spi_cfg, tx_bufs, rx_bufs, false, NULL, NULL);
 }
 
 #if defined(CONFIG_SPI_ASYNC)
-static int ifx_cat1_spi_transceive_async(const struct device *dev, const struct spi_config *spi_cfg,
-					 const struct spi_buf_set *tx_bufs,
-					 const struct spi_buf_set *rx_bufs, spi_callback_t cb,
-					 void *userdata)
-{
-	return transceive(dev, spi_cfg, tx_bufs, rx_bufs, true, cb, userdata);
+static int spi_ifx_transceive_async(const struct device* dev, const struct spi_config* spi_cfg,
+                                    const struct spi_buf_set* tx_bufs,
+                                    const struct spi_buf_set* rx_bufs, spi_callback_t cb,
+                                    void* userdata) {
+    return spi_ifx_pdl_transceive(dev, spi_cfg, tx_bufs, rx_bufs, true, cb, userdata);
 }
 #endif
 
-#ifdef CONFIG_SPI_INFINEON_DMA
+#if defined(CONFIG_SPI_INFINEON_DMA)
 /* Stop the DMA channels wired to this instance. An instance built with DMA
  * support may still have no dmas assigned in devicetree, leaving dev_dma NULL.
  */
-static void ifx_cat1_spi_dma_stop(struct ifx_cat1_spi_data *data)
-{
-	if (data->dma_tx.dev_dma != NULL) {
-		dma_stop(data->dma_tx.dev_dma, data->dma_tx.dma_channel);
-	}
-	if (data->dma_rx.dev_dma != NULL) {
-		dma_stop(data->dma_rx.dev_dma, data->dma_rx.dma_channel);
-	}
+static void spi_ifx_dma_stop(struct spi_ifx_data* data) {
+    if (data->dma_tx.dev_dma != NULL) {
+        dma_stop(data->dma_tx.dev_dma, data->dma_tx.dma_channel);
+    }
+
+    if (data->dma_rx.dev_dma != NULL) {
+        dma_stop(data->dma_rx.dev_dma, data->dma_rx.dma_channel);
+    }
 }
 #endif
 
-static int ifx_cat1_spi_release(const struct device *dev, const struct spi_config *spi_cfg)
-{
-	spi_free(dev);
+static int spi_ifx_release(const struct device* dev, const struct spi_config* spi_cfg) {
+    spi_ifx_free(dev);
 
-#ifdef CONFIG_SPI_INFINEON_DMA
-	ifx_cat1_spi_dma_stop(dev->data);
-#endif
+    #ifdef CONFIG_SPI_INFINEON_DMA
+    spi_ifx_dma_stop(dev->data);
+    #endif
 
-	return 0;
+    return (0);
 }
 
-static DEVICE_API(spi, ifx_cat1_spi_api) = {
-	.transceive = ifx_cat1_spi_transceive_sync,
-#if defined(CONFIG_SPI_ASYNC)
-	.transceive_async = ifx_cat1_spi_transceive_async,
-#endif
-	.release = ifx_cat1_spi_release,
+static DEVICE_API(spi, spi_ifx_api) = {
+    .transceive = spi_ifx_transceive_sync,
+
+    #if defined(CONFIG_SPI_ASYNC)
+    .transceive_async = spi_ifx_transceive_async,
+    #endif
+
+    .release = spi_ifx_release,
 };
 
-bool ifx_cat1_spi_is_busy(const struct device *dev)
-{
-	struct ifx_cat1_spi_data *const data = dev->data;
-	const struct ifx_cat1_spi_config *const config = dev->config;
-	struct spi_context *ctx = &data->ctx;
+bool spi_ifx_is_busy(const struct device* dev) {
+    struct spi_ifx_data* const data = dev->data;
+    const struct spi_ifx_config* const config = dev->config;
+    struct spi_context* ctx = &data->ctx;
+    bool tx_on = spi_context_tx_on(ctx);
+    bool rx_on = spi_context_rx_on(ctx);
+    bool bus_busy;
+    bool is_busy;
 
-	/* On the large-chunk DMA path the transfer runs entirely through the DMA
-	 * channels without setting data->pending, and Cy_SCB_SPI_IsBusBusy() can
-	 * briefly read idle between FIFO-paced DMA bursts. The SPI context still
-	 * holds the outstanding buffers until the transfer completes, so use it as
-	 * the authoritative in-flight indicator that covers every transfer path.
-	 */
-	if (spi_context_tx_on(ctx) || spi_context_rx_on(ctx)) {
-		return true;
-	}
+    /* On the large-chunk DMA path the transfer runs entirely through the DMA
+     * channels without setting data->pending, and Cy_SCB_SPI_IsBusBusy() can
+     * briefly read idle between FIFO-paced DMA bursts. The SPI context still
+     * holds the outstanding buffers until the transfer completes, so use it as
+     * the authoritative in-flight indicator that covers every transfer path.
+     */
+    if (tx_on || rx_on) {
+        return (true);
+    }
 
-	return Cy_SCB_SPI_IsBusBusy(config->reg_addr) || (data->pending != IFX_SPI_PENDING_NONE);
+    bus_busy = Cy_SCB_SPI_IsBusBusy(config->reg_addr);
+    is_busy  = bus_busy || (data->pending != IFX_SPI_PENDING_NONE);
+
+    return (is_busy);
 }
 
 #ifdef CONFIG_DEVICE_DEINIT_SUPPORT
-static int ifx_cat1_spi_deinit(const struct device *dev)
-{
-	const struct ifx_cat1_spi_config *const config = dev->config;
-	struct ifx_cat1_spi_data *const data = dev->data;
+static int spi_ifx_deinit(const struct device* dev) {
+    struct spi_ifx_config const* const config = dev->config;
+    struct spi_ifx_data* const data = dev->data;
+    bool is_busy = spi_ifx_is_busy(dev);
 
-	if (ifx_cat1_spi_is_busy(dev)) {
-		return -EBUSY;
-	}
+    if (is_busy) {
+        return (-EBUSY);
+    }
 
-#ifdef CONFIG_PM
-	Cy_SysPm_UnregisterCallback(&data->spi_deep_sleep);
-#endif
-	irq_disable(config->irq_num);
-	Cy_SCB_SPI_Disable(config->reg_addr, NULL);
+    #ifdef CONFIG_PM
+    Cy_SysPm_UnregisterCallback(&data->spi_deep_sleep);
+    #endif
 
-#ifdef CONFIG_SPI_INFINEON_DMA
-	ifx_cat1_spi_dma_stop(data);
-#endif
+    irq_disable(config->irq_num);
+    Cy_SCB_SPI_Disable(config->reg_addr, NULL);
 
-	/* Deinit the SCB last, then clear the cached config so the next transceive
-	 * after device_init() takes the full reconfigure path instead of being
-	 * short-circuited by spi_context_configured().
-	 */
-	Cy_SCB_SPI_DeInit(config->reg_addr);
-	data->ctx.config = NULL;
+    #ifdef CONFIG_SPI_INFINEON_DMA
+    spi_ifx_dma_stop(data);
+    #endif
 
-	return 0;
+    /* Deinit the SCB last, then clear the cached config so the next transceive
+     * after device_init() takes the full reconfigure path instead of being
+     * short-circuited by spi_context_configured().
+     */
+    Cy_SCB_SPI_DeInit(config->reg_addr);
+    data->ctx.config = NULL;
+
+    return (0);
 }
 #endif /* CONFIG_DEVICE_DEINIT_SUPPORT */
 
-static int ifx_cat1_spi_init(const struct device *dev)
-{
-	struct ifx_cat1_spi_data *const data = dev->data;
-	const struct ifx_cat1_spi_config *const config = dev->config;
-	int ret;
-	cy_rslt_t result;
+static int spi_ifx_init(const struct device* dev) {
+    struct spi_ifx_data* const data = dev->data;
+    struct spi_ifx_config const* const config = dev->config;
+    int ret;
+    cy_rslt_t result;
+    bool is_ready;
 
-	/* Dedicate SCB HW resource */
-	data->resource.type = IFX_RSC_SCB;
-	data->resource.block_num = ifx_get_hw_block_num(config->reg_addr);
+    /* Dedicate SCB HW resource */
+    data->resource.type      = IFX_RSC_SCB;
+    data->resource.block_num = config->scb_num;
 
-	/* Connect this SCB to the peripheral clock */
-	result = ifx_cat1_utils_peri_pclk_assign_divider(config->clk_dst, &data->clock);
-	if (result != CY_RSLT_SUCCESS) {
-		return -EIO;
-	}
+    /* Connect this SCB to the peripheral clock */
+    result = ifx_cat1_utils_peri_pclk_assign_divider(config->clk_dst, &data->clock);
+    if (result != CY_RSLT_SUCCESS) {
+        return (-EIO);
+    }
 
-#ifdef CONFIG_SPI_INFINEON_DMA
-	if (data->dma_rx.dev_dma != NULL) {
-		if (!device_is_ready(data->dma_rx.dev_dma)) {
-			return -ENODEV;
-		}
-		data->dma_rx.blk_cfg.source_address = (uint32_t)(&(config->reg_addr->RX_FIFO_RD));
-		data->dma_rx.blk_cfg.source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
-		data->dma_rx.blk_cfg.dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
-		data->dma_rx.dma_cfg.head_block = &data->dma_rx.blk_cfg;
-		data->dma_rx.dma_cfg.user_data = (void *)dev;
-		data->dma_rx.dma_cfg.dma_callback = dma_callback;
-		data->dma_rx.dma_cfg.source_handshake = 0;
-#if defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
-		Cy_TrigMux_Connect(PERI_0_TRIG_IN_MUX_0_SCB_RX_TR_OUT0 + data->resource.block_num,
-				   PERI_0_TRIG_OUT_MUX_0_PDMA0_TR_IN0 + data->dma_rx.dma_channel,
-				   false, TRIGGER_TYPE_LEVEL);
-#endif
-	}
+    #ifdef CONFIG_SPI_INFINEON_DMA
+    struct ifx_cat1_dma_stream* dma_rx = &data->dma_rx;
+    struct ifx_cat1_dma_stream* dma_tx = &data->dma_tx;
 
-	if (data->dma_tx.dev_dma != NULL) {
-		if (!device_is_ready(data->dma_tx.dev_dma)) {
-			return -ENODEV;
-		}
-		data->dma_tx.blk_cfg.dest_address = (uint32_t)(&(config->reg_addr->TX_FIFO_WR));
-		data->dma_tx.blk_cfg.source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
-		data->dma_tx.blk_cfg.dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
-		data->dma_tx.dma_cfg.head_block = &data->dma_tx.blk_cfg;
-		data->dma_tx.dma_cfg.user_data = (void *)dev;
-		data->dma_tx.dma_cfg.dma_callback = dma_callback;
-		data->dma_tx.dma_cfg.source_handshake = 1;
-#if defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
-		Cy_TrigMux_Connect(PERI_0_TRIG_IN_MUX_0_SCB_TX_TR_OUT0 + data->resource.block_num,
-				   PERI_0_TRIG_OUT_MUX_0_PDMA0_TR_IN0 + data->dma_tx.dma_channel,
-				   false, TRIGGER_TYPE_EDGE);
-#endif
-	}
-#endif
+    if (dma_rx->dev_dma != NULL) {
+        is_ready = device_is_ready(dma_rx->dev_dma);
+        if (is_ready == false) {
+            return (-ENODEV);
+        }
+        dma_rx->blk_cfg.source_address  = (uint32_t)&config->reg_addr->RX_FIFO_RD;
+        dma_rx->blk_cfg.source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
+        dma_rx->blk_cfg.dest_addr_adj   = DMA_ADDR_ADJ_INCREMENT;
+        dma_rx->dma_cfg.head_block      = &dma_rx->blk_cfg;
+        dma_rx->dma_cfg.user_data       = (void*)dev;
+        dma_rx->dma_cfg.dma_callback    = spi_ifx_dma_callback;
 
-	/* Configure dt provided device signals when available */
-	ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
-	if (ret < 0) {
-		return ret;
-	}
+        dma_rx->dma_cfg.source_handshake = 0;
+        #if defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
+        Cy_TrigMux_Connect(PERI_0_TRIG_IN_MUX_0_SCB_RX_TR_OUT0 + data->resource.block_num,
+                           PERI_0_TRIG_OUT_MUX_0_PDMA0_TR_IN0 + dma_rx->dma_channel,
+                           false, TRIGGER_TYPE_LEVEL);
+        #endif
+    }
 
-	/* Configure chip select (controller) */
-	spi_context_cs_configure_all(&data->ctx);
+    if (dma_tx->dev_dma != NULL) {
+        is_ready = device_is_ready(dma_tx->dev_dma);
+        if (is_ready == false) {
+            return (-ENODEV);
+        }
+        dma_tx->blk_cfg.dest_address    = (uint32_t)&config->reg_addr->TX_FIFO_WR;
+        dma_tx->blk_cfg.source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
+        dma_tx->blk_cfg.dest_addr_adj   = DMA_ADDR_ADJ_NO_CHANGE;
+        dma_tx->dma_cfg.head_block      = &dma_tx->blk_cfg;
+        dma_tx->dma_cfg.user_data       = (void*)dev;
+        dma_tx->dma_cfg.dma_callback    = spi_ifx_dma_callback;
 
-	spi_context_unlock_unconditionally(&data->ctx);
+        dma_tx->dma_cfg.source_handshake = 1;
+        #if defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
+        Cy_TrigMux_Connect(PERI_0_TRIG_IN_MUX_0_SCB_TX_TR_OUT0 + data->resource.block_num,
+                           PERI_0_TRIG_OUT_MUX_0_PDMA0_TR_IN0 + dma_tx->dma_channel,
+                           false, TRIGGER_TYPE_EDGE);
+        #endif
+    }
+    #endif
 
-	config->irq_config_func(dev);
+    /* Configure dt provided device signals when available */
+    ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
+    if (ret < 0) {
+        return (ret);
+    }
 
-#ifdef CONFIG_PM
-	Cy_SysPm_RegisterCallback(&data->spi_deep_sleep);
-#endif
-	return 0;
+    /* Configure chip select (controller) */
+    ret = spi_context_cs_configure_all(&data->ctx);
+    if (ret < 0) {
+        return (ret);
+    }
+
+    spi_context_unlock_unconditionally(&data->ctx);
+
+    config->irq_config_func(dev);
+
+    #ifdef CONFIG_PM
+    Cy_SysPm_RegisterCallback(&data->spi_deep_sleep);
+    #endif
+
+    return (0);
 }
 
 #if defined(CONFIG_SPI_INFINEON_DMA)
-#define SPI_DMA_CHANNEL_INIT(index, dir, ch_dir, src_data_size, dst_data_size)                     \
-	.dev_dma = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(index, dir)),                           \
-	.dma_channel = DT_INST_DMAS_CELL_BY_NAME(index, dir, channel),                             \
-	.dma_cfg = {                                                                               \
-		.channel_direction = ch_dir,                                                       \
-		.source_data_size = src_data_size,                                                 \
-		.dest_data_size = dst_data_size,                                                   \
-		.source_burst_length = 1,                                                          \
-		.dest_burst_length = 0,                                                            \
-		.block_count = 1,                                                                  \
-		.complete_callback_en = 1,                                                         \
-	},
+#define SPI_DMA_CHANNEL_INIT(index, dir, ch_dir, src_data_size, dst_data_size)  \
+    .dev_dma     = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(index, dir)),        \
+    .dma_channel = DT_INST_DMAS_CELL_BY_NAME(index, dir, channel),              \
+    .dma_cfg     = {                                            \
+        .channel_direction    = ch_dir,                         \
+        .source_data_size     = src_data_size,                  \
+        .dest_data_size       = dst_data_size,                  \
+        .source_burst_length  = 1,                              \
+        .dest_burst_length    = 0,                              \
+        .block_count          = 1,                              \
+        .complete_callback_en = 1,                              \
+    },
 
-#define SPI_DMA_CHANNEL(index, dir, ch_dir, src_data_size, dst_data_size)                          \
-	.dma_##dir = {COND_CODE_1(                                                                 \
-		DT_INST_DMAS_HAS_NAME(index, dir),                                                 \
-		(SPI_DMA_CHANNEL_INIT(index, dir, ch_dir, src_data_size, dst_data_size)),          \
-		(NULL))},
+#define SPI_DMA_CHANNEL(index, dir, ch_dir, src_data_size, dst_data_size) \
+    .dma_##dir = {COND_CODE_1(                                  \
+        DT_INST_DMAS_HAS_NAME(index, dir),                      \
+        (SPI_DMA_CHANNEL_INIT(index, dir, ch_dir, src_data_size, dst_data_size)), \
+        (NULL))},
 #else
 #define SPI_DMA_CHANNEL(index, dir, ch_dir, src_data_size, dst_data_size)
 #endif
@@ -781,508 +760,612 @@ static int ifx_cat1_spi_init(const struct device *dev)
 #endif
 
 #if defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
-#define SPI_PERI_CLOCK_INIT(n)                                                                     \
-	.clock =                                                                                   \
-		{                                                                                  \
-			.block = IFX_CAT1_PERIPHERAL_GROUP_ADJUST(                                 \
-				DT_PROP_BY_IDX(DT_INST_PHANDLE(n, clocks), peri_group, 0),         \
-				DT_PROP_BY_IDX(DT_INST_PHANDLE(n, clocks), peri_group, 1),         \
-				DT_INST_PROP_BY_PHANDLE(n, clocks, div_type)),                     \
-			.channel = DT_INST_PROP_BY_PHANDLE(n, clocks, channel),                    \
-	},                                                                                         \
-	PERI_INFO(n)
+#define SPI_PERI_CLOCK_INIT(n)                                  \
+    .clock =                                                    \
+        {                                                       \
+            .block = IFX_CAT1_PERIPHERAL_GROUP_ADJUST(          \
+                DT_PROP_BY_IDX(DT_INST_PHANDLE(n, clocks), peri_group, 0),  \
+                DT_PROP_BY_IDX(DT_INST_PHANDLE(n, clocks), peri_group, 1),  \
+                DT_INST_PROP_BY_PHANDLE(n, clocks, div_type)),              \
+            .channel = DT_INST_PROP_BY_PHANDLE(n, clocks, channel),         \
+    },                                                          \
+    PERI_INFO(n)
 #else
-#define SPI_PERI_CLOCK_INIT(n)                                                                     \
-	.clock =                                                                                   \
-		{                                                                                  \
-			.block = IFX_CAT1_PERIPHERAL_GROUP_ADJUST(                                 \
-				DT_PROP_BY_IDX(DT_INST_PHANDLE(n, clocks), peri_group, 1),         \
-				DT_INST_PROP_BY_PHANDLE(n, clocks, div_type)),                     \
-			.channel = DT_INST_PROP_BY_PHANDLE(n, clocks, channel),                    \
-	},                                                                                         \
-	PERI_INFO(n)
+#define SPI_PERI_CLOCK_INIT(n)                                  \
+    .clock =                                                    \
+        {                                                       \
+            .block = IFX_CAT1_PERIPHERAL_GROUP_ADJUST(          \
+                DT_PROP_BY_IDX(DT_INST_PHANDLE(n, clocks), peri_group, 1), \
+                DT_INST_PROP_BY_PHANDLE(n, clocks, div_type)),  \
+            .channel = DT_INST_PROP_BY_PHANDLE(n, clocks, channel), \
+    },                                                          \
+    PERI_INFO(n)
 #endif
 
 #if defined(CONFIG_SOC_FAMILY_INFINEON_PSOC4)
-#define ADVANCED_SPI_FIELDS(n)                                                                     \
-	.parity = CY_SCB_SPI_PARITY_NONE, .dropOnParityError = false,                              \
-	.ssSetupDelay = DT_INST_PROP_OR(n, ss_setup_delay, 0),                                     \
-	.ssHoldDelay = DT_INST_PROP_OR(n, ss_hold_delay, 0),                                       \
-	.ssInterDataframeDelay = DT_INST_PROP_OR(n, ss_inter_frame_delay, 0),
+#define ADVANCED_SPI_FIELDS(n)                                  \
+    .parity = CY_SCB_SPI_PARITY_NONE,                           \
+    .dropOnParityError = false,                                 \
+    .ssSetupDelay      = DT_INST_PROP_OR(n, ss_setup_delay, 0), \
+    .ssHoldDelay       = DT_INST_PROP_OR(n, ss_hold_delay, 0),  \
+    .ssInterDataframeDelay = DT_INST_PROP_OR(n, ss_inter_frame_delay, 0),
+#elif defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
+#define ADVANCED_SPI_FIELDS(n)                                  \
+    .ssSetupDelay      = DT_INST_PROP_OR(n, ss_setup_delay, 0), \
+    .ssHoldDelay       = DT_INST_PROP_OR(n, ss_hold_delay, 0),  \
+    .ssInterFrameDelay = DT_INST_PROP_OR(n, ss_inter_frame_delay, 0),
 #else
 #define ADVANCED_SPI_FIELDS(n)
 #endif
 
-#define IFX_CAT1_SPI_INIT(n)                                                                       \
-                                                                                                   \
-	void spi_handle_events_func_##n(uint32_t event)                                            \
-	{                                                                                          \
-		ifx_cat1_spi_cb_wrapper(DEVICE_DT_INST_GET(n), event);                             \
-	}                                                                                          \
-                                                                                                   \
-	static void ifx_cat1_spi_irq_config_func_##n(const struct device *dev)                     \
-	{                                                                                          \
-		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority), spi_irq_handler,            \
-			    DEVICE_DT_INST_GET(n), 0);                                             \
-	}                                                                                          \
-                                                                                                   \
-	PINCTRL_DT_INST_DEFINE(n);                                                                 \
-                                                                                                   \
-	static struct ifx_cat1_spi_config spi_cat1_config_##n = {                                  \
-		.reg_addr = (CySCB_Type *)DT_INST_REG_ADDR(n),                                     \
-		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                         \
-		.cs_oversample_cnt = DT_INST_PROP_LEN_OR(n, oversample, 0),                        \
-		.cs_oversample = DT_INST_PROP_OR(n, oversample, {0}),                              \
-		.scb_spi_config =                                                                  \
-			{.spiMode = CY_SCB_SPI_MASTER,       /* overwrite by cfg  */               \
-			 .sclkMode = CY_SCB_SPI_CPHA0_CPOL0, /* overwrite by cfg  */               \
-			 .rxDataWidth = 8,                   /* overwrite by cfg  */               \
-			 .txDataWidth = 8,                   /* overwrite by cfg  */               \
-			 .enableMsbFirst = true,             /* overwrite by cfg  */               \
-			 .subMode = DT_INST_PROP_OR(n, sub_mode, CY_SCB_SPI_MOTOROLA),             \
-			 .oversample = CONFIG_IFX_SPI_OVERSAMPLE_DEFAULT,                          \
-			 .enableFreeRunSclk = DT_INST_PROP_OR(n, enable_free_run_sclk, false),     \
-			 .enableInputFilter = DT_INST_PROP_OR(n, enable_input_filter, false),      \
-			 .enableMisoLateSample =                                                   \
-				 DT_INST_PROP_OR(n, enable_miso_late_sample, true),                \
-			 .EN_XFER_SEPARATION =                                                     \
-				 DT_INST_PROP_OR(n, enable_transfer_separation, false),            \
-			 ADVANCED_SPI_FIELDS(n)                                                   \
-			 .enableWakeFromSleep = DT_INST_PROP_OR(n, enableWakeFromSleep, false),    \
-			 .ssPolarity = DT_INST_PROP_OR(n, ss_polarity, CY_SCB_SPI_ACTIVE_LOW),     \
-			 .rxFifoTriggerLevel = DT_INST_PROP_OR(n, rx_fifo_trigger_level, 0),       \
-			 .rxFifoIntEnableMask = DT_INST_PROP_OR(n, rx_fifo_int_enable_mask, 0),    \
-			 .txFifoTriggerLevel = DT_INST_PROP_OR(n, tx_fifo_trigger_level, 1),       \
-			 .txFifoIntEnableMask = DT_INST_PROP_OR(n, tx_fifo_int_enable_mask, 0),    \
-			 .masterSlaveIntEnableMask =                                               \
-				 DT_INST_PROP_OR(n, master_slave_int_enable_mask, 0)},             \
-                                                                                                   \
-		.clk_dst = DT_INST_PROP(n, clk_dst),                                               \
-		.irq_num = DT_INST_IRQN(n),                                                        \
-		.irq_config_func = ifx_cat1_spi_irq_config_func_##n,                               \
-                                                                                                   \
-		.spi_handle_events_func = spi_handle_events_func_##n,                              \
-		.spi_deep_sleep_param = {(CySCB_Type *)DT_INST_REG_ADDR(n), NULL},                 \
-	};                                                                                         \
-                                                                                                   \
-	static struct ifx_cat1_spi_data spi_cat1_data_##n = {                                      \
-		SPI_CONTEXT_INIT_LOCK(spi_cat1_data_##n, ctx),                                     \
-		SPI_CONTEXT_INIT_SYNC(spi_cat1_data_##n, ctx),                                     \
-		SPI_DMA_CHANNEL(n, tx, MEMORY_TO_PERIPHERAL, 1, 1)                                 \
-			SPI_DMA_CHANNEL(n, rx, PERIPHERAL_TO_MEMORY, 1, 1)                         \
-				SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(n), ctx)               \
-					SPI_PERI_CLOCK_INIT(n)                                     \
-						.spi_deep_sleep = {                                \
-			&Cy_SCB_SPI_DeepSleepCallback, CY_SYSPM_DEEPSLEEP,                         \
-			CY_SYSPM_SKIP_BEFORE_TRANSITION,                                           \
-			&spi_cat1_config_##n.spi_deep_sleep_param, NULL, NULL, 1}};                \
-                                                                                                   \
-	SPI_DEVICE_DT_INST_DEINIT_DEFINE(n, &ifx_cat1_spi_init,                                    \
-					 COND_CODE_1(CONFIG_DEVICE_DEINIT_SUPPORT,                 \
-						     (&ifx_cat1_spi_deinit), (NULL)),              \
-					 NULL, &spi_cat1_data_##n, &spi_cat1_config_##n,           \
-					 POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,          \
-					 &ifx_cat1_spi_api);
+#define SPI_IFX_INIT(n)                                         \
+    void spi_handle_events_func_##n(uint32_t event) {           \
+        spi_ifx_cb_wrapper(DEVICE_DT_INST_GET(n), event);       \
+    }                                                           \
+                                                                \
+    static void spi_ifx_irq_config_func_##n(const struct device* dev) { \
+        IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority), spi_ifx_irq_handler, \
+                    DEVICE_DT_INST_GET(n), 0);                  \
+    }                                                           \
+                                                                \
+    PINCTRL_DT_INST_DEFINE(n);                                  \
+                                                                \
+    static struct spi_ifx_config DT_CONST spi_ifx_config_##n = { \
+        .reg_addr = (CySCB_Type*)DT_INST_REG_ADDR(n),           \
+        .pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),              \
+        .cs_oversample_cnt = DT_INST_PROP_LEN_OR(n, oversample, 0), \
+        .cs_oversample     = DT_INST_PROP_OR(n, oversample, {0}),   \
+        .scb_spi_config = {                                     \
+            .spiMode        = CY_SCB_SPI_MASTER,      /* overwrite by cfg  */                   \
+            .sclkMode       = CY_SCB_SPI_CPHA0_CPOL0, /* overwrite by cfg  */                   \
+            .rxDataWidth    = 8,                      /* overwrite by cfg  */                   \
+            .txDataWidth    = 8,                      /* overwrite by cfg  */                   \
+            .enableMsbFirst = true,                   /* overwrite by cfg  */                   \
+            .subMode        = DT_INST_PROP_OR(n, sub_mode, CY_SCB_SPI_MOTOROLA),                \
+            .oversample               = CONFIG_IFX_SPI_OVERSAMPLE_DEFAULT,                      \
+            .enableFreeRunSclk        = DT_INST_PROP_OR(n, enable_free_run_sclk, false),        \
+            .enableInputFilter        = DT_INST_PROP_OR(n, enable_input_filter, false),         \
+            .enableMisoLateSample     = DT_INST_PROP_OR(n, enable_miso_late_sample, true),      \
+            .EN_XFER_SEPARATION       = DT_INST_PROP_OR(n, enable_transfer_separation, false),  \
+             ADVANCED_SPI_FIELDS(n)                                                             \
+            .enableWakeFromSleep      = DT_INST_PROP_OR(n, enableWakeFromSleep, false),         \
+            .ssPolarity               = DT_INST_PROP_OR(n, ss_polarity, CY_SCB_SPI_ACTIVE_LOW), \
+            .rxFifoTriggerLevel       = DT_INST_PROP_OR(n, rx_fifo_trigger_level, 0),           \
+            .rxFifoIntEnableMask      = DT_INST_PROP_OR(n, rx_fifo_int_enable_mask, 0),         \
+            .txFifoTriggerLevel       = DT_INST_PROP_OR(n, tx_fifo_trigger_level, 1),           \
+            .txFifoIntEnableMask      = DT_INST_PROP_OR(n, tx_fifo_int_enable_mask, 0),         \
+            .masterSlaveIntEnableMask = DT_INST_PROP_OR(n, master_slave_int_enable_mask, 0),    \
+        },                                                      \
+                                                                \
+        .clk_dst = DT_INST_PROP(n, clk_dst),                    \
+        .scb_num = DT_INST_PROP(n, scb_index),                  \
+        .irq_num = DT_INST_IRQN(n),                             \
+        .irq_config_func = spi_ifx_irq_config_func_##n,         \
+                                                                \
+        .spi_handle_events_func = spi_handle_events_func_##n,   \
+        .spi_deep_sleep_param   = {(CySCB_Type*)DT_INST_REG_ADDR(n), NULL}, \
+    };                                                          \
+                                                                \
+    static struct spi_ifx_data spi_ifx_data_##n = {            \
+        SPI_CONTEXT_INIT_LOCK(spi_ifx_data_##n, ctx),          \
+        SPI_CONTEXT_INIT_SYNC(spi_ifx_data_##n, ctx),          \
+        SPI_DMA_CHANNEL(n, tx, MEMORY_TO_PERIPHERAL, 1, 1)      \
+            SPI_DMA_CHANNEL(n, rx, PERIPHERAL_TO_MEMORY, 1, 1)  \
+                SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(n), ctx) \
+                    SPI_PERI_CLOCK_INIT(n)                      \
+                        .spi_deep_sleep = {                     \
+                            Cy_SCB_SPI_DeepSleepCallback, CY_SYSPM_DEEPSLEEP, \
+                            CY_SYSPM_SKIP_BEFORE_TRANSITION,    \
+                            &spi_ifx_config_##n.spi_deep_sleep_param, NULL, NULL, 1} \
+    };                                                          \
+                                                                \
+    SPI_DEVICE_DT_INST_DEINIT_DEFINE(n, spi_ifx_init,                                 \
+                                     COND_CODE_1(CONFIG_DEVICE_DEINIT_SUPPORT,        \
+                                                 (spi_ifx_deinit), (NULL)),           \
+                                     NULL, &spi_ifx_data_##n, &spi_ifx_config_##n,    \
+                                     POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE, \
+                                     &spi_ifx_api);
 
-DT_INST_FOREACH_STATUS_OKAY(IFX_CAT1_SPI_INIT)
+DT_INST_FOREACH_STATUS_OKAY(SPI_IFX_INIT)
 
-cy_rslt_t ifx_cat1_spi_transfer_async(const struct device *dev, const uint8_t *tx, size_t tx_length,
-				      uint8_t *rx, size_t rx_length)
-{
-	struct ifx_cat1_spi_data *const data = dev->data;
-	const struct ifx_cat1_spi_config *const config = dev->config;
+cy_rslt_t spi_ifx_transfer_async(const struct device* dev, uint8_t const* tx, size_t tx_length,
+                                 uint8_t* rx, size_t rx_length) {
+    struct spi_ifx_data* const data = dev->data;
+    const struct spi_ifx_config* const config = dev->config;
 
-	cy_en_scb_spi_status_t spi_status;
+    cy_en_scb_spi_status_t spi_status;
+    cy_rslt_t result;
 
-	data->is_async = true;
+    data->is_async = true;
 
-	size_t tx_words = tx_length;
-	size_t rx_words = rx_length;
+    size_t tx_words = tx_length;
+    size_t rx_words = rx_length;
 
-	/* Setup transfer */
-	data->rx_buffer = NULL;
-	data->tx_buffer = NULL;
+    /* Setup transfer */
+    data->rx_buffer = NULL;
+    data->tx_buffer = NULL;
 
-#if !defined(IFX_SPI_ASYMM_PDL_FUNC_AVAIL)
-	if (tx_words > rx_words) {
-		if (rx_words > 0) {
-			/* I) write + read, II) write only */
-			data->pending = IFX_SPI_PENDING_TX_RX;
+    #if !defined(IFX_SPI_ASYMM_PDL_FUNC_AVAIL)
+    if (tx_words > rx_words) {
+        if (rx_words > 0) {
+            /* I) write + read, II) write only */
+            data->pending = IFX_SPI_PENDING_TX_RX;
 
-			data->tx_buffer = tx + (rx_words);
-			data->tx_buffer_size = tx_words - rx_words;
+            data->tx_buffer = tx + rx_words;
+            data->tx_buffer_size = tx_words - rx_words;
 
-			tx_words = rx_words; /* Use tx_words to store entire transfer length */
-		} else {
-			/*  I) write only */
-			data->pending = IFX_SPI_PENDING_TX;
+            tx_words = rx_words; /* Use tx_words to store entire transfer length */
+        }
+        else {
+            /* I) write only */
+            data->pending = IFX_SPI_PENDING_TX;
 
-			rx = NULL;
-		}
-	} else if (rx_words > tx_words) {
-		if (tx_words > 0) {
-			/*  I) write + read, II) read only */
-			data->pending = IFX_SPI_PENDING_TX_RX;
+            rx = NULL;
+        }
+    }
+    else if (rx_words > tx_words) {
+        if (tx_words > 0) {
+            /* I) write + read, II) read only */
+            data->pending = IFX_SPI_PENDING_TX_RX;
 
-			data->rx_buffer = rx + (tx_words);
-			data->rx_buffer_size = rx_words - tx_words;
-		} else {
-			/*  I) read only. */
-			data->pending = IFX_SPI_PENDING_RX;
+            data->rx_buffer = rx + tx_words;
+            data->rx_buffer_size = rx_words - tx_words;
+        }
+        else {
+            /* I) read only. */
+            data->pending = IFX_SPI_PENDING_RX;
 
-			data->rx_buffer = rx_words > 1 ? rx + 1 : NULL;
-			data->rx_buffer_size = rx_words - 1;
-			tx = &data->write_fill;
-			tx_words = 1;
-		}
-	} else {
-		/* RX and TX of the same size: I) write + read. */
-		data->pending = IFX_SPI_PENDING_TX_RX;
-	}
-	spi_status =
-		Cy_SCB_SPI_Transfer(config->reg_addr, (void *)tx, rx, tx_words, &data->context);
-#else /* !defined(IFX_SPI_ASYMM_PDL_FUNC_AVAIL) */
+            if (rx_words > 1) {
+                data->rx_buffer = rx + 1;
+            }
+            else {
+                data->rx_buffer = NULL;
+            }
 
-	if (tx_words != rx_words) {
-		if (tx_words == 0) {
-			data->pending = IFX_SPI_PENDING_RX;
-			tx = NULL;
-		} else if (rx_words == 0) {
-			data->pending = IFX_SPI_PENDING_TX;
-			rx = NULL;
-		} else {
-			data->pending = IFX_SPI_PENDING_TX_RX;
-		}
-		spi_status = Cy_SCB_SPI_Transfer_Buffer(config->reg_addr, (void *)tx, (void *)rx,
-							tx_words, rx_words, data->write_fill,
-							&data->context);
-	} else {
-		data->pending = IFX_SPI_PENDING_TX_RX;
-		spi_status = Cy_SCB_SPI_Transfer(config->reg_addr, (void *)tx, rx, tx_words,
-						 &data->context);
-	}
+            data->rx_buffer_size = rx_words - 1;
+            tx = &data->write_fill;
+            tx_words = 1;
+        }
+    }
+    else {
+        /* RX and TX of the same size: I) write + read. */
+        data->pending = IFX_SPI_PENDING_TX_RX;
+    }
 
-#endif /* IFX_SPI_ASYMM_PDL_FUNC_AVAIL */
-	return spi_status == CY_SCB_SPI_SUCCESS ? CY_RSLT_SUCCESS : IFX_SPI_RSLT_TRANSFER_ERROR;
+    spi_status =
+        Cy_SCB_SPI_Transfer(config->reg_addr, (void*)tx, rx, tx_words, &data->context);
+    #else /* !defined(IFX_SPI_ASYMM_PDL_FUNC_AVAIL) */
+
+    if (tx_words != rx_words) {
+        if (tx_words == 0) {
+            data->pending = IFX_SPI_PENDING_RX;
+            tx = NULL;
+        }
+        else if (rx_words == 0) {
+            data->pending = IFX_SPI_PENDING_TX;
+            rx = NULL;
+        }
+        else {
+            data->pending = IFX_SPI_PENDING_TX_RX;
+        }
+        spi_status = Cy_SCB_SPI_Transfer_Buffer(config->reg_addr, (void*)tx, (void*)rx,
+                                                tx_words, rx_words, data->write_fill,
+                                                &data->context);
+    }
+    else {
+        data->pending = IFX_SPI_PENDING_TX_RX;
+        spi_status    = Cy_SCB_SPI_Transfer(config->reg_addr, (void*)tx, rx, tx_words,
+                                            &data->context);
+    }
+
+    #endif /* IFX_SPI_ASYMM_PDL_FUNC_AVAIL */
+
+    if (spi_status == CY_SCB_SPI_SUCCESS) {
+        result = CY_RSLT_SUCCESS;
+    }
+    else {
+        result = IFX_SPI_RSLT_TRANSFER_ERROR;
+    }
+
+    return (result);
 }
 
-cy_rslt_t ifx_cat1_spi_abort_async(const struct device *dev)
-{
-	struct ifx_cat1_spi_data *const data = dev->data;
-	const struct ifx_cat1_spi_config *const config = dev->config;
+cy_rslt_t spi_ifx_abort_async(const struct device* dev) {
+    struct spi_ifx_data* const data = dev->data;
+    const struct spi_ifx_config* const config = dev->config;
 
-	Cy_SCB_SPI_AbortTransfer(config->reg_addr, &(data->context));
-	data->pending = IFX_SPI_PENDING_NONE;
-	return CY_RSLT_SUCCESS;
+    Cy_SCB_SPI_AbortTransfer(config->reg_addr, &data->context);
+    data->pending = IFX_SPI_PENDING_NONE;
+    return (CY_RSLT_SUCCESS);
 }
 
 /* Registers a callback function, which notifies that
  * SPI events occurred in the Cy_SCB_SPI_Interrupt.
  */
-void ifx_cat1_spi_register_callback(const struct device *dev,
-				    ifx_cat1_spi_event_callback_t callback, void *callback_arg)
-{
-	/* TODO: we need rework to removecallback_data structure */
+static void spi_ifx_register_callback(const struct device* dev,
+                                      spi_ifx_event_callback_t callback, void* callback_arg) {
+    /* TODO: we need rework to removecallback_data structure */
 
-	struct ifx_cat1_spi_data *const data = dev->data;
-	const struct ifx_cat1_spi_config *const config = dev->config;
+    struct spi_ifx_data* const data = dev->data;
+    const struct spi_ifx_config* const config = dev->config;
 
-	uint32_t savedIntrStatus = Cy_SysLib_EnterCriticalSection();
+    uint32_t savedIntrStatus = Cy_SysLib_EnterCriticalSection();
 
-	data->callback_data.callback = (cy_israddress)callback;
-	data->callback_data.callback_arg = callback_arg;
-	Cy_SysLib_ExitCriticalSection(savedIntrStatus);
-	Cy_SCB_SPI_RegisterCallback(config->reg_addr, config->spi_handle_events_func,
-				    &(data->context));
+    data->callback_data.callback     = (cy_israddress)callback;
+    data->callback_data.callback_arg = callback_arg;
+    Cy_SysLib_ExitCriticalSection(savedIntrStatus);
+    Cy_SCB_SPI_RegisterCallback(config->reg_addr, config->spi_handle_events_func,
+                                &data->context);
 
-	data->irq_cause = 0;
+    data->irq_cause = 0;
 }
 
-static cy_rslt_t ifx_cat1_spi_int_frequency(const struct device *dev, uint32_t hz,
-					    uint8_t *over_sample_val)
-{
+static cy_rslt_t spi_ifx_int_frequency(const struct device* dev, uint32_t hz,
+                                       uint8_t* over_sample_val) {
 
-	struct ifx_cat1_spi_data *const data = dev->data;
-	const struct ifx_cat1_spi_config *const config = dev->config;
+    struct spi_ifx_data* const data = dev->data;
+    const struct spi_ifx_config* const config = dev->config;
 
-	cy_rslt_t result = CY_RSLT_SUCCESS;
-	uint8_t oversample_value;
-	uint32_t divider_value;
-	uint32_t last_diff = 0xFFFFFFFFU;
-	uint8_t last_ovrsmpl_val = 0;
-	uint32_t last_dvdr_val = 0;
-	uint32_t oversampled_freq = 0;
-	uint32_t divided_freq = 0;
-	uint32_t diff = 0;
+    cy_rslt_t result;
+    uint32_t divider_value;
+    uint32_t last_diff = 0xFFFFFFFFU;
+    __maybe_unused uint32_t last_ovrsmpl_val = 0;
+    uint32_t last_dvdr_val = 0;
+    uint32_t oversampled_freq;
+    uint32_t divided_freq;
+    uint32_t diff;
 
-#if defined(COMPONENT_CAT1A)
-	uint32_t peri_freq = Cy_SysClk_ClkPeriGetFrequency();
-#elif defined(COMPONENT_CAT1B) || defined(COMPONENT_CAT1C) ||                                      \
-	defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
-	uint8_t hfclk = ifx_cat1_utils_peri_pclk_get_hfclk(data->clock_peri_group);
+    #if defined(COMPONENT_CAT1A)
+    uint32_t peri_freq = Cy_SysClk_ClkPeriGetFrequency();
+    #elif defined(COMPONENT_CAT1B) || defined(COMPONENT_CAT1C) || \
+          defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
+    uint8_t hfclk = ifx_cat1_utils_peri_pclk_get_hfclk(data->clock_peri_group);
 
-	uint32_t peri_freq = Cy_SysClk_ClkHfGetFrequency(hfclk);
-#elif defined(CONFIG_SOC_FAMILY_INFINEON_PSOC4)
-	uint32_t peri_freq = Cy_SysClk_ClkHfGetFrequency();
+    uint32_t peri_freq = Cy_SysClk_ClkHfGetFrequency(hfclk);
+    #elif defined(CONFIG_SOC_FAMILY_INFINEON_PSOC4)
+    uint32_t peri_freq = Cy_SysClk_ClkHfGetFrequency();
+    #endif
+
+    if (data->is_peripheral == false) {
+        for (uint32_t oversample_value = IFX_SPI_OVERSAMPLE_MIN;
+             oversample_value <= IFX_SPI_OVERSAMPLE_MAX;
+             oversample_value++) {
+            oversampled_freq = (hz * oversample_value);
+            if ((oversampled_freq > peri_freq) &&
+                (oversample_value == IFX_SPI_OVERSAMPLE_MIN)) {
+                return (IFX_SPI_RSLT_CLOCK_ERROR);
+            }
+            else if (oversampled_freq > peri_freq) {
+                continue;
+            }
+
+            divider_value = (peri_freq + (oversampled_freq / 2)) / oversampled_freq;
+            divided_freq  = peri_freq / divider_value;
+
+            if (oversampled_freq > divided_freq) {
+                diff = oversampled_freq - divided_freq;
+            }
+            else {
+                diff = divided_freq - oversampled_freq;
+            }
+
+            if (diff < last_diff) {
+                last_diff        = diff;
+                last_ovrsmpl_val = oversample_value;
+                last_dvdr_val    = divider_value;
+                if (diff == 0) {
+                    break;
+                }
+            }
+        }
+
+        *over_sample_val = (uint8_t)last_ovrsmpl_val;
+    }
+    else {
+        /* Peripheral requires such frequency: required_frequency = N / ((0.5 *
+         * desired_period) – 20 nsec - tDSI, N is 3 when "Enable Input Glitch Filter" is
+         * false and 4 when true. tDSI Is external controller delay which is assumed to be
+         * 16.66 nsec
+         */
+
+        /* Divided by 2 desired period to avoid dividing in required_frequency formula */
+        cy_float32_t desired_period_us_divided = 5e5f * (1 / (cy_float32_t)hz);
+        uint32_t required_frequency =
+            (uint32_t)(3e6f / (desired_period_us_divided - 36.66f / 1e3f));
+
+        if (required_frequency > peri_freq) {
+            return (IFX_SPI_RSLT_CLOCK_ERROR);
+        }
+
+        last_dvdr_val = 1;
+    }
+
+    if ((data->clock.block & 0x02) == 0) {
+        result = ifx_cat1_utils_peri_pclk_set_divider(config->clk_dst, &data->clock,
+                                                      last_dvdr_val - 1);
+    }
+    else {
+        result = ifx_cat1_utils_peri_pclk_set_frac_divider(config->clk_dst, &data->clock,
+                                                           last_dvdr_val - 1, 0);
+    }
+
+    return (result);
+}
+
+static cy_rslt_t spi_ifx_set_frequency(const struct device* dev, uint32_t hz) {
+    struct spi_ifx_data* const data = dev->data;
+    const struct spi_ifx_config* const config = dev->config;
+
+    cy_rslt_t result;
+    uint8_t ovr_sample_val;
+
+    Cy_SCB_SPI_Disable(config->reg_addr, &data->context);
+    result = spi_ifx_int_frequency(dev, hz, &ovr_sample_val);
+
+    /* No need to reconfigure peripheral since oversample value, that was changed in
+     * spi_ifx_int_frequency, in peripheral is ignored
+     */
+    if ((result == CY_RSLT_SUCCESS) && (data->is_peripheral == false) &&
+        (data->oversample_value != ovr_sample_val)) {
+        cy_stc_scb_spi_config_t config_structure = config->scb_spi_config;
+
+        Cy_SCB_SPI_DeInit(config->reg_addr);
+        config_structure.spiMode        = CY_SCB_SPI_MASTER;
+        config_structure.enableMsbFirst = data->msb_first;
+        config_structure.sclkMode       = data->clk_mode;
+        config_structure.rxDataWidth    = data->data_bits;
+        config_structure.txDataWidth    = data->data_bits;
+        config_structure.oversample     = ovr_sample_val;
+        data->oversample_value          = ovr_sample_val;
+        Cy_SCB_SPI_Init(config->reg_addr, &config_structure, &data->context);
+    }
+
+    Cy_SCB_SPI_Enable(config->reg_addr);
+
+    return (result);
+}
+
+static void spi_init_hw(const struct device* dev, cy_stc_scb_spi_config_t* cfg) {
+    struct spi_ifx_data* const data = dev->data;
+    const struct spi_ifx_config* const config = dev->config;
+
+    data->oversample_value = cfg->oversample;
+    data->data_bits = cfg->txDataWidth;
+    data->msb_first = cfg->enableMsbFirst;
+    data->clk_mode  = cfg->sclkMode;
+
+    Cy_SCB_SPI_Init(config->reg_addr, cfg, &data->context);
+    data->callback_data.callback     = NULL;
+    data->callback_data.callback_arg = NULL;
+    data->irq_cause = 0;
+
+    irq_enable(config->irq_num);
+    Cy_SCB_SPI_Enable(config->reg_addr);
+}
+
+static cy_rslt_t spi_ifx_init_cfg(const struct device* dev, cy_stc_scb_spi_config_t* scb_spi_config) {
+    struct spi_ifx_data* const data = dev->data;
+    cy_stc_scb_spi_config_t cfg_local = *scb_spi_config;
+
+    bool is_peripheral = (cfg_local.spiMode == CY_SCB_SPI_SLAVE);
+    cy_rslt_t result;
+
+    data->is_peripheral = is_peripheral;
+    data->write_fill = (uint8_t)CY_SCB_SPI_DEFAULT_TX;
+
+    result = spi_ifx_int_frequency(dev, IFX_SPI_DEFAULT_SPEED,
+                                   &data->oversample_value);
+    if (result == CY_RSLT_SUCCESS) {
+        spi_init_hw(dev, &cfg_local);
+    }
+
+    return (result);
+}
+
+static void spi_ifx_free(const struct device* dev) {
+    const struct spi_ifx_config* const config = dev->config;
+
+    Cy_SCB_SPI_Disable(config->reg_addr, NULL);
+    Cy_SCB_SPI_DeInit(config->reg_addr);
+    irq_disable(config->irq_num);
+}
+
+static void spi_ifx_irq_handler(const struct device* dev) {
+    struct spi_ifx_data* const data = dev->data;
+    const struct spi_ifx_config* const config = dev->config;
+
+    Cy_SCB_SPI_Interrupt(config->reg_addr, &(data->context));
+
+    if (data->is_async == false) {
+        uint32_t master_intr = Cy_SCB_GetMasterInterruptStatusMasked(config->reg_addr);
+
+        if ((master_intr & CY_SCB_MASTER_INTR_SPI_DONE) != 0U) {
+            Cy_SCB_SetMasterInterruptMask(
+                config->reg_addr, (Cy_SCB_GetMasterInterruptMask(config->reg_addr) &
+                                   (uint32_t)~CY_SCB_MASTER_INTR_SPI_DONE));
+            Cy_SCB_ClearMasterInterrupt(config->reg_addr, CY_SCB_MASTER_INTR_SPI_DONE);
+        }
+        return;
+    }
+
+    uint32_t xfer_status = Cy_SCB_SPI_GetTransferStatus(config->reg_addr, &data->context);
+
+    if ((xfer_status & CY_SCB_SPI_TRANSFER_ACTIVE) == 0U) {
+
+        #if !defined(IFX_SPI_ASYMM_PDL_FUNC_AVAIL)
+        if (data->tx_buffer != NULL) {
+            /* Start TX Transfer */
+            data->pending = IFX_SPI_PENDING_TX;
+            uint8_t const* buf = data->tx_buffer;
+
+            data->tx_buffer = NULL;
+
+            Cy_SCB_SPI_Transfer(config->reg_addr, (uint8_t*)buf, NULL,
+                                data->tx_buffer_size, &data->context);
+        }
+        else if (data->rx_buffer != NULL) {
+            /* Start RX Transfer */
+            data->pending = IFX_SPI_PENDING_RX;
+            uint8_t* rx_buf = data->rx_buffer;
+            uint8_t* tx_buf;
+            size_t   trx_size = data->rx_buffer_size;
+
+            if (data->rx_buffer_size > 1) {
+                /* In this case we don't have a transmit buffer; we only have a
+                 * receive buffer. While the PDL is fine with passing NULL for
+                 * transmit, we don't get to control what data it is sending in that
+                 * case, which we allowed the user to set. To honor the user's
+                 * request, we reuse the rx buffer as the tx buffer too. We set all
+                 * bytes beyond the one we will start filling in with the user
+                 * provided 'write_fill'. This means the tx buffer is 1 element
+                 * smaller than the rx buffer. As a result, we must therefore
+                 * transfer 1 less element then we really want to in this transfer.
+                 * When this transfer is complete, it will call into this again to
+                 * receive the final element.
+                 */
+                trx_size -= 1; /* Transfer everything left except for the last byte*/
+
+                uint8_t** rx_buffer_p = (uint8_t**)&data->rx_buffer;
+
+                /* Start at second byte to avoid trying
+                 * to transmit and receive the same byte
+                 */
+                tx_buf = *rx_buffer_p + 1;
+
+                memset(tx_buf, data->write_fill, trx_size);
+                /* Move to 1 byte before end */
+                *rx_buffer_p += trx_size;
+
+                /* Transfer the last byte on the next interrupt */
+                data->rx_buffer_size = 1;
+            }
+            else {
+                tx_buf = &data->write_fill;
+
+                data->rx_buffer = NULL;
+            }
+
+            Cy_SCB_SPI_Transfer(config->reg_addr, tx_buf, rx_buf, trx_size,
+                                &data->context);
+        }
+        else {
+        #endif /* IFX_SPI_ASYMM_PDL_FUNC_AVAIL */
+            /* Finish Async Transfer */
+            data->pending = IFX_SPI_PENDING_NONE;
+            data->is_async = false;
+        #if !defined(IFX_SPI_ASYMM_PDL_FUNC_AVAIL)
+        }
+        #endif /* IFX_SPI_ASYMM_PDL_FUNC_AVAIL */
+    }
+}
+
+static void spi_ifx_cb_wrapper(const struct device* dev, uint32_t event) {
+    struct spi_ifx_data* const data = dev->data;
+    uint32_t anded_events = (data->irq_cause & ((uint32_t)event));
+
+    /* Don't call the callback until the final transfer
+     * has put everything in the FIFO/completed
+     */
+    if (((anded_events &
+          (CY_SCB_SPI_TRANSFER_IN_FIFO_EVENT | CY_SCB_SPI_TRANSFER_CMPLT_EVENT)) != 0U) &&
+        ((data->rx_buffer != NULL) || (data->tx_buffer != NULL))) {
+        return;
+    }
+
+    if (anded_events != 0U) {
+        spi_ifx_event_callback_t callback =
+            (spi_ifx_event_callback_t)data->callback_data.callback;
+        callback(data->callback_data.callback_arg, anded_events);
+    }
+}
+
+#if (__GTEST == 1) /* #CUSTOM@NDRS */
+#include "mcu_reg_stub.h"
+
+#define SPI_IFX_CFG_REG_INIT(n) \
+    zephyr_gtest_spi_ifx_reg_init(DEVICE_DT_GET(DT_DRV_INST(n)), \
+                                  &spi_ifx_data_##n, &spi_ifx_config_##n);
+
+static void zephyr_gtest_spi_ifx_reg_init(const struct device* dev,
+                                          struct spi_ifx_data* data,
+                                          struct spi_ifx_config* cfg) {
+    uintptr_t base_addr = (uintptr_t)cfg->reg_addr;
+    int rc;
+
+    switch (base_addr) {
+        case SCB0_BASE : {
+            cfg->reg_addr = (CySCB_Type*)ut_mcu_scb0_ptr;
+            break;
+        }
+
+        case SCB1_BASE : {
+            cfg->reg_addr = (CySCB_Type*)ut_mcu_scb1_ptr;
+            break;
+        }
+
+        case SCB2_BASE : {
+            cfg->reg_addr = (CySCB_Type*)ut_mcu_scb2_ptr;
+            break;
+        }
+
+        case SCB3_BASE : {
+            cfg->reg_addr = (CySCB_Type*)ut_mcu_scb3_ptr;
+            break;
+        }
+
+        case SCB4_BASE : {
+            cfg->reg_addr = (CySCB_Type*)ut_mcu_scb4_ptr;
+            break;
+        }
+
+        case SCB5_BASE : {
+            cfg->reg_addr = (CySCB_Type*)ut_mcu_scb5_ptr;
+            break;
+        }
+
+        case SCB6_BASE : {
+            cfg->reg_addr = (CySCB_Type*)ut_mcu_scb6_ptr;
+            break;
+        }
+
+        case SCB7_BASE : {
+            cfg->reg_addr = (CySCB_Type*)ut_mcu_scb7_ptr;
+            break;
+        }
+
+        case SCB8_BASE : {
+            cfg->reg_addr = (CySCB_Type*)ut_mcu_scb8_ptr;
+            break;
+        }
+
+        case SCB9_BASE : {
+            cfg->reg_addr = (CySCB_Type*)ut_mcu_scb9_ptr;
+            break;
+        }
+
+        case SCB10_BASE : {
+            cfg->reg_addr = (CySCB_Type*)ut_mcu_scb10_ptr;
+            break;
+        }
+
+        case SCB11_BASE : {
+            cfg->reg_addr = (CySCB_Type*)ut_mcu_scb11_ptr;
+            break;
+        }
+
+        default : {
+            break;
+        }
+    }
+
+    rc = dev->ops.init(dev);
+    if (rc == 0) {
+        dev->state->initialized = true;
+        dev->state->init_res = 0U;
+    }
+}
+
+void zephyr_gtest_spi_ifx(void) {
+    DT_INST_FOREACH_STATUS_OKAY(SPI_IFX_CFG_REG_INIT)
+}
 #endif
-
-	if (!data->is_peripheral) {
-		for (oversample_value = IFX_SPI_OVERSAMPLE_MIN;
-		     oversample_value <= IFX_SPI_OVERSAMPLE_MAX; oversample_value++) {
-			oversampled_freq = hz * oversample_value;
-			if ((oversampled_freq > peri_freq) &&
-			    (IFX_SPI_OVERSAMPLE_MIN == oversample_value)) {
-				return IFX_SPI_RSLT_CLOCK_ERROR;
-			} else if (oversampled_freq > peri_freq) {
-				continue;
-			}
-
-			divider_value = (peri_freq + (oversampled_freq / 2)) / oversampled_freq;
-			divided_freq = peri_freq / divider_value;
-			diff = (oversampled_freq > divided_freq) ? oversampled_freq - divided_freq
-								 : divided_freq - oversampled_freq;
-
-			if (diff < last_diff) {
-				last_diff = diff;
-				last_ovrsmpl_val = oversample_value;
-				last_dvdr_val = divider_value;
-				if (diff == 0) {
-					break;
-				}
-			}
-		}
-		*over_sample_val = last_ovrsmpl_val;
-	} else {
-		/* Peripheral requires such frequency: required_frequency = N / ((0.5 *
-		 * desired_period) – 20 nsec - tDSI, N is 3 when "Enable Input Glitch Filter" is
-		 * false and 4 when true. tDSI Is external controller delay which is assumed to be
-		 * 16.66 nsec
-		 */
-
-		/* Divided by 2 desired period to avoid dividing in required_frequency formula */
-		cy_float32_t desired_period_us_divided = 5e5f * (1 / (cy_float32_t)hz);
-		uint32_t required_frequency =
-			(uint32_t)(3e6f / (desired_period_us_divided - 36.66f / 1e3f));
-
-		if (required_frequency > peri_freq) {
-			return IFX_SPI_RSLT_CLOCK_ERROR;
-		}
-
-		last_dvdr_val = 1;
-		CY_UNUSED_PARAMETER(last_ovrsmpl_val);
-	}
-
-	if ((data->clock.block & 0x02) == 0) {
-		result = ifx_cat1_utils_peri_pclk_set_divider(config->clk_dst, &(data->clock),
-							      last_dvdr_val - 1);
-	} else {
-		result = ifx_cat1_utils_peri_pclk_set_frac_divider(config->clk_dst, &(data->clock),
-								   last_dvdr_val - 1, 0);
-	}
-
-	return result;
-}
-
-cy_rslt_t spi_set_frequency(const struct device *dev, uint32_t hz)
-{
-
-	struct ifx_cat1_spi_data *const data = dev->data;
-	const struct ifx_cat1_spi_config *const config = dev->config;
-
-	cy_rslt_t result = CY_RSLT_SUCCESS;
-	cy_rslt_t scb_init_result = CY_RSLT_SUCCESS;
-	uint8_t ovr_sample_val;
-
-	Cy_SCB_SPI_Disable(config->reg_addr, &data->context);
-	result = ifx_cat1_spi_int_frequency(dev, hz, &ovr_sample_val);
-
-	/* No need to reconfigure peripheral since oversample value, that was changed in
-	 * ifx_cat1_spi_int_frequency, in peripheral is ignored
-	 */
-	if ((CY_RSLT_SUCCESS == result) && !data->is_peripheral &&
-	    (data->oversample_value != ovr_sample_val)) {
-		cy_stc_scb_spi_config_t config_structure = config->scb_spi_config;
-
-		Cy_SCB_SPI_DeInit(config->reg_addr);
-		config_structure.spiMode = CY_SCB_SPI_MASTER;
-		config_structure.enableMsbFirst = data->msb_first;
-		config_structure.sclkMode = data->clk_mode;
-		config_structure.rxDataWidth = data->data_bits;
-		config_structure.txDataWidth = data->data_bits;
-		config_structure.oversample = ovr_sample_val;
-		data->oversample_value = ovr_sample_val;
-		scb_init_result = (cy_rslt_t)Cy_SCB_SPI_Init(config->reg_addr, &config_structure,
-							     &(data->context));
-	}
-	if (CY_RSLT_SUCCESS == scb_init_result) {
-		Cy_SCB_SPI_Enable(config->reg_addr);
-	}
-
-	return result;
-}
-
-static cy_rslt_t spi_init_hw(const struct device *dev, cy_stc_scb_spi_config_t *cfg)
-{
-	cy_rslt_t result = CY_RSLT_SUCCESS;
-	struct ifx_cat1_spi_data *const data = dev->data;
-	const struct ifx_cat1_spi_config *const config = dev->config;
-
-	data->oversample_value = cfg->oversample;
-	data->data_bits = cfg->txDataWidth;
-	data->msb_first = cfg->enableMsbFirst;
-	data->clk_mode = cfg->sclkMode;
-
-	result = (cy_rslt_t)Cy_SCB_SPI_Init(config->reg_addr, cfg, &(data->context));
-
-	if (result == CY_RSLT_SUCCESS) {
-		data->callback_data.callback = NULL;
-		data->callback_data.callback_arg = NULL;
-		data->irq_cause = 0;
-
-		irq_enable(config->irq_num);
-		Cy_SCB_SPI_Enable(config->reg_addr);
-	} else {
-		spi_free(dev);
-	}
-	return result;
-}
-
-cy_rslt_t ifx_cat1_spi_init_cfg(const struct device *dev, cy_stc_scb_spi_config_t *scb_spi_config)
-{
-	struct ifx_cat1_spi_data *const data = dev->data;
-
-	cy_stc_scb_spi_config_t cfg_local = *scb_spi_config;
-
-	cy_rslt_t result = CY_RSLT_SUCCESS;
-	bool is_peripheral = (cfg_local.spiMode == CY_SCB_SPI_SLAVE);
-
-	data->is_peripheral = is_peripheral;
-	data->write_fill = (uint8_t)CY_SCB_SPI_DEFAULT_TX;
-
-	result = ifx_cat1_spi_int_frequency(dev, IFX_SPI_DEFAULT_SPEED, &data->oversample_value);
-
-	if (result == CY_RSLT_SUCCESS) {
-		result = spi_init_hw(dev, &cfg_local);
-	}
-
-	if (result != CY_RSLT_SUCCESS) {
-		spi_free(dev);
-	}
-	return result;
-}
-
-void spi_free(const struct device *dev)
-{
-	const struct ifx_cat1_spi_config *const config = dev->config;
-
-	Cy_SCB_SPI_Disable(config->reg_addr, NULL);
-	Cy_SCB_SPI_DeInit(config->reg_addr);
-	irq_disable(config->irq_num);
-}
-
-static void spi_irq_handler(const struct device *dev)
-{
-	struct ifx_cat1_spi_data *const data = dev->data;
-	const struct ifx_cat1_spi_config *const config = dev->config;
-
-	Cy_SCB_SPI_Interrupt(config->reg_addr, &(data->context));
-
-	if (!data->is_async) {
-		if (CY_SCB_MASTER_INTR_SPI_DONE &
-		    Cy_SCB_GetMasterInterruptStatusMasked(config->reg_addr)) {
-			Cy_SCB_SetMasterInterruptMask(
-				config->reg_addr, (Cy_SCB_GetMasterInterruptMask(config->reg_addr) &
-						   (uint32_t)~CY_SCB_MASTER_INTR_SPI_DONE));
-			Cy_SCB_ClearMasterInterrupt(config->reg_addr, CY_SCB_MASTER_INTR_SPI_DONE);
-		}
-		return;
-	}
-
-	if (0 == (Cy_SCB_SPI_GetTransferStatus(config->reg_addr, &data->context) &
-		  CY_SCB_SPI_TRANSFER_ACTIVE)) {
-
-#if !defined(IFX_SPI_ASYMM_PDL_FUNC_AVAIL)
-		if (NULL != data->tx_buffer) {
-			/* Start TX Transfer */
-			data->pending = IFX_SPI_PENDING_TX;
-			const uint8_t *buf = data->tx_buffer;
-
-			data->tx_buffer = NULL;
-
-			Cy_SCB_SPI_Transfer(config->reg_addr, (uint8_t *)buf, NULL,
-					    data->tx_buffer_size, &data->context);
-		} else if (NULL != data->rx_buffer) {
-			/* Start RX Transfer */
-			data->pending = IFX_SPI_PENDING_RX;
-			uint8_t *rx_buf = data->rx_buffer;
-			uint8_t *tx_buf;
-			size_t trx_size = data->rx_buffer_size;
-
-			if (data->rx_buffer_size > 1) {
-				/* In this case we don't have a transmit buffer; we only have a
-				 * receive buffer. While the PDL is fine with passing NULL for
-				 * transmit, we don't get to control what data it is sending in that
-				 * case, which we allowed the user to set. To honor the user's
-				 * request, we reuse the rx buffer as the tx buffer too. We set all
-				 * bytes beyond the one we will start filling in with the user
-				 * provided 'write_fill'. This means the tx buffer is 1 element
-				 * smaller than the rx buffer. As a result, we must therefore
-				 * transfer 1 less element then we really want to in this transfer.
-				 * When this transfer is complete, it will call into this again to
-				 * receive the final element.
-				 */
-				trx_size -=
-					1; /* Transfer everything left except for the last byte*/
-
-				uint8_t **rx_buffer_p = (uint8_t **)&data->rx_buffer;
-
-				/* Start at second byte to avoid trying
-				 * to transmit and receive the same byte
-				 */
-				tx_buf = *rx_buffer_p + 1;
-
-				memset(tx_buf, data->write_fill, trx_size);
-				/* Move to 1 byte before end */
-				*rx_buffer_p += trx_size;
-
-				/* Transfer the last byte on the next interrupt */
-				data->rx_buffer_size = 1;
-			} else {
-				tx_buf = &data->write_fill;
-
-				data->rx_buffer = NULL;
-			}
-
-			Cy_SCB_SPI_Transfer(config->reg_addr, tx_buf, rx_buf, trx_size,
-					    &data->context);
-		} else {
-#endif /* IFX_SPI_ASYMM_PDL_FUNC_AVAIL */
-			/* Finish Async Transfer */
-			data->pending = IFX_SPI_PENDING_NONE;
-			data->is_async = false;
-#if !defined(IFX_SPI_ASYMM_PDL_FUNC_AVAIL)
-		}
-#endif /* IFX_SPI_ASYMM_PDL_FUNC_AVAIL */
-	}
-}
-
-static void ifx_cat1_spi_cb_wrapper(const struct device *dev, uint32_t event)
-{
-	struct ifx_cat1_spi_data *const data = dev->data;
-	uint32_t anded_events = (data->irq_cause & ((uint32_t)event));
-
-	/* Don't call the callback until the final transfer
-	 * has put everything in the FIFO/completed
-	 */
-	if ((anded_events &
-	     (CY_SCB_SPI_TRANSFER_IN_FIFO_EVENT | CY_SCB_SPI_TRANSFER_CMPLT_EVENT)) &&
-	    !(data->rx_buffer == NULL && data->tx_buffer == NULL)) {
-		return;
-	}
-
-	if (anded_events) {
-		ifx_cat1_spi_event_callback_t callback =
-			(ifx_cat1_spi_event_callback_t)data->callback_data.callback;
-		callback(data->callback_data.callback_arg, anded_events);
-	}
-}

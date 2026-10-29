@@ -143,7 +143,7 @@ static void print_dns_info(const struct shell *sh,
 	for (i = 0; i < CONFIG_DNS_RESOLVER_MAX_SERVERS +
 		     DNS_MAX_MCAST_SERVERS; i++) {
 		struct net_sockaddr *server_addr =
-			net_sad(&ctx->servers[i].dns_server_addr);
+			net_sad(&ctx->servers[i].u.dns_server_addr);
 		char iface_name[NET_IFNAMSIZ] = { 0 };
 
 		if (ctx->servers[i].if_index > 0) {
@@ -156,7 +156,7 @@ static void print_dns_info(const struct shell *sh,
 			}
 		}
 
-		if (ctx->servers[i].dns_server_addr.ss_family == NET_AF_INET) {
+		if (ctx->servers[i].u.dns_server_addr.ss_family == NET_AF_INET) {
 			PR("\t%s:%u%s%s%s%s%s\n",
 			   net_sprint_ipv4_addr(
 				   &net_sin(server_addr)->sin_addr),
@@ -168,7 +168,7 @@ static void print_dns_info(const struct shell *sh,
 					dns_get_source_str(ctx->servers[i].source) : "",
 			   ctx->servers[i].source != DNS_SOURCE_UNKNOWN ? ")" : "");
 
-		} else if (ctx->servers[i].dns_server_addr.ss_family == NET_AF_INET6) {
+		} else if (ctx->servers[i].u.dns_server_addr.ss_family == NET_AF_INET6) {
 			PR("\t[%s]:%u%s%s%s%s%s\n",
 			   net_sprint_ipv6_addr(
 				   &net_sin6(server_addr)->sin6_addr),

@@ -11,15 +11,16 @@
 #if defined(CONFIG_CPU_AARCH32_CORTEX_A) || defined(CONFIG_CPU_AARCH32_CORTEX_R)
 /* Per CPU architecture specifics */
 struct _cpu_arch {
-	int8_t exc_depth;
-#if defined(CONFIG_ARM_TRACK_ACTIVE_IRQ)
-	/*
-	 * INTID currently being serviced on this CPU, biased by one so
-	 * that the zero-initialized boot state reads as "none". Maintained
-	 * by the ISR wrapper; read through arch_irq_get_active().
-	 */
-	uint32_t active_irq;
-#endif
+    int8_t exc_depth;
+
+    #if defined(CONFIG_ARM_TRACK_ACTIVE_IRQ)
+    /*
+     * INTID currently being serviced on this CPU, biased by one so
+     * that the zero-initialized boot state reads as "none". Maintained
+     * by the ISR wrapper; read through arch_irq_get_active().
+     */
+    uint32_t active_irq;
+    #endif
 };
 
 #else
@@ -28,12 +29,12 @@ struct _cpu_arch {
 
 /* Per CPU architecture specifics (empty) */
 struct _cpu_arch {
-#ifdef __cplusplus
-	/* An empty struct is not valid C, and compilers that accept it give
-	 * it size 0 while C++ gives 1. Keep a byte so both languages agree.
-	 */
-	uint8_t dummy;
-#endif
+    #if (defined(__cplusplus) || defined(_MSC_VER)) /* #CUSTOM@NDRS */
+    /* An empty struct is not valid C, and compilers that accept it give
+     * it size 0 while C++ gives 1. Keep a byte so both languages agree.
+     */
+    uint8_t dummy;
+    #endif
 };
 
 #endif

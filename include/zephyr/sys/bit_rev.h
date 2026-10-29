@@ -36,7 +36,7 @@ static inline uint32_t sys_bit_rev32(uint32_t x)
 {
 #if HAS_BUILTIN(__builtin_bitreverse32)
 	return __builtin_bitreverse32(x);
-#elif defined(CONFIG_ARCH_HAS_BIT_REV)
+#elif defined(CONFIG_ARCH_HAS_BIT_REV) && !defined(_MSC_VER) /* #CUSTOM@NDRS */
 	return arch_sys_bit_rev32(x);
 #else
 	x = ((x >> 1) & 0x55555555) | ((x & 0x55555555) << 1);
@@ -58,7 +58,7 @@ static inline uint16_t sys_bit_rev16(uint16_t x)
 {
 #if HAS_BUILTIN(__builtin_bitreverse16)
 	return __builtin_bitreverse16(x);
-#elif defined(CONFIG_ARCH_HAS_BIT_REV)
+#elif defined(CONFIG_ARCH_HAS_BIT_REV) && !defined(_MSC_VER) /* #CUSTOM@NDRS */
 	return arch_sys_bit_rev16(x);
 #else
 	x = ((x >> 1) & 0x5555) | ((x & 0x5555) << 1);
@@ -79,7 +79,7 @@ static inline uint8_t sys_bit_rev8(uint8_t x)
 {
 #if HAS_BUILTIN(__builtin_bitreverse8)
 	return __builtin_bitreverse8(x);
-#elif defined(CONFIG_ARCH_HAS_BIT_REV)
+#elif defined(CONFIG_ARCH_HAS_BIT_REV) && !defined(_MSC_VER) /* #CUSTOM@NDRS */
 	return arch_sys_bit_rev8(x);
 #else
 	x = ((x >> 1) & 0x55) | ((x & 0x55) << 1);

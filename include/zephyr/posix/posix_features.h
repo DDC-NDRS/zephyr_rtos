@@ -8,8 +8,8 @@
 #ifndef ZEPHYR_INCLUDE_POSIX_POSIX_FEATURES_H_
 #define ZEPHYR_INCLUDE_POSIX_POSIX_FEATURES_H_
 
-#include <zephyr/autoconf.h>       /* CONFIG_* */
-#include <zephyr/sys/util_macro.h> /* COND_CODE_1() */
+#include <zephyr/autoconf.h>        /* CONFIG_* */
+#include <zephyr/sys/util_macro.h>  /* COND_CODE_1() */
 
 /*
  * POSIX Application Environment Profiles (AEP - IEEE Std 1003.13-2003)

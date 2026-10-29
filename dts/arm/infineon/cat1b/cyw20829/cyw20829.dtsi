@@ -109,6 +109,7 @@
 			reg = <0x40590000 0xfd0>;
 			interrupts = <8 4>;
 			clk-dst = <0x100>;
+			scb-index = <0>;
 			status = "disabled";
 		};
 
@@ -117,6 +118,7 @@
 			reg = <0x405a0000 0xfd0>;
 			interrupts = <17 4>;
 			clk-dst = <0x101>;
+			scb-index = <1>;
 			status = "disabled";
 		};
 
@@ -125,6 +127,7 @@
 			reg = <0x405b0000 0xfd0>;
 			interrupts = <18 4>;
 			clk-dst = <0x102>;
+			scb-index = <2>;
 			status = "disabled";
 		};
 

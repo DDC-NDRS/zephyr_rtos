@@ -19,7 +19,9 @@ config SOC_SERIES_S32K3
 	select HAS_MCUX_CACHE
 	select SOC_EARLY_INIT_HOOK
 	select HAS_SEGGER_RTT if ZEPHYR_SEGGER_MODULE
-	select SPI_NXP_LPSPI_ERR050456 if SPI_NXP_LPSPI
+	# #CUSTOM@NDRS: the S32K358 (mask 1P14E) has no ERR050456 in its errata sheet and its HAL sets
+	# FSL_FEATURE_LPSPI_HAS_ERRATA_050456 to 0, so it keeps the LPSPI "already configured" fast path.
+	select SPI_NXP_LPSPI_ERR050456 if SPI_NXP_LPSPI && !SOC_S32K358
 
 if SOC_SERIES_S32K3
 
@@ -37,5 +39,16 @@ config IVT_HEADER_SIZE
 	default $(dt_node_reg_size_hex,$(dt_nodelabel_path,ivt_header))
 	help
 	  Size of ivt header region
+
+# #CUSTOM@NDRS
+config NXP_S32_HSE_FW_ADDRESS
+	hex "Absolute flash address of the HSE firmware image"
+	depends on XIP
+	default 0x0
+	help
+	  Written to the IVT's hse_fw_header_start_address field, telling the boot
+	  ROM where to find the HSE firmware image. 0 leaves the field NULL, i.e.
+	  no HSE firmware is installed. Placing the image itself in flash at this
+	  address is the application's job - this only publishes the pointer.
 
 endif # SOC_SERIES_S32K3

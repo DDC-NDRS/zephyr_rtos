@@ -21,12 +21,14 @@ properties:
 
   group-channel:
     type: string
-    required: true
+    default: "precision"
     enum:
       - "precision"
       - "standard"
       - "external"
-    description: The ADC group channel.
+    description: |
+      Default ADC group channel for this node. Used by any channel@N child
+      that does not specify its own group-channel override.
 
   high-speed:
     type: boolean
@@ -47,3 +49,26 @@ properties:
 
 io-channel-cells:
   - input
+
+child-binding:
+  properties:
+    channel-number:
+      type: int
+      description: |
+        Physical ADC channel number for this channel, exactly as listed in
+        the SoC reference manual's ADC channel mapping table (a single flat
+        numbering across precision/standard/external groups and any
+        internal channels such as bandgap/tempsensor/vrefl/vrefh, e.g.
+        0-7 = precision, 32-55 = standard, 64-95 = external on a 3-group
+        instance with 32 channels per group).
+
+        `reg` is a SEPARATE, Zephyr-only channel_id (must be unique per
+        node, 0-31, since it is also the bit position in
+        adc_sequence.channels) and is not necessarily the same number as
+        this channel-number: e.g. a node mixing groups needs distinct `reg`
+        values per channel even though their true silicon channel numbers
+        may not fit in 0-31 or may collide once folded into that range.
+
+        If unset, defaults to `<parent's group-channel index> * 32 + reg`,
+        i.e. today's single-group behavior where reg already doubles as
+        the group-local index.

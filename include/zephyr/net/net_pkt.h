@@ -146,7 +146,7 @@ struct net_pkt {
 #if defined(CONFIG_NET_TCP) || defined(CONFIG_NET_UDP_OPTIONS)
 	/* TCP or UDP are mutually exclusive so they can share the same memory */
 	union {
-#if defined(CONFIG_NET_TCP)
+#if defined(CONFIG_NET_TCP) || defined(_MSC_VER) /* #CUSTOM@NDRS */
 		/** Allow placing the packet into sys_slist_t */
 		sys_snode_t next;
 #endif
@@ -1555,7 +1555,7 @@ static inline void net_pkt_set_src_ipv6_addr(struct net_pkt *pkt)
 {
 	net_if_ipv6_select_src_addr(net_context_get_iface(
 					    net_pkt_context(pkt)),
-				    (struct net_in6_addr *)NET_IPV6_HDR(pkt)->src);
+				    (struct net_in6_addr*)NET_IPV6_HDR(pkt)->src);
 }
 
 static inline void net_pkt_set_overwrite(struct net_pkt *pkt, bool overwrite)

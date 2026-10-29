@@ -224,10 +224,17 @@ static ALWAYS_INLINE int32_t k_sleep(k_timeout_t timeout)
  * by the \ref k_wakeup call, the time left to sleep rounded up to the nearest
  * millisecond.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+static inline int32_t k_msleep(int32_t ms)
+{
+	return (0);
+}
+#else
 static ALWAYS_INLINE int32_t k_msleep(int32_t ms)
 {
 	return k_sleep(Z_TIMEOUT_MS(ms));
 }
+#endif
 
 /**
  * @brief Put the current thread to sleep with microsecond resolution.

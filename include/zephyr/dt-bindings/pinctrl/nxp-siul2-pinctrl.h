@@ -10,28 +10,28 @@
 #include <zephyr/dt-bindings/dt-util.h>
 
 /*
- * The NXP S32 pinmux configuration is encoded in a 32-bit field value as follows:
+ * The NXP S32 pinmux configuration is encoded in a 64-bit field value as follows:
  *
- * - 0..2:   Output mux Source Signal Selection (MSCR.SSS)
- * - 3..6:   Input mux Source Signal Selection (IMCR.SSS)
- * - 7..15:  Input Multiplexed Signal Configuration Register (IMCR) index
- * - 16..24: Multiplexed Signal Configuration Register (MSCR) index
- * - 25..27: MSCR SIUL2 instance index (0..7)
- * - 28..30: IMCR SIUL2 instance index (0..7)
- * - 31:     Reserved for future use
+ * - 0..3:   Output Mux Source Signal Selection (MSCR.SSS)
+ * - 4..7:   Input Mux Source Signal Selection (IMCR.SSS)
+ * - 8..16:  Input Multiplexed Signal Configuration Register (IMCR) index
+ * - 17..25: Multiplexed Signal Configuration Register (MSCR) index
+ * - 26..28: MSCR SIUL2 instance index (0..7)
+ * - 29..31: IMCR SIUL2 instance index (0..7)
+ * - 32..63: Reserved for future use
  */
 #define NXP_SIUL2_MSCR_SSS_SHIFT       0U
-#define NXP_SIUL2_MSCR_SSS_MASK        BIT_MASK(3)
-#define NXP_SIUL2_IMCR_SSS_SHIFT       3U
-#define NXP_SIUL2_IMCR_SSS_MASK        BIT_MASK(4)
-#define NXP_SIUL2_IMCR_IDX_SHIFT       7U
-#define NXP_SIUL2_IMCR_IDX_MASK        BIT_MASK(9)
-#define NXP_SIUL2_MSCR_IDX_SHIFT       16U
-#define NXP_SIUL2_MSCR_IDX_MASK        BIT_MASK(9)
-#define NXP_SIUL2_MSCR_SIUL2_IDX_SHIFT 25U
-#define NXP_SIUL2_MSCR_SIUL2_IDX_MASK  BIT_MASK(3)
-#define NXP_SIUL2_IMCR_SIUL2_IDX_SHIFT 28U
-#define NXP_SIUL2_IMCR_SIUL2_IDX_MASK  BIT_MASK(3)
+#define NXP_SIUL2_MSCR_SSS_MASK        BIT64_MASK(4)
+#define NXP_SIUL2_IMCR_SSS_SHIFT       4U
+#define NXP_SIUL2_IMCR_SSS_MASK        BIT64_MASK(4)
+#define NXP_SIUL2_IMCR_IDX_SHIFT       8U
+#define NXP_SIUL2_IMCR_IDX_MASK        BIT64_MASK(9)
+#define NXP_SIUL2_MSCR_IDX_SHIFT       17U
+#define NXP_SIUL2_MSCR_IDX_MASK        BIT64_MASK(9)
+#define NXP_SIUL2_MSCR_SIUL2_IDX_SHIFT 26U
+#define NXP_SIUL2_MSCR_SIUL2_IDX_MASK  BIT64_MASK(3)
+#define NXP_SIUL2_IMCR_SIUL2_IDX_SHIFT 29U
+#define NXP_SIUL2_IMCR_SIUL2_IDX_MASK  BIT64_MASK(3)
 
 #define NXP_SIUL2_PINMUX_MSCR_SSS(cfg)                                                             \
 	(((cfg) & NXP_SIUL2_MSCR_SSS_MASK) << NXP_SIUL2_MSCR_SSS_SHIFT)
@@ -75,9 +75,9 @@
  * @param mscr_siul2_idx MSCR SIUL2 instance index
  * @param imcr_siul2_idx IMCR SIUL2 instance index
  * @param mscr_idx Multiplexed Signal Configuration Register (MSCR) index
- * @param mscr_sss Output mux Source Signal Selection (MSCR.SSS)
+ * @param mscr_sss Output Mux Source Signal Selection (MSCR.SSS)
  * @param imcr_idx Input Multiplexed Signal Configuration Register (IMCR) index
- * @param imcr_sss Input mux Source Signal Selection (IMCR.SSS)
+ * @param imcr_sss Input Mux Source Signal Selection (IMCR.SSS)
  */
 #define NXP_SIUL2_PINMUX(mscr_siul2_idx, imcr_siul2_idx, mscr_idx, mscr_sss, imcr_idx, imcr_sss)   \
 	(NXP_SIUL2_PINMUX_MSCR_SIUL2_IDX(mscr_siul2_idx) |                                         \

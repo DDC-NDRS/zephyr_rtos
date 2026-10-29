@@ -19,7 +19,9 @@ struct settings_io_cb_s {
 	int (*write_cb)(void *ctx, off_t off, char const *buf, size_t len);
 	size_t (*get_len_cb)(void *ctx);
 	uint8_t rwbs;
-} static settings_io_cb;
+};
+
+static struct settings_io_cb_s settings_io_cb;
 
 int settings_line_write(const char *name, const char *value, size_t val_len,
 			off_t w_loc, void *cb_arg)

@@ -36,7 +36,7 @@ static void cycles_reset(unsigned int num_timeouts)
 }
 
 /* Empty handler */
-static void handler(struct _timeout *t)
+static void handler(const struct _timeout *t)
 {
 	ARG_UNUSED(t);
 }

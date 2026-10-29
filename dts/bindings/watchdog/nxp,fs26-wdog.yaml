@@ -59,6 +59,5 @@ properties:
 
   int-gpios:
     type: phandle-array
-    required: true
     description: |
       GPIO to use to receive external interrupts from INTB signal.

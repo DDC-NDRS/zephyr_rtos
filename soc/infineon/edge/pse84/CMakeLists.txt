@@ -27,12 +27,28 @@ if(CONFIG_BUILD_WITH_TFM)
     )
   endif()
 
+  # TF-M reads these from its own CMake scope, so they go through
+  # TFM_CMAKE_OPTIONS (a plain list(APPEND TFM_CMAKE_ARGS) / set() here is local to this directory).
   if(CONFIG_BOARD_KIT_PSE84_AI)
-    list(APPEND TFM_CMAKE_ARGS -DIFX_BSP_GENERATED_FILES_OUTPUT_PATH=${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/kit_pse84_ai)
-    set(IFX_SMIF_0_MEMORY_CONFIG "S25HS512T_SMIF0_SlaveSlot_1")
+    set_property(TARGET zephyr_property_target APPEND PROPERTY TFM_CMAKE_OPTIONS
+      -DIFX_BSP_GENERATED_FILES_OUTPUT_PATH=${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/kit_pse84_ai
+      -DIFX_BSP_DESIGN_DIR_PATH=${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/kit_pse84_ai
+      -DIFX_SMIF_0_MEMORY_CONFIG=S25HS512T_SMIF0_SlaveSlot_1
+    )
   elseif(CONFIG_BOARD_KIT_PSE84_EVAL)
-    list(APPEND TFM_CMAKE_ARGS -DIFX_BSP_GENERATED_FILES_OUTPUT_PATH=${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/kit_pse84_eval)
-    set(IFX_SMIF_0_MEMORY_CONFIG "S25FS128S_SMIF0_SlaveSlot_1")
+    set_property(TARGET zephyr_property_target APPEND PROPERTY TFM_CMAKE_OPTIONS
+      -DIFX_BSP_GENERATED_FILES_OUTPUT_PATH=${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/kit_pse84_eval
+      -DIFX_BSP_DESIGN_DIR_PATH=${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/kit_pse84_eval
+      -DIFX_SMIF_0_MEMORY_CONFIG=S25FS128S_SMIF0_SlaveSlot_1
+    )
+  elseif(CONFIG_BOARD_BCU_MV25) # CUSTOM@NDRS
+    # PLACEHOLDER: put the board's generated BSP sources in this directory (see its README.txt).
+    set_property(TARGET zephyr_property_target APPEND PROPERTY TFM_CMAKE_OPTIONS
+      -DIFX_BSP_GENERATED_FILES_OUTPUT_PATH=${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/bcu_mv25
+      -DIFX_BSP_DESIGN_DIR_PATH=${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/bcu_mv25
+      -DIFX_CONFIG_BSP_PATH=${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/bcu_mv25
+      -DIFX_SMIF_0_MEMORY_CONFIG=S25HS512T_SMIF0_SlaveSlot_0
+    )
   else()
     message(FATAL_ERROR "No supported board selected.")
   endif()

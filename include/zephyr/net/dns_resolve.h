@@ -163,7 +163,11 @@ enum dns_server_source {
 #define MDNS_SERVER_COUNT 1
 #endif /* CONFIG_NET_IPV6 && CONFIG_NET_IPV4 */
 #else
+#if !defined(_MSC_VER) /* #CUSTOM@NDRS */
 #define MDNS_SERVER_COUNT 0
+#else
+#define MDNS_SERVER_COUNT 1
+#endif
 #endif /* CONFIG_MDNS_RESOLVER */
 
 /* If LLMNR is enabled, then add some extra well known multicast servers to the
@@ -176,7 +180,11 @@ enum dns_server_source {
 #define LLMNR_SERVER_COUNT 1
 #endif /* CONFIG_NET_IPV6 && CONFIG_NET_IPV4 */
 #else
+#if !defined(_MSC_VER) /* #CUSTOM@NDRS */
 #define LLMNR_SERVER_COUNT 0
+#else
+#define LLMNR_SERVER_COUNT 1
+#endif
 #endif /* CONFIG_MDNS_RESOLVER */
 
 #define DNS_MAX_MCAST_SERVERS (MDNS_SERVER_COUNT + LLMNR_SERVER_COUNT)
@@ -222,6 +230,10 @@ BUILD_ASSERT(DNS_RESOLVER_MAX_POLL <= 32,
 #if defined(CONFIG_ZVFS_POLL_MAX)
 BUILD_ASSERT(CONFIG_ZVFS_POLL_MAX >= DNS_DISPATCHER_MAX_POLL,
 	     "CONFIG_ZVFS_POLL_MAX must be larger than " STRINGIFY(DNS_DISPATCHER_MAX_POLL));
+#endif
+
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#define EPFNOSUPPORT         135
 #endif
 
 /** @brief What is the type of the socket given to DNS socket dispatcher,
@@ -342,22 +354,27 @@ enum dns_resolve_extension {
 struct dns_resolve_txt {
 	/** Length of the text field */
 	size_t textlen;
+
 	/** Text field (NULL terminated)*/
-	char   text[DNS_MAX_TEXT_SIZE + 1];
+	char text[DNS_MAX_TEXT_SIZE + 1];
 };
 
 /** SRV record information */
 struct dns_resolve_srv {
 	/** Priority of the server order, lower value means higher priority */
 	uint16_t priority;
+
 	/** Weight of the server for load balancing */
 	uint16_t weight;
+
 	/** Port number of the service */
 	uint16_t port;
+
 	/** Length of the target field */
-	size_t   targetlen;
+	size_t targetlen;
+
 	/** Target field (NULL terminated) */
-	char     target[DNS_MAX_NAME_SIZE + 1];
+	char target[DNS_MAX_NAME_SIZE + 1];
 };
 
 /** Private RR record information */
@@ -405,6 +422,7 @@ struct dns_addrinfo {
 			union {
 				/** TXT record info */
 				struct dns_resolve_txt ai_txt;
+
 				/** SRV record info */
 				struct dns_resolve_srv ai_srv;
 #if defined(CONFIG_DNS_RESOLVER_PRIVATE_RR_SUPPORT) || defined(__DOXYGEN__)
@@ -510,13 +528,13 @@ struct dns_resolve_context {
 	/** Information about one configured DNS server */
 	struct dns_server_info {
 		/** DNS server address storage */
-		union {
+		union dns_server_address {
 			/** DNS server information */
 			struct net_sockaddr_storage dns_server_addr;
 /** @cond INTERNAL_HIDDEN */
 			struct net_sockaddr dns_server;
 /** @endcond */
-		};
+		} u;
 
 		/** Connection to the DNS server */
 		int sock;
@@ -690,22 +708,22 @@ struct mdns_responder_context {
  * the stack, then the variable needs to be valid for the whole duration of
  * the resolving. Caller does not need to fill the variable beforehand or
  * edit the context afterwards.
- * @param dns_servers_str DNS server addresses using textual strings. The
+ * @param servers DNS server addresses using textual strings. The
  * array is NULL terminated. The port number can be given in the string.
  * Syntax for the server addresses with or without port numbers:
  *    IPv4        : 10.0.9.1
  *    IPv4 + port : 10.0.9.1:5353
  *    IPv6        : 2001:db8::22:42
  *    IPv6 + port : [2001:db8::22:42]:5353
- * @param dns_servers_sa DNS server addresses as struct net_sockaddr. The array
+ * @param servers_sa DNS server addresses as struct net_sockaddr. The array
  * is NULL terminated. Port numbers are optional in struct net_sockaddr, the
  * default will be used if set to 0.
  *
  * @return 0 if ok, <0 if error.
  */
 int dns_resolve_init(struct dns_resolve_context *ctx,
-		     const char *dns_servers_str[],
-		     const struct net_sockaddr *dns_servers_sa[]);
+		     const char *servers[],
+		     const struct net_sockaddr *servers_sa[]);
 
 /**
  * @brief Init DNS resolving context with default Kconfig options.

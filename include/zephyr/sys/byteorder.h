@@ -18,53 +18,68 @@
 #include <zephyr/sys/util_macro.h>
 #include <zephyr/toolchain.h>
 
-#if HAS_BUILTIN(__builtin_bswap16)
-#define BSWAP_16(x) ((uint16_t) __builtin_bswap16(x))
-#else
-#define BSWAP_16(x) ((uint16_t) ((((x) >> 8) & 0xff) | (((x) & 0xff) << 8)))
+#if defined(CONFIG_CPU_CORTEX_M) /* #CUSTOM@NDRS */
+#include "cmsis_compiler.h"
 #endif
+
+/* Internal helpers only used by the sys_* APIs further below */
+#if (defined(CONFIG_CPU_CORTEX_M) && !defined(_MSC_VER)) /* #CUSTOM@NDRS */
+#define BSWAP_16(x) ((uint16_t)__REV16((uint32_t)(x)))
+#define BSWAP_24(x) ((uint32_t)(__REV(x) >> 8))
+#define BSWAP_32(x) ((uint32_t)__REV(x))
+#define BSWAP_40(x) ((uint64_t)(BSWAP_64(x) >> 24))
+#define BSWAP_48(x) ((uint64_t)(BSWAP_64(x) >> 16))
+#define BSWAP_64(x) (((uint64_t)BSWAP_32((x) & 0xFFFFFFFFULL) << 32) | (uint64_t)BSWAP_32((x) >> 32))
+#else
+
+#if HAS_BUILTIN(__builtin_bswap16)
+#define BSWAP_16(x) ((uint16_t)__builtin_bswap16(x))
+#else
+#define BSWAP_16(x) ((uint16_t)((((x) >> 8) & 0xFF) | (((x) & 0xFF) << 8)))
+#endif /* HAS_BUILTIN(__builtin_bswap16) */
 
 #if HAS_BUILTIN(__builtin_bswap32)
-#define BSWAP_24(x) ((uint32_t) __builtin_bswap32(x) >> 8)
-#define BSWAP_32(x) ((uint32_t) __builtin_bswap32(x))
+#define BSWAP_24(x) ((uint32_t)__builtin_bswap32(x) >> 8)
+#define BSWAP_32(x) ((uint32_t)__builtin_bswap32(x))
 #else
-#define BSWAP_24(x) ((uint32_t) ((((x) >> 16) & 0xff) | \
-				   (((x)) & 0xff00) | \
-				   (((x) & 0xff) << 16)))
+#define BSWAP_24(x) ((uint32_t)((((x) >> 16) & 0xFF) | \
+                                (((x)) & 0xFF00)     | \
+                                (((x)  &   0xFF) << 16)))
 
-#define BSWAP_32(x) ((uint32_t) ((((x) >> 24) & 0xff) | \
-				   (((x) >> 8) & 0xff00) | \
-				   (((x) & 0xff00) << 8) | \
-				   (((x) & 0xff) << 24)))
-#endif
+#define BSWAP_32(x) ((uint32_t)((((x) >> 24) &   0xFF) | \
+                                (((x) >>  8) & 0xFF00) | \
+                                (((x) & 0xFF00) <<  8) | \
+                                (((x) &   0xFF) << 24)))
+#endif /* HAS_BUILTIN(__builtin_bswap32) */
 
 #if HAS_BUILTIN(__builtin_bswap64)
-#define BSWAP_40(x) ((uint64_t) __builtin_bswap64(x) >> 24)
-#define BSWAP_48(x) ((uint64_t) __builtin_bswap64(x) >> 16)
-#define BSWAP_64(x) ((uint64_t) __builtin_bswap64(x))
+#define BSWAP_40(x) ((uint64_t)__builtin_bswap64(x) >> 24)
+#define BSWAP_48(x) ((uint64_t)__builtin_bswap64(x) >> 16)
+#define BSWAP_64(x) ((uint64_t)__builtin_bswap64(x))
 #else
-#define BSWAP_40(x) ((uint64_t) ((((x) >> 32) & 0xff) | \
-				   (((x) >> 16) & 0xff00) | \
-				   (((x)) & 0xff0000) | \
-				   (((x) & 0xff00) << 16) | \
-				   (((x) & 0xff) << 32)))
+#define BSWAP_40(x) ((uint64_t)((((x) >> 32) &   0xFF) | \
+                                (((x) >> 16) & 0xFF00) | \
+                                (((x)) & 0xFF0000)     | \
+                                (((x)  &   0xFF00) << 16) | \
+                                (((x)  &     0xFF) << 32)))
 
-#define BSWAP_48(x) ((uint64_t) ((((x) >> 40) & 0xff) | \
-				   (((x) >> 24) & 0xff00) | \
-				   (((x) >> 8) & 0xff0000) | \
-				   (((x) & 0xff0000) << 8) | \
-				   (((x) & 0xff00) << 24) | \
-				   (((x) & 0xff) << 40)))
+#define BSWAP_48(x) ((uint64_t)((((x) >> 40) &     0xFF) | \
+                                (((x) >> 24) &   0xFF00) | \
+                                (((x) >>  8) & 0xFF0000) | \
+                                (((x) & 0xFF0000) <<  8) | \
+                                (((x) &   0xFF00) << 24) | \
+                                (((x) &     0xFF) << 40)))
 
-#define BSWAP_64(x) ((uint64_t) ((((x) >> 56) & 0xff) | \
-				   (((x) >> 40) & 0xff00) | \
-				   (((x) >> 24) & 0xff0000) | \
-				   (((x) >> 8) & 0xff000000) | \
-				   (((x) & 0xff000000) << 8) | \
-				   (((x) & 0xff0000) << 24) | \
-				   (((x) & 0xff00) << 40) | \
-				   (((x) & 0xff) << 56)))
-#endif
+#define BSWAP_64(x) ((uint64_t) ((((x) >> 56) &       0xFF) | \
+                                 (((x) >> 40) &     0xFF00) | \
+                                 (((x) >> 24) &   0xFF0000) | \
+                                 (((x) >>  8) & 0xFF000000) | \
+                                 (((x) & 0xFF000000) <<  8) | \
+                                 (((x) &   0xFF0000) << 24) | \
+                                 (((x) &     0xFF00) << 40) | \
+                                 (((x) &       0xFF) << 56)))
+#endif /* HAS_BUILTIN(__builtin_bswap64) */
+#endif /* (defined(CONFIG_CPU_CORTEX_M) && !defined(_MSC_VER)) */
 
 /** @def sys_le16_to_cpu
  *  @brief Convert 16-bit integer from little-endian to host endianness.
@@ -263,25 +278,25 @@
 #define sys_be64_to_cpu(val) BSWAP_64(val)
 #define sys_cpu_to_be64(val) BSWAP_64(val)
 
-#define sys_uint16_to_array(val) {		\
-	((val) & 0xff),				\
-	(((val) >> 8) & 0xff)}
+#define sys_uint16_to_array(val) {  \
+    ((val) & 0xFF),                 \
+    (((val) >> 8) & 0xFF)}
 
-#define sys_uint32_to_array(val) {		\
-	((val) & 0xff),				\
-	(((val) >> 8) & 0xff),			\
-	(((val) >> 16) & 0xff),			\
-	(((val) >> 24) & 0xff)}
+#define sys_uint32_to_array(val) {  \
+    ((val) & 0xFF),                 \
+    (((val) >>  8) & 0xFF),         \
+    (((val) >> 16) & 0xFF),         \
+    (((val) >> 24) & 0xFF)}
 
-#define sys_uint64_to_array(val) {		\
-	((val) & 0xff),				\
-	(((val) >> 8) & 0xff),			\
-	(((val) >> 16) & 0xff),			\
-	(((val) >> 24) & 0xff),			\
-	(((val) >> 32) & 0xff),			\
-	(((val) >> 40) & 0xff),			\
-	(((val) >> 48) & 0xff),			\
-	(((val) >> 56) & 0xff)}
+#define sys_uint64_to_array(val) {  \
+    ((val) & 0xFF),                 \
+    (((val) >>  8) & 0xFF),         \
+    (((val) >> 16) & 0xFF),         \
+    (((val) >> 24) & 0xFF),         \
+    (((val) >> 32) & 0xFF),         \
+    (((val) >> 40) & 0xFF),         \
+    (((val) >> 48) & 0xFF),         \
+    (((val) >> 56) & 0xFF)}
 
 #else
 #define sys_le16_to_cpu(val) BSWAP_16(val)
@@ -309,25 +324,25 @@
 #define sys_be64_to_cpu(val) (val)
 #define sys_cpu_to_be64(val) (val)
 
-#define sys_uint16_to_array(val) {		\
-	(((val) >> 8) & 0xff),			\
-	((val) & 0xff)}
+#define sys_uint16_to_array(val) {  \
+    (((val) >> 8) & 0xFF),          \
+    ((val) & 0xFF)}
 
-#define sys_uint32_to_array(val) {		\
-	(((val) >> 24) & 0xff),			\
-	(((val) >> 16) & 0xff),			\
-	(((val) >> 8) & 0xff),			\
-	((val) & 0xff)}
+#define sys_uint32_to_array(val) {  \
+    (((val) >> 24) & 0xFF),         \
+    (((val) >> 16) & 0xFF),         \
+    (((val) >>  8) & 0xFF),         \
+    ((val) & 0xFF)}
 
-#define sys_uint64_to_array(val) {		\
-	(((val) >> 56) & 0xff),			\
-	(((val) >> 48) & 0xff),			\
-	(((val) >> 40) & 0xff),			\
-	(((val) >> 32) & 0xff),			\
-	(((val) >> 24) & 0xff),			\
-	(((val) >> 16) & 0xff),			\
-	(((val) >> 8) & 0xff),			\
-	((val) & 0xff)}
+#define sys_uint64_to_array(val) {  \
+    (((val) >> 56) & 0xFF),         \
+    (((val) >> 48) & 0xFF),         \
+    (((val) >> 40) & 0xFF),         \
+    (((val) >> 32) & 0xFF),         \
+    (((val) >> 24) & 0xFF),         \
+    (((val) >> 16) & 0xFF),         \
+    (((val) >>  8) & 0xFF),         \
+    ((val) & 0xFF)}
 
 #endif
 
@@ -340,10 +355,9 @@
  *  @param val 16-bit integer in host endianness.
  *  @param dst Destination memory address to store the result.
  */
-static inline void sys_put_be16(uint16_t val, uint8_t dst[2])
-{
-	dst[0] = val >> 8;
-	dst[1] = val;
+static inline void sys_put_be16(uint16_t val, uint8_t dst[2]) {
+    dst[0] = (uint8_t)(val >> 8);
+    dst[1] = (uint8_t)val;
 }
 
 /**
@@ -355,10 +369,9 @@ static inline void sys_put_be16(uint16_t val, uint8_t dst[2])
  *  @param val 24-bit integer in host endianness.
  *  @param dst Destination memory address to store the result.
  */
-static inline void sys_put_be24(uint32_t val, uint8_t dst[3])
-{
-	dst[0] = val >> 16;
-	sys_put_be16(val, &dst[1]);
+static inline void sys_put_be24(uint32_t val, uint8_t dst[3]) {
+    dst[0] = (uint8_t)(val >> 16);
+    sys_put_be16((uint16_t)val, &dst[1]);
 }
 
 /**
@@ -370,11 +383,11 @@ static inline void sys_put_be24(uint32_t val, uint8_t dst[3])
  *  @param val 32-bit integer in host endianness.
  *  @param dst Destination memory address to store the result.
  */
-static inline void sys_put_be32(uint32_t val, uint8_t dst[4])
-{
-	sys_put_be16(val >> 16, dst);
-	sys_put_be16(val, &dst[2]);
+static inline void sys_put_be32(uint32_t val, uint8_t dst[4]) {
+    sys_put_be16((uint16_t)(val >> 16), dst);
+    sys_put_be16((uint16_t)val, &dst[2]);
 }
+
 /**
  *  @brief Put a 40-bit integer as big-endian to arbitrary location.
  *
@@ -384,10 +397,9 @@ static inline void sys_put_be32(uint32_t val, uint8_t dst[4])
  *  @param val 40-bit integer in host endianness.
  *  @param dst Destination memory address to store the result.
  */
-static inline void sys_put_be40(uint64_t val, uint8_t dst[5])
-{
-	dst[0] = val >> 32;
-	sys_put_be32(val, &dst[1]);
+static inline void sys_put_be40(uint64_t val, uint8_t dst[5]) {
+    dst[0] = (uint8_t)(val >> 32);
+    sys_put_be32((uint32_t)val, &dst[1]);
 }
 
 /**
@@ -399,10 +411,9 @@ static inline void sys_put_be40(uint64_t val, uint8_t dst[5])
  *  @param val 48-bit integer in host endianness.
  *  @param dst Destination memory address to store the result.
  */
-static inline void sys_put_be48(uint64_t val, uint8_t dst[6])
-{
-	sys_put_be16(val >> 32, dst);
-	sys_put_be32(val, &dst[2]);
+static inline void sys_put_be48(uint64_t val, uint8_t dst[6]) {
+    sys_put_be16((uint16_t)(val >> 32), dst);
+    sys_put_be32((uint32_t)val, &dst[2]);
 }
 
 /**
@@ -414,10 +425,9 @@ static inline void sys_put_be48(uint64_t val, uint8_t dst[6])
  *  @param val 64-bit integer in host endianness.
  *  @param dst Destination memory address to store the result.
  */
-static inline void sys_put_be64(uint64_t val, uint8_t dst[8])
-{
-	sys_put_be32(val >> 32, dst);
-	sys_put_be32(val, &dst[4]);
+static inline void sys_put_be64(uint64_t val, uint8_t dst[8]) {
+    sys_put_be32(val >> 32, dst);
+    sys_put_be32((uint32_t)val, &dst[4]);
 }
 
 /**
@@ -429,10 +439,9 @@ static inline void sys_put_be64(uint64_t val, uint8_t dst[8])
  *  @param val 16-bit integer in host endianness.
  *  @param dst Destination memory address to store the result.
  */
-static inline void sys_put_le16(uint16_t val, uint8_t dst[2])
-{
-	dst[0] = val;
-	dst[1] = val >> 8;
+static inline void sys_put_le16(uint16_t val, uint8_t dst[2]) {
+    dst[0] = (uint8_t)val;
+    dst[1] = (uint8_t)(val >> 8);
 }
 
 /**
@@ -444,10 +453,9 @@ static inline void sys_put_le16(uint16_t val, uint8_t dst[2])
  *  @param val 24-bit integer in host endianness.
  *  @param dst Destination memory address to store the result.
  */
-static inline void sys_put_le24(uint32_t val, uint8_t dst[3])
-{
-	sys_put_le16(val, dst);
-	dst[2] = val >> 16;
+static inline void sys_put_le24(uint32_t val, uint8_t dst[3]) {
+    sys_put_le16((uint16_t)val, dst);
+    dst[2] = (uint8_t)(val >> 16);
 }
 
 /**
@@ -459,10 +467,9 @@ static inline void sys_put_le24(uint32_t val, uint8_t dst[3])
  *  @param val 32-bit integer in host endianness.
  *  @param dst Destination memory address to store the result.
  */
-static inline void sys_put_le32(uint32_t val, uint8_t dst[4])
-{
-	sys_put_le16(val, dst);
-	sys_put_le16(val >> 16, &dst[2]);
+static inline void sys_put_le32(uint32_t val, uint8_t dst[4]) {
+    sys_put_le16((uint16_t)val, dst);
+    sys_put_le16((uint16_t)(val >> 16), &dst[2]);
 }
 
 /**
@@ -474,10 +481,9 @@ static inline void sys_put_le32(uint32_t val, uint8_t dst[4])
  *  @param val 40-bit integer in host endianness.
  *  @param dst Destination memory address to store the result.
  */
-static inline void sys_put_le40(uint64_t val, uint8_t dst[5])
-{
-	sys_put_le32(val, dst);
-	dst[4] = val >> 32;
+static inline void sys_put_le40(uint64_t val, uint8_t dst[5]) {
+    sys_put_le32((uint32_t)val, dst);
+    dst[4] = (uint8_t)(val >> 32);
 }
 
 /**
@@ -489,10 +495,9 @@ static inline void sys_put_le40(uint64_t val, uint8_t dst[5])
  *  @param val 48-bit integer in host endianness.
  *  @param dst Destination memory address to store the result.
  */
-static inline void sys_put_le48(uint64_t val, uint8_t dst[6])
-{
-	sys_put_le32(val, dst);
-	sys_put_le16(val >> 32, &dst[4]);
+static inline void sys_put_le48(uint64_t val, uint8_t dst[6]) {
+    sys_put_le32((uint32_t)val, dst);
+    sys_put_le16((uint16_t)(val >> 32), &dst[4]);
 }
 
 /**
@@ -504,10 +509,9 @@ static inline void sys_put_le48(uint64_t val, uint8_t dst[6])
  *  @param val 64-bit integer in host endianness.
  *  @param dst Destination memory address to store the result.
  */
-static inline void sys_put_le64(uint64_t val, uint8_t dst[8])
-{
-	sys_put_le32(val, dst);
-	sys_put_le32(val >> 32, &dst[4]);
+static inline void sys_put_le64(uint64_t val, uint8_t dst[8]) {
+    sys_put_le32((uint32_t)val, dst);
+    sys_put_le32((uint32_t)(val >> 32), &dst[4]);
 }
 
 /**
@@ -520,9 +524,8 @@ static inline void sys_put_le64(uint64_t val, uint8_t dst[8])
  *
  *  @return 16-bit integer in host endianness.
  */
-static inline uint16_t sys_get_be16(const uint8_t src[2])
-{
-	return ((uint16_t)src[0] << 8) | src[1];
+static inline uint16_t sys_get_be16(uint8_t const src[2]) {
+    return ((uint16_t)src[0] << 8) | src[1];
 }
 
 /**
@@ -535,9 +538,8 @@ static inline uint16_t sys_get_be16(const uint8_t src[2])
  *
  *  @return 24-bit integer in host endianness.
  */
-static inline uint32_t sys_get_be24(const uint8_t src[3])
-{
-	return ((uint32_t)src[0] << 16) | sys_get_be16(&src[1]);
+static inline uint32_t sys_get_be24(uint8_t const src[3]) {
+    return ((uint32_t)src[0] << 16) | sys_get_be16(&src[1]);
 }
 
 /**
@@ -550,9 +552,8 @@ static inline uint32_t sys_get_be24(const uint8_t src[3])
  *
  *  @return 32-bit integer in host endianness.
  */
-static inline uint32_t sys_get_be32(const uint8_t src[4])
-{
-	return ((uint32_t)sys_get_be16(&src[0]) << 16) | sys_get_be16(&src[2]);
+static inline uint32_t sys_get_be32(uint8_t const src[4]) {
+    return ((uint32_t)sys_get_be16(&src[0]) << 16) | sys_get_be16(&src[2]);
 }
 
 /**
@@ -565,9 +566,8 @@ static inline uint32_t sys_get_be32(const uint8_t src[4])
  *
  *  @return 40-bit integer in host endianness.
  */
-static inline uint64_t sys_get_be40(const uint8_t src[5])
-{
-	return ((uint64_t)sys_get_be32(&src[0]) << 8) | src[4];
+static inline uint64_t sys_get_be40(uint8_t const src[5]) {
+    return ((uint64_t)sys_get_be32(&src[0]) << 8) | src[4];
 }
 
 /**
@@ -580,9 +580,8 @@ static inline uint64_t sys_get_be40(const uint8_t src[5])
  *
  *  @return 48-bit integer in host endianness.
  */
-static inline uint64_t sys_get_be48(const uint8_t src[6])
-{
-	return ((uint64_t)sys_get_be32(&src[0]) << 16) | sys_get_be16(&src[4]);
+static inline uint64_t sys_get_be48(uint8_t const src[6]) {
+    return ((uint64_t)sys_get_be32(&src[0]) << 16) | sys_get_be16(&src[4]);
 }
 
 /**
@@ -595,9 +594,8 @@ static inline uint64_t sys_get_be48(const uint8_t src[6])
  *
  *  @return 64-bit integer in host endianness.
  */
-static inline uint64_t sys_get_be64(const uint8_t src[8])
-{
-	return ((uint64_t)sys_get_be32(&src[0]) << 32) | sys_get_be32(&src[4]);
+static inline uint64_t sys_get_be64(uint8_t const src[8]) {
+    return ((uint64_t)sys_get_be32(&src[0]) << 32) | sys_get_be32(&src[4]);
 }
 
 /**
@@ -610,9 +608,8 @@ static inline uint64_t sys_get_be64(const uint8_t src[8])
  *
  *  @return 16-bit integer in host endianness.
  */
-static inline uint16_t sys_get_le16(const uint8_t src[2])
-{
-	return ((uint16_t)src[1] << 8) | src[0];
+static inline uint16_t sys_get_le16(uint8_t const src[2]) {
+    return ((uint16_t)src[1] << 8) | src[0];
 }
 
 /**
@@ -625,9 +622,8 @@ static inline uint16_t sys_get_le16(const uint8_t src[2])
  *
  *  @return 24-bit integer in host endianness.
  */
-static inline uint32_t sys_get_le24(const uint8_t src[3])
-{
-	return ((uint32_t)src[2] << 16) | sys_get_le16(&src[0]);
+static inline uint32_t sys_get_le24(uint8_t const src[3]) {
+    return ((uint32_t)src[2] << 16) | sys_get_le16(&src[0]);
 }
 
 /**
@@ -640,9 +636,8 @@ static inline uint32_t sys_get_le24(const uint8_t src[3])
  *
  *  @return 32-bit integer in host endianness.
  */
-static inline uint32_t sys_get_le32(const uint8_t src[4])
-{
-	return ((uint32_t)sys_get_le16(&src[2]) << 16) | sys_get_le16(&src[0]);
+static inline uint32_t sys_get_le32(uint8_t const src[4]) {
+    return ((uint32_t)sys_get_le16(&src[2]) << 16) | sys_get_le16(&src[0]);
 }
 
 /**
@@ -655,9 +650,8 @@ static inline uint32_t sys_get_le32(const uint8_t src[4])
  *
  *  @return 40-bit integer in host endianness.
  */
-static inline uint64_t sys_get_le40(const uint8_t src[5])
-{
-	return ((uint64_t)sys_get_le32(&src[1]) << 8) | src[0];
+static inline uint64_t sys_get_le40(uint8_t const src[5]) {
+    return ((uint64_t)sys_get_le32(&src[1]) << 8) | src[0];
 }
 
 /**
@@ -670,9 +664,8 @@ static inline uint64_t sys_get_le40(const uint8_t src[5])
  *
  *  @return 48-bit integer in host endianness.
  */
-static inline uint64_t sys_get_le48(const uint8_t src[6])
-{
-	return ((uint64_t)sys_get_le32(&src[2]) << 16) | sys_get_le16(&src[0]);
+static inline uint64_t sys_get_le48(uint8_t const src[6]) {
+    return ((uint64_t)sys_get_le32(&src[2]) << 16) | sys_get_le16(&src[0]);
 }
 
 /**
@@ -685,9 +678,8 @@ static inline uint64_t sys_get_le48(const uint8_t src[6])
  *
  *  @return 64-bit integer in host endianness.
  */
-static inline uint64_t sys_get_le64(const uint8_t src[8])
-{
-	return ((uint64_t)sys_get_le32(&src[4]) << 32) | sys_get_le32(&src[0]);
+static inline uint64_t sys_get_le64(uint8_t const src[8]) {
+    return ((uint64_t)sys_get_le32(&src[4]) << 32) | sys_get_le32(&src[0]);
 }
 
 /**
@@ -703,20 +695,19 @@ static inline uint64_t sys_get_le64(const uint8_t src[8])
  * @param src A valid pointer on a memory area where to copy the data from
  * @param length Size of both dst and src memory areas
  */
-static inline void sys_memcpy_swap(void *dst, const void *src, size_t length)
-{
-	uint8_t *pdst = (uint8_t *)dst;
-	const uint8_t *psrc = (const uint8_t *)src;
+static inline void sys_memcpy_swap(void* dst, void const* src, size_t length) {
+    uint8_t* pdst = (uint8_t*)dst;
+    uint8_t const* psrc = (uint8_t const*)src;
 
-	__ASSERT(((psrc < pdst && (psrc + length) <= pdst) ||
-		  (psrc > pdst && (pdst + length) <= psrc)),
-		 "Source and destination buffers must not overlap");
+    __ASSERT(((psrc < pdst && (psrc + length) <= pdst) ||
+             (psrc > pdst && (pdst + length) <= psrc)),
+             "Source and destination buffers must not overlap");
 
-	psrc += length - 1;
+    psrc += length - 1;
 
-	for (; length > 0; length--) {
-		*pdst++ = *psrc--;
-	}
+    for (; length > 0; length--) {
+        *pdst++ = *psrc--;
+    }
 }
 
 /**
@@ -729,16 +720,15 @@ static inline void sys_memcpy_swap(void *dst, const void *src, size_t length)
  * @param buf A valid pointer on a memory area to swap
  * @param length Size of buf memory area
  */
-static inline void sys_mem_swap(void *buf, size_t length)
-{
-	size_t i;
+static inline void sys_mem_swap(void* buf, size_t length) {
+    size_t i;
 
-	for (i = 0; i < (length/2); i++) {
-		uint8_t tmp = ((uint8_t *)buf)[i];
+    for (i = 0; i < (length / 2); i++) {
+        uint8_t tmp = ((uint8_t*)buf)[i];
 
-		((uint8_t *)buf)[i] = ((uint8_t *)buf)[length - 1 - i];
-		((uint8_t *)buf)[length - 1 - i] = tmp;
-	}
+        ((uint8_t*)buf)[i] = ((uint8_t*)buf)[length - 1 - i];
+        ((uint8_t*)buf)[length - 1 - i] = tmp;
+    }
 }
 
 /**
@@ -747,11 +737,10 @@ static inline void sys_mem_swap(void *buf, size_t length)
  * @param buf A valid pointer on a memory area to convert from little-endian to host endianness.
  * @param length Size of buf memory area
  */
-static inline void sys_le_to_cpu(void *buf, size_t length)
-{
-	if (IS_ENABLED(CONFIG_BIG_ENDIAN)) {
-		sys_mem_swap(buf, length);
-	}
+static inline void sys_le_to_cpu(void* buf, size_t length) {
+    if (IS_ENABLED(CONFIG_BIG_ENDIAN)) {
+        sys_mem_swap(buf, length);
+    }
 }
 
 /**
@@ -760,11 +749,10 @@ static inline void sys_le_to_cpu(void *buf, size_t length)
  * @param buf A valid pointer on a memory area to convert from host endianness to little-endian.
  * @param length Size of buf memory area
  */
-static inline void sys_cpu_to_le(void *buf, size_t length)
-{
-	if (IS_ENABLED(CONFIG_BIG_ENDIAN)) {
-		sys_mem_swap(buf, length);
-	}
+static inline void sys_cpu_to_le(void* buf, size_t length) {
+    if (IS_ENABLED(CONFIG_BIG_ENDIAN)) {
+        sys_mem_swap(buf, length);
+    }
 }
 
 /**
@@ -773,11 +761,10 @@ static inline void sys_cpu_to_le(void *buf, size_t length)
  * @param buf A valid pointer on a memory area to convert from big-endian to host endianness.
  * @param length Size of buf memory area
  */
-static inline void sys_be_to_cpu(void *buf, size_t length)
-{
-	if (IS_ENABLED(CONFIG_LITTLE_ENDIAN)) {
-		sys_mem_swap(buf, length);
-	}
+static inline void sys_be_to_cpu(void* buf, size_t length) {
+    if (IS_ENABLED(CONFIG_LITTLE_ENDIAN)) {
+        sys_mem_swap(buf, length);
+    }
 }
 
 /**
@@ -786,11 +773,10 @@ static inline void sys_be_to_cpu(void *buf, size_t length)
  * @param buf A valid pointer on a memory area to convert from host endianness to big-endian.
  * @param length Size of buf memory area
  */
-static inline void sys_cpu_to_be(void *buf, size_t length)
-{
-	if (IS_ENABLED(CONFIG_LITTLE_ENDIAN)) {
-		sys_mem_swap(buf, length);
-	}
+static inline void sys_cpu_to_be(void* buf, size_t length) {
+    if (IS_ENABLED(CONFIG_LITTLE_ENDIAN)) {
+        sys_mem_swap(buf, length);
+    }
 }
 
 /**
@@ -803,13 +789,13 @@ static inline void sys_cpu_to_be(void *buf, size_t length)
  * @param src A valid pointer on a memory area where to copy the data from
  * @param length Size of both dst and src memory areas
  */
-static inline void sys_put_le(void *dst, const void *src, size_t length)
-{
-	if (IS_ENABLED(CONFIG_LITTLE_ENDIAN)) {
-		(void)memcpy(dst, src, length);
-	} else {
-		sys_memcpy_swap(dst, src, length);
-	}
+static inline void sys_put_le(void* dst, void const* src, size_t length) {
+    if (IS_ENABLED(CONFIG_LITTLE_ENDIAN)) {
+        (void)memcpy(dst, src, length);
+    }
+    else {
+        sys_memcpy_swap(dst, src, length);
+    }
 }
 
 /**
@@ -822,13 +808,13 @@ static inline void sys_put_le(void *dst, const void *src, size_t length)
  * @param src A valid pointer on a memory area where to copy the data from
  * @param length Size of both dst and src memory areas
  */
-static inline void sys_put_be(void *dst, const void *src, size_t length)
-{
-	if (IS_ENABLED(CONFIG_LITTLE_ENDIAN)) {
-		sys_memcpy_swap(dst, src, length);
-	} else {
-		(void)memcpy(dst, src, length);
-	}
+static inline void sys_put_be(void* dst, void const* src, size_t length) {
+    if (IS_ENABLED(CONFIG_LITTLE_ENDIAN)) {
+        sys_memcpy_swap(dst, src, length);
+    }
+    else {
+        (void)memcpy(dst, src, length);
+    }
 }
 
 /**
@@ -841,13 +827,13 @@ static inline void sys_put_be(void *dst, const void *src, size_t length)
  * @param src A valid pointer on a memory area where to copy the data from
  * @param length Size of both dst and src memory areas
  */
-static inline void sys_get_le(void *dst, const void *src, size_t length)
-{
-	if (IS_ENABLED(CONFIG_LITTLE_ENDIAN)) {
-		(void)memcpy(dst, src, length);
-	} else {
-		sys_memcpy_swap(dst, src, length);
-	}
+static inline void sys_get_le(void* dst, void const* src, size_t length) {
+    if (IS_ENABLED(CONFIG_LITTLE_ENDIAN)) {
+        (void)memcpy(dst, src, length);
+    }
+    else {
+        sys_memcpy_swap(dst, src, length);
+    }
 }
 
 /**
@@ -860,13 +846,13 @@ static inline void sys_get_le(void *dst, const void *src, size_t length)
  * @param src A valid pointer on a memory area where to copy the data from
  * @param length Size of both dst and src memory areas
  */
-static inline void sys_get_be(void *dst, const void *src, size_t length)
-{
-	if (IS_ENABLED(CONFIG_LITTLE_ENDIAN)) {
-		sys_memcpy_swap(dst, src, length);
-	} else {
-		(void)memcpy(dst, src, length);
-	}
+static inline void sys_get_be(void* dst, void const* src, size_t length) {
+    if (IS_ENABLED(CONFIG_LITTLE_ENDIAN)) {
+        sys_memcpy_swap(dst, src, length);
+    }
+    else {
+        (void)memcpy(dst, src, length);
+    }
 }
 
 #endif /* ZEPHYR_INCLUDE_SYS_BYTEORDER_H_ */

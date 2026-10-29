@@ -437,7 +437,7 @@ static int wpa_supplicant_set_default_dev_name(struct wpa_supplicant *wpa_s)
 static int add_interface(struct supplicant_context *ctx, struct net_if *iface)
 {
 	struct wpa_supplicant *wpa_s;
-	char ifname[IFNAMSIZ + 1] = { 0 };
+	char ifname[IFNAMSIZ + 1];
 	int ret, retry = 0, count = IFACE_NOTIFY_TIMEOUT_MS / IFACE_NOTIFY_RETRY_MS;
 
 	ret = net_if_get_name(iface, ifname, sizeof(ifname) - 1);

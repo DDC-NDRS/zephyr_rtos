@@ -57,8 +57,8 @@ static void eswifi_iface_uart_isr(const struct device *uart_dev,
 				  void *user_data)
 {
 	struct eswifi_uart_data *uart = &eswifi_uart0; /* Static instance */
-	int rx = 0;
-	uint8_t *dst;
+	int rx;
+	uint8_t* dst = NULL;
 	uint32_t partial_size = 0;
 
 	ARG_UNUSED(user_data);
@@ -80,6 +80,7 @@ static void eswifi_iface_uart_isr(const struct device *uart_dev,
 		if (rx <= 0) {
 			break;
 		}
+
 		ring_buf_commit(&uart->rx_rb, rx);
 	}
 }
@@ -186,13 +187,12 @@ static int eswifi_uart_request(struct eswifi_dev *eswifi, char *cmd,
 			       size_t clen, char *rsp, size_t rlen)
 {
 	struct eswifi_uart_data *uart = eswifi->bus_data;
-	int count;
 	int err;
 
 	LOG_DBG("cmd=%p (%u byte), rsp=%p (%u byte)", cmd, clen, rsp, rlen);
 
 	/* Send CMD */
-	for (count = 0; count < clen; count++) {
+	for (size_t count = 0U; count < clen; count++) {
 		uart_poll_out(uart->dev, cmd[count]);
 	}
 

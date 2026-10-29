@@ -9,7 +9,9 @@
 
 #ifndef _ASMLANGUAGE
 
+#if !defined(_MSC_VER) /* #CUSTOM@NDRS */
 #include <arm_acle.h>
+#endif
 #include <zephyr/types.h>
 #include <zephyr/sys/util.h>
 
@@ -24,7 +26,7 @@ extern "C" {
  * @{
  */
 
-#if defined(CONFIG_ARCH_HAS_BIT_REV) || defined(__DOXYGEN__)
+#if (defined(CONFIG_ARCH_HAS_BIT_REV) && !defined(_MSC_VER)) || defined(__DOXYGEN__)
 
 /**
  * @brief Reverse the bits in a 32-bit value.

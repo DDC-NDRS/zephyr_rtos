@@ -62,22 +62,31 @@
 
 /** Standard cacheable RAM region. */
 #define DT_MEM_ARM_MPU_RAM         DT_MEM_ARM(ATTR_MPU_RAM)
+
 /** Non-cacheable RAM region. */
 #define DT_MEM_ARM_MPU_RAM_NOCACHE DT_MEM_ARM(ATTR_MPU_RAM_NOCACHE)
+
 /** Flash (ROM) memory region. */
 #define DT_MEM_ARM_MPU_FLASH       DT_MEM_ARM(ATTR_MPU_FLASH)
+
 /** Private Peripheral Bus region. */
 #define DT_MEM_ARM_MPU_PPB         DT_MEM_ARM(ATTR_MPU_PPB)
+
 /** I/O (peripheral) memory region. */
 #define DT_MEM_ARM_MPU_IO          DT_MEM_ARM(ATTR_MPU_IO)
+
 /** External memory region. */
 #define DT_MEM_ARM_MPU_EXTMEM      DT_MEM_ARM(ATTR_MPU_EXTMEM)
+
 /** RAM region with Privileged Execute Never attribute. */
 #define DT_MEM_ARM_MPU_RAM_PXN     DT_MEM_ARM(ATTR_MPU_RAM_PXN)
+
 /** Device memory region. */
 #define DT_MEM_ARM_MPU_DEVICE      DT_MEM_ARM(ATTR_MPU_DEVICE)
+
 /** Write-through cacheable RAM region. */
 #define DT_MEM_ARM_MPU_RAM_WT      DT_MEM_ARM(ATTR_MPU_RAM_WT)
+
 /** Unknown or unsupported ARM MPU memory type. */
 #define DT_MEM_ARM_MPU_UNKNOWN     DT_MEM_ARCH_ATTR_UNKNOWN
 

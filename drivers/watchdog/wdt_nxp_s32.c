@@ -157,7 +157,7 @@ static int swt_unlock(const struct swt_nxp_s32_config *config)
 		REG_WRITE(SWT_SR, SWT_SR_WSC(SWT_SR_WSC_UNLOCK_KEY2));
 
 		if (!WAIT_FOR(FIELD_GET(SWT_CR_SLK_MASK, REG_READ(SWT_CR)) == 0U,
-			      SWT_SOFT_LOCK_TIMEOUT_US, NULL)) {
+			      SWT_SOFT_LOCK_TIMEOUT_US, (void)NULL)) {
 
 			LOG_ERR("Timed out while trying to unlock");
 			err = -ETIMEDOUT;

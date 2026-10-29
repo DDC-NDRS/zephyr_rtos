@@ -27,11 +27,14 @@
 #define CHOSEN_SHELL   DT_NODE_HAS_COMPAT(DT_CHOSEN(zephyr_shell_uart), zephyr_cdc_acm_uart)
 #if (CHOSEN_CONSOLE && defined(CONFIG_LOG_BACKEND_UART)) || \
 	(CHOSEN_SHELL && defined(CONFIG_SHELL_LOG_BACKEND))
+#if !defined(_MSC_VER) /* #CUSTOM@NDRS */
 #warning "USBD_CDC_ACM_LOG_LEVEL forced to LOG_LEVEL_NONE"
+#endif
 #undef CONFIG_USBD_CDC_ACM_LOG_LEVEL
 #define CONFIG_USBD_CDC_ACM_LOG_LEVEL LOG_LEVEL_NONE
 #endif
 #endif
+
 LOG_MODULE_REGISTER(usbd_cdc_acm, CONFIG_USBD_CDC_ACM_LOG_LEVEL);
 
 #define CDC_ACM_DEFAULT_LINECODING	{sys_cpu_to_le32(115200), 0, 0, 8}
@@ -823,7 +826,7 @@ static void cdc_acm_rx_fifo_handler(struct k_work *work)
 		}
 
 		/* Shrink the buffer size if operating on a full speed bus */
-		buf->size = MIN(cdc_acm_get_bulk_mps(c_data), buf->size);
+		buf->size = MIN((uint16_t)cdc_acm_get_bulk_mps(c_data), buf->size);
 
 		bi = udc_get_buf_info(buf);
 		bi->ep = cdc_acm_get_bulk_out(c_data);

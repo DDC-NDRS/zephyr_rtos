@@ -140,7 +140,9 @@ static void finalize_cancel_locked(struct k_work *work)
 	 * appear multiple times in the list if multiple threads
 	 * attempt to cancel it; each waiter must be woken.
 	 */
-	SYS_SLIST_FOR_EACH_CONTAINER_SAFE(&pending_cancels, wc, tmp, node) {
+	SYS_SLIST_FOR_EACH_CONTAINER_SAFE_WITH_TYPE(&pending_cancels,
+						    struct z_work_canceller,
+						    wc, tmp, node) {
 		if (wc->work == work) {
 			sys_slist_remove(&pending_cancels, prev, &wc->node);
 			k_sem_give(&wc->sem);
@@ -599,7 +601,7 @@ bool k_work_cancel_sync(struct k_work *work,
 }
 
 #if defined(CONFIG_WORKQUEUE_WORK_TIMEOUT)
-static void work_timeout_handler(struct _timeout *record)
+static void work_timeout_handler(const struct _timeout *record)
 {
 	struct k_work_q *queue = CONTAINER_OF(record, struct k_work_q, work_timeout_record);
 	struct k_work *work = NULL;
@@ -1002,13 +1004,13 @@ int k_work_queue_stop(struct k_work_q *queue, k_timeout_t timeout)
  * Takes and releases work lock.
  * Conditionally reschedules.
  */
-static void work_timeout(struct _timeout *to)
+static void work_timeout(struct _timeout const* to)
 {
-	struct k_work_delayable *dw
-		= CONTAINER_OF(to, struct k_work_delayable, timeout);
-	struct k_work *wp = &dw->work;
+	struct k_work_delayable* dw =
+		CONTAINER_OF(to, struct k_work_delayable, timeout);
+	struct k_work* wp = &dw->work;
 	k_spinlock_key_t key = k_spin_lock(&work_lock);
-	struct k_work_q *queue = NULL;
+	struct k_work_q* queue = NULL;
 
 	/* K_WORK_DELAYED_BIT is the wake-ownership flag: whichever side
 	 * (this handler or unschedule_locked()) clears it via
@@ -1017,14 +1019,14 @@ static void work_timeout(struct _timeout *to)
 	 */
 	if (flag_test_and_clear(&wp->flags, K_WORK_DELAYED_BIT)) {
 		queue = dw->queue;
-		(void)submit_to_queue_locked(wp, &queue);
+		(void) submit_to_queue_locked(wp, &queue);
 	}
 
 	k_spin_unlock(&work_lock, key);
 }
 
-void k_work_init_delayable(struct k_work_delayable *dwork,
-			    k_work_handler_t handler)
+void k_work_init_delayable(struct k_work_delayable* dwork,
+			   k_work_handler_t handler)
 {
 	__ASSERT_NO_MSG(dwork != NULL);
 	__ASSERT_NO_MSG(handler != NULL);

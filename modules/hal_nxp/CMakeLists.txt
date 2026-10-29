@@ -45,3 +45,6 @@ add_subdirectory(${ZEPHYR_CURRENT_MODULE_DIR}/zephyr/src hal_nxp)
 if(CONFIG_HAS_MCUX AND CONFIG_MBEDTLS_PSA_CRYPTO_C)
   add_subdirectory(nxp_crypto_hal)
 endif()
+
+#CUSTOM@NDRS
+zephyr_compile_definitions(__GTEST=0)

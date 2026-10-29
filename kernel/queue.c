@@ -78,11 +78,17 @@ K_OBJ_TYPE_DEFINE_RANGES(obj_type_queue, k_queue, K_OBJ_TYPE_QUEUE_ID, NULL,
 void z_impl_k_queue_init(struct k_queue *queue)
 {
 	sys_sflist_init(&queue->data_q);
-	queue->lock = (struct k_spinlock) {};
+
+	#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+	(void) memset(&queue->lock, 0, sizeof(queue->lock));
+	#else
+	queue->lock = (struct k_spinlock){};
+	#endif
+
 	z_waitq_init(&queue->wait_q);
-#if defined(CONFIG_POLL)
+	#if defined(CONFIG_POLL)
 	sys_dlist_init(&queue->poll_events);
-#endif
+	#endif
 
 	SYS_PORT_TRACING_OBJ_INIT(k_queue, queue);
 

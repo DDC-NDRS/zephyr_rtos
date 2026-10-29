@@ -447,6 +447,7 @@
 			reg = <0x42990000 0xfd0>;
 			interrupts = <43 4>;
 			clk-dst = <0x100>;
+			scb-index = <0>;
 			status = "disabled";
 			wakeup-source;
 		};
@@ -456,6 +457,7 @@
 			reg = <0x429a0000 0xfd0>;
 			interrupts = <143 4>;
 			clk-dst = <0x101>;
+			scb-index = <2>;
 			status = "disabled";
 		};
 
@@ -464,6 +466,7 @@
 			reg = <0x429b0000 0xfd0>;
 			interrupts = <144 4>;
 			clk-dst = <0x102>;
+			scb-index = <3>;
 			status = "disabled";
 		};
 
@@ -472,6 +475,7 @@
 			reg = <0x429c0000 0xfd0>;
 			interrupts = <145 4>;
 			clk-dst = <0x103>;
+			scb-index = <4>;
 			status = "disabled";
 		};
 
@@ -480,6 +484,7 @@
 			reg = <0x429d0000 0xfd0>;
 			interrupts = <146 4>;
 			clk-dst = <0x104>;
+			scb-index = <5>;
 			status = "disabled";
 		};
 
@@ -488,6 +493,7 @@
 			reg = <0x429e0000 0xfd0>;
 			interrupts = <147 4>;
 			clk-dst = <0x105>;
+			scb-index = <6>;
 			status = "disabled";
 		};
 
@@ -496,6 +502,7 @@
 			reg = <0x429f0000 0xfd0>;
 			interrupts = <148 4>;
 			clk-dst = <0x106>;
+			scb-index = <7>;
 			status = "disabled";
 		};
 
@@ -504,6 +511,7 @@
 			reg = <0x42a00000 0xfd0>;
 			interrupts = <149 4>;
 			clk-dst = <0x107>;
+			scb-index = <8>;
 			status = "disabled";
 		};
 
@@ -512,6 +520,7 @@
 			reg = <0x42a10000 0xfd0>;
 			interrupts = <150 4>;
 			clk-dst = <0x108>;
+			scb-index = <9>;
 			status = "disabled";
 		};
 
@@ -520,6 +529,7 @@
 			reg = <0x42a20000 0xfd0>;
 			interrupts = <151 4>;
 			clk-dst = <0x109>;
+			scb-index = <10>;
 			status = "disabled";
 		};
 
@@ -528,6 +538,7 @@
 			reg = <0x42a30000 0xfd0>;
 			interrupts = <152 4>;
 			clk-dst = <0x10a>;
+			scb-index = <11>;
 			status = "disabled";
 		};
 
@@ -536,6 +547,7 @@
 			reg = <0x42d00000 0xfd0>;
 			interrupts = <142 4>;
 			clk-dst = <0x800>;
+			scb-index = <1>;
 			status = "disabled";
 		};
 
@@ -1448,6 +1460,23 @@
 			mmio-reg-bit-pos = <5>;
 			mmio-peri-hf-src = <1>;
 			mmio-peri-div = <3>;
+		};
+
+		eth0: ethernet@42c10000 {
+			compatible = "infineon,eth-pdl";
+			reg = <0x42c10000 0x1800>;
+			clk-dst = <0x300>; /* PCLK_ETH0_REF_CLK_INT */
+			interrupts = <171 4>, /* ETH#0 Interrupt#0 */
+				     <172 4>, /* ETH#0 Interrupt#1 */
+				     <173 4>; /* ETH#0 Interrupt#2 */
+			status = "disabled";
+
+			mdio: mdio {
+				compatible = "infineon,mdio-pdl";
+				status = "disabled";
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
 		};
 	};
 };

@@ -14,6 +14,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sd/sd.h>
 
+#include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(infineon_airoc_wifi, CONFIG_WIFI_LOG_LEVEL);
 
 #ifdef __cplusplus
@@ -74,17 +75,17 @@ int airoc_wifi_init_primary(const struct device *dev, whd_interface_t *interface
 	}
 
 	/* Init SDIO functions */
-	ret = sdio_init_func(&data->card, &data->card.func0, BUS_FUNCTION);
+	ret = sdio_init_func(&data->card, &data->card.func0, (enum sdio_func_num)BUS_FUNCTION);
 	if (ret) {
 		LOG_ERR("sdio_enable_func BUS_FUNCTION, error: %x", ret);
 		return ret;
 	}
-	ret = sdio_init_func(&data->card, &data->sdio_func1, BACKPLANE_FUNCTION);
+	ret = sdio_init_func(&data->card, &data->sdio_func1, (enum sdio_func_num)BACKPLANE_FUNCTION);
 	if (ret) {
 		LOG_ERR("sdio_enable_func BACKPLANE_FUNCTION, error: %x", ret);
 		return ret;
 	}
-	ret = sdio_init_func(&data->card, &data->sdio_func2, WLAN_FUNCTION);
+	ret = sdio_init_func(&data->card, &data->sdio_func2, (enum sdio_func_num)WLAN_FUNCTION);
 	if (ret) {
 		LOG_ERR("sdio_enable_func WLAN_FUNCTION, error: %x", ret);
 		return ret;

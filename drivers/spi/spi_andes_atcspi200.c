@@ -314,7 +314,7 @@ static int spi_dma_tx_load(const struct device *dev)
 	memset(&data->dma_tx.dma_blk_cfg, 0, sizeof(struct dma_block_config));
 
 	/* tx direction has memory as source and periph as dest. */
-	if (ctx->tx_buf == NULL && ctx->tx_count == 0) {
+	if (ctx->tx_buf == NULL && ctx->tx.count == 0) {
 		dummy_rx_tx_buffer = 0;
 		data->dma_tx.dma_blk_cfg.block_size = data->tx_cnt * data->dfs;
 		/* if tx buff is null, then sends NOP on the line. */
@@ -322,17 +322,17 @@ static int spi_dma_tx_load(const struct device *dev)
 		data->dma_tx.dma_blk_cfg.source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 		data->tx_cnt = 0;
 	} else {
-		data->dma_tx.dma_blk_cfg.block_size = ctx->current_tx->len;
-		if (ctx->current_tx->buf != NULL) {
-			data->dma_tx.dma_blk_cfg.source_address = (uintptr_t)ctx->current_tx->buf;
+		data->dma_tx.dma_blk_cfg.block_size = ctx->tx.current->len;
+		if (ctx->tx.current->buf != NULL) {
+			data->dma_tx.dma_blk_cfg.source_address = (uintptr_t)ctx->tx.current->buf;
 			data->dma_tx.dma_blk_cfg.source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
 		} else {
 			dummy_rx_tx_buffer = 0;
 			data->dma_tx.dma_blk_cfg.source_address = (uintptr_t)&dummy_rx_tx_buffer;
 			data->dma_tx.dma_blk_cfg.source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 		}
-		data->tx_cnt -= (ctx->current_tx->len / data->dfs);
-		spi_context_update_tx(ctx, data->dfs, ctx->current_tx->len / data->dfs);
+		data->tx_cnt -= (ctx->tx.current->len / data->dfs);
+		spi_context_update_tx(ctx, data->dfs, ctx->tx.current->len / data->dfs);
 	}
 
 	data->dma_tx.dma_blk_cfg.dest_address = (uint32_t)SPI_DATA(cfg->base);
@@ -361,7 +361,7 @@ static int spi_dma_tx_load(const struct device *dev)
 			blk_cfg->next_block = next_blk_cfg;
 
 			/* tx direction has memory as source and periph as dest. */
-			if (ctx->tx_buf == NULL && ctx->tx_count == 0) {
+			if (ctx->tx_buf == NULL && ctx->tx.count == 0) {
 				dummy_rx_tx_buffer = 0;
 				next_blk_cfg->block_size = data->tx_cnt * data->dfs;
 				/* if tx buff is null, then sends NOP on the line. */
@@ -369,19 +369,19 @@ static int spi_dma_tx_load(const struct device *dev)
 				next_blk_cfg->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 				data->tx_cnt = 0;
 			} else {
-				next_blk_cfg->block_size = ctx->current_tx->len;
-				if (ctx->current_tx->buf != NULL) {
+				next_blk_cfg->block_size = ctx->tx.current->len;
+				if (ctx->tx.current->buf != NULL) {
 					next_blk_cfg->source_address =
-								(uintptr_t)ctx->current_tx->buf;
+								(uintptr_t)ctx->tx.current->buf;
 					next_blk_cfg->source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
 				} else {
 					next_blk_cfg->source_address =
 								(uintptr_t)&dummy_rx_tx_buffer;
 					next_blk_cfg->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 				}
-				data->tx_cnt -= (ctx->current_tx->len / data->dfs);
+				data->tx_cnt -= (ctx->tx.current->len / data->dfs);
 				spi_context_update_tx(ctx, data->dfs,
-						      ctx->current_tx->len / data->dfs);
+						      ctx->tx.current->len / data->dfs);
 			}
 
 			next_blk_cfg->dest_address = (uint32_t)SPI_DATA(cfg->base);
@@ -420,23 +420,23 @@ static int spi_dma_rx_load(const struct device *dev)
 	memset(&data->dma_rx.dma_blk_cfg, 0, sizeof(struct dma_block_config));
 
 	/* rx direction has periph as source and mem as dest. */
-	if (ctx->rx_buf == NULL && ctx->rx_count == 0) {
+	if (ctx->rx_buf == NULL && ctx->rx.count == 0) {
 		data->dma_rx.dma_blk_cfg.block_size = data->rx_cnt * data->dfs;
 		/* if rx buff is null, then write data to dummy address. */
 		data->dma_rx.dma_blk_cfg.dest_address = (uintptr_t)&dummy_rx_tx_buffer;
 		data->dma_rx.dma_blk_cfg.dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 		data->rx_cnt = 0;
 	} else {
-		data->dma_rx.dma_blk_cfg.block_size = ctx->current_rx->len;
-		if (ctx->current_rx->buf != NULL) {
-			data->dma_rx.dma_blk_cfg.dest_address = (uintptr_t)ctx->current_rx->buf;
+		data->dma_rx.dma_blk_cfg.block_size = ctx->rx.current->len;
+		if (ctx->rx.current->buf != NULL) {
+			data->dma_rx.dma_blk_cfg.dest_address = (uintptr_t)ctx->rx.current->buf;
 			data->dma_rx.dma_blk_cfg.dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
 		} else {
 			data->dma_rx.dma_blk_cfg.dest_address = (uintptr_t)&dummy_rx_tx_buffer;
 			data->dma_rx.dma_blk_cfg.dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 		}
-		data->rx_cnt -= (ctx->current_rx->len / data->dfs);
-		spi_context_update_rx(ctx, data->dfs, ctx->current_rx->len / data->dfs);
+		data->rx_cnt -= (ctx->rx.current->len / data->dfs);
+		spi_context_update_rx(ctx, data->dfs, ctx->rx.current->len / data->dfs);
 	}
 
 	data->dma_rx.dma_blk_cfg.source_address = (uint32_t)SPI_DATA(cfg->base);
@@ -462,18 +462,18 @@ static int spi_dma_rx_load(const struct device *dev)
 			blk_cfg->next_block = next_blk_cfg;
 
 			/* rx direction has periph as source and mem as dest. */
-			if (ctx->rx_buf == NULL && ctx->rx_count == 0) {
+			if (ctx->rx_buf == NULL && ctx->rx.count == 0) {
 				next_blk_cfg->block_size = data->rx_cnt * data->dfs;
 				/* if rx buff is null, then write data to dummy address. */
 				next_blk_cfg->dest_address = (uintptr_t)&dummy_rx_tx_buffer;
 				next_blk_cfg->dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 				data->rx_cnt = 0;
 			} else {
-				next_blk_cfg->block_size = ctx->current_rx->len;
+				next_blk_cfg->block_size = ctx->rx.current->len;
 
-				if (ctx->current_rx->buf != NULL) {
+				if (ctx->rx.current->buf != NULL) {
 					next_blk_cfg->dest_address =
-								(uintptr_t)ctx->current_rx->buf;
+								(uintptr_t)ctx->rx.current->buf;
 					next_blk_cfg->dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
 				} else {
 					next_blk_cfg->dest_address =
@@ -481,9 +481,9 @@ static int spi_dma_rx_load(const struct device *dev)
 					next_blk_cfg->dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 				}
 
-				data->rx_cnt -= (ctx->current_rx->len / data->dfs);
+				data->rx_cnt -= (ctx->rx.current->len / data->dfs);
 				spi_context_update_rx(ctx, data->dfs,
-						      ctx->current_rx->len / data->dfs);
+						      ctx->rx.current->len / data->dfs);
 			}
 
 			next_blk_cfg->source_address = (uint32_t)SPI_DATA(cfg->base);

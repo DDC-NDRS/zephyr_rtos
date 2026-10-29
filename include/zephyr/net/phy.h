@@ -33,22 +33,32 @@ extern "C" {
 
 /** @brief Ethernet link speeds. */
 enum phy_link_speed {
-	/** 10Base Half-Duplex */
-	LINK_HALF_10BASE = BIT(0),
-	/** 10Base Full-Duplex */
-	LINK_FULL_10BASE = BIT(1),
-	/** 100Base Half-Duplex */
-	LINK_HALF_100BASE = BIT(2),
-	/** 100Base Full-Duplex */
-	LINK_FULL_100BASE = BIT(3),
-	/** 1000Base Half-Duplex */
-	LINK_HALF_1000BASE = BIT(4),
-	/** 1000Base Full-Duplex */
-	LINK_FULL_1000BASE = BIT(5),
-	/** 2.5GBase Full-Duplex */
-	LINK_FULL_2500BASE = BIT(6),
-	/** 5GBase Full-Duplex */
-	LINK_FULL_5000BASE = BIT(7),
+    /** Link speed is undefined */
+    LINK_UNDEFINED = 0,
+
+    /** 10Base Half-Duplex */
+    LINK_HALF_10BASE = BIT(0),
+
+    /** 10Base Full-Duplex */
+    LINK_FULL_10BASE = BIT(1),
+
+    /** 100Base Half-Duplex */
+    LINK_HALF_100BASE = BIT(2),
+
+    /** 100Base Full-Duplex */
+    LINK_FULL_100BASE = BIT(3),
+
+    /** 1000Base Half-Duplex */
+    LINK_HALF_1000BASE = BIT(4),
+
+    /** 1000Base Full-Duplex */
+    LINK_FULL_1000BASE = BIT(5),
+
+    /** 2.5GBase Full-Duplex */
+    LINK_FULL_2500BASE = BIT(6),
+
+    /** 5GBase Full-Duplex */
+    LINK_FULL_5000BASE = BIT(7),
 };
 
 /**
@@ -58,9 +68,9 @@ enum phy_link_speed {
  *
  * @return True if link is full duplex, false if not.
  */
-#define PHY_LINK_IS_FULL_DUPLEX(x)                                                                 \
-	(x & (LINK_FULL_10BASE | LINK_FULL_100BASE | LINK_FULL_1000BASE | LINK_FULL_2500BASE |     \
-	      LINK_FULL_5000BASE))
+#define PHY_LINK_IS_FULL_DUPLEX(x)  \
+    (x & (LINK_FULL_10BASE | LINK_FULL_100BASE | LINK_FULL_1000BASE | LINK_FULL_2500BASE | \
+          LINK_FULL_5000BASE))
 
 /**
  * @brief Check if phy link speed is 1 Gbit/sec.
@@ -91,34 +101,40 @@ enum phy_link_speed {
 
 /** @brief Link state */
 struct phy_link_state {
-	/** Link speed */
-	enum phy_link_speed speed;
-	/** When true the link is active and connected */
-	bool is_up;
+    /** Link speed */
+    enum phy_link_speed speed;
+    /** When true the link is active and connected */
+    bool is_up;
 };
 
 /** @brief Ethernet configure link flags. */
 enum phy_cfg_link_flag {
-	/** Auto-negotiation disable */
-	PHY_FLAG_AUTO_NEGOTIATION_DISABLED = BIT(0),
+    /** Auto-negotiation disable */
+    PHY_FLAG_AUTO_NEGOTIATION_DISABLED = BIT(0),
 };
 
 /** @brief PLCA (Physical Layer Collision Avoidance) Reconciliation Sublayer configurations */
 struct phy_plca_cfg {
-	/** PLCA register map version */
-	uint8_t version;
-	/** PLCA configured mode (enable/disable) */
-	bool enable;
-	/** PLCA local node identifier */
-	uint8_t node_id;
-	/** PLCA node count */
-	uint8_t node_count;
-	/** Additional frames a node is allowed to send in single transmit opportunity (TO) */
-	uint8_t burst_count;
-	/** Wait time for the MAC to send a new frame before interrupting the burst */
-	uint8_t burst_timer;
-	/** PLCA to_timer in bit-times, which determines the PLCA transmit opportunity */
-	uint8_t to_timer;
+    /** PLCA register map version */
+    uint8_t version;
+
+    /** PLCA configured mode (enable/disable) */
+    bool enable;
+
+    /** PLCA local node identifier */
+    uint8_t node_id;
+
+    /** PLCA node count */
+    uint8_t node_count;
+
+    /** Additional frames a node is allowed to send in single transmit opportunity (TO) */
+    uint8_t burst_count;
+
+    /** Wait time for the MAC to send a new frame before interrupting the burst */
+    uint8_t burst_timer;
+
+    /** PLCA to_timer in bit-times, which determines the PLCA transmit opportunity */
+    uint8_t to_timer;
 };
 
 /**
@@ -130,8 +146,8 @@ struct phy_plca_cfg {
  * @param state     Pointer to link_state structure.
  * @param user_data Pointer to data specified by user
  */
-typedef void (*phy_callback_t)(const struct device *dev, struct phy_link_state *state,
-			       void *user_data);
+typedef void (*phy_callback_t)(struct device const* dev, struct phy_link_state* state,
+                               void* user_data);
 
 /**
  * @def_driverbackendgroup{Ethernet PHY,ethernet_phy}
@@ -143,51 +159,51 @@ typedef void (*phy_callback_t)(const struct device *dev, struct phy_link_state *
  * @driver_ops{Ethernet PHY}
  */
 __subsystem struct ethphy_driver_api {
-	/** @driver_ops_optional @copybrief phy_get_link_state */
-	int (*get_link)(const struct device *dev, struct phy_link_state *state);
+    /** @driver_ops_optional @copybrief phy_get_link_state */
+    int (*get_link)(struct device const* dev, struct phy_link_state* state);
 
-	/** @driver_ops_optional @copybrief phy_configure_link */
-	int (*cfg_link)(const struct device *dev, enum phy_link_speed adv_speeds,
-			enum phy_cfg_link_flag flags);
+    /** @driver_ops_optional @copybrief phy_configure_link */
+    int (*cfg_link)(struct device const* dev, enum phy_link_speed adv_speeds,
+                    enum phy_cfg_link_flag flags);
 
-	/**
-	 * @driver_ops_optional @copybrief phy_link_callback_set
-	 * @important Drivers must invoke the callback once after setting it, even if link state has
-	 * not changed.
-	 */
-	int (*link_cb_set)(const struct device *dev, phy_callback_t cb, void *user_data);
+    /**
+     * @driver_ops_optional @copybrief phy_link_callback_set
+     * @important Drivers must invoke the callback once after setting it, even if link state has
+     * not changed.
+     */
+    int (*link_cb_set)(struct device const* dev, phy_callback_t cb, void* user_data);
 
-	/** @driver_ops_optional @copybrief phy_read */
-	int (*read)(const struct device *dev, uint16_t reg_addr, uint32_t *data);
+    /** @driver_ops_optional @copybrief phy_read */
+    int (*read)(struct device const* dev, uint16_t reg_addr, uint32_t* data);
 
-	/** @driver_ops_optional @copybrief phy_write */
-	int (*write)(const struct device *dev, uint16_t reg_addr, uint32_t data);
+    /** @driver_ops_optional @copybrief phy_write */
+    int (*write)(struct device const* dev, uint16_t reg_addr, uint32_t data);
 
-	/** @driver_ops_optional @copybrief phy_read_c45 */
-	int (*read_c45)(const struct device *dev, uint8_t devad, uint16_t regad, uint16_t *data);
+    /** @driver_ops_optional @copybrief phy_read_c45 */
+    int (*read_c45)(struct device const* dev, uint8_t devad, uint16_t regad, uint16_t* data);
 
-	/** @driver_ops_optional @copybrief phy_write_c45 */
-	int (*write_c45)(const struct device *dev, uint8_t devad, uint16_t regad, uint16_t data);
+    /** @driver_ops_optional @copybrief phy_write_c45 */
+    int (*write_c45)(struct device const* dev, uint8_t devad, uint16_t regad, uint16_t data);
 
-#if defined(CONFIG_ETH_PHY_API_PLCA) || defined(__DOXYGEN__)
-	/**
-	 * @driver_ops_optional @copybrief phy_set_plca_cfg
-	 * @kconfig_dep{CONFIG_ETH_PHY_API_PLCA}
-	 */
-	int (*set_plca_cfg)(const struct device *dev, struct phy_plca_cfg *plca_cfg);
+    #if defined(CONFIG_ETH_PHY_API_PLCA) || defined(__DOXYGEN__)
+    /**
+     * @driver_ops_optional @copybrief phy_set_plca_cfg
+     * @kconfig_dep{CONFIG_ETH_PHY_API_PLCA}
+     */
+    int (*set_plca_cfg)(struct device const* dev, struct phy_plca_cfg* plca_cfg);
 
-	/**
-	 * @driver_ops_optional @copybrief phy_get_plca_cfg
-	 * @kconfig_dep{CONFIG_ETH_PHY_API_PLCA}
-	 */
-	int (*get_plca_cfg)(const struct device *dev, struct phy_plca_cfg *plca_cfg);
+    /**
+     * @driver_ops_optional @copybrief phy_get_plca_cfg
+     * @kconfig_dep{CONFIG_ETH_PHY_API_PLCA}
+     */
+    int (*get_plca_cfg)(struct device const* dev, struct phy_plca_cfg* plca_cfg);
 
-	/**
-	 * @driver_ops_optional @copybrief phy_get_plca_sts
-	 * @kconfig_dep{CONFIG_ETH_PHY_API_PLCA}
-	 */
-	int (*get_plca_sts)(const struct device *dev, bool *plca_sts);
-#endif /* CONFIG_ETH_PHY_API_PLCA */
+    /**
+     * @driver_ops_optional @copybrief phy_get_plca_sts
+     * @kconfig_dep{CONFIG_ETH_PHY_API_PLCA}
+     */
+    int (*get_plca_sts)(struct device const* dev, bool* plca_sts);
+    #endif /* CONFIG_ETH_PHY_API_PLCA */
 };
 
 /** @} */
@@ -206,19 +222,18 @@ __subsystem struct ethphy_driver_api {
  * @retval -ENOTSUP If not supported.
  * @retval -EALREADY If already configured with the same speeds and flags.
  */
-static inline int phy_configure_link(const struct device *dev, enum phy_link_speed speeds,
-				     enum phy_cfg_link_flag flags)
-{
-	if (DEVICE_API_GET(ethphy, dev)->cfg_link == NULL) {
-		return -ENOSYS;
-	}
+static inline int phy_configure_link(struct device const* dev, enum phy_link_speed speeds,
+                                     enum phy_cfg_link_flag flags) {
+    if (DEVICE_API_GET(ethphy, dev)->cfg_link == NULL) {
+        return (-ENOSYS);
+    }
 
-	/* Check if only one speed is set, when auto-negotiation is disabled */
-	if ((flags & PHY_FLAG_AUTO_NEGOTIATION_DISABLED) && !IS_POWER_OF_TWO(speeds)) {
-		return -EINVAL;
-	}
+    /* Check if only one speed is set, when auto-negotiation is disabled */
+    if ((flags & PHY_FLAG_AUTO_NEGOTIATION_DISABLED) && !IS_POWER_OF_TWO(speeds)) {
+        return (-EINVAL);
+    }
 
-	return DEVICE_API_GET(ethphy, dev)->cfg_link(dev, speeds, flags);
+    return DEVICE_API_GET(ethphy, dev)->cfg_link(dev, speeds, flags);
 }
 
 /**
@@ -234,13 +249,12 @@ static inline int phy_configure_link(const struct device *dev, enum phy_link_spe
  * @retval 0 If successful.
  * @retval -EIO If communication with PHY failed.
  */
-static inline int phy_get_link_state(const struct device *dev, struct phy_link_state *state)
-{
-	if (DEVICE_API_GET(ethphy, dev)->get_link == NULL) {
-		return -ENOSYS;
-	}
+static inline int phy_get_link_state(struct device const* dev, struct phy_link_state* state) {
+    if (DEVICE_API_GET(ethphy, dev)->get_link == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(ethphy, dev)->get_link(dev, state);
+    return DEVICE_API_GET(ethphy, dev)->get_link(dev, state);
 }
 
 /**
@@ -261,14 +275,13 @@ static inline int phy_get_link_state(const struct device *dev, struct phy_link_s
  * @retval 0 If successful.
  * @retval -ENOTSUP If not supported.
  */
-static inline int phy_link_callback_set(const struct device *dev, phy_callback_t callback,
-					void *user_data)
-{
-	if (DEVICE_API_GET(ethphy, dev)->link_cb_set == NULL) {
-		return -ENOSYS;
-	}
+static inline int phy_link_callback_set(struct device const* dev, phy_callback_t callback,
+                                        void* user_data) {
+    if (DEVICE_API_GET(ethphy, dev)->link_cb_set == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(ethphy, dev)->link_cb_set(dev, callback, user_data);
+    return DEVICE_API_GET(ethphy, dev)->link_cb_set(dev, callback, user_data);
 }
 
 /**
@@ -283,13 +296,12 @@ static inline int phy_link_callback_set(const struct device *dev, phy_callback_t
  * @retval 0 If successful.
  * @retval -EIO If communication with PHY failed.
  */
-static inline int phy_read(const struct device *dev, uint16_t reg_addr, uint32_t *value)
-{
-	if (DEVICE_API_GET(ethphy, dev)->read == NULL) {
-		return -ENOSYS;
-	}
+static inline int phy_read(struct device const* dev, uint16_t reg_addr, uint32_t* value) {
+    if (DEVICE_API_GET(ethphy, dev)->read == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(ethphy, dev)->read(dev, reg_addr, value);
+    return DEVICE_API_GET(ethphy, dev)->read(dev, reg_addr, value);
 }
 
 /**
@@ -304,17 +316,16 @@ static inline int phy_read(const struct device *dev, uint16_t reg_addr, uint32_t
  * @retval 0 If successful.
  * @retval -EIO If communication with PHY failed.
  */
-static inline int phy_write(const struct device *dev, uint16_t reg_addr, uint32_t value)
-{
-	if (DEVICE_API_GET(ethphy, dev)->write == NULL) {
-		return -ENOSYS;
-	}
+static inline int phy_write(struct device const* dev, uint16_t reg_addr, uint32_t value) {
+    if (DEVICE_API_GET(ethphy, dev)->write == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(ethphy, dev)->write(dev, reg_addr, value);
+    return DEVICE_API_GET(ethphy, dev)->write(dev, reg_addr, value);
 }
 
 /**
- * @brief      Read PHY C45 register
+ * @brief Read PHY C45 register
  *
  * This routine provides a generic interface to read to a PHY C45 register.
  *
@@ -326,18 +337,17 @@ static inline int phy_write(const struct device *dev, uint16_t reg_addr, uint32_
  * @retval 0 If successful.
  * @retval -EIO If communication with PHY failed.
  */
-static inline int phy_read_c45(const struct device *dev, uint8_t devad, uint16_t regad,
-			       uint16_t *data)
-{
-	if (DEVICE_API_GET(ethphy, dev)->read_c45 == NULL) {
-		return -ENOSYS;
-	}
+static inline int phy_read_c45(struct device const* dev, uint8_t devad, uint16_t regad,
+                               uint16_t* data) {
+    if (DEVICE_API_GET(ethphy, dev)->read_c45 == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(ethphy, dev)->read_c45(dev, devad, regad, data);
+    return DEVICE_API_GET(ethphy, dev)->read_c45(dev, devad, regad, data);
 }
 
 /**
- * @brief      Write PHY C45 register
+ * @brief Write PHY C45 register
  *
  * This routine provides a generic interface to write to a PHY C45 register.
  *
@@ -349,18 +359,17 @@ static inline int phy_read_c45(const struct device *dev, uint8_t devad, uint16_t
  * @retval 0 If successful.
  * @retval -EIO If communication with PHY failed.
  */
-static inline int phy_write_c45(const struct device *dev, uint8_t devad, uint16_t regad,
-				uint16_t data)
-{
-	if (DEVICE_API_GET(ethphy, dev)->write_c45 == NULL) {
-		return -ENOSYS;
-	}
+static inline int phy_write_c45(struct device const* dev, uint8_t devad, uint16_t regad,
+                                uint16_t data) {
+    if (DEVICE_API_GET(ethphy, dev)->write_c45 == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(ethphy, dev)->write_c45(dev, devad, regad, data);
+    return DEVICE_API_GET(ethphy, dev)->write_c45(dev, devad, regad, data);
 }
 
 /**
- * @brief      Write PHY PLCA configuration
+ * @brief Write PHY PLCA configuration
  *
  * This routine provides a generic interface to configure PHY PLCA settings.
  *
@@ -372,22 +381,21 @@ static inline int phy_write_c45(const struct device *dev, uint8_t devad, uint16_
  * @retval 0 If successful.
  * @retval -EIO If communication with PHY failed.
  */
-static inline int phy_set_plca_cfg(__maybe_unused const struct device *dev,
-				   __maybe_unused struct phy_plca_cfg *plca_cfg)
-{
-#if defined(CONFIG_ETH_PHY_API_PLCA)
-	if (DEVICE_API_GET(ethphy, dev)->set_plca_cfg == NULL) {
-		return -ENOSYS;
-	}
+static inline int phy_set_plca_cfg(__maybe_unused struct device const* dev,
+                                   __maybe_unused struct phy_plca_cfg* plca_cfg) {
+    #if defined(CONFIG_ETH_PHY_API_PLCA)
+    if (DEVICE_API_GET(ethphy, dev)->set_plca_cfg == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(ethphy, dev)->set_plca_cfg(dev, plca_cfg);
-#else
-	return -ENOSYS;
-#endif /* CONFIG_ETH_PHY_API_PLCA */
+    return DEVICE_API_GET(ethphy, dev)->set_plca_cfg(dev, plca_cfg);
+    #else
+    return (-ENOSYS);
+    #endif /* CONFIG_ETH_PHY_API_PLCA */
 }
 
 /**
- * @brief      Read PHY PLCA configuration
+ * @brief Read PHY PLCA configuration
  *
  * This routine provides a generic interface to get PHY PLCA settings.
  *
@@ -399,22 +407,21 @@ static inline int phy_set_plca_cfg(__maybe_unused const struct device *dev,
  * @retval 0 If successful.
  * @retval -EIO If communication with PHY failed.
  */
-static inline int phy_get_plca_cfg(__maybe_unused const struct device *dev,
-				   __maybe_unused struct phy_plca_cfg *plca_cfg)
-{
-#if defined(CONFIG_ETH_PHY_API_PLCA)
-	if (DEVICE_API_GET(ethphy, dev)->get_plca_cfg == NULL) {
-		return -ENOSYS;
-	}
+static inline int phy_get_plca_cfg(__maybe_unused struct device const* dev,
+                                   __maybe_unused struct phy_plca_cfg* plca_cfg) {
+    #if defined(CONFIG_ETH_PHY_API_PLCA)
+    if (DEVICE_API_GET(ethphy, dev)->get_plca_cfg == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(ethphy, dev)->get_plca_cfg(dev, plca_cfg);
-#else
-	return -ENOSYS;
-#endif /* CONFIG_ETH_PHY_API_PLCA */
+    return DEVICE_API_GET(ethphy, dev)->get_plca_cfg(dev, plca_cfg);
+    #else
+    return (-ENOSYS);
+    #endif /* CONFIG_ETH_PHY_API_PLCA */
 }
 
 /**
- * @brief      Read PHY PLCA status
+ * @brief Read PHY PLCA status
  *
  * This routine provides a generic interface to get PHY PLCA status.
  *
@@ -426,18 +433,17 @@ static inline int phy_get_plca_cfg(__maybe_unused const struct device *dev,
  * @retval 0 If successful.
  * @retval -EIO If communication with PHY failed.
  */
-static inline int phy_get_plca_sts(__maybe_unused const struct device *dev,
-				   __maybe_unused bool *plca_status)
-{
-#if defined(CONFIG_ETH_PHY_API_PLCA)
-	if (DEVICE_API_GET(ethphy, dev)->get_plca_sts == NULL) {
-		return -ENOSYS;
-	}
+static inline int phy_get_plca_sts(__maybe_unused struct device const* dev,
+                                   __maybe_unused bool* plca_status) {
+    #if defined(CONFIG_ETH_PHY_API_PLCA)
+    if (DEVICE_API_GET(ethphy, dev)->get_plca_sts == NULL) {
+        return (-ENOSYS);
+    }
 
-	return DEVICE_API_GET(ethphy, dev)->get_plca_sts(dev, plca_status);
-#else
-	return -ENOSYS;
-#endif /* CONFIG_ETH_PHY_API_PLCA */
+    return DEVICE_API_GET(ethphy, dev)->get_plca_sts(dev, plca_status);
+    #else
+    return (-ENOSYS);
+    #endif /* CONFIG_ETH_PHY_API_PLCA */
 }
 
 #ifdef __cplusplus

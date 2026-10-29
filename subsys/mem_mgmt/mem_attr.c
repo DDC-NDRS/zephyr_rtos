@@ -30,7 +30,9 @@ size_t mem_attr_get_regions(const struct mem_attr_region_t **region)
 
 int mem_attr_check_buf(void *v_addr, size_t size, uint32_t attr)
 {
+	const struct mem_attr_region_t *regions;
 	uintptr_t addr = (uintptr_t) v_addr;
+	size_t num_regions;
 
 	/*
 	 * If MMU is enabled the address of the buffer is a virtual address
@@ -45,8 +47,10 @@ int mem_attr_check_buf(void *v_addr, size_t size, uint32_t attr)
 		return -ENOTSUP;
 	}
 
-	for (size_t idx = 0; idx < ARRAY_SIZE(mem_attr_region); idx++) {
-		const struct mem_attr_region_t *region = &mem_attr_region[idx];
+	num_regions = mem_attr_get_regions(&regions);
+
+	for (size_t idx = 0; idx < num_regions; idx++) {
+		const struct mem_attr_region_t *region = &regions[idx];
 		size_t region_end = region->dt_addr + region->dt_size;
 
 		/* Check if the buffer is in the region */
@@ -69,7 +73,7 @@ int mem_attr_get_region_index_by_name(const char *target_name)
 
 	num_regions = mem_attr_get_regions(&regions);
 
-	for (int i = 0; i < num_regions; ++i) {
+	for (int i = 0; i < (int)num_regions; ++i) {
 		if (regions[i].dt_name != NULL &&
 		    strcmp(regions[i].dt_name, target_name) == 0) {
 			return i;

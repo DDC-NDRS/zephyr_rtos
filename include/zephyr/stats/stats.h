@@ -122,12 +122,23 @@ extern "C" {
  * Name maps are normally generated with @ref STATS_NAME_START,
  * @ref STATS_NAME, and @ref STATS_NAME_END rather than initialized by hand.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+#pragma pack(push, 1)
 struct stats_name_map {
 	/** @cond INTERNAL_HIDDEN */
 	uint16_t snm_off;
-	const char *snm_name;
+	const char* snm_name;
+	/** @endcond */
+};
+#pragma pack(pop)
+#else
+struct stats_name_map {
+	/** @cond INTERNAL_HIDDEN */
+	uint16_t snm_off;
+	const char* snm_name;
 	/** @endcond */
 } __attribute__((packed));
+#endif
 
 /**
  * @brief Store metadata for one statistics group.

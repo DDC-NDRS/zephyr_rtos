@@ -158,7 +158,7 @@ static int modem_backend_mock_close(void *data)
 	return 0;
 }
 
-struct modem_pipe_api modem_backend_mock_api = {
+static struct modem_pipe_api const modem_backend_mock_api = {
 	.open = modem_backend_mock_open,
 #ifdef CONFIG_TEST_MODEM_MOCK_BACKEND_TRANSMIT_CHAIN
 	.transmit_chain = modem_backend_mock_transmit_chain,

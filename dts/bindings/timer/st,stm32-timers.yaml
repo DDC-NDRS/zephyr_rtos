@@ -92,6 +92,10 @@ properties:
       * OC3REF - OC3REF signal is used as TRGO.
       * OC4REF - OC4REF signal is used as TRGO.
 
+  bsp-hal-tmr-isr:
+    type: boolean
+    description: Use BSP specific 'bsp_hal_tmr_isr' interrupt service routine
+
   st,slavemode:
     type: string
     default: disabled

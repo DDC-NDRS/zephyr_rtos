@@ -44,7 +44,7 @@ struct dmamux_stm32_config {
 #if DT_INST_NODE_HAS_PROP(0, clocks)
 	struct stm32_pclken pclken;
 #endif
-	uint32_t base;
+	uintptr_t base;
 	uint8_t channel_nb;	/* total nb of channels */
 	uint8_t gen_nb;	/* total nb of Request generator */
 	uint8_t req_nb;	/* total nb of Peripheral Request inputs */
@@ -320,7 +320,7 @@ static DEVICE_API(dma, dma_funcs) = {
 			DMAMUX_CHANNELS_INIT(index, DT_INST_PROP(index, dma_channels))		\
 	};											\
 												\
-	const struct dmamux_stm32_config dmamux_stm32_config_##index = {			\
+	struct dmamux_stm32_config DT_CONST dmamux_stm32_config_##index = {			\
 		IF_ENABLED(DT_INST_NODE_HAS_PROP(index, clocks),				\
 			   (.pclken = STM32_DT_INST_CLOCK_INFO(index),))			\
 		.base = DT_INST_REG_ADDR(index),						\
@@ -346,3 +346,34 @@ DT_INST_FOREACH_STATUS_OKAY(DMAMUX_INIT)
  */
 BUILD_ASSERT(CONFIG_DMAMUX_STM32_INIT_PRIORITY >= CONFIG_DMA_INIT_PRIORITY,
 	     "CONFIG_DMAMUX_STM32_INIT_PRIORITY must be higher than CONFIG_DMA_INIT_PRIORITY");
+
+#if (__GTEST == 1) /* #CUSTOM@NDRS */
+#include "mcu_reg_stub.h"
+
+#define STM32_DMAMUX_CFG_REG_INIT(id) \
+    zephyr_gtest_dmamux_stm32_reg_init(DEVICE_DT_GET(DT_DRV_INST(id)), &dmamux_stm32_data_##id, \
+                                       &dmamux_stm32_config_##id);
+
+static void zephyr_gtest_dmamux_stm32_reg_init(const struct device* dev, struct dmamux_stm32_data* data,
+                                               struct dmamux_stm32_config* cfg) {
+    uintptr_t base_addr = (uintptr_t)cfg->base;
+    int rc = 0;
+
+    if (base_addr == DMAMUX1_BASE) {
+        static DMAMUX_Channel_TypeDef ut_mcu_dmamux1;
+        cfg->base = (uintptr_t)&ut_mcu_dmamux1;
+    }
+
+    if (rc == 0) {
+        rc = dev->ops.init(dev);
+        if (rc == 0) {
+            dev->state->initialized = true;
+            dev->state->init_res = 0U;
+        }
+    }
+}
+
+void zephyr_gtest_dmamux_stm32(void) {
+    DT_INST_FOREACH_STATUS_OKAY(STM32_DMAMUX_CFG_REG_INIT)
+}
+#endif

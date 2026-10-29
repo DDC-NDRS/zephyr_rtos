@@ -72,9 +72,17 @@ struct bt_data {
  * @param _type Type of advertising data field
  * @param _bytes Variable number of single-byte parameters
  */
+#if !defined(_MSC_VER) /* #CUSTOM@NDRS */
 #define BT_DATA_BYTES(_type, _bytes...) \
 	BT_DATA(_type, ((uint8_t []) { _bytes }), \
 		sizeof((uint8_t []) { _bytes }))
+#else
+#define BT_DATA_BYTES_DEFINE(_name, ...) \
+	static const uint8_t _name[] = {__VA_ARGS__}
+
+#define BT_DATA_BYTES(_type, _name) \
+	BT_DATA((_type), (_name), sizeof(_name))
+#endif
 
 /**
  * @brief Get the total size (in octets) of a given set of @ref bt_data

@@ -201,7 +201,7 @@ void z_shell_help_subcmd_print(const struct shell *sh,
 
 	/* Searching for the longest subcommand to print. */
 	while ((entry = z_shell_cmd_get(parent, idx++, &dloc)) != NULL) {
-		longest = max(longest, z_shell_strlen(entry->syntax));
+		longest = z_max(longest, z_shell_strlen(entry->syntax));
 	}
 
 	/* No help to print */
@@ -225,7 +225,7 @@ void z_shell_help_cmd_print(const struct shell *sh,
 			    const struct shell_static_entry *cmd)
 {
 	static const char cmd_sep[] = " - "; /* commands separator */
-	uint16_t field_width;
+	size_t field_width;
 
 	field_width = z_shell_strlen(cmd->syntax) + z_shell_strlen(cmd_sep);
 

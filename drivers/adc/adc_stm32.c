@@ -714,7 +714,8 @@ static void adc_stm32_calibration_delay(const struct device *dev)
 	 */
 	const struct adc_sub_stm32_cfg *config = dev->config;
 	const struct device *const clk = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
-	uint32_t adc_rate, wait_cycles;
+	uint32_t adc_rate = 0;
+	uint32_t wait_cycles;
 
 	const struct adc_stm32_clk_cfg *clk_cfg = adc_stm32_get_clk_cfg(config);
 
@@ -730,6 +731,7 @@ static void adc_stm32_calibration_delay(const struct device *dev)
 		      ADC_DELAY_CALIB_ADC_CYCLES;
 
 	for (int i = wait_cycles; i >= 0; i--) {
+		/* pass */
 	}
 }
 
@@ -844,6 +846,9 @@ static void adc_stm32_calibration_start(const struct device *dev, __maybe_unused
 	 * on the ADC control register, for enabling the peripheral for example
 	 */
 	while (LL_ADC_IsCalibrationOnGoing(adc)) {
+		if (IS_ENABLED(__GTEST)) {
+			break;
+		}
 	}
 }
 
@@ -931,6 +936,11 @@ static int adc_stm32_calibrate(const struct device *dev, bool force)
 	} else   /*Case ADC3*/ {
 		channel_offset = 16UL;
 	}
+
+	if (IS_ENABLED(__GTEST)) {
+		return 0;
+	}
+
 	/* Read factory calibration factors */
 	for (uint32_t count = 0UL; count < ADC_LINEAR_CALIB_REG_COUNT; count++) {
 		linear_calib_buffer = *(uint32_t *)(
@@ -1469,7 +1479,7 @@ static void adc_stm32_vrefint_enable_path(ADC_TypeDef *adc)
 	LL_ADC_SetCommonPathInternalCh(STM32_ADC_COMMON_INSTANCE(adc),
 				       path | LL_ADC_PATH_INTERNAL_VREFINT);
 
-#ifdef LL_ADC_DELAY_VREFINT_STAB_US
+#if defined(LL_ADC_DELAY_VREFINT_STAB_US) && !defined(_MSC_VER) /* #CUSTOM@NDRS */
 	k_usleep(LL_ADC_DELAY_VREFINT_STAB_US);
 #endif
 }
@@ -2462,6 +2472,9 @@ static int adc_sub_stm32_init(const struct device *dev)
 #if ADC_STM32_DT_ANY_INST_HAS_INTERNAL_REGULATOR_TYPE(INTERNAL_REGULATOR_STARTUP_HW_STATUS)
 	if (parent_config->internal_regulator == INTERNAL_REGULATOR_STARTUP_HW_STATUS) {
 		while (LL_ADC_IsActiveFlag_LDORDY(adc) == 0) {
+			if (IS_ENABLED(__GTEST)) {
+				break;
+			}
 		}
 	}
 #endif /* ADC_STM32_DT_ANY_INST_HAS_INTERNAL_REGULATOR_TYPE(INTERNAL_REGULATOR_STARTUP_HW_STATUS) */
@@ -2938,7 +2951,7 @@ DT_INST_FOREACH_STATUS_OKAY(ADC_STM32_DT_INST_GENERATE_ISR)
 												\
 	ADC_SUB_STM32_DT_CLOCK_INIT(node_id);							\
 												\
-	static const struct adc_sub_stm32_cfg adc_sub_stm32_cfg_##node_id = {			\
+	static struct adc_sub_stm32_cfg DT_CONST adc_sub_stm32_cfg_##node_id = {		\
 		.base = (ADC_TypeDef *)DT_REG_ADDR(node_id),					\
 		.parent = DEVICE_DT_GET(DT_PARENT(node_id)),					\
 		ADC_SUB_STM32_DT_IRQ_FUNC(node_id),						\
@@ -3000,9 +3013,9 @@ DT_INST_FOREACH_STATUS_OKAY(ADC_STM32_DT_INST_GENERATE_ISR)
 			LIST_RESOLUTION, (,), inst),						\
 	};											\
 												\
-	static const struct adc_stm32_cfg adc_stm32_cfg_##inst = {				\
-		.base = (ADC_Common_TypeDef *)STM32_ADC_COMMON_INSTANCE(			\
-			(ADC_TypeDef *)DT_INST_REG_ADDR(inst)),					\
+	static struct adc_stm32_cfg DT_CONST adc_stm32_cfg_##inst = {				\
+		IF_DISABLED(__GTEST, (.base = (ADC_Common_TypeDef *)STM32_ADC_COMMON_INSTANCE(	\
+			(ADC_TypeDef *)DT_INST_REG_ADDR(inst)),))				\
 		.clk_cfg = &clk_cfg##inst,							\
 		.clk_prescaler = ADC_STM32_DT_INST_PRESC(inst),					\
 		.sequencer_type = CONCAT(SEQUENCER_,						\
@@ -3024,9 +3037,97 @@ DT_INST_FOREACH_STATUS_OKAY(ADC_STM32_DT_INST_GENERATE_ISR)
 		.table_raw_resolution = table_raw_resolution##inst,				\
 		.table_ll_resolution = table_ll_resolution##inst,				\
 	};											\
-	DEVICE_DT_INST_DEFINE(inst, &adc_stm32_init, NULL, NULL, &adc_stm32_cfg_##inst,		\
+	DEVICE_DT_INST_DEFINE(inst, adc_stm32_init, NULL, NULL, &adc_stm32_cfg_##inst,		\
 			      POST_KERNEL, CONFIG_ADC_INIT_PRIORITY, NULL);			\
 	DT_INST_FOREACH_CHILD_STATUS_OKAY(inst, ADC_SUB_STM32_DT_INIT)
 
 /* clang-format on */
 DT_INST_FOREACH_STATUS_OKAY(ADC_STM32_DT_INST_INIT)
+
+#if (__GTEST == 1) /* #CUSTOM@NDRS */
+#include "mcu_reg_stub.h"
+
+#define STM32_ADC_CFG_REG_INIT(node_id)                                                            \
+	zephyr_gtest_adc_stm32_reg_init(DEVICE_DT_GET(node_id), &adc_stm32_data_##node_id,         \
+					&adc_sub_stm32_cfg_##node_id);
+
+#define STM32_ADC_CFG_REG_INIT_INST(inst)                                                          \
+	DT_INST_FOREACH_CHILD_STATUS_OKAY(inst, STM32_ADC_CFG_REG_INIT)
+
+#define STM32_ADC_COMMON_CFG_REG_INIT(inst)                                                        \
+	zephyr_gtest_adc_stm32_common_reg_init(DEVICE_DT_GET(DT_DRV_INST(inst)),                   \
+					       &adc_stm32_cfg_##inst, DT_INST_REG_ADDR(inst));
+
+static uint16_t const m_vrefint_cal[3] = {4094, 4096, 4098};
+
+static void zephyr_gtest_adc_stm32_common_reg_init(const struct device* dev,
+                                                   struct adc_stm32_cfg* cfg,
+                                                   uintptr_t reg_addr) {
+    int rc;
+
+    switch (reg_addr) {
+        case (D2_AHB1PERIPH_BASE + 0x2300UL) : /* ADC12_COMMON_BASE */ {
+            cfg->base = (ADC_Common_TypeDef*)ut_mcu_adc12_common_ptr;
+            break;
+        }
+
+        case (D3_AHB1PERIPH_BASE + 0x6300UL) : /* ADC3_COMMON_BASE */ {
+            cfg->base = (ADC_Common_TypeDef*)ut_mcu_adc3_common_ptr;
+            break;
+        }
+
+        default: {
+            return;
+        }
+    }
+
+    rc = dev->ops.init(dev);
+    if (rc == 0) {
+        dev->state->initialized = true;
+        dev->state->init_res = 0U;
+    }
+}
+
+static void zephyr_gtest_adc_stm32_reg_init(const struct device* dev,
+                                            struct adc_sub_stm32_data* data,
+                                            struct adc_sub_stm32_cfg* cfg) {
+    ARG_UNUSED(data);
+    uintptr_t base_addr = (uintptr_t)cfg->base;
+    int rc;
+
+    switch (base_addr) {
+        case (D2_AHB1PERIPH_BASE + 0x2000UL) : /* ADC1_BASE */ {
+            cfg->base = (ADC_TypeDef*)ut_mcu_adc1_ptr;
+			cfg->vrefint_cal_ptr = &m_vrefint_cal[0];
+            break;
+        }
+
+        case (D2_AHB1PERIPH_BASE + 0x2100UL) : /* ADC2_BASE */ {
+            cfg->base = (ADC_TypeDef*)ut_mcu_adc2_ptr;
+			cfg->vrefint_cal_ptr = &m_vrefint_cal[1];
+            break;
+        }
+
+        case (D3_AHB1PERIPH_BASE + 0x6000UL) : /* ADC3_BASE */ {
+            cfg->base = (ADC_TypeDef*)ut_mcu_adc3_ptr;
+			cfg->vrefint_cal_ptr = &m_vrefint_cal[2];
+            break;
+        }
+
+        default: {
+            return;
+        }
+    }
+
+    rc = dev->ops.init(dev);
+    if (rc == 0) {
+        dev->state->initialized = true;
+        dev->state->init_res = 0U;
+    }
+}
+
+void zephyr_gtest_adc_stm32(void) {
+    DT_INST_FOREACH_STATUS_OKAY(STM32_ADC_COMMON_CFG_REG_INIT)
+    DT_INST_FOREACH_STATUS_OKAY(STM32_ADC_CFG_REG_INIT_INST)
+}
+#endif

@@ -133,6 +133,18 @@ static inline __printf_like(1, 2) void zassert_print(const char *fmt, ...)
 #define ZASSERT_IMPL(_level, _test, ...)
 #define ZASSERT_IMPL_MODULE(...)
 #else
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+/* MSVC traditional preprocessor cannot expand IS_EMPTY(__VA_ARGS__) and TDD links no
+ * zassert_fail(): keep the check via CRT assert(), drop the message.
+ */
+#include <assert.h>
+#define ZASSERT_IMPL(_level, _test, ...)						\
+	do {										\
+		if ((_level) != ZASSERT_LEVEL_OFF) {					\
+			assert(_test);							\
+		}									\
+	} while (false)
+#else
 #define ZASSERT_IMPL(_level, _test, ...)						\
 	do {										\
 		if ((_level) != ZASSERT_LEVEL_OFF && unlikely(!(_test))) {		\
@@ -153,6 +165,7 @@ static inline __printf_like(1, 2) void zassert_print(const char *fmt, ...)
 			}								\
 		}									\
 	} while (false)
+#endif /* defined(_MSC_VER) */
 
 #define ZASSERT_IMPL_MODULE(...)								\
 	BUILD_ASSERT((ZASSERT_IMPL_LEVEL_RESOLVE(__VA_ARGS__)) >= ZASSERT_LEVEL_OFF &&		\

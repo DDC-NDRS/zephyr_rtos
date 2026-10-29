@@ -143,14 +143,18 @@ static void frag_destroy(struct net_buf *buf);
  * the HCI driver may use a sent fragment's user data, so the view metadata
  * lives in frag_md_pool below instead.
  */
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+NET_BUF_POOL_FIXED_DEFINE(fragments, CONFIG_BT_CONN_FRAG_COUNT, 1, 1, frag_destroy);
+#else
 NET_BUF_POOL_FIXED_DEFINE(fragments, CONFIG_BT_CONN_FRAG_COUNT, 0, 0, frag_destroy);
+#endif
 
 struct frag_md {
 	struct bt_buf_view_meta view_meta;
 };
 static struct frag_md frag_md_pool[CONFIG_BT_CONN_FRAG_COUNT];
 
-static struct frag_md *get_frag_md(struct net_buf *fragment)
+static struct frag_md *get_frag_md(const struct net_buf *fragment)
 {
 	return &frag_md_pool[net_buf_id(fragment)];
 }
@@ -363,9 +367,8 @@ void bt_conn_tx_notify(struct bt_conn *conn, bool wait_for_completion)
 struct bt_conn *bt_conn_new(struct bt_conn *conns, size_t size)
 {
 	struct bt_conn *conn = NULL;
-	int i;
 
-	for (i = 0; i < size; i++) {
+	for (size_t i = 0; i < size; i++) {
 		if (atomic_cas(&conns[i].ref, 0, 1)) {
 			conn = &conns[i];
 			break;
@@ -711,7 +714,7 @@ static int send_buf(struct bt_conn *conn, struct net_buf *buf,
 	tx->cb = cb;
 	tx->user_data = ud;
 
-	uint16_t frag_len = MIN(conn_mtu(conn), len);
+	uint16_t frag_len = (uint16_t)MIN(conn_mtu(conn), len);
 
 	/* Check that buf->ref is 1 or 2. It would be 1 if this
 	 * was the only reference (e.g. buf was removed
@@ -1237,9 +1240,7 @@ static void process_unack_tx(struct bt_conn *conn)
 static struct bt_conn *conn_lookup_handle(struct bt_conn *conns, size_t size,
 					  uint16_t handle)
 {
-	int i;
-
-	for (i = 0; i < size; i++) {
+	for (size_t i = 0; i < size; i++) {
 		struct bt_conn *conn = bt_conn_ref(&conns[i]);
 
 		if (!conn) {
@@ -1609,8 +1610,6 @@ void bt_conn_unref(struct bt_conn *conn)
 	atomic_val_t old;
 	bool deallocated;
 	uint16_t conn_handle;
-	/* Used only if CONFIG_ASSERT and CONFIG_BT_CONN_TX. */
-	__maybe_unused bool conn_tx_is_pending;
 
 	__ASSERT(conn, "Invalid connection reference");
 
@@ -1623,7 +1622,7 @@ void bt_conn_unref(struct bt_conn *conn)
 	 */
 	conn_handle = conn->handle;
 #if CONFIG_BT_CONN_TX && CONFIG_ASSERT
-	conn_tx_is_pending = k_work_is_pending(&conn->tx_complete_work);
+	bool conn_tx_is_pending = k_work_is_pending(&conn->tx_complete_work);
 #endif
 	old = atomic_dec(&conn->ref);
 
@@ -1685,7 +1684,7 @@ uint8_t bt_conn_index(const struct bt_conn *conn)
 #if defined(CONFIG_BT_CONN)
 		__ASSERT(IS_ARRAY_ELEMENT(acl_conns, conn), "Invalid bt_conn pointer %p not in %p",
 			 conn, acl_conns);
-		index = ARRAY_INDEX(acl_conns, conn);
+		index = (ptrdiff_t)ARRAY_INDEX_WITH_TYPE(acl_conns, struct bt_conn, conn);
 #else
 		__ASSERT(false, "Invalid connection type %u", conn->type);
 #endif /* CONFIG_BT_CONN */
