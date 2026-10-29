@@ -159,7 +159,7 @@ manifest:
       groups:
         - hal
     - name: hal_ambiq
-      revision: 3d7044ea240fc8dcb7b4c843b76f70cae5db736b
+      revision: 61b293a49db34030c545f99101f7ebf6a3050314
       path: modules/hal/ambiq
       groups:
         - hal
@@ -170,7 +170,7 @@ manifest:
         - hal
     - name: hal_bouffalolab
       path: modules/hal/bouffalolab
-      revision: 577b219696191f7715ac772e265b14108ecc49a5
+      revision: 18c998da7dcf550303bc9b2852602dcb401e21a1
       groups:
         - hal
     - name: hal_espressif
@@ -215,7 +215,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: 56149a4041d46638ff12aaad35d5129751cdca0d
+      revision: cc223f81c18cef510fa48daa44ed89b3d3cae6aa
       path: modules/hal/nxp
       groups:
         - hal
@@ -350,7 +350,7 @@ manifest:
       revision: 0f6d088e777a33dd7b54297f137ef10d745c5da8
       path: modules/lib/nanopb
     - name: net-tools
-      revision: 96ecb88c982812d48564d319cf7d9a0709c85c70
+      revision: dbb08b8233d74219fcea896850e73b30a0961aa6
       path: tools/net-tools
       groups:
         - tools

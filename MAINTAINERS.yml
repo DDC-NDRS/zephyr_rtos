@@ -949,6 +949,7 @@ Bouffalolab Platforms:
     - boards/others/bl704l_dvk/
     - boards/thirdreality/
     - boards/pine64/pinecone/
+    - boards/pine64/pinedio_zigbee_dongle/
     - boards/sipeed/m0sense/
     - boards/sipeed/m1s_dock/
     - boards/sipeed/maix_m0s_dock/
@@ -2453,6 +2454,7 @@ Documentation Infrastructure:
     - include/zephyr/dt-bindings/mfd/
     - dts/bindings/mfd/
     - tests/drivers/build_all/mfd/
+    - tests/drivers/mfd/
   labels:
     - "area: MFD"
   tests:
@@ -3577,7 +3579,6 @@ Infineon AURIX Platforms:
     - include/zephyr/drivers/*/*aurix*
     - dts/bindings/*/infineon,asclin*
     - dts/bindings/*/infineon,aurix*
-    - dts/bindings/*/infineon,tc*
     - dts/tricore/
   labels:
     - "platform: Infineon AURIX"
@@ -5299,6 +5300,21 @@ Open AMP:
     - sample.ipc.openamp_rs_table
     - sample.ipc
 
+OpenHW Erbium Platform:
+  status: maintained
+  maintainers:
+    - AFOliveira
+  files:
+    - boards/openhwgroup/erbium/
+    - drivers/serial/Kconfig.shakti_nekko
+    - drivers/serial/uart_shakti_nekko.c
+    - dts/bindings/memory-controllers/openhwgroup,erbium-mram-controller.yaml
+    - dts/bindings/serial/openhwgroup,shakti-uart-v1.yaml
+    - dts/riscv/openhwgroup/erbium.dtsi
+    - soc/openhwgroup/erbium/
+  labels:
+    - "platform: OpenHW"
+
 OpenRISC Arch:
   status: maintained
   maintainers:
@@ -5691,11 +5707,10 @@ Release:
   status: maintained
   meta: true
   maintainers:
-    - henrikbrixandersen
-    - teburd
+    - nashif
+    - iuliana-prodan
   collaborators:
     - kartben
-    - nashif
   files:
     - VERSION
     - SDK_VERSION
@@ -6429,10 +6444,14 @@ TI SimpleLink Platforms:
     - "platform: TI SimpleLink"
 
 TI Stellaris Platforms:
-  status: odd fixes
+  status: maintained
+  maintainers:
+    - glneo
   files:
     - soc/ti/lm3s6965/
     - dts/arm/ti/lm3s6965.dtsi
+    - dts/bindings/*/*stellaris*
+    - drivers/*/*stellaris*
   labels:
     - "platform: TI Stellaris"
 
@@ -6443,6 +6462,7 @@ TI Tiva C Platforms:
   files:
     - soc/ti/tiva_c/
     - boards/ti/tm4c123gxl/
+    - boards/ti/tm4c129exl/
     - dts/arm/ti/tm4c*
     - dts/bindings/*/*tiva-c*
     - drivers/*/*tiva_c*

@@ -230,7 +230,15 @@ void z_shell_op_right_arrow(struct shell const* sh) {
     }
 }
 
-static void reprint_from_cursor(struct shell const* sh, int diff,
+static void print_obscured(struct shell const* sh, char const* data) {
+    int len = strlen(data);
+
+    while (len--) {
+        z_shell_raw_fprintf(sh->fprintf_ctx, "*");
+    }
+}
+
+static void reprint_from_cursor(struct shell const* sh, uint16_t diff,
                                 bool data_removed) {
     struct shell_ctx* ctx = sh->ctx;
 
@@ -246,11 +254,7 @@ static void reprint_from_cursor(struct shell const* sh, int diff,
     }
 
     if (z_flag_obscure_get(sh)) {
-        int len = strlen(&ctx->cmd_buff[ctx->cmd_buff_pos]);
-
-        while (len--) {
-            z_shell_raw_fprintf(sh->fprintf_ctx, "*");
-        }
+        print_obscured(sh, &ctx->cmd_buff[ctx->cmd_buff_pos]);
     }
     else {
         /* Check if the reprint will cross a line boundary */
@@ -415,8 +419,14 @@ void z_shell_print_cmd(struct shell const* sh) {
         ch = ctx->cmd_buff[end_offset];
         ctx->cmd_buff[end_offset] = '\0';
 
-        z_shell_raw_fprintf(sh->fprintf_ctx, "%s\n",
-                            &ctx->cmd_buff[beg_offset]);
+        if (z_flag_obscure_get(sh)) {
+            print_obscured(sh, &ctx->cmd_buff[beg_offset]);
+            z_shell_raw_fprintf(sh->fprintf_ctx, "\n");
+        }
+        else {
+            z_shell_raw_fprintf(sh->fprintf_ctx, "%s\n",
+                                &ctx->cmd_buff[beg_offset]);
+        }
 
         ctx->cmd_buff[end_offset] = ch;
         cmd_width -= (ctx->vt100_ctx.cons.terminal_wid - adjust);
@@ -425,8 +435,13 @@ void z_shell_print_cmd(struct shell const* sh) {
     }
 
     if (cmd_width > 0) {
-        z_shell_raw_fprintf(sh->fprintf_ctx, "%s",
-                            &ctx->cmd_buff[beg_offset]);
+        if (z_flag_obscure_get(sh)) {
+            print_obscured(sh, &ctx->cmd_buff[beg_offset]);
+        }
+        else {
+            z_shell_raw_fprintf(sh->fprintf_ctx, "%s",
+                                &ctx->cmd_buff[beg_offset]);
+        }
     }
 }
 
@@ -595,7 +610,7 @@ void z_shell_fprintf(struct shell const* sh,
     va_end(args);
 }
 
-void z_shell_backend_rx_buffer_flush(const struct shell *sh) {
+void z_shell_backend_rx_buffer_flush(struct shell const* sh) {
     __ASSERT_NO_MSG(sh);
 
     int32_t max_iterations = 1000;

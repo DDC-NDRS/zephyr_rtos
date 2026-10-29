@@ -14,8 +14,8 @@
 #include "kit_pse84_ai_memory_map.dtsi"
 
 / {
-	model = "kit_pse84_ai";
 	compatible = "kit_pse84_ai";
+	model = "kit_pse84_ai";
 
 	aliases {
 		led0 = &led_0;
@@ -73,34 +73,34 @@
 #if defined(DPLL_LP0_CLKSRC_IHO)
 /* IHO 50 MHz: (50M/7) * (44 + 13421772/2^24) / 1 ≈ 320.000 MHz */
 &dpll_lp0 {
-	status = "okay";
 	clock-frequency = <320000000>;
 	feedback-div    = <44>;         /* P */
 	reference-div   = <7>;          /* Q */
 	output-div      = <1>;          /* N */
 	fraction-div    = <13421772>;
+	status = "okay";
 };
 
 #elif defined(DPLL_LP0_CLKSRC_ECO)
 /* ECO 17.2032 MHz: (17.2032M/2) * (37 + 3395389/2^24) / 1 ≈ 320.000 MHz */
 &dpll_lp0 {
-	status = "okay";
 	clock-frequency = <320000000>;
 	feedback-div    = <37>;         /* P */
 	reference-div   = <2>;          /* Q */
 	output-div      = <1>;          /* N */
 	fraction-div    = <3395389>;
+	status = "okay";
 };
 
 #elif defined(DPLL_LP0_CLKSRC_EXT)
 /* EXT 24 MHz: (24M/3) * (40 + 0) / 1 = 320.000 MHz */
 &dpll_lp0 {
-	status = "okay";
 	clock-frequency = <320000000>;
 	feedback-div    = <40>;         /* P */
 	reference-div   = <3>;          /* Q */
 	output-div      = <1>;          /* N */
 	fraction-div    = <0>;
+	status = "okay";
 };
 
 #else
@@ -112,13 +112,13 @@
  * dpll_lp1 is set to "okay".
  */
 &dpll_lp1 {
-	status = "okay";
 	clock-frequency = <49152000>;
 
 	feedback-div  = <27>;
 	reference-div = <7>;
 	output-div    = <4>;
 	fraction-div  = <8810051>;
+	status = "okay";
 };
 
 /* This dpll_hp is on "clock path" 2. So HF clocks sourced
@@ -126,7 +126,6 @@
  * dpll_hp is set to "okay".
  */
 &dpll_hp {
-	status = "okay";
 	clock-frequency = <300000000>;
 
 	div-p = <0>;
@@ -136,6 +135,7 @@
 	freq-mode-sel = <7>;
 	flock-enable-threshold = <3>;
 	lf-beta-value = <20>;
+	status = "okay";
 };
 
 /* path_mux0 must match the selected source above */
@@ -251,13 +251,12 @@
 };
 
 &peri0_group1_16_5bit_0 {
-	status = "okay";
 	clock-div = <1>;
+	status = "okay";
 };
 
 uart4: &scb4 {
 	compatible = "infineon,uart";
-	status = "okay";
 
 	current-speed = <115200>;
 
@@ -270,16 +269,17 @@ uart4: &scb4 {
 
 	/* HW Flow control must be enabled for HCI H4 */
 	hw-flow-control;
+	status = "okay";
 
 	bt_hci_uart: bt_hci_uart {
 		compatible = "zephyr,bt-hci-uart";
 
 		cyw55513 {
-			status = "okay";
 			compatible = "infineon,bt-hci-uart";
 			bt-reg-on-gpios = <&gpio_prt11 0 GPIO_ACTIVE_HIGH>;
 			fw-download-speed = <115200>;
 			hci-operation-speed = <115200>;
+			status = "okay";
 		};
 	};
 };

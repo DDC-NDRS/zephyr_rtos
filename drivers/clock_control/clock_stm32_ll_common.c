@@ -417,7 +417,7 @@ static int stm32_clock_control_on(const struct device* dev, clock_control_subsys
      * See (for example) RM0440 7.2.17
      */
     temp = sys_read32(rcc_dt_reg_addr + pclken->bus);
-    UNUSED(temp);
+    (void)temp;
 
     return (0);
 }

@@ -178,6 +178,11 @@ Kernel
   :c:func:`k_obj_type_walk_locked` or :c:func:`k_obj_type_walk_unlocked` with
   the object type found by :c:func:`k_obj_type_find`.
 
+* The type of the expected value parameter for :c:func:`k_futex_wait` is now
+  ``atomic_val_t`` instead of ``int`` to match the type of the value stored
+  internally by :c:struct:`k_futex`. Callers might have to add an explicit
+  cast if the compiler does not implicitly cast the value.
+
 Boards
 ******
 
@@ -3170,6 +3175,17 @@ RTIO
   handles kept in arrays, fall outside what the patch can bind and must be updated by hand;
   ``MODE=report`` flags the remaining ``rtio_sqe_cancel()`` call sites and any leftover
   ``RTIO_SQE_CANCELED`` uses, including writes, which have no mechanical rewrite.
+
+* A canceled submission now produces a completion queue event, where cancellation used to be
+  silent. A thread waiting in :c:func:`rtio_submit` for a submission that is then canceled is
+  released instead of waiting forever. :c:macro:`RTIO_SQE_NO_RESPONSE` is the only thing that
+  suppresses the completion, for a canceled submission as for one that runs.
+
+  Cancellation is best effort. A submission that is running or about to run may beat the
+  cancellation and complete with the result its iodev produced. One that is stopped completes
+  with ``-ECANCELED``, and cascades along a chain the way a failure does, so each submission
+  behind it also reports ``-ECANCELED``. Consumers that drain a fixed number of completions, or
+  that treat any completion as data, need to expect the extra events and read ``cqe->result``.
 
 Secure Storage
 ==============

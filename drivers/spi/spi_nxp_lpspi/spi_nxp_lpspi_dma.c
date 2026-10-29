@@ -53,6 +53,12 @@ static uint32_t tx_nop_val; /* check compliance says no init to 0, but should be
 /* dummy memory for transferring to when RX buf is null */
 static uint32_t dummy_buffer;
 
+/* struct spi_dma_stream and spi_nxp_dma_data
+ * are defined in spi_nxp_lpspi_priv.h header.
+ */
+struct spi_dma_stream;
+struct spi_nxp_dma_data;
+
 /*
  * Issue a TCR (Transmit Command Register) command to properly end RX DMA transfers
  * on certain LPSPI versions. The behavior depends on:
@@ -122,7 +128,7 @@ static int lpspi_dma_tx_load(const struct device* dev, uint8_t const* buf, size_
 
     ret = dma_config(stream->dma_dev, stream->channel, &stream->dma_cfg);
 
-    return ret;
+    return (ret);
 }
 
 static int lpspi_dma_rx_load(const struct device* dev, uint8_t* buf, size_t len) {
@@ -147,7 +153,7 @@ static int lpspi_dma_rx_load(const struct device* dev, uint8_t* buf, size_t len)
 
     ret = dma_config(stream->dma_dev, stream->channel, &stream->dma_cfg);
 
-    return ret;
+    return (ret);
 }
 
 /* Return values:
@@ -169,30 +175,74 @@ static int lpspi_dma_rxtx_load(const struct device* dev) {
          * and attempting to set up a DMA transfer like this will cause
          * errors that lock up the system in some cases with eDMA.
          */
-        return 0;
+        return (0);
     }
 
     ret = lpspi_dma_tx_load(dev, ctx->tx_buf, dma_size);
     if (ret != 0) {
-        return ret;
+        return (ret);
     }
 
-    ret = lpspi_dma_rx_load(dev, ctx->rx_buf, dma_size);
-    if (ret != 0) {
-        return ret;
-    }
+    if (!dma_data->rx_masked) {
+        ret = lpspi_dma_rx_load(dev, ctx->rx_buf, dma_size);
+        if (ret != 0) {
+            return (ret);
+        }
 
-    ret = dma_start(rx->dma_dev, rx->channel);
-    if (ret != 0) {
-        return ret;
+        ret = dma_start(rx->dma_dev, rx->channel);
+        if (ret != 0) {
+            return (ret);
+        }
     }
 
     ret = dma_start(tx->dma_dev, tx->channel);
     if (ret != 0) {
-        return ret;
+        return (ret);
     }
 
     return dma_size;
+}
+
+/*
+ * The last word is still in the shift register once the TX FIFO reports
+ * empty, so poll the module busy flag as well before calling a transfer done.
+ */
+static int lpspi_wait_transfer_complete(const struct device* dev) {
+    LPSPI_Type* lpspi = (LPSPI_Type*)DEVICE_MMIO_NAMED_GET(dev, reg_base);
+    const struct spi_config* spi_cfg = DEV_DATA(dev)->ctx.config;
+    spi_operation_t operation = spi_cfg->operation;
+    uint8_t major_ver = (lpspi->VERID & LPSPI_VERID_MAJOR_MASK) >> LPSPI_VERID_MAJOR_SHIFT;
+    int cycle_limit = CONFIG_SPI_NXP_LPSPI_TXFIFO_WAIT_CYCLES;
+    bool limit_wait = (cycle_limit > 0);
+    int ret;
+
+    /* A peripheral does not drive the clock, MBF follows the external PCS */
+    if (SPI_OP_MODE_GET(operation) != SPI_OP_MODE_CONTROLLER) {
+        return (0);
+    }
+
+    ret = lpspi_wait_tx_fifo_empty(dev, operation);
+    if (ret != 0) {
+        return (ret);
+    }
+
+    /* spi_mcux_issue_TCR() leaves the frame open here, so MBF stays set */
+    if ((major_ver >= 2) && (operation & SPI_HOLD_ON_CS)) {
+        return (0);
+    }
+
+    while (lpspi->SR & LPSPI_SR_MBF_MASK) {
+        if (!limit_wait) {
+            continue;
+        }
+
+        if (cycle_limit-- < 0) {
+            LOG_WRN("Timed out waiting for LPSPI to go idle");
+            return -EIO;
+        }
+    }
+
+    return (0);
 }
 
 static void lpspi_dma_callback(const struct device* dev, void* arg, uint32_t channel, int status) {
@@ -221,7 +271,13 @@ static void lpspi_dma_callback(const struct device* dev, void* arg, uint32_t cha
     switch (dma_data->state) {
         case LPSPI_TRANSFER_STATE_ONGOING :
             spi_context_update_tx(ctx, 1, tx->dma_blk_cfg.block_size);
-            spi_context_update_rx(ctx, 1, rx->dma_blk_cfg.block_size);
+
+            /* With RX masked no RX block is loaded, but any NULL RX buffers
+             * still have to be consumed in step with TX
+             */
+            spi_context_update_rx(ctx, 1,
+                                  dma_data->rx_masked ? tx->dma_blk_cfg.block_size
+                                                      : rx->dma_blk_cfg.block_size);
 
             /* Calculate next DMA transfer size */
             dma_data->synchronize_dma_size = spi_context_max_continuous_chunk(ctx);
@@ -241,7 +297,13 @@ static void lpspi_dma_callback(const struct device* dev, void* arg, uint32_t cha
                 if (ret != 0) {
                     goto error;
                 }
-                dma_data->state = LPSPI_TRANSFER_STATE_NEXT_DMA_SIZE_UPDATED;
+
+                /* With RX masked there is no RX callback to pair with, so
+                 * each TX completion advances the context by itself
+                 */
+                if (!dma_data->rx_masked) {
+                    dma_data->state = LPSPI_TRANSFER_STATE_NEXT_DMA_SIZE_UPDATED;
+                }
             }
             else {
                 ret = dma_stop(dev, channel);
@@ -252,10 +314,20 @@ static void lpspi_dma_callback(const struct device* dev, void* arg, uint32_t cha
                 /* This is the end of the transfer. */
                 if (channel == dma_data->dma_tx.channel) {
                     spi_mcux_issue_TCR(spi_dev);
-                    dma_data->state = LPSPI_TRANSFER_STATE_TX_DONE;
                     lpspi->DER &= ~LPSPI_DER_TDDE_MASK;
-                }
-                else {
+
+                    /* No RX DMA means no second callback */
+                    if (dma_data->rx_masked) {
+                        dma_data->state = LPSPI_TRANSFER_STATE_RX_TX_DONE;
+                        ret = lpspi_wait_transfer_complete(spi_dev);
+                        spi_context_cs_control(ctx, false);
+                        spi_context_complete(ctx, spi_dev, ret);
+                        return;
+                    }
+
+                    dma_data->state = LPSPI_TRANSFER_STATE_TX_DONE;
+            }
+            else {
                     dma_data->state = LPSPI_TRANSFER_STATE_RX_DONE;
                     lpspi->DER &= ~LPSPI_DER_RDDE_MASK;
                 }
@@ -283,15 +355,26 @@ static void lpspi_dma_callback(const struct device* dev, void* arg, uint32_t cha
 
         case LPSPI_TRANSFER_STATE_TX_DONE :
         case LPSPI_TRANSFER_STATE_RX_DONE :
+            /* A TX callback serviced after the last RX one still has to end
+             * the frame
+             */
+            if (channel == dma_data->dma_tx.channel) {
+                spi_mcux_issue_TCR(spi_dev);
+                lpspi->DER &= ~LPSPI_DER_TDDE_MASK;
+            }
             dma_data->state = LPSPI_TRANSFER_STATE_RX_TX_DONE;
 
-            /* TX and RX both done here. */
+            /* Deselect before waking the waiter, which may start the next
+             * transfer straight away
+             */
+            ret = lpspi_wait_transfer_complete(spi_dev);
+            spi_context_cs_control(ctx, false);
+
             /* Not after spi_context_wait_for_completion(), which does not
              * wait for an asynchronous transfer
              */
             lpspi_dma_cache_invd_rx(dma_data->rx_bufs);
-            spi_context_complete(ctx, spi_dev, 0);
-            spi_context_cs_control(ctx, false);
+            spi_context_complete(ctx, spi_dev, ret);
             break;
 
         default :
@@ -306,10 +389,29 @@ static void lpspi_dma_callback(const struct device* dev, void* arg, uint32_t cha
 error :
     LOG_ERR("DMA callback error with channel %d.", channel);
 
+    /* Same ordering as the success path, but without waiting for a bus that
+     * has already failed
+     */
+    spi_context_cs_control(ctx, false);
+
     /* The DMA may have written part of the RX data before failing */
     lpspi_dma_cache_invd_rx(dma_data->rx_bufs);
     spi_context_complete(ctx, spi_dev, ret);
-    spi_context_cs_control(ctx, false);
+}
+
+/* True if any RX buffer of the set takes data, not only the first one */
+static bool lpspi_rx_bufs_on(const struct spi_buf_set* rx_bufs) {
+    if (rx_bufs == NULL) {
+        return (false);
+    }
+
+    for (size_t i = 0; i < rx_bufs->count; i++) {
+        if (rx_bufs->buffers[i].buf != NULL && rx_bufs->buffers[i].len > 0) {
+            return (true);
+        }
+    }
+
+    return (false);
 }
 
 static int lpspi_ll_transceive_dma(const struct device* dev, const struct spi_config* spi_cfg,
@@ -336,7 +438,24 @@ static int lpspi_ll_transceive_dma(const struct device* dev, const struct spi_co
     }
 
     /* Always use continuous mode to satisfy SPI API requirements. */
-    lpspi->TCR = lpspi_read_tcr(lpspi) | LPSPI_TCR_CONT_MASK | LPSPI_TCR_CONTC_MASK;
+    {
+        uint32_t tcr = (lpspi_read_tcr(lpspi) & ~LPSPI_TCR_RXMSK_MASK) |
+                        LPSPI_TCR_CONT_MASK | LPSPI_TCR_CONTC_MASK;
+        bool controller = (SPI_OP_MODE_GET(spi_cfg->operation) == SPI_OP_MODE_CONTROLLER);
+
+        /*
+         * Without RXMSK the receive DMA moves data that is only
+         * discarded, and the receive FIFO can overflow if that DMA falls
+         * behind. SR[REF] then ends the transfer, which the driver does
+         * not notice.
+         */
+        dma_data->rx_masked = controller && !lpspi_rx_bufs_on(rx_bufs);
+        if (dma_data->rx_masked) {
+            tcr |= LPSPI_TCR_RXMSK_MASK;
+        }
+
+        lpspi->TCR = tcr;
+    }
 
     /* Please set both watermarks as 0 because there are some synchronize requirements
      * between RX and TX on RT platform. TX and RX DMA callback must be called in interleaved
@@ -372,18 +491,18 @@ static int lpspi_ll_transceive_dma(const struct device* dev, const struct spi_co
         spi_context_cs_control(ctx, false);
     }
 
-out:
+out :
     spi_context_release(ctx, ret);
-    return ret;
+    return (ret);
 }
 
 static int lpspi_dma_dev_ready(const struct device* dma_dev) {
     if (!device_is_ready(dma_dev)) {
         LOG_ERR("%s device is not ready", dma_dev->name);
-        return false;
+        return (false);
     }
 
-    return true;
+    return (true);
 }
 
 static int lpspi_dma_init(const struct device* dev) {
@@ -398,12 +517,12 @@ static int lpspi_dma_init(const struct device* dev) {
 
     ret = spi_nxp_init_common(dev);
     if (ret != 0) {
-        return ret;
+        return (ret);
     }
 
     spi_context_unlock_unconditionally(&data->ctx);
 
-    return 0;
+    return (0);
 }
 
 static int spi_nxp_dma_transceive_sync(const struct device* dev, const struct spi_config* spi_cfg,

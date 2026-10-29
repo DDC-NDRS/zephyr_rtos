@@ -1929,7 +1929,7 @@ static int spi_stm32_configure(const struct device* dev,
     data->ctx.config = config;
 
     LOG_DBG("Installed config %p: freq %uHz (div = %u), mode %u/%u/%u, peripheral %u",
-            config, clock >> br, 1 << br,
+            config, clock >> (br + shift), 1 << (br + shift),
             (SPI_MODE_GET(operation) & SPI_MODE_CPOL) ? 1 : 0,
             (SPI_MODE_GET(operation) & SPI_MODE_CPHA) ? 1 : 0,
             (SPI_MODE_GET(operation) & SPI_MODE_LOOP) ? 1 : 0,
@@ -2054,7 +2054,6 @@ static int32_t spi_stm32_set_transfer_size(const struct device* dev,
     return (0);
 }
 
-#if defined(CONFIG_SPI_STM32_DMA)
 #if !defined(CONFIG_SPI_RTIO)
 /* STPM3X's specific function */
 bool spi_stpm3x_is_active(struct spi_dt_spec const* spec) {
@@ -2154,7 +2153,10 @@ int spi_stpm3x_init(struct spi_dt_spec const* spec,
     return (ret);
 }
 #endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stpm3x_spi) */
+#endif /* !CONFIG_SPI_RTIO */
 
+#if defined(CONFIG_SPI_STM32_DMA)
+#if !defined(CONFIG_SPI_RTIO)
 static int wait_dma_rx_tx_done(const struct device* dev) {
     struct spi_stm32_data* data = dev->data;
     int ret;

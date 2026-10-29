@@ -34,7 +34,7 @@
 /* Timestamp format strings - evaluated at compile-time */
 /* Simple timestamp format (no formatting) */
 #define LOG_TS_SIMPLE_FMT \
-	COND_CODE_1(CONFIG_LOG_TIMESTAMP_64BIT, ("[%020llu] "), ("[%010lu] "))
+	COND_CODE_1(CONFIG_LOG_TIMESTAMP_64BIT, ("[%020llu] "), ("[%010u] "))
 
 /* Linux timestamp format - base format depends on 64-bit and HIDE_US */
 #define LOG_TS_LINUX_FMT \
@@ -42,7 +42,7 @@
 		(COND_CODE_1(CONFIG_LOG_OUTPUT_FORMAT_HIDE_US, \
 			("[%5llu.%03d] "), ("[%5llu.%06d] "))), \
 		(COND_CODE_1(CONFIG_LOG_OUTPUT_FORMAT_HIDE_US, \
-			("[%5lu.%03d] "), ("[%5lu.%06d] "))))
+			("[%5u.%03d] "), ("[%5u.%06d] "))))
 
 /* Syslog with libc - format depends on HIDE_US */
 #define LOG_TS_SYSLOG_LIBC_FMT \
@@ -90,6 +90,10 @@
 #define LOG_TS_VAL_MS_OR_US(ms, us) \
 	COND_CODE_1(CONFIG_LOG_OUTPUT_FORMAT_HIDE_US, (ms), (ms * 1000U + us))
 
+/* Separate ms and us arguments for formats that print them as "ms,us" */
+#define LOG_TS_ARGS_MS_AND_US(ms, us) \
+	COND_CODE_1(CONFIG_LOG_OUTPUT_FORMAT_HIDE_US, (ms), (ms, us))
+
 /* Typedef for total_seconds based on timestamp width */
 #if IS_ENABLED(CONFIG_LOG_TIMESTAMP_64BIT)
 typedef uint64_t log_total_seconds_t;
@@ -99,14 +103,14 @@ typedef uint32_t log_total_seconds_t;
 
 /* Print call wrappers - eliminates conditionals in function body */
 #define LOG_PRINT_TS_DATE_LIBC(output, time_str, ms, us) \
-	print_formatted((output), LOG_TS_DATE_LIBC_FMT, (time_str), LOG_TS_VAL_MS_OR_US(ms, us))
+	print_formatted((output), LOG_TS_DATE_LIBC_FMT, (time_str), LOG_TS_ARGS_MS_AND_US(ms, us))
 
 #define LOG_PRINT_TS_DATE_NO_LIBC(output, y, m, d, h, min, s, ms, us) \
 	print_formatted((output), LOG_TS_DATE_NO_LIBC_FMT, (y), (m), (d), (h), (min), (s), \
-		LOG_TS_VAL_MS_OR_US(ms, us))
+		LOG_TS_ARGS_MS_AND_US(ms, us))
 
 #define LOG_PRINT_TS_HHMMSS(output, h, m, s, ms, us) \
-	print_formatted((output), LOG_TS_HHMMSS_FMT, (h), (m), (s), LOG_TS_VAL_MS_OR_US(ms, us))
+	print_formatted((output), LOG_TS_HHMMSS_FMT, (h), (m), (s), LOG_TS_ARGS_MS_AND_US(ms, us))
 
 static const char *const severity[] = {
 	NULL,
@@ -220,8 +224,8 @@ static int cr_out_func(int c, void *ctx)
 	return 0;
 }
 
-static int print_formatted(const struct log_output *output,
-			   const char *fmt, ...)
+static __printf_like(2, 3) int print_formatted(const struct log_output *output,
+					       const char *fmt, ...)
 {
 	va_list args;
 	int length;

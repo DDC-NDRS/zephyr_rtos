@@ -336,6 +336,7 @@ void smf_set_state(struct smf_ctx* const ctx, const struct smf_state* new_state)
     }
 
     #if defined(CONFIG_SMF_ANCESTOR_SUPPORT)
+    const struct smf_state* self = (ctx->executing == new_state) ? new_state : NULL;
     const struct smf_state* topmost;
 
     if ((ctx->executing != new_state) && (ctx->executing->parent == new_state->parent)) {
@@ -364,9 +365,9 @@ void smf_set_state(struct smf_ctx* const ctx, const struct smf_state* new_state)
     }
 
     /* if self-transition, call the exit action */
-    if ((ctx->executing == new_state) && (new_state->exit)) {
-        INVOKE_ACTION_HOOK(ctx, new_state, SMF_ACTION_EXIT);
-        new_state->exit(ctx);
+    if ((self != NULL) && (self->exit)) {
+        INVOKE_ACTION_HOOK(ctx, self, SMF_ACTION_EXIT);
+        self->exit(ctx);
 
         /* No need to continue if terminate was set in the exit action */
         if ((ctx->internal & SMF_TERMINATE) != 0) {
@@ -376,16 +377,6 @@ void smf_set_state(struct smf_ctx* const ctx, const struct smf_state* new_state)
 
     ctx->internal &= ~SMF_IS_EXIT;
 
-    /* if self transition, call the entry action */
-    if ((ctx->executing == new_state) && (new_state->entry)) {
-        INVOKE_ACTION_HOOK(ctx, new_state, SMF_ACTION_ENTRY);
-        new_state->entry(ctx);
-
-        /* No need to continue if terminate was set in the entry action */
-        if ((ctx->internal & SMF_TERMINATE) != 0) {
-            return;
-        }
-    }
 
     #if defined(CONFIG_SMF_INITIAL_TRANSITION)
     /*
@@ -403,6 +394,18 @@ void smf_set_state(struct smf_ctx* const ctx, const struct smf_state* new_state)
     ctx->executing = new_state;
 
     INVOKE_TRANSITION_HOOK(ctx, ctx->previous, ctx->current);
+
+    /* if self transition, call the entry action: after the update, as for any entry */
+    if ((self != NULL) && (self->entry)) {
+        ctx->executing = self;
+        INVOKE_ACTION_HOOK(ctx, self, SMF_ACTION_ENTRY);
+        self->entry(ctx);
+
+        /* No need to continue if terminate was set in the entry action */
+        if ((ctx->internal & SMF_TERMINATE) != 0) {
+            return;
+        }
+    }
 
     /* call all entry actions (except those of topmost) */
     if (smf_execute_all_entry_actions(ctx, new_state, topmost)) {

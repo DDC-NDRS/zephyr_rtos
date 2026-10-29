@@ -343,7 +343,7 @@ cy_rslt_t ifx_cat1_uart_set_baud(struct device const* dev, uint32_t baudrate) {
     cy_rslt_t status;
 
     #if !defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
-    uint8_t  best_oversample = IFX_UART_OVERSAMPLE_MIN;
+    uint32_t best_oversample = IFX_UART_OVERSAMPLE_MIN;
     uint32_t best_difference = UINT32_MAX;
     uint32_t divider;
     #endif /* !CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2 */

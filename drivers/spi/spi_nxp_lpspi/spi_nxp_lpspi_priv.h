@@ -114,13 +114,21 @@ struct spi_dma_stream {
 struct spi_nxp_dma_data {
     struct spi_dma_stream dma_rx;
     struct spi_dma_stream dma_tx;
+
     enum lpspi_transfer_state_t state;
 
-    /* Synchronized DMA size for RX/TX interleaving on v1 LPSPI. */
+    /* This DMA size is used in callback function for RX and TX context update.
+     * because of old LPSPI IP limitation, RX complete depend on next TX DMA transfer start,
+     * so TX and RX not always start at the same time while we can only calculate DMA transfer
+     * size once and update the buffer pointers at the same time.
+     */
     size_t synchronize_dma_size;
 
     /* kept for the cache invalidate at the end of the transfer */
     struct spi_buf_set const* rx_bufs;
+
+    /* receive masked in TCR, so no RX DMA and no RX callback */
+    bool rx_masked;
 };
 #endif /* CONFIG_SPI_NXP_LPSPI_DMA */
 
