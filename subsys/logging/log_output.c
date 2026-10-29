@@ -88,7 +88,7 @@
 /* Value selector macros - evaluates at compile-time */
 #define LOG_TS_VAL_SIMPLE(ts) (ts)
 #define LOG_TS_VAL_MS_OR_US(ms, us) \
-	COND_CODE_1(CONFIG_LOG_OUTPUT_FORMAT_HIDE_US, (ms), (ms * 1000U + us))
+	COND_CODE_1(CONFIG_LOG_OUTPUT_FORMAT_HIDE_US, ((ms)), (((ms) * 1000U) + (us)))
 
 /* Separate ms and us arguments for formats that print them as "ms,us" */
 #define LOG_TS_ARGS_MS_AND_US(ms, us) \

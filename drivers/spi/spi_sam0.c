@@ -24,6 +24,10 @@ LOG_MODULE_REGISTER(spi_sam0);
 #endif
 
 /* #CUSTOM@NDRS : Use GCLK1 as clock source instead of GCLK0 */
+#if !defined(SOC_ATMEL_SAM0_GCLK1_FREQ_HZ)
+/* SoCs without a GCLK1 definition keep the SERCOM core clock on GCLK0 */
+#define SOC_ATMEL_SAM0_GCLK1_FREQ_HZ SOC_ATMEL_SAM0_GCLK0_FREQ_HZ
+#endif
 
 /* Device constant configuration parameters */
 struct spi_sam0_config {
