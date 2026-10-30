@@ -226,6 +226,9 @@ ADI Platforms:
     - boards/shields/ad_apardpfw_sl/
     - boards/shields/adi_lsmspg/
     - boards/shields/eval*ardz/
+    - boards/shields/mikroe_accel_click/
+    - boards/shields/mikroe_accel22_click/
+    - boards/shields/mikroe_adac_click/
     - boards/shields/pmod_acl/
     - drivers/*/*max*
     - drivers/*/*max*/
@@ -4773,6 +4776,7 @@ Networking:
     - jukkar
   collaborators:
     - pdgendt
+    - maass-hamburg
   files:
     - .github/workflows/net-perf*
     - scripts/net/
@@ -5749,11 +5753,11 @@ Renesas RA Platforms:
   maintainers:
     - soburi
     - KhiemNguyenT
+    - khoa-nguyen-18
   collaborators:
     - duynguyenxa
     - thaoluonguw
     - thenguyenyf
-    - khoa-nguyen-18
   files:
     - boards/arduino/uno_r4/
     - boards/renesas/*ra*/
@@ -7357,6 +7361,7 @@ West:
     - thaoluonguw
     - binhnguyen2434
     - nhutnguyenkc
+    - khoa-nguyen-18
   files:
     - modules/Kconfig.renesas
   labels:

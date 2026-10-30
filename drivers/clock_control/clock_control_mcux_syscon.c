@@ -508,6 +508,21 @@ static int mcux_lpc_syscon_clock_control_on(const struct device *dev,
 static int mcux_lpc_syscon_clock_control_off(const struct device *dev,
 					     clock_control_subsys_t sub_system)
 {
+#if defined(CONFIG_COUNTER_NXP_MRT)
+	if ((uint32_t)sub_system == MCUX_MRT_CLK) {
+#if defined(CONFIG_SOC_FAMILY_LPC) || defined(CONFIG_SOC_SERIES_RW6XX) ||                          \
+	defined(CONFIG_SOC_FAMILY_MCXN) || defined(CONFIG_SOC_SERIES_MCXW2XX)
+		CLOCK_DisableClock(kCLOCK_Mrt);
+#elif defined(CONFIG_SOC_FAMILY_NXP_IMXRT)
+		CLOCK_DisableClock(kCLOCK_Mrt0);
+#endif
+	}
+#if defined(CONFIG_SOC_SERIES_RW6XX)
+	if ((uint32_t)sub_system == MCUX_FREEMRT_CLK) {
+		CLOCK_DisableClock(kCLOCK_FreeMrt);
+	}
+#endif
+#endif /* defined(CONFIG_COUNTER_NXP_MRT) */
 #if defined(CONFIG_EQDC_MCUX)
 	if ((uint32_t)sub_system == MCUX_EQDC_CLK ||
 	    (uint32_t)sub_system == MCUX_EQDC0_CLK) {
@@ -519,6 +534,47 @@ static int mcux_lpc_syscon_clock_control_off(const struct device *dev,
 	}
 #endif /* FSL_FEATURE_SOC_EQDC_COUNT > 1 */
 #endif
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(opamp0), okay)
+	if ((uint32_t)sub_system == MCUX_OPAMP0_CLK) {
+#if defined(CONFIG_SOC_FAMILY_MCXA)
+		CLOCK_DisableClock(kCLOCK_GateOPAMP0);
+#else
+		CLOCK_DisableClock(kCLOCK_Opamp0);
+#endif
+	}
+#endif
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(opamp1), okay)
+	if ((uint32_t)sub_system == MCUX_OPAMP1_CLK) {
+#if defined(CONFIG_SOC_FAMILY_MCXA)
+		CLOCK_DisableClock(kCLOCK_GateOPAMP1);
+#else
+		CLOCK_DisableClock(kCLOCK_Opamp1);
+#endif
+	}
+#endif
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(opamp2), okay)
+	if ((uint32_t)sub_system == MCUX_OPAMP2_CLK) {
+#if defined(CONFIG_SOC_FAMILY_MCXA)
+		CLOCK_DisableClock(kCLOCK_GateOPAMP2);
+#else
+		CLOCK_DisableClock(kCLOCK_Opamp2);
+#endif
+	}
+#endif
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(opamp3), okay)
+	if ((uint32_t)sub_system == MCUX_OPAMP3_CLK) {
+#if defined(CONFIG_SOC_FAMILY_MCXA)
+		CLOCK_DisableClock(kCLOCK_GateOPAMP3);
+#else
+		CLOCK_DisableClock(kCLOCK_Opamp3);
+#endif
+	}
+#endif
+
 	return 0;
 }
 
