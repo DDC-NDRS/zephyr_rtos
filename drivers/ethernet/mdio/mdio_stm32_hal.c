@@ -11,11 +11,14 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/clock_control/stm32_clock_control.h>
-#include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/mdio.h>
 #include <zephyr/net/ethernet.h>
 #include <zephyr/net/mdio.h>
 #include <zephyr/net/mii.h>
+
+#ifdef CONFIG_PINCTRL
+#include <zephyr/drivers/pinctrl.h>
+#endif
 
 #include "../eth_stm32_hal_priv.h"
 
@@ -24,13 +27,18 @@ LOG_MODULE_REGISTER(mdio_stm32_hal, CONFIG_MDIO_LOG_LEVEL);
 
 #define DT_DRV_COMPAT snps_dwmac_mdio
 
+#define MDIO_STM32_PINCTRL_ENABLED  DT_ANY_INST_HAS_PROP_STATUS_OKAY(pinctrl_0)
+
 struct mdio_stm32_data {
     struct k_mutex mutex;
 };
 
 struct mdio_stm32_config {
     const struct device* ethernet_dev;
+
+    #if MDIO_STM32_PINCTRL_ENABLED
     const struct pinctrl_dev_config* pincfg;
+    #endif
 };
 
 static int mdio_stm32_read(const struct device* dev, uint8_t prtad,
@@ -155,13 +163,18 @@ static int mdio_stm32_write_c45(const struct device* dev, uint8_t prtad, uint8_t
 
 static int mdio_stm32_init(const struct device* dev) {
     struct mdio_stm32_data* const ctx = dev->data;
+
+    #if MDIO_STM32_PINCTRL_ENABLED
     const struct mdio_stm32_config* const cfg = dev->config;
     int ret;
 
-    ret = pinctrl_apply_state(cfg->pincfg, PINCTRL_STATE_DEFAULT);
-    if (ret < 0) {
-        return (ret);
+    if (cfg->pincfg != NULL) {
+        ret = pinctrl_apply_state(cfg->pincfg, PINCTRL_STATE_DEFAULT);
+        if (ret < 0) {
+            return (ret);
+        }
     }
+    #endif /* MDIO_STM32_PINCTRL_ENABLED */
 
     k_mutex_init(&ctx->mutex);
 
@@ -175,14 +188,26 @@ static DEVICE_API(mdio, mdio_stm32_api) = {
     .write_c45 = mdio_stm32_write_c45,
 };
 
+#if MDIO_STM32_PINCTRL_ENABLED
+#define MDIO_STM32_PINCTRL_DEFINE(inst)                         \
+    IF_ENABLED(DT_INST_PINCTRL_HAS_NAME(inst, default), (PINCTRL_DT_INST_DEFINE(inst);))
+
+#define MDIO_STM32_PINCTRL_CONFIG(inst)                         \
+    IF_ENABLED(DT_INST_PINCTRL_HAS_NAME(inst, default),         \
+               (.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),))
+#else
+#define MDIO_STM32_PINCTRL_DEFINE(inst)
+#define MDIO_STM32_PINCTRL_CONFIG(inst)
+#endif
+
 #define MDIO_STM32_HAL_DEVICE(inst)                             \
-    PINCTRL_DT_INST_DEFINE(inst);                               \
+    MDIO_STM32_PINCTRL_DEFINE(inst)                             \
                                                                 \
     static struct mdio_stm32_data mdio_stm32_data_##inst;       \
                                                                 \
     static struct mdio_stm32_config mdio_stm32_config_##inst = {\
         .ethernet_dev = DEVICE_DT_GET(DT_INST_PARENT(inst)),    \
-        .pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),         \
+        MDIO_STM32_PINCTRL_CONFIG(inst)                         \
     };                                                          \
     DEVICE_DT_INST_DEFINE(inst, mdio_stm32_init, NULL, &mdio_stm32_data_##inst, \
                           &mdio_stm32_config_##inst, POST_KERNEL, CONFIG_MDIO_INIT_PRIORITY, \

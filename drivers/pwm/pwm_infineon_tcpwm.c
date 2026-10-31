@@ -18,7 +18,12 @@
 #include <infineon_kconfig.h>
 #include <zephyr/drivers/timer/ifx_tcpwm.h>
 #include <zephyr/dt-bindings/pwm/pwm_ifx_tcpwm.h>
+#if defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
+#include <zephyr/drivers/clock_control/clock_control_ifx.h>
+#else
 #include <zephyr/drivers/clock_control/clock_control_ifx_cat1.h>
+#endif
+#include <zephyr/drivers/clock_control.h>
 
 #include <cy_tcpwm_pwm.h>
 #include <cy_tcpwm_counter.h>
@@ -58,6 +63,11 @@ struct ifx_tcpwm_pwm_config {
     uint32_t index;
     uint32_t clk_dst;
 
+    #if CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2
+    uint32_t frequency;
+    const struct device* clk_dev;
+    #endif
+
     #ifdef CONFIG_PWM_CAPTURE
     bool capture_input;
     uint32_t trigmux_in;
@@ -84,7 +94,11 @@ struct ifx_tcpwm_pwm_capture_data {
 #endif /* CONFIG_PWM_CAPTURE */
 
 struct ifx_tcpwm_pwm_data {
+    #if defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
+    struct ifx_clk_peri clock;
+    #else
     struct ifx_cat1_clock clock;
+    #endif
 
     #ifdef CONFIG_PM_DEVICE
     /* Last values programmed via set_cycles, replayed on resume to
@@ -112,38 +126,6 @@ struct ifx_tcpwm_pwm_data {
     struct ifx_tcpwm_pwm_capture_data capture;
     #endif /* CONFIG_PWM_CAPTURE */
 };
-
-static int ifx_tcpwm_output_init(const struct device* dev) {
-    const struct ifx_tcpwm_pwm_config* config = dev->config;
-    cy_en_tcpwm_status_t status;
-    int ret;
-
-    cy_stc_tcpwm_pwm_config_t const pwm_config = {
-        .pwmMode           = CY_TCPWM_PWM_MODE_PWM,
-        .clockPrescaler    = CY_TCPWM_PWM_PRESCALER_DIVBY_1,
-        .pwmAlignment      = CY_TCPWM_PWM_LEFT_ALIGN,
-        .runMode           = CY_TCPWM_PWM_CONTINUOUS,
-        .countInputMode    = CY_TCPWM_INPUT_LEVEL,
-        .countInput        = CY_TCPWM_INPUT_1,
-        .enableCompareSwap = true,
-        .enablePeriodSwap  = true,
-        .line_out_sel      = CY_TCPWM_OUTPUT_PWM_SIGNAL,
-        .linecompl_out_sel = CY_TCPWM_OUTPUT_INVERTED_PWM_SIGNAL
-    };
-
-    ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
-    if (ret < 0) {
-        return (ret);
-    }
-
-    /* Configure the TCPWM to be a PWM */
-    status = IFX_TCPWM_PWM_Init(config->reg_base, &pwm_config);
-    if (status != CY_TCPWM_SUCCESS) {
-        return (-ENOTSUP);
-    }
-
-    return (0);
-}
 
 #ifdef CONFIG_PWM_CAPTURE
 static int ifx_tcpwm_capture_init(const struct device* dev) {
@@ -218,16 +200,60 @@ static int ifx_tcpwm_capture_init(const struct device* dev) {
 }
 #endif /* CONFIG_PWM_CAPTURE */
 
+static int ifx_tcpwm_output_init(const struct device* dev) {
+    const struct ifx_tcpwm_pwm_config* config = dev->config;
+    cy_en_tcpwm_status_t status;
+    int ret;
+    #if defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
+    uint32_t freq = config->frequency;
+    #endif
+
+    cy_stc_tcpwm_pwm_config_t const pwm_config = {
+        .pwmMode           = CY_TCPWM_PWM_MODE_PWM,
+        .clockPrescaler    = CY_TCPWM_PWM_PRESCALER_DIVBY_1,
+        .pwmAlignment      = CY_TCPWM_PWM_LEFT_ALIGN,
+        .runMode           = CY_TCPWM_PWM_CONTINUOUS,
+        .countInputMode    = CY_TCPWM_INPUT_LEVEL,
+        .countInput        = CY_TCPWM_INPUT_1,
+        .enableCompareSwap = true,
+        .enablePeriodSwap  = true,
+        .line_out_sel      = CY_TCPWM_OUTPUT_PWM_SIGNAL,
+        .linecompl_out_sel = CY_TCPWM_OUTPUT_INVERTED_PWM_SIGNAL
+    };
+
+    ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
+    if (ret < 0) {
+        return (ret);
+    }
+
+    /* Configure the TCPWM to be a PWM */
+    status = IFX_TCPWM_PWM_Init(config->reg_base, &pwm_config);
+    if (status != CY_TCPWM_SUCCESS) {
+        return (-ENOTSUP);
+    }
+
+    return (0);
+}
+
+
 static int ifx_tcpwm_pwm_init(const struct device* dev) {
     const struct ifx_tcpwm_pwm_config* config = dev->config;
     struct ifx_tcpwm_pwm_data* const data = dev->data;
     cy_en_tcpwm_status_t status;
+    int ret;
 
+    #if defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
+    ret = clock_control_set_rate(config->clk_dev, (clock_control_subsys_t)&data->clock, &freq);
+    if (ret < 0) {
+        return (ret);
+    }
+    #else
     /* Connect this TCPWM to the peripheral clock */
     status = ifx_cat1_utils_peri_pclk_assign_divider(config->clk_dst, &data->clock);
     if (status != CY_RSLT_SUCCESS) {
         return (-EIO);
     }
+    #endif
 
     #ifdef CONFIG_PWM_CAPTURE
     if (config->capture_input) {
@@ -235,7 +261,9 @@ static int ifx_tcpwm_pwm_init(const struct device* dev) {
     }
     #endif /* CONFIG_PWM_CAPTURE */
 
-    return ifx_tcpwm_output_init(dev);
+    ret = ifx_tcpwm_output_init(dev);
+
+    return (ret);
 }
 
 static int ifx_tcpwm_pwm_set_cycles(const struct device* dev, uint32_t channel,
@@ -334,17 +362,37 @@ static int ifx_tcpwm_pwm_set_cycles(const struct device* dev, uint32_t channel,
     return (0);
 }
 
+#if defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
 static int ifx_tcpwm_pwm_get_cycles_per_sec(const struct device* dev, uint32_t channel,
                                             uint64_t* cycles) {
     ARG_UNUSED(channel);
 
     struct ifx_tcpwm_pwm_data* const data = dev->data;
     const struct ifx_tcpwm_pwm_config* config = dev->config;
+    uint32_t freq;
+    int ret;
+
+    ret = clock_control_get_rate(config->clk_dev, (clock_control_subsys_t)&data->clock, &freq);
+    if (ret < 0) {
+        return (ret);
+    }
+    *cycles = freq;
+
+    return (0);
+}
+#else
+static int ifx_tcpwm_pwm_get_cycles_per_sec(const struct device* dev, uint32_t channel,
+                                            uint64_t* cycles) {
+    ARG_UNUSED(channel);
+
+    struct ifx_tcpwm_pwm_data* const data = dev->data;
+    struct ifx_tcpwm_pwm_config const * config = dev->config;
 
     *cycles = ifx_cat1_utils_peri_pclk_get_frequency(config->clk_dst, &data->clock);
 
     return (0);
 }
+#endif
 
 #ifdef CONFIG_PWM_CAPTURE
 static ALWAYS_INLINE uint32_t ifx_tcpwm_capture_delta(uint32_t first, uint32_t second,
@@ -632,6 +680,13 @@ static DEVICE_API(pwm, ifx_tcpwm_pwm_api) = {
                     DT_INST_PROP_BY_PHANDLE(n, clocks, div_type)), \
         .channel = DT_INST_PROP_BY_PHANDLE(n, clocks, channel), \
     }
+#elif defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
+#define PWM_PERI_CLOCK_INIT(n)                                  \
+    .clock = {                                                  \
+        .rootclk_id = DT_PROP(DT_INST_PARENT(n), clk_dst),      \
+        .div_ord = DT_DEP_ORD(DT_INST_CLOCKS_CTLR(n)),          \
+    },
+
 #else
 #define PWM_PERI_CLOCK_INIT(n)                                  \
     .clock = {                                                  \
@@ -640,6 +695,19 @@ static DEVICE_API(pwm, ifx_tcpwm_pwm_api) = {
                     DT_INST_PROP_BY_PHANDLE(n, clocks, div_type)), \
         .channel = DT_INST_PROP_BY_PHANDLE(n, clocks, channel), \
     }
+#endif
+
+#if defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
+#define CLOCK_GET(n)                                            \
+    .clk_dev   = DEVICE_DT_GET(DT_PARENT(DT_INST_CLOCKS_CTLR(n))), \
+    .frequency = DT_PROP_OR(DT_INST_PARENT(n), clock_frequency, 0),
+#define PWM_CLOCK_FREQ_ASSERT(n)                                \
+    BUILD_ASSERT(DT_NODE_HAS_PROP(DT_INST_PARENT(n), clock_frequency),        \
+                 "clock-frequency is required on the parent TCPWM node when " \
+                 "CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2 is enabled");
+DT_INST_FOREACH_STATUS_OKAY(PWM_CLOCK_FREQ_ASSERT)
+#else
+#define CLOCK_GET(n)
 #endif
 
 /*
@@ -712,6 +780,7 @@ static DEVICE_API(pwm, ifx_tcpwm_pwm_api) = {
                   DT_REG_ADDR(DT_PARENT(DT_INST_PARENT(n)))) /              \
                   DT_REG_SIZE(DT_INST_PARENT(n)),                           \
         .clk_dst = DT_PROP(DT_INST_PARENT(n), clk_dst),                     \
+        CLOCK_GET(n)                                                        \
         PWM_CAPTURE_INPUT_INIT(n)                                           \
     };                                                                      \
                                                                             \
