@@ -204,9 +204,6 @@ static int ifx_tcpwm_output_init(const struct device* dev) {
     const struct ifx_tcpwm_pwm_config* config = dev->config;
     cy_en_tcpwm_status_t status;
     int ret;
-    #if defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
-    uint32_t freq = config->frequency;
-    #endif
 
     cy_stc_tcpwm_pwm_config_t const pwm_config = {
         .pwmMode           = CY_TCPWM_PWM_MODE_PWM,
@@ -239,15 +236,18 @@ static int ifx_tcpwm_output_init(const struct device* dev) {
 static int ifx_tcpwm_pwm_init(const struct device* dev) {
     const struct ifx_tcpwm_pwm_config* config = dev->config;
     struct ifx_tcpwm_pwm_data* const data = dev->data;
-    cy_en_tcpwm_status_t status;
     int ret;
 
     #if defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
+    uint32_t freq = config->frequency;
+
     ret = clock_control_set_rate(config->clk_dev, (clock_control_subsys_t)&data->clock, &freq);
     if (ret < 0) {
         return (ret);
     }
     #else
+    cy_en_tcpwm_status_t status;
+
     /* Connect this TCPWM to the peripheral clock */
     status = ifx_cat1_utils_peri_pclk_assign_divider(config->clk_dst, &data->clock);
     if (status != CY_RSLT_SUCCESS) {
@@ -509,6 +509,14 @@ static int ifx_tcpwm_pwm_manage_event_callback(const struct device* dev,
                                                struct pwm_event_callback* callback, bool set) {
     struct ifx_tcpwm_pwm_data* data = dev->data;
     int ret;
+
+    #ifdef CONFIG_PWM_CAPTURE
+    const struct ifx_tcpwm_pwm_config* config = dev->config;
+
+    if (config->capture_input) {
+        return (-ENOTSUP);
+    }
+    #endif /* CONFIG_PWM_CAPTURE */
 
     ret = pwm_manage_event_callback(&data->event_callbacks, callback, set);
     if (ret < 0) {

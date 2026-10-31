@@ -127,14 +127,18 @@ static int mdio_stm32_c45_setup_dev_reg(const struct device* dev, uint8_t prtad,
  * @return 0 on success, negative errno code on fail
  */
 static int mdio_stm32_read_c45(const struct device* dev, uint8_t prtad, uint8_t devad, uint16_t regad, uint16_t* data) {
+    struct mdio_stm32_data* const ctx = dev->data;
     int ret;
 
+    /* Hold the (recursive) mutex so the address and data phases stay atomic. */
+    k_mutex_lock(&ctx->mutex, K_FOREVER);
+
     ret = mdio_stm32_c45_setup_dev_reg(dev, prtad, devad, regad);
-    if (ret < 0) {
-        return (ret);
+    if (ret >= 0) {
+        ret = mdio_read(dev, prtad, MII_MMD_AADR, data);
     }
 
-    ret = mdio_read(dev, prtad, MII_MMD_AADR, data);
+    k_mutex_unlock(&ctx->mutex);
 
     return (ret);
 }
@@ -149,14 +153,18 @@ static int mdio_stm32_read_c45(const struct device* dev, uint8_t prtad, uint8_t 
  * @return 0 on success, negative errno code on fail
  */
 static int mdio_stm32_write_c45(const struct device* dev, uint8_t prtad, uint8_t devad, uint16_t regad, uint16_t data) {
+    struct mdio_stm32_data* const ctx = dev->data;
     int ret;
 
+    /* Hold the (recursive) mutex so the address and data phases stay atomic. */
+    k_mutex_lock(&ctx->mutex, K_FOREVER);
+
     ret = mdio_stm32_c45_setup_dev_reg(dev, prtad, devad, regad);
-    if (ret < 0) {
-        return (ret);
+    if (ret >= 0) {
+        ret = mdio_write(dev, prtad, MII_MMD_AADR, data);
     }
 
-    ret = mdio_write(dev, prtad, MII_MMD_AADR, data);
+    k_mutex_unlock(&ctx->mutex);
 
     return (ret);
 }
