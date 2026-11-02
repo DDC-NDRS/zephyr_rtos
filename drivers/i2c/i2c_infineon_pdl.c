@@ -89,8 +89,8 @@ struct ifx_cat1_i2c_config {
     uint32_t controller_frequency;
     CySCB_Type* base;
     const struct pinctrl_dev_config* pcfg;
-    uint16_t irq_num;
     uint8_t  irq_priority;
+    uint32_t irq_num;
     en_clk_dst_t clk_dst;
     void (*irq_config_func)(struct device const* dev);
     cy_cb_scb_i2c_handle_events_t i2c_handle_events_func;
@@ -625,12 +625,21 @@ static int ifx_cat1_i2c_configure_locked(struct device const* dev, uint32_t dev_
     Cy_SCB_I2C_Disable(config->base, &data->context);
     Cy_SCB_I2C_DeInit(config->base);
 
-    /* Configure the I2C resource.
-     * #CUSTOM@NDRS: status intentionally not checked (upstream returns -EIO).
-     * It cannot fail here (only BAD_PARAM for NULL args, never NULL), and the
-     * PSE8xxGP PDL declares Cy_SCB_I2C_Init() as void.
+    /* Configure the I2C resource. */
+    #if defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
+    /* #CUSTOM@NDRS: the PSE8xxGP PDL declares Cy_SCB_I2C_Init() as void, so
+     * there is no status to check.
      */
-    (void) Cy_SCB_I2C_Init(config->base, &data->scb_config, &data->context);
+    Cy_SCB_I2C_Init(config->base, &data->scb_config, &data->context);
+    #else
+    cy_en_scb_i2c_status_t rslt;
+
+    rslt = Cy_SCB_I2C_Init(config->base, &data->scb_config, &data->context);
+    if (rslt != CY_SCB_I2C_SUCCESS) {
+        LOG_ERR("I2C configure failed with err 0x%x", rslt);
+        return (-EIO);
+    }
+    #endif
 
     /* Program the SCB oversampling clock divider for the requested speed */
     ret = _i2c_set_peri_divider(dev, data->frequencyhal_hz, is_target_mode);
@@ -1007,6 +1016,11 @@ static int ifx_cat1_i2c_transfer(struct device const* dev, struct i2c_msg* msg, 
             }
         }
 
+        if (rx_msg != NULL) {
+            rx_buf = rx_msg->buf;
+            rx_len = rx_msg->len;
+        }
+
         /*
          * A count left on transfer_sem by an earlier event would end the
          * wait below before this transfer completes.  Resetting here is
@@ -1277,7 +1291,11 @@ static int ifx_cat1_i2c_target_register(struct device const* dev, struct i2c_tar
      * powered to answer the bus; a re-register reuses the one it holds.
      */
     if (data->p_target_config == NULL) {
-        (void) pm_device_runtime_get(dev);
+        ret = pm_device_runtime_get(dev);
+        if (ret < 0) {
+            k_sem_give(&data->operation_sem);
+            return (ret);
+        }
     }
 
     data->p_target_config = cfg;

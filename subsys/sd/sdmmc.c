@@ -163,6 +163,23 @@ static int sdmmc_send_ocr(struct sd_card* card, int ocr) {
     return (0);
 }
 
+/* Sets every field of a single block data request, without zero filling the struct.
+ * is_sg_data only exists with scatter gather support, and host drivers read it.
+ */
+static void sdmmc_data_init(struct sdhc_data* data, void* buf, unsigned int block_size) {
+    data->block_addr   = 0U;
+    data->block_size   = block_size;
+    data->blocks       = 1U;
+    data->bytes_xfered = 0U;
+
+    #ifdef CONFIG_SDHC_SCATTER_GATHER_TRANSFER
+    data->is_sg_data = false;
+    #endif
+
+    data->data       = buf;
+    data->timeout_ms = CONFIG_SD_DATA_TIMEOUT;
+}
+
 /* Reads SD configuration register */
 static int sdmmc_read_scr(struct sd_card* card) {
     struct sdhc_command cmd;
@@ -186,11 +203,7 @@ static int sdmmc_read_scr(struct sd_card* card) {
     cmd.timeout_ms    = CONFIG_SD_CMD_TIMEOUT;
     cmd.retries       = CONFIG_SD_CMD_RETRIES;
 
-    data.block_addr = 0U;
-    data.block_size = 8U;
-    data.blocks     = 1U;
-    data.data       = scr;
-    data.timeout_ms = CONFIG_SD_DATA_TIMEOUT;
+    sdmmc_data_init(&data, scr, 8U);
 
     ret = sdhc_request(card->sdhc, &cmd, &data);
     if (ret) {
@@ -314,11 +327,7 @@ static int sdmmc_switch(struct sd_card* card, enum sd_switch_arg mode, enum sd_g
     cmd.timeout_ms    = CONFIG_SD_CMD_TIMEOUT;
     cmd.retries       = CONFIG_SD_CMD_RETRIES;
 
-    data.block_addr = 0U;
-    data.block_size = 64U;
-    data.blocks     = 1;
-    data.data       = response;
-    data.timeout_ms = CONFIG_SD_DATA_TIMEOUT;
+    sdmmc_data_init(&data, response, 64U);
 
     return sdhc_request(card->sdhc, &cmd, &data);
 }

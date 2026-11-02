@@ -136,6 +136,9 @@ static const struct device* eth_nxp_s32_get_phy(const struct device* dev,
 }
 
 #if defined(CONFIG_SOC_SERIES_S32K3)
+/* DCMRWF1[31]: MAC_TX_RMII_CLK loopback enable (not defined in the HAL header) */
+#define ETH_NXP_S32_DCMRWF1_TX_RMII_CLK_LB_MASK BIT(31)
+
 static int select_phy_interface(Gmac_Ip_MiiModeType mode) {
     uint32_t regval;
 
@@ -174,7 +177,7 @@ static int select_phy_interface(Gmac_Ip_MiiModeType mode) {
                               DCM_GPR_DCMRWF3_MAC_RX_CLK_MUX_BYPASS(1U);
 
         /* Enables the MAC_TX_RMII_CLK loopback */
-        IP_DCM_GPR->DCMRWF1 |= BIT(31);
+        IP_DCM_GPR->DCMRWF1 |= ETH_NXP_S32_DCMRWF1_TX_RMII_CLK_LB_MASK;
     }
 
     return (0);
@@ -491,8 +494,9 @@ static int eth_nxp_s32_set_config(const struct device* dev,
             break;
 
         #if defined(CONFIG_NET_PROMISCUOUS_MODE)
-        case ETHERNET_CONFIG_TYPE_PROMISC_MODE :
+        case ETHERNET_CONFIG_TYPE_PROMISC_MODE : {
             uint32_t regval = cfg->base->MAC_PACKET_FILTER;
+
             if (config->promisc_mode && !(regval & GMAC_MAC_PACKET_FILTER_PR_MASK)) {
                 cfg->base->MAC_PACKET_FILTER |= GMAC_MAC_PACKET_FILTER_PR_MASK;
             }
@@ -503,6 +507,7 @@ static int eth_nxp_s32_set_config(const struct device* dev,
                 res = -EALREADY;
             }
             break;
+        }
         #endif
 
         #if defined(CONFIG_ETH_NXP_S32_MULTICAST_FILTER)
