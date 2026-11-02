@@ -203,10 +203,15 @@ endif()
 add_dependencies(kernel zephyr_generated_headers)
 
 #CUSTOM@NDRS kernel code always be speed optimization !!!
+# ${kernel_files} misses the sources added with target_sources() above (timeout.c, timer.c, poll.c, events.c, usage.c,
+# mempool.c, dynamic_disabled.c, ...), so take the whole kernel target as well.
+get_target_property(_ndrs_kernel_sources kernel SOURCES)
 set_source_files_properties(
   ${kernel_files}
+  ${_ndrs_kernel_sources}
   PROPERTIES
   COMPILE_FLAGS ${COMPILER_OPTIMIZE_FOR_SPEED_FLAG}
   )
+unset(_ndrs_kernel_sources)
 
 unset(libkernel)
