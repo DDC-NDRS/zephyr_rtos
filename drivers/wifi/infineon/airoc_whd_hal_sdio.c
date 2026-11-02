@@ -250,10 +250,20 @@ void whd_bus_sdio_oob_irq_handler(const struct device *port, struct gpio_callbac
 	/* Check OOB state is correct */
 	int expected_event = (oob_config->is_falling_edge == WHD_TRUE) ? 0 : 1;
 
-	if (!(pins & BIT(host_oob_pin->pin)) || (gpio_pin_get_dt(host_oob_pin) != expected_event)) {
-		WPRINT_WHD_ERROR(("Unexpected interrupt event %d\n", expected_event));
-		WHD_BUS_STATS_INCREMENT_VARIABLE(data->whd_drv->bus_priv, error_intrs);
+	if (!(pins & BIT(host_oob_pin->pin))) {
 		return;
+	}
+
+	/*
+	 * CUSTOM@NDRS: the callback runs after the edge, and the module's pulse can already be over
+	 * (the line is back at its idle level) by the time it samples the pin. That is a real wake
+	 * event, not an error: count it and still wake the WHD thread, which reads the interrupt
+	 * status itself, so a spurious wake costs nothing and a dropped one would stall the chip.
+	 */
+	if (gpio_pin_get_dt(host_oob_pin) != expected_event) {
+		WPRINT_WHD_DEBUG(("OOB interrupt seen after the pulse ended (expected level %d)\n",
+				  expected_event));
+		WHD_BUS_STATS_INCREMENT_VARIABLE(data->whd_drv->bus_priv, error_intrs);
 	}
 
 	WHD_BUS_STATS_INCREMENT_VARIABLE(data->whd_drv->bus_priv, oob_intrs);
