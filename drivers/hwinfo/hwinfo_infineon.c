@@ -7,6 +7,7 @@
 
 #include <zephyr/drivers/hwinfo.h>
 #include <zephyr/sys/util.h>
+#include <stdbool.h>
 #include <string.h>
 #include <zephyr/sys/byteorder.h>
 #include <errno.h>
@@ -23,18 +24,45 @@ ssize_t z_impl_hwinfo_get_device_id(uint8_t *buffer, size_t length)
 	return length;
 }
 
+#ifdef CONFIG_BUILD_WITH_TFM
+/*
+ * CUSTOM@NDRS: SRSS RES_CAUSE is Secure under TF-M, a Non-Secure read is a PPC bus error. TF-M
+ * reads and clears it at boot and leaves the value in NS RAM (see tfm_publish_reset_cause() in
+ * the bcu_mv25 cycfg_system.c). The address and the magic must match that file.
+ */
+#define TFM_RESET_CAUSE_MAILBOX_ADDR 0x240FEFF0UL
+#define TFM_RESET_CAUSE_MAGIC        0x52534354UL
+
+static bool tfm_reset_cause_cleared;
+
+static int tfm_reset_reason_get(uint32_t *reason)
+{
+	const volatile uint32_t *mailbox = (const volatile uint32_t *)TFM_RESET_CAUSE_MAILBOX_ADDR;
+
+	if ((mailbox[0] != TFM_RESET_CAUSE_MAGIC) || (mailbox[1] != ~mailbox[2])) {
+		return -ENOSYS;
+	}
+
+	*reason = tfm_reset_cause_cleared ? 0U : mailbox[1];
+
+	return 0;
+}
+#endif /* CONFIG_BUILD_WITH_TFM */
+
 int z_impl_hwinfo_get_reset_cause(uint32_t *cause)
 {
 	uint32_t flags = 0;
 	uint32_t reason;
 
 #ifdef CONFIG_BUILD_WITH_TFM
-	/* CUSTOM@NDRS: SRSS RES_CAUSE is Secure under TF-M, a Non-Secure read is a PPC bus error */
-	ARG_UNUSED(cause);
-	return -ENOSYS;
-#endif
+	int rc = tfm_reset_reason_get(&reason);
 
+	if (rc != 0) {
+		return rc;
+	}
+#else
 	reason = Cy_SysLib_GetResetReason();
+#endif
 
 	if (reason & (CY_SYSLIB_RESET_HWWDT | CY_SYSLIB_RESET_SWWDT0 | CY_SYSLIB_RESET_SWWDT1 |
 		      CY_SYSLIB_RESET_SWWDT2 | CY_SYSLIB_RESET_SWWDT3)) {
@@ -130,11 +158,11 @@ int z_impl_hwinfo_get_reset_cause(uint32_t *cause)
 int z_impl_hwinfo_clear_reset_cause(void)
 {
 #ifdef CONFIG_BUILD_WITH_TFM
-	/* CUSTOM@NDRS: see z_impl_hwinfo_get_reset_cause() */
-	return -ENOSYS;
-#endif
-
+	/* CUSTOM@NDRS: TF-M already cleared the register; later reads see no cause, as after a clear */
+	tfm_reset_cause_cleared = true;
+#else
 	Cy_SysLib_ClearResetReason();
+#endif
 
 	return 0;
 }
