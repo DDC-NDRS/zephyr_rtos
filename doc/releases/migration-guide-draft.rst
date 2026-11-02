@@ -32,6 +32,23 @@ Kernel
 Boards
 ******
 
+* On the Nordic nRF54L and nRF71 Series SoCs, the push area that the Key Management Unit (KMU) of
+  CRACEN uses to push keys is now reserved at the start of the SRAM by the ``kmu_push_area``
+  devicetree node of the SoC. The ``zephyr,sram`` chosen node of the in-tree boards is now
+  ``cpuapp_sram_app``, a child node of ``cpuapp_sram`` that starts after the push area. The nodes
+  are not present when ``USE_NON_SECURE_ADDRESS_MAP`` is used. Out-of-tree boards that use the
+  CRACEN KMU key push should be updated, as otherwise the application RAM overlaps the push area
+  without any diagnostic. Boards that do not use it can keep using the whole RAM:
+
+  * Replace ``zephyr,sram = &cpuapp_sram`` with ``zephyr,sram = &cpuapp_sram_app``.
+  * To limit the SRAM available to the application, resize ``cpuapp_sram_app`` and keep its
+    offset, for example ``reg = <0x60 (DT_SIZE_K(184) - 0x60)>``. Changing ``reg`` of
+    ``cpuapp_sram`` no longer changes the SRAM that ``zephyr,sram`` refers to.
+  * If the memory layout deletes and redefines ``cpuapp_sram``, assign the redefined node to
+    ``zephyr,sram`` and leave the first ``0x60`` bytes of the SRAM free.
+  * Remove custom nodes and linker sections that reserve the push area, such as
+    ``nrf_kmu_reserved_push_area``. They would overlap the ``kmu_push_area`` node.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -93,6 +110,22 @@ Bluetooth Classic
   :c:func:`bt_l2cap_br_echo_cb_unregister`, :c:func:`bt_l2cap_br_echo_req` and
   :c:func:`bt_l2cap_br_echo_rsp`. The stack answers a received ECHO request with an ECHO response
   without data, unless a registered ``req`` callback handles it.
+
+Bluetooth Host
+==============
+
+* The ATT prepare write buffers (:kconfig:option:`CONFIG_BT_ATT_PREPARE_COUNT`) are now shared
+  equally between connections: a single connection holds at most
+  :kconfig:option:`CONFIG_BT_ATT_PREPARE_COUNT_PER_CONN` of them, which defaults to
+  ``CONFIG_BT_ATT_PREPARE_COUNT / CONFIG_BT_MAX_CONN`` but at least 1 (a pool smaller than
+  ``CONFIG_BT_MAX_CONN`` therefore stays over-subscribed), and its further Prepare Write
+  Requests are rejected with Prepare Queue Full. Applications with ``CONFIG_BT_MAX_CONN``
+  above 1 whose long or reliable writes need more buffers than that share must either raise
+  ``CONFIG_BT_ATT_PREPARE_COUNT`` or set ``CONFIG_BT_ATT_PREPARE_COUNT_PER_CONN`` explicitly,
+  accepting in the latter case that one connection can hold buffers the others need. The
+  recommended sizing is ``CONFIG_BT_ATT_PREPARE_COUNT`` = buffers needed by one client
+  multiplied by ``CONFIG_BT_MAX_CONN``, which keeps every connection's capacity independent
+  of the other connections.
 
 Networking
 **********

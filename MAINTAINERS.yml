@@ -350,6 +350,7 @@ ARM64 arch:
     - npitre
     - JiafeiPan
     - carlocaione
+    - hongquan-prog
   files:
     - arch/arm64/
     - include/zephyr/arch/arm64/
@@ -2697,8 +2698,11 @@ Documentation Infrastructure:
   files:
     - drivers/ptp_clock/
     - include/zephyr/drivers/ptp_clock.h
+    - tests/drivers/ptp_clock/
   labels:
     - "area: Clocks"
+  tests:
+    - drivers.ptp_clock
 
 "Drivers: PWM":
   status: maintained
@@ -3756,6 +3760,7 @@ Intel Platforms (Xtensa):
     - ycsin
     - dcpleung
     - nashif
+    - hongquan-prog
   files:
     - drivers/interrupt_controller/
     - dts/bindings/interrupt-controller/
