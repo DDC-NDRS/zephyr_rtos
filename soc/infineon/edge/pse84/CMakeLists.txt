@@ -48,6 +48,17 @@ if(CONFIG_BUILD_WITH_TFM)
       -DIFX_BSP_DESIGN_DIR_PATH=${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/bcu_mv25
       -DIFX_CONFIG_BSP_PATH=${ZEPHYR_HAL_INFINEON_MODULE_DIR}/zephyr-ifx-cycfg/pse84/bcu_mv25
       -DIFX_SMIF_0_MEMORY_CONFIG=S25HS512T_SMIF0_SlaveSlot_0
+      # TF-M SPM log on SCB1 (the console UART) until Zephyr takes it over; last -D wins over the OFF above.
+      # TFM_SPM_LOG_LEVEL ends up LOG_LEVEL_NONE in the cache (tfm_secure_log.cmake sets it before the debug profile),
+      # so ask for the level explicitly.
+      -DIFX_UART_ENABLED=ON
+      -DTFM_SPM_LOG_LEVEL=LOG_LEVEL_VERBOSE
+      # Keep on: prints the violating address, protection context and region of a PPC/MPC/SMIF fault before the
+      # handler clears it. It is the main tool for TF-M bring-up and field faults.
+      -DIFX_FAULTS_INFO_DUMP=ON
+      # TF-M keeps its default optimization level. To step through TF-PSA-Crypto, TF-M's debug profile builds it
+      # as relwithdebinfo (-O2); uncomment the next line to build it at -O0, then do a clean TF-M configure:
+      # -DTF_PSA_CRYPTO_BUILD_TYPE=Debug
     )
   else()
     message(FATAL_ERROR "No supported board selected.")

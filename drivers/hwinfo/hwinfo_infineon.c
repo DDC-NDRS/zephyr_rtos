@@ -26,7 +26,15 @@ ssize_t z_impl_hwinfo_get_device_id(uint8_t *buffer, size_t length)
 int z_impl_hwinfo_get_reset_cause(uint32_t *cause)
 {
 	uint32_t flags = 0;
-	uint32_t reason = Cy_SysLib_GetResetReason();
+	uint32_t reason;
+
+#ifdef CONFIG_BUILD_WITH_TFM
+	/* CUSTOM@NDRS: SRSS RES_CAUSE is Secure under TF-M, a Non-Secure read is a PPC bus error */
+	ARG_UNUSED(cause);
+	return -ENOSYS;
+#endif
+
+	reason = Cy_SysLib_GetResetReason();
 
 	if (reason & (CY_SYSLIB_RESET_HWWDT | CY_SYSLIB_RESET_SWWDT0 | CY_SYSLIB_RESET_SWWDT1 |
 		      CY_SYSLIB_RESET_SWWDT2 | CY_SYSLIB_RESET_SWWDT3)) {
@@ -121,6 +129,11 @@ int z_impl_hwinfo_get_reset_cause(uint32_t *cause)
 
 int z_impl_hwinfo_clear_reset_cause(void)
 {
+#ifdef CONFIG_BUILD_WITH_TFM
+	/* CUSTOM@NDRS: see z_impl_hwinfo_get_reset_cause() */
+	return -ENOSYS;
+#endif
+
 	Cy_SysLib_ClearResetReason();
 
 	return 0;
