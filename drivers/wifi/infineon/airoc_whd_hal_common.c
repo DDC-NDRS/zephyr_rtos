@@ -25,6 +25,7 @@ extern "C" {
 
 #define AIROC_WIFI_PIN_SETTLE_MS (100)
 #define AIROC_WIFI_BT_PULSE_MS   (100)
+#define AIROC_WIFI_POWER_DOWN_MS (100)
 
 /* Drive an optional power-up pin of the module to its active level, if the board declares it */
 static int airoc_wifi_assert_pin(const struct gpio_dt_spec *spec, const char *name)
@@ -49,6 +50,31 @@ static int airoc_wifi_assert_pin(const struct gpio_dt_spec *spec, const char *na
 	}
 
 	LOG_INF("%s driven active", name);
+	return 0;
+}
+
+/* Drive an optional power-up pin of the module to its inactive level, if the board declares it */
+static int airoc_wifi_deassert_pin(const struct gpio_dt_spec *spec, const char *name)
+{
+	int ret;
+
+	if (spec->port == NULL) {
+		return 0;
+	}
+
+	if (!device_is_ready(spec->port)) {
+		LOG_ERR("Error: failed to configure %s %s pin %d", name, spec->port->name,
+			spec->pin);
+		return -EIO;
+	}
+
+	ret = gpio_pin_configure_dt(spec, GPIO_OUTPUT_INACTIVE);
+	if (ret) {
+		LOG_ERR("Error %d: failed to drive %s %s pin %d low", ret, name, spec->port->name,
+			spec->pin);
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -100,10 +126,27 @@ int airoc_wifi_power_on(const struct device *dev)
 	}
 
 	/*
-	 * Allow CBUCK regulator to discharge, then raise WL_REG_ON. It is never driven low here:
-	 * the chip is shared with Bluetooth, which would fail, and Infineon's reference BSP skips
-	 * the low phase for the same reason. The module holds the pin low until it is raised.
+	 * CUSTOM@NDRS: power the module down first. After a power-on both pins are already low and
+	 * this only adds a delay, but after a soft reset (kernel reboot) the module is still powered,
+	 * running its old firmware with the SDIO bus in 4-bit HS mode, and it ignores CMD5 at
+	 * 400 kHz. Dropping WL_REG_ON resets the whole chip, Bluetooth included. That is harmless
+	 * here: this runs at device init, before the Bluetooth host has used the chip.
 	 */
+	ret = airoc_wifi_deassert_pin(&config->wifi_bt_reg_on_gpio, "bt_reg_on");
+	if (ret) {
+		return ret;
+	}
+
+	ret = gpio_pin_configure_dt(&config->wifi_reg_on_gpio, GPIO_OUTPUT_INACTIVE);
+	if (ret) {
+		LOG_ERR("Error %d: failed to drop wifi_reg_on %s pin %d", ret,
+			config->wifi_reg_on_gpio.port->name, config->wifi_reg_on_gpio.pin);
+		return ret;
+	}
+
+	k_msleep(AIROC_WIFI_POWER_DOWN_MS);
+
+	/* Allow CBUCK regulator to discharge, then raise WL_REG_ON. */
 	k_msleep(WLAN_CBUCK_DISCHARGE_MS);
 
 	/* WIFI power on */
