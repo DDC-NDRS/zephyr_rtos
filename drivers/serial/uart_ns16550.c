@@ -427,6 +427,7 @@ static void ns16550_outbyte(const struct device *dev,
 {
 	const struct uart_ns16550_dev_config *cfg = dev->config;
 
+	/* Registers up to REG_BRD1 are scaled by reg_interval, all higher ones are not. */
 	if (port <= REG_BRD1) {
 		port = get_port(dev) + (port * reg_interval(dev));
 	} else {
@@ -454,6 +455,7 @@ static uint8_t ns16550_inbyte(const struct device *dev,
 {
 	const struct uart_ns16550_dev_config *cfg = dev->config;
 
+	/* Registers up to REG_BRD1 are scaled by reg_interval, all higher ones are not. */
 	if (port <= REG_BRD1) {
 		port = get_port(dev) + (port * reg_interval(dev));
 	} else {

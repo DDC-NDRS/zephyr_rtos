@@ -358,6 +358,11 @@ static uint8_t bits2bytes(spi_operation_t operation) {
  */
 static __aligned(32) uint32_t dummy_rx_tx_buffer __nocache;
 
+/* Per-instance TX filler: the ORC may differ between instances, so it cannot share a buffer. */
+struct spi_stm32_tx_fill {
+    uint32_t word;
+} __aligned(32);
+
 /* #CUSTOM@NDRS */
 #define DEVICE_STM32_GET_SPI(dev)   (((const struct spi_stm32_config*)(dev)->config)->spi)
 
@@ -379,11 +384,11 @@ static int spi_stm32_dma_tx_load(const struct device* dev, uint8_t const* buf, s
     /* tx direction has memory as source and periph as dest. */
     if ((buf == NULL) || (len == 0)) {
         /* if tx buff is null, then shift out the overrun character. */
-        dummy_rx_tx_buffer = data->orc;
+        *data->tx_fill = data->orc;
         if (SPI_STM32_MANUAL_CACHE_COHERENCY_REQUIRED) {
-            sys_cache_data_flush_range((void*)&dummy_rx_tx_buffer, sizeof(uint32_t));
+            sys_cache_data_flush_range((void*)data->tx_fill, sizeof(uint32_t));
         }
-        blk_cfg->source_address  = (uint32_t)&dummy_rx_tx_buffer;
+        blk_cfg->source_address  = (uint32_t)data->tx_fill;
         blk_cfg->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
     }
     else {
@@ -2074,6 +2079,22 @@ bool spi_stpm3x_is_active(struct spi_dt_spec const* spec) {
 #if DT_HAS_COMPAT_STATUS_OKAY(st_stpm3x_spi)
 BUILD_ASSERT(IS_ENABLED(CONFIG_SPI_ASYNC), "STPM3X SPI requires CONFIG_SPI_ASYNC");
 
+/**
+ * @brief Start a 4-byte STPM3X full-duplex transfer; completion is reported through the
+ *        callback registered with spi_stpm3x_init().
+ *
+ * Design contract: this path bypasses the spi_context lock, so the caller must guarantee
+ * - exactly one task uses the SPI instance (no other spi_transceive() or STPM3X call on it),
+ * - no new transfer is started until the previous one completed (callback or
+ *   spi_stpm3x_is_active() returned false),
+ * - it is called from thread context after spi_stpm3x_init(), with tx[] holding 4 bytes
+ *   and rx[] room for 4 bytes, both valid until completion.
+ *
+ * @param[in]  spec SPI device tree specification
+ * @param[in]  tx   4 bytes to transmit
+ * @param[out] rx   4 bytes received
+ * @return 0 (the transfer is always started)
+ */
 int spi_stpm3x_transceive_dt(struct spi_dt_spec const* spec,
                              uint8_t const tx[],
                              uint8_t rx[]) {
@@ -2899,9 +2920,17 @@ static int spi_stm32_init(const struct device* dev) {
 
 #define SPI_DMA_STATUS_SEM(id)              \
     .status_sem = Z_SEM_INITIALIZER(spi_stm32_dev_data_##id.status_sem, 0, 1),
+
+#define SPI_DMA_TX_FILL_DEFINE(id)          \
+    static struct spi_stm32_tx_fill spi_stm32_tx_fill_##id __nocache;
+
+#define SPI_DMA_TX_FILL_INIT(id)            \
+    .tx_fill = &spi_stm32_tx_fill_##id.word,
 #else
 #define SPI_DMA_CHANNEL(id, dir, DIR, src, dest)
 #define SPI_DMA_STATUS_SEM(id)
+#define SPI_DMA_TX_FILL_DEFINE(id)
+#define SPI_DMA_TX_FILL_INIT(id)
 #endif /* CONFIG_SPI_STM32_DMA */
 
 #define SPI_STM32_CHECK_FIFO(id)                                \
@@ -2948,12 +2977,15 @@ static int spi_stm32_init(const struct device* dev) {
                          CONFIG_SPI_STM32_RTIO_SQ_SIZE,         \
                          CONFIG_SPI_STM32_RTIO_CQ_SIZE)))       \
                                                                 \
+    SPI_DMA_TX_FILL_DEFINE(id)                                  \
+                                                                \
     static struct spi_stm32_data spi_stm32_dev_data_##id = {    \
         SPI_CONTEXT_INIT_LOCK(spi_stm32_dev_data_##id, ctx),    \
         SPI_CONTEXT_INIT_SYNC(spi_stm32_dev_data_##id, ctx),    \
         SPI_DMA_CHANNEL(id, rx, RX, PERIPHERAL, MEMORY)         \
         SPI_DMA_CHANNEL(id, tx, TX, MEMORY, PERIPHERAL)         \
         SPI_DMA_STATUS_SEM(id)                                  \
+        SPI_DMA_TX_FILL_INIT(id)                                \
         SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(id), ctx)   \
         IF_ENABLED(CONFIG_SPI_RTIO, (.rtio_ctx = &spi_stm32_rtio_##id,)) \
     };                                                          \

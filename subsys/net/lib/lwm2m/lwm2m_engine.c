@@ -923,12 +923,15 @@ static void socket_loop(void *p1, void *p2, void *p3)
 
 		socket_reset_pollfd_events(engine);
 
-		int timeout = (next > now) ? (int)(next - now) : 0;
+		/* Clamp in 64 bit before narrowing, a wrapped value would break zsock_poll() */
+		int64_t delta = (next > now) ? (next - now) : 0;
+		int timeout;
+
 		if (IS_ENABLED(CONFIG_LWM2M_TICKLESS)) {
 			/* prevent roll-over */
-			timeout = MIN(timeout, ENGINE_SLEEP_TICKLESS_MAX_MS);
+			timeout = (int)MIN(delta, (int64_t)ENGINE_SLEEP_TICKLESS_MAX_MS);
 		} else {
-			timeout = MIN(timeout, ENGINE_SLEEP_MS);
+			timeout = (int)MIN(delta, (int64_t)ENGINE_SLEEP_MS);
 		}
 
 		rc = zsock_poll(engine->sock_fds, MAX_POLL_FD, timeout);
@@ -965,17 +968,21 @@ static void socket_loop(void *p1, void *p2, void *p3)
 			}
 
 			if (revents & ZSOCK_POLLIN) {
-				while (ctx) {
-					rc = socket_recv_message(ctx);
+				/* A handler may close the socket and clear the slot, so re-read it */
+				while (engine->sock_ctx[i] != NULL) {
+					rc = socket_recv_message(engine->sock_ctx[i]);
 					if (rc) {
 						break;
 					}
 				}
 
-				hint_socket_state(ctx, NULL);
+				if (engine->sock_ctx[i] != NULL) {
+					hint_socket_state(engine->sock_ctx[i], NULL);
+				}
 			}
 
-			if (revents & ZSOCK_POLLOUT) {
+			ctx = engine->sock_ctx[i];
+			if ((revents & ZSOCK_POLLOUT) && (ctx != NULL)) {
 				rc = socket_send_message(ctx);
 				/* Drop packets that cannot be send, CoAP layer handles retry */
 				/* Other fatal errors should trigger a recovery */

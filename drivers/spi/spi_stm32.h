@@ -85,6 +85,7 @@ struct spi_stm32_data {
     uint32_t orc;                           /* Overrun character (ORC): word shifted out when TX has no data */
 
     #ifdef CONFIG_SPI_STM32_DMA
+    uint32_t* tx_fill;                      /* Per-instance DMA source holding the ORC word */
     struct k_sem status_sem;
     volatile uint32_t status_flags;
     struct stream dma_rx;
