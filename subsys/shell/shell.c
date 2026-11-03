@@ -1199,6 +1199,25 @@ static int execute(struct shell const* sh) {
                                 SHELL_MSG_CMD_NOT_FOUND);
             }
 
+            /* Unknown subcommand and no handler to pass it to as
+             * an argument.
+             */
+            if ((cmd_lvl > 0) && (has_last_handler == false) &&
+                (ctx->active_cmd.handler == NULL)) {
+                if (IS_ENABLED(CONFIG_SHELL_MSG_CMD_NOT_FOUND)) {
+                    z_shell_fprintf(sh, SHELL_ERROR,
+                                    "%s%s\n", argvp[-1],
+                                    SHELL_MSG_CMD_NOT_FOUND);
+                }
+
+                if (IS_ENABLED(CONFIG_SHELL_HELP) && (help_entry.help != NULL)) {
+                    ctx->active_cmd = help_entry;
+                    shell_internal_help_print(sh);
+                }
+
+                return (-ENOEXEC);
+            }
+
             /* last handler found - no need to search commands in
              * the next iteration.
              */
@@ -1706,7 +1725,14 @@ static void transport_evt_handler(enum shell_transport_evt evt_type, void* ctx) 
 static void shell_log_process(struct shell const* sh) {
     struct shell_ctx* ctx = sh->ctx;
     bool processed = false;
+    bool prompt_drawn = false;
     bool readline_active = (ctx->readline_state == SHELL_READLINE_ACTIVE);
+
+    if (!ctx->bypass &&
+        !IS_ENABLED(CONFIG_LOG_MODE_IMMEDIATE) &&
+        !readline_active) {
+        z_shell_cmd_line_erase(sh);
+    }
 
     do {
         if (!IS_ENABLED(CONFIG_LOG_MODE_IMMEDIATE)) {
@@ -1714,8 +1740,9 @@ static void shell_log_process(struct shell const* sh) {
                 z_cursor_restore(sh);
                 z_clear_eos(sh);
             }
-            else if (!sh->ctx->bypass) {
+            else if (!ctx->bypass && prompt_drawn) {
                 z_shell_cmd_line_erase(sh);
+                prompt_drawn = false;
             }
 
             processed = z_shell_log_backend_process(
@@ -1732,18 +1759,23 @@ static void shell_log_process(struct shell const* sh) {
             z_shell_print_cmd(sh);
             z_shell_op_cursor_position_synchronize(sh);
         }
-        else if (!sh->ctx->bypass) {
+        else if (!ctx->bypass &&
+                 processed &&
+                 (ctx->cmd_buff_len > 0)) {
+            /* User is typing: reprint the prompt after each log
+             * message and give the input a chance to arrive.
+             */
             z_shell_print_prompt_and_cmd(sh);
-        }
-
-        /* Arbitrary delay added to ensure that prompt is
-         * readable and can be used to enter further commands.
-         */
-        if (ctx->cmd_buff_len) {
+            prompt_drawn = true;
             k_msleep(15);
         }
 
     } while (processed && !k_event_test(&ctx->signal_event, SHELL_SIGNAL_RXRDY));
+
+    /* Redraw the prompt once after a log batch is fully drained. */
+    if (!ctx->bypass && !readline_active && !prompt_drawn) {
+        z_shell_print_prompt_and_cmd(sh);
+    }
 }
 
 static int instance_init(struct shell const* sh,
@@ -1759,7 +1791,7 @@ static int instance_init(struct shell const* sh,
     }
 
     k_event_init(&ctx->signal_event);
-    k_sem_init(&ctx->lock_sem, 1, 1);
+    k_mutex_init(&ctx->lock_mtx);
 
     if (IS_ENABLED(CONFIG_SHELL_STATS)) {
         sh->stats->log_lost_cnt = 0;

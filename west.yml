@@ -261,7 +261,7 @@ manifest:
       groups:
         - hal
     - name: hal_stm32
-      revision: 933df0efd409e1fe864fa932a1fed127c80903a6
+      revision: c47e65ae68007106504dc6ddba9317a87b041be9
       path: modules/hal/stm32
       groups:
         - hal
@@ -297,7 +297,7 @@ manifest:
         - hal
     - name: hostap
       path: modules/lib/hostap
-      revision: 64c7fce4823891d289d1f90ba46b554458e7a8a7
+      revision: 5da714e9f6cbbfa81a52bb65bccf847be425aefb
     - name: liblc3
       revision: 48bbd3eacd36e99a57317a0a4867002e0b09e183
       path: modules/lib/liblc3
@@ -410,7 +410,7 @@ manifest:
       groups:
         - tee
     - name: trusted-firmware-m
-      revision: 85443c3fa2916d645ee41df2a0530e8dd19b1d5f
+      revision: 1a7b30d8dcd927c7f005a4b83110574432a9e570
       path: modules/tee/tf-m/trusted-firmware-m
       groups:
         - tee

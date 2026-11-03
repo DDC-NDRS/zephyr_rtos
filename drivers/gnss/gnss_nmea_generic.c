@@ -30,6 +30,10 @@ LOG_MODULE_REGISTER(gnss_nmea_generic, CONFIG_GNSS_LOG_LEVEL);
 struct gnss_nmea_generic_config {
     const struct device* uart;
     const struct modem_chat_script* const init_chat_script;
+    struct gpio_dt_spec enable_gpio;
+    struct gpio_dt_spec reset_gpio;
+    uint32_t reset_pulse_duration_ms;
+    uint32_t startup_time_ms;
 };
 
 struct gnss_nmea_generic_data {
@@ -58,14 +62,72 @@ MODEM_CHAT_MATCHES_DEFINE(unsol_matches,
     #endif
 );
 
-static int gnss_nmea_generic_resume(const struct device* dev) {
+static int gnss_nmea_generic_enable(struct device const* dev, bool enable) {
+    struct gnss_nmea_generic_config const* cfg = dev->config;
+    int ret;
+
+    if (cfg->enable_gpio.port == NULL) {
+        return (0);
+    }
+
+    ret = gpio_pin_set_dt(&cfg->enable_gpio, enable);
+    if (ret != 0) {
+        return (ret);
+    }
+
+    if (enable && (cfg->startup_time_ms > 0U)) {
+        k_sleep(K_MSEC(cfg->startup_time_ms));
+    }
+
+    return (0);
+}
+
+static int gnss_nmea_generic_init_gpios(struct device const* dev) {
+    struct gnss_nmea_generic_config const* cfg = dev->config;
+    int ret;
+
+    if (cfg->enable_gpio.port != NULL) {
+        if (!gpio_is_ready_dt(&cfg->enable_gpio)) {
+            return (-ENODEV);
+        }
+
+        ret = gpio_pin_configure_dt(&cfg->enable_gpio, GPIO_OUTPUT_INACTIVE);
+        if (ret != 0) {
+            return (ret);
+        }
+    }
+
+    if (cfg->reset_gpio.port != NULL) {
+        if (!gpio_is_ready_dt(&cfg->reset_gpio)) {
+            return (-ENODEV);
+        }
+
+        ret = gpio_pin_configure_dt(&cfg->reset_gpio, GPIO_OUTPUT_ACTIVE);
+        if (ret != 0) {
+            return (ret);
+        }
+
+        k_sleep(K_MSEC(cfg->reset_pulse_duration_ms));
+        return gpio_pin_set_dt(&cfg->reset_gpio, 0);
+    }
+
+    return (0);
+}
+
+static int gnss_nmea_generic_resume(struct device const* dev) {
     const struct gnss_nmea_generic_config* cfg = dev->config;
     struct gnss_nmea_generic_data* data = dev->data;
     int ret;
+    int cleanup_ret;
+
+    ret = gnss_nmea_generic_enable(dev, true);
+    if (ret != 0) {
+        return (ret);
+    }
 
     ret = modem_pipe_open(data->uart_pipe, K_SECONDS(10));
     if (ret < 0) {
-        return (ret);
+        goto disable;
     }
 
     ret = modem_chat_attach(&data->chat, data->uart_pipe);
@@ -74,18 +136,50 @@ static int gnss_nmea_generic_resume(const struct device* dev) {
     }
 
     if (ret < 0) {
-        modem_pipe_close(data->uart_pipe, K_SECONDS(10));
+        modem_chat_release(&data->chat);
+        cleanup_ret = modem_pipe_close(data->uart_pipe, K_SECONDS(10));
+        if (cleanup_ret < 0) {
+            LOG_ERR("Failed to close UART pipe: %d", cleanup_ret);
+        }
+
+        goto disable;
+    }
+
+    return (0);
+
+disable :
+    cleanup_ret = gnss_nmea_generic_enable(dev, false);
+    if (cleanup_ret != 0) {
+        LOG_ERR("Failed to disable receiver: %d", cleanup_ret);
     }
 
     return (ret);
 }
 
 #if CONFIG_PM_DEVICE
-static int gnss_nmea_generic_suspend(const struct device* dev) {
+static int gnss_nmea_generic_suspend(struct device const* dev) {
     struct gnss_nmea_generic_data *data = dev->data;
+    int ret;
+    int restore_ret;
+
+    ret = modem_pipe_close(data->uart_pipe, K_SECONDS(10));
+    if (ret < 0) {
+        return (ret);
+    }
+
+    ret = gnss_nmea_generic_enable(dev, false);
+    if (ret != 0) {
+        restore_ret = modem_pipe_open(data->uart_pipe, K_SECONDS(10));
+        if (restore_ret < 0) {
+            LOG_ERR("Failed to reopen UART pipe: %d", restore_ret);
+        }
+
+        return (ret);
+    }
 
     modem_chat_release(&data->chat);
-    return modem_pipe_close(data->uart_pipe, K_SECONDS(10));
+
+    return (0);
 }
 #endif
 
@@ -93,7 +187,7 @@ static DEVICE_API(gnss, gnss_api) = {
     /* pass */
 };
 
-static int gnss_nmea_generic_init_nmea0183_match(const struct device* dev) {
+static int gnss_nmea_generic_init_nmea0183_match(struct device const* dev) {
     struct gnss_nmea_generic_data* data = dev->data;
 
     const struct gnss_nmea0183_match_config match_config = {
@@ -107,7 +201,7 @@ static int gnss_nmea_generic_init_nmea0183_match(const struct device* dev) {
     return gnss_nmea0183_match_init(&data->match_data, &match_config);
 }
 
-static void gnss_nmea_generic_init_pipe(const struct device* dev) {
+static void gnss_nmea_generic_init_pipe(struct device const* dev) {
     const struct gnss_nmea_generic_config* cfg = dev->config;
     struct gnss_nmea_generic_data* data = dev->data;
 
@@ -124,7 +218,7 @@ static void gnss_nmea_generic_init_pipe(const struct device* dev) {
 
 static const uint8_t gnss_nmea_generic_char_delimiter[] = {'\r', '\n'};
 
-static int gnss_nmea_generic_init_chat(const struct device* dev) {
+static int gnss_nmea_generic_init_chat(struct device const* dev) {
     struct gnss_nmea_generic_data* data = dev->data;
 
     const struct modem_chat_config chat_config = {
@@ -144,8 +238,13 @@ static int gnss_nmea_generic_init_chat(const struct device* dev) {
     return modem_chat_init(&data->chat, &chat_config);
 }
 
-static int gnss_nmea_generic_init(const struct device* dev) {
+static int gnss_nmea_generic_init(struct device const* dev) {
     int ret;
+
+    ret = gnss_nmea_generic_init_gpios(dev);
+    if (ret != 0) {
+        return (ret);
+    }
 
     ret = gnss_nmea_generic_init_nmea0183_match(dev);
     if (ret < 0) {
@@ -172,7 +271,7 @@ static int gnss_nmea_generic_init(const struct device* dev) {
 }
 
 #if CONFIG_PM_DEVICE
-static int gnss_nmea_generic_pm_action(const struct device* dev, enum pm_device_action action) {
+static int gnss_nmea_generic_pm_action(struct device const* dev, enum pm_device_action action) {
     switch (action) {
         case PM_DEVICE_ACTION_RESUME :
             return gnss_nmea_generic_resume(dev);
@@ -191,9 +290,17 @@ MODEM_CHAT_SCRIPT_EMPTY_DEFINE(gnss_nmea_generic_init_chat_script);
 #endif
 
 #define GNSS_NMEA_GENERIC(inst)                                             \
+    BUILD_ASSERT(!DT_INST_NODE_HAS_PROP(inst, reset_gpios) ||               \
+                 (DT_INST_PROP_OR(inst, reset_pulse_duration_ms, 0) > 0),   \
+                 "reset-gpios requires a positive reset-pulse-duration-ms");\
     static const struct gnss_nmea_generic_config gnss_nmea_generic_cfg_##inst = { \
         .uart = DEVICE_DT_GET(DT_INST_BUS(inst)),                           \
         .init_chat_script = &_CONCAT(DT_DRV_COMPAT, _init_chat_script),     \
+        .enable_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, enable_gpios, {0}),   \
+        .reset_gpio  = GPIO_DT_SPEC_INST_GET_OR(inst, reset_gpios , {0}),   \
+        .reset_pulse_duration_ms =                                          \
+            DT_INST_PROP_OR(inst, reset_pulse_duration_ms, 0),              \
+        .startup_time_ms = DT_INST_PROP(inst, startup_time_ms),             \
     };                                                                      \
                                                                             \
     static struct gnss_nmea_generic_data gnss_nmea_generic_data_##inst;     \
