@@ -1039,6 +1039,7 @@ static void IRAM_ATTR uart_esp32_dma_rx_done(const struct device* dma_dev, void*
         #ifdef CONFIG_PM
         uart_esp32_pm_policy_state_lock_put(uart_dev, RX_INT);
         #endif
+        k_work_cancel_delayable(&data->async.rx_timeout_work);
 
         evt.type = UART_RX_DISABLED;
         if (data->async.cb) {
@@ -1284,7 +1285,7 @@ static void uart_esp32_async_rx_timeout(struct k_work* work) {
             data->async.cb(data->uart_dev, &evt, data->async.user_data);
         }
 
-        if (data->async.rx_generation != snapshot_generation) {
+        if ((data->async.rx_generation != snapshot_generation) || data->async.rx_stopping) {
             irq_unlock(key);
             return;
         }
