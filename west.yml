@@ -297,7 +297,7 @@ manifest:
         - hal
     - name: hostap
       path: modules/lib/hostap
-      revision: 5da714e9f6cbbfa81a52bb65bccf847be425aefb
+      revision: 1ce844ea5a9d8860d8690a125925fcc7274461df
     - name: liblc3
       revision: 48bbd3eacd36e99a57317a0a4867002e0b09e183
       path: modules/lib/liblc3
@@ -426,7 +426,7 @@ manifest:
   # zephyr-keep-sorted-stop
     - name: thingset
       path: modules/lib/thingset
-      revision: 37fc4ed34b64b74eb25b9ac88f0a6cebcacb27d5
+      revision: 10dfc79023e4da46e3390613c2d8857835abb5ca
     - name: thingset-node-c
       path: modules/lib/thingset-node-c
       revision: b0b13262e9ddf144551bc05d8764ffbb462e8c89

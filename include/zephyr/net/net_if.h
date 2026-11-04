@@ -536,6 +536,18 @@ struct net_if_dhcpv6 {
     /** Retransmission counter. */
     uint8_t retransmissions;
 
+    /** Client was started automatically by a Router Advertisement. */
+    bool auto_started : 1;
+
+    /** Automatic start disabled by an explicit stop. */
+    bool auto_start_disabled : 1;
+
+    /** M flag of the latest Router Advertisement. */
+    bool ra_managed : 1;
+
+    /** O flag of the latest Router Advertisement. */
+    bool ra_other : 1;
+
     /** Transaction ID for current exchange. */
     uint8_t tid[DHCPV6_TID_SIZE];
 
@@ -1713,8 +1725,18 @@ struct net_if_addr* net_if_ipv6_addr_lookup_by_iface_raw(struct net_if* iface,
  *
  * @return Pointer to interface address, NULL if not found.
  */
+#if defined(CONFIG_NET_IPV6)
 struct net_if_addr* net_if_ipv6_addr_lookup_by_iface(struct net_if* iface,
                                                      struct net_in6_addr const* addr);
+#else
+static inline struct net_if_addr* net_if_ipv6_addr_lookup_by_iface(
+    struct net_if* iface, struct net_in6_addr const* addr) {
+    ARG_UNUSED(iface);
+    ARG_UNUSED(addr);
+
+    return (NULL);
+}
+#endif
 
 /**
  * @brief Check if this IPv6 address belongs to one of the interface indices.
@@ -2629,7 +2651,7 @@ void net_if_ipv4_set_mcast_ttl(struct net_if* iface, uint8_t ttl);
  *
  * @return True if address is part of our subnet, false otherwise
  */
-bool net_if_ipv4_addr_onlink(struct net_if **iface, const struct net_in_addr *addr);
+bool net_if_ipv4_addr_onlink(struct net_if **iface, struct net_in_addr const* addr);
 
 /**
  * @brief Check if this IPv4 address belongs to one of the interfaces.
@@ -2639,7 +2661,7 @@ bool net_if_ipv4_addr_onlink(struct net_if **iface, const struct net_in_addr *ad
  *
  * @return Pointer to interface address, NULL if not found.
  */
-struct net_if_addr* net_if_ipv4_addr_lookup(const struct net_in_addr* addr,
+struct net_if_addr* net_if_ipv4_addr_lookup(struct net_in_addr const* addr,
                                             struct net_if** iface);
 
 /** @cond INTERNAL_HIDDEN */
@@ -2655,8 +2677,18 @@ struct net_if_addr *net_if_ipv4_addr_lookup_by_iface_raw(struct net_if* iface,
  *
  * @return Pointer to interface address, NULL if not found.
  */
-struct net_if_addr *net_if_ipv4_addr_lookup_by_iface(struct net_if* iface,
-                                                     const struct net_in_addr* addr);
+#if defined(CONFIG_NET_IPV4)
+struct net_if_addr* net_if_ipv4_addr_lookup_by_iface(struct net_if* iface,
+                                                     struct net_in_addr const* addr);
+#else
+static inline struct net_if_addr* net_if_ipv4_addr_lookup_by_iface(
+    struct net_if* iface, struct net_in_addr const* addr) {
+    ARG_UNUSED(iface);
+    ARG_UNUSED(addr);
+
+    return NULL;
+}
+#endif
 
 /**
  * @brief Add a IPv4 address to an interface
@@ -2681,7 +2713,7 @@ struct net_if_addr* net_if_ipv4_addr_add(struct net_if* iface,
  *
  * @return True if successfully removed, false otherwise
  */
-bool net_if_ipv4_addr_rm(struct net_if* iface, const struct net_in_addr* addr);
+bool net_if_ipv4_addr_rm(struct net_if* iface, struct net_in_addr const* addr);
 
 /**
  * @brief Check if this IPv4 address belongs to one of the interface indices.
@@ -2691,7 +2723,7 @@ bool net_if_ipv4_addr_rm(struct net_if* iface, const struct net_in_addr* addr);
  * @return >0 if address was found in given network interface index,
  * all other values mean address was not found
  */
-__syscall int net_if_ipv4_addr_lookup_by_index(const struct net_in_addr* addr);
+__syscall int net_if_ipv4_addr_lookup_by_index(struct net_in_addr const* addr);
 
 /**
  * @brief Add a IPv4 address to an interface by network interface index
@@ -2717,7 +2749,7 @@ __syscall bool net_if_ipv4_addr_add_by_index(int index,
  * @return True if successfully removed, false otherwise
  */
 __syscall bool net_if_ipv4_addr_rm_by_index(int index,
-                                            const struct net_in_addr* addr);
+                                            struct net_in_addr const* addr);
 
 /**
  * @brief Go through all IPv4 addresses on a network interface and call callback
@@ -2739,7 +2771,7 @@ void net_if_ipv4_addr_foreach(struct net_if* iface, net_if_ip_addr_cb_t cb,
  * @return Pointer to interface multicast address, NULL if cannot be added
  */
 struct net_if_mcast_addr* net_if_ipv4_maddr_add(struct net_if* iface,
-                                                const struct net_in_addr* addr);
+                                                struct net_in_addr const* addr);
 
 /**
  * @brief Remove an IPv4 multicast address from an interface
@@ -2749,7 +2781,7 @@ struct net_if_mcast_addr* net_if_ipv4_maddr_add(struct net_if* iface,
  *
  * @return True if successfully removed, false otherwise
  */
-bool net_if_ipv4_maddr_rm(struct net_if* iface, const struct net_in_addr* addr);
+bool net_if_ipv4_maddr_rm(struct net_if* iface, struct net_in_addr const* addr);
 
 /**
  * @brief Go through all IPv4 multicast addresses on a network interface and call
@@ -2772,7 +2804,7 @@ void net_if_ipv4_maddr_foreach(struct net_if* iface, net_if_ip_maddr_cb_t cb,
  *
  * @return Pointer to interface multicast address, NULL if not found.
  */
-struct net_if_mcast_addr* net_if_ipv4_maddr_lookup(const struct net_in_addr* addr,
+struct net_if_mcast_addr* net_if_ipv4_maddr_lookup(struct net_in_addr const* addr,
                                                    struct net_if** iface);
 
 /**
@@ -2840,10 +2872,10 @@ static inline void net_if_ipv4_nbr_flush(struct net_if* iface) {
  * @return True if a neighbor was removed, false if there was none.
  */
 #if defined(CONFIG_NET_IPV4)
-bool net_if_ipv4_nbr_rm(struct net_if *iface, const struct net_in_addr *addr);
+bool net_if_ipv4_nbr_rm(struct net_if *iface, struct net_in_addr const* addr);
 #else
 static inline bool net_if_ipv4_nbr_rm(struct net_if* iface,
-                                      const struct net_in_addr* addr) {
+                                      struct net_in_addr const* addr) {
     ARG_UNUSED(iface);
     ARG_UNUSED(addr);
 
@@ -2935,8 +2967,8 @@ bool net_if_ipv4_router_rm(struct net_if_router* router);
  *
  * @return 0 on success, negative errno otherwise.
  */
-int net_if_ipv4_route_add(struct net_if *iface, const struct net_in_addr *addr, uint8_t mask_len,
-                          const struct net_in_addr* nexthop, uint32_t lifetime);
+int net_if_ipv4_route_add(struct net_if *iface, struct net_in_addr const* addr, uint8_t mask_len,
+                          struct net_in_addr const* nexthop, uint32_t lifetime);
 
 /**
  * @brief Check if the given IPv4 address belongs to local subnet.
@@ -2947,7 +2979,7 @@ int net_if_ipv4_route_add(struct net_if *iface, const struct net_in_addr *addr, 
  * @return True if address is part of local subnet, false otherwise.
  */
 bool net_if_ipv4_addr_mask_cmp(struct net_if* iface,
-                               const struct net_in_addr* addr);
+                               struct net_in_addr const* addr);
 
 /**
  * @brief Check if the given IPv4 address is a broadcast address.
@@ -2958,7 +2990,7 @@ bool net_if_ipv4_addr_mask_cmp(struct net_if* iface,
  * @return True if address is a broadcast address, false otherwise.
  */
 bool net_if_ipv4_is_addr_bcast(struct net_if* iface,
-                               const struct net_in_addr* addr);
+                               struct net_in_addr const* addr);
 
 /**
  * @brief Get a network interface that should be used when sending
@@ -2970,10 +3002,10 @@ bool net_if_ipv4_is_addr_bcast(struct net_if* iface,
  * could be found.
  */
 #if defined(CONFIG_NET_IPV4)
-struct net_if* net_if_ipv4_select_src_iface(const struct net_in_addr* dst);
+struct net_if* net_if_ipv4_select_src_iface(struct net_in_addr const* dst);
 #else
 static inline struct net_if* net_if_ipv4_select_src_iface(
-    const struct net_in_addr* dst) {
+    struct net_in_addr const* dst) {
     ARG_UNUSED(dst);
 
     return (NULL);
@@ -2993,11 +3025,11 @@ static inline struct net_if* net_if_ipv4_select_src_iface(
  * could be found.
  */
 #if defined(CONFIG_NET_IPV4)
-struct net_if* net_if_ipv4_select_src_iface_addr(const struct net_in_addr* dst,
+struct net_if* net_if_ipv4_select_src_iface_addr(struct net_in_addr const* dst,
                                                  const struct net_in_addr** src_addr);
 #else
 static inline struct net_if* net_if_ipv4_select_src_iface_addr(
-    const struct net_in_addr* dst, const struct net_in_addr** src_addr) {
+    struct net_in_addr const* dst, const struct net_in_addr** src_addr) {
     ARG_UNUSED(dst);
     ARG_UNUSED(src_addr);
 
@@ -3017,11 +3049,11 @@ static inline struct net_if* net_if_ipv4_select_src_iface_addr(
  * could be found.
  */
 #if defined(CONFIG_NET_IPV4)
-const struct net_in_addr* net_if_ipv4_select_src_addr(struct net_if* iface,
-                                                      const struct net_in_addr* dst);
+struct net_in_addr const* net_if_ipv4_select_src_addr(struct net_if* iface,
+                                                      struct net_in_addr const* dst);
 #else
-static inline const struct net_in_addr* net_if_ipv4_select_src_addr(
-    struct net_if* iface, const struct net_in_addr* dst) {
+static inline struct net_in_addr const* net_if_ipv4_select_src_addr(
+    struct net_if* iface, struct net_in_addr const* dst) {
     ARG_UNUSED(iface);
     ARG_UNUSED(dst);
 
@@ -3065,7 +3097,7 @@ struct net_in_addr* net_if_ipv4_get_global_addr(struct net_if* iface,
  *         unspecified address if not found.
  */
 struct net_in_addr net_if_ipv4_get_netmask_by_addr(struct net_if *iface,
-                                                   const struct net_in_addr *addr);
+                                                   struct net_in_addr const* addr);
 
 /**
  * @brief Set IPv4 netmask for an interface index for a given address.
@@ -3077,8 +3109,8 @@ struct net_in_addr net_if_ipv4_get_netmask_by_addr(struct net_if *iface,
  * @return True if netmask was added, false otherwise.
  */
 __syscall bool net_if_ipv4_set_netmask_by_addr_by_index(int index,
-                                                        const struct net_in_addr* addr,
-                                                        const struct net_in_addr* netmask);
+                                                        struct net_in_addr const* addr,
+                                                        struct net_in_addr const* netmask);
 
 /**
  * @brief Set IPv4 netmask for an interface index for a given address.
@@ -3090,8 +3122,8 @@ __syscall bool net_if_ipv4_set_netmask_by_addr_by_index(int index,
  * @return True if netmask was added, false otherwise.
  */
 bool net_if_ipv4_set_netmask_by_addr(struct net_if* iface,
-                                     const struct net_in_addr* addr,
-                                     const struct net_in_addr* netmask);
+                                     struct net_in_addr const* addr,
+                                     struct net_in_addr const* netmask);
 
 /**
  * @brief Get IPv4 gateway of an interface.
@@ -3108,7 +3140,7 @@ struct net_in_addr net_if_ipv4_get_gw(struct net_if *iface);
  * @param iface Interface to use.
  * @param gw IPv4 address of an gateway
  */
-void net_if_ipv4_set_gw(struct net_if* iface, const struct net_in_addr* gw);
+void net_if_ipv4_set_gw(struct net_if* iface, struct net_in_addr const* gw);
 
 /**
  * @brief Set IPv4 gateway for an interface index.
@@ -3118,7 +3150,7 @@ void net_if_ipv4_set_gw(struct net_if* iface, const struct net_in_addr* gw);
  *
  * @return True if gateway was added, false otherwise.
  */
-__syscall bool net_if_ipv4_set_gw_by_index(int index, const struct net_in_addr* gw);
+__syscall bool net_if_ipv4_set_gw_by_index(int index, struct net_in_addr const* gw);
 
 /**
  * @brief Get a network interface that should be used when sending

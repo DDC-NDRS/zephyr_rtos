@@ -103,6 +103,13 @@ New APIs and options
   * Added PSA Protected Storage backend, enable with
     :kconfig:option:`CONFIG_FIDO2_STORAGE_PSA_PROTECTED_STORAGE`
 
+* Networking
+
+  * Add :kconfig:option:`CONFIG_NET_DHCPV6_START_ON_RA` to start the DHCPv6
+    client automatically based on the M and O flags of received Router
+    Advertisements, in stateful mode with the M flag and in stateless mode
+    (Information-request only) with the O flag.
+
 .. zephyr-keep-sorted-stop
 
 .. _boards_added_in_zephyr_4_6:
@@ -131,6 +138,10 @@ New Drivers
   Same as above, this will also be recomputed at the time of the release.
   Just link the driver, further details go in the binding description
 
+* :abbr:`RTC (Real Time Clock)`
+
+  * :dtcompatible:`microchip,mcp7940n` (:github:`119309`)
+
 New Samples
 ***********
 
@@ -145,6 +156,14 @@ Libraries / Subsystems
 
   * Added a HID Service server (:kconfig:option:`CONFIG_BT_HIDS`), the service
     the HID Device role of the HID over GATT Profile is built on.
+
+* Networking
+
+  * HTTP server: accepted connections now have ``TCP_NODELAY`` set, so a response
+    sent in several pieces (every TLS response, every websocket frame) is no
+    longer held back by the client's delayed acknowledgements. Applications that
+    prefer Nagle's algorithm can disable
+    :kconfig:option:`CONFIG_HTTP_SERVER_TCP_NODELAY`.
 
 Devicetree
 **********

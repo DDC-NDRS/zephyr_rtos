@@ -663,15 +663,6 @@ static int sdmmc_init_hs(struct sd_card* card) {
         return (ret);
     }
 
-    if (card->host_props.bus_4_bit_support && (card->flags & SD_4BITS_WIDTH)) {
-        /* Raise bus width to 4 bits */
-        ret = sdmmc_set_bus_width(card, SDHC_BUS_WIDTH4BIT);
-        if (ret) {
-            LOG_ERR("Failed to change card bus width to 4 bits");
-            return (ret);
-        }
-    }
-
     return (0);
 }
 
@@ -873,6 +864,17 @@ int sdmmc_card_init(struct sd_card* card) {
         ret = sdmmc_init_hs(card);
         if (ret) {
             LOG_ERR("HS card init failed");
+            return (ret);
+        }
+
+        /* Bus width is independent of high-speed timing support. */
+        if (IS_ENABLED(CONFIG_SDHC_SUPPORTS_NATIVE_MODE) && !card->host_props.is_spi &&
+            card->host_props.bus_4_bit_support && ((card->flags & SD_4BITS_WIDTH) != 0U)) {
+            ret = sdmmc_set_bus_width(card, SDHC_BUS_WIDTH4BIT);
+            if (ret != 0) {
+                LOG_ERR("Failed to change card bus width to 4 bits");
+                return (ret);
+            }
         }
     }
 
@@ -894,7 +896,7 @@ int sdmmc_write_blocks(struct sd_card* card, uint8_t const* wbuf, uint32_t start
 }
 
 int sdmmc_erase_blocks(struct sd_card *card, uint32_t start_block,
-		       uint32_t num_blocks)
+               uint32_t num_blocks)
 {
-	return card_erase_blocks(card, start_block, num_blocks);
+    return card_erase_blocks(card, start_block, num_blocks);
 }
