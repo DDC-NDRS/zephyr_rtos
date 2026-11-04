@@ -56,6 +56,11 @@ Boards
   instead. ``stm32_min_dev_defconfig`` was renamed accordingly to
   :file:`stm32_min_dev_stm32f103x8_defconfig`.
 
+* :zephyr:board:`cy8ckit_041s_max`: the console moved from SCB2 to SCB1 on the same pins (P0.4,
+  P0.5), and its node label changed from ``uart2`` to ``uart1``. The ``spi1`` node on SCB1
+  (P2.0 to P2.2) was removed. SCB2 is now ``arduino_spi`` on the Arduino header pins D11 to D13
+  (P10.0 to P10.2), disabled by default.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -119,6 +124,13 @@ Ethernet
 * The Kconfig option ``CONFIG_ETH_INTEL_IGC_NET_MTU`` has been removed. The Intel IGC Ethernet
   driver now always uses the standard Ethernet MTU of 1500 bytes, as the Ethernet L2 does not
   support jumbo frames. (:github:`122863`)
+
+* The ``reset-gpios`` timing properties of the Ethernet PHY bindings, such as
+  :dtcompatible:`ethernet-phy` and :dtcompatible:`ethernet-phy-fixed-link`, have been renamed to
+  align with the Linux Ethernet PHY binding, which uses the same names.
+  Replace ``reset-assert-duration-us`` with ``reset-assert-us``, and replace
+  ``reset-deassertion-timeout-ms`` with ``reset-deassert-us``, multiplying its value by 1000 as
+  it is now in microseconds. (:github:`124061`)
 
 OPAMP
 =====

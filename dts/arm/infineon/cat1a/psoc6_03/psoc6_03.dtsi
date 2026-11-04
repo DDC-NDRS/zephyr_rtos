@@ -7,6 +7,7 @@
 
 #include <freq.h>
 #include <mem.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
 
 / {
 	cpus {
@@ -313,6 +314,7 @@
 			compatible = "infineon,adc";
 			reg = <0x409d0000 0x10000>;
 			interrupts = <155 6>;
+			#io-channel-cells = <1>;
 			status = "disabled";
 		};
 	};

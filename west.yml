@@ -174,7 +174,7 @@ manifest:
       groups:
         - hal
     - name: hal_espressif
-      revision: cc81db00233af6020f2fea9fbb0d0098fb3d0d86
+      revision: a67d46545def251403ad1aac4239776633c6afe7
       path: modules/hal/espressif
       west-commands: west/west-commands.yml
       groups:
@@ -368,7 +368,7 @@ manifest:
       path: modules/lib/openthread
     - name: percepio
       path: modules/debug/percepio
-      revision: 022c06f76d3e141aad98252fa9211665bf8ca027
+      revision: f5f2f01f2830cf7082ac3264887aaaade213d568
       groups:
         - debug
     - name: picolibc
