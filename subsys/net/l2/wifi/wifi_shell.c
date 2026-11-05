@@ -22,6 +22,7 @@ LOG_MODULE_REGISTER(net_wifi_shell, LOG_LEVEL_INF);
 #include <zephyr/shell/shell.h>
 #include <zephyr/shell/shell_uart.h>
 #include <zephyr/shell/shell_rtt.h>
+#include <zephyr/shell/shell_telnet.h>
 #include <zephyr/sys/sys_getopt.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/init.h>
@@ -6271,6 +6272,8 @@ static int wifi_shell_init(void)
 	context.sh = shell_backend_uart_get_ptr();
 #elif IS_ENABLED(CONFIG_LOG_BACKEND_RTT)
 	context.sh = shell_backend_rtt_get_ptr();
+#elif IS_ENABLED(CONFIG_SHELL_BACKEND_TELNET)
+	context.sh = shell_backend_telnet_get_ptr();
 #else
 	BUILD_ASSERT(0, "Unsupported shell backend");
 #endif
