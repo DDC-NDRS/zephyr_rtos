@@ -6785,7 +6785,7 @@ static int bt_gatt_clear_cf(uint8_t id, const bt_addr_le_t *addr)
 
 static struct gatt_sub *find_gatt_sub(uint8_t id, const bt_addr_le_t *addr)
 {
-	for (int i = 0; i < ARRAY_SIZE(subscriptions); i++) {
+	for (int i = 0; i < (int)ARRAY_SIZE(subscriptions); i++) {
 		struct gatt_sub *sub = &subscriptions[i];
 
 		if (id == sub->id &&
