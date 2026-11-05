@@ -50,8 +50,10 @@ static void async_callback(const struct device* dev, struct uart_event* evt, voi
     struct shell_uart_async* sh_uart = (struct shell_uart_async*)user_data;
 
     switch (evt->type) {
+        case UART_TX_ABORTED :
+            /* fall through */
         case UART_TX_DONE :
-            k_sem_give(&sh_uart->tx_sem);
+            k_sem_give(&sh_uart->sem);
             break;
 
         case UART_RX_RDY :
@@ -80,21 +82,24 @@ static void async_callback(const struct device* dev, struct uart_event* evt, voi
             uart_async_rx_on_buf_rel(&sh_uart->async_rx, evt->data.rx_buf.buf);
             break;
 
-        case UART_RX_DISABLED : {
-            uint8_t* buf = uart_async_rx_buf_req(&sh_uart->async_rx);
-            size_t len;
-            int err;
-
+        case UART_RX_DISABLED :
             sh_uart->rx_enabled = false;
-            if (buf) {
-                len = uart_async_rx_get_buf_len(&sh_uart->async_rx);
-                err = rx_enable(dev, sh_uart, buf, len);
-                (void) err;
-                __ASSERT_NO_MSG(err == 0);
-            }
+            if (sh_uart->shell_enabled) {
+                uint8_t* buf = uart_async_rx_buf_req(&sh_uart->async_rx);
+                size_t len;
+                int err;
 
+                if (buf) {
+                    len = uart_async_rx_get_buf_len(&sh_uart->async_rx);
+                    err = rx_enable(dev, sh_uart, buf, len);
+                    (void)err;
+                    __ASSERT_NO_MSG(err == 0);
+                }
+            }
+            else {
+                k_sem_give(&sh_uart->sem);
+            }
             break;
-        }
 
         default :
             break;
@@ -268,21 +273,23 @@ static void async_init(struct shell_uart_async* sh_uart) {
         .buf_cnt = CONFIG_SHELL_BACKEND_SERIAL_ASYNC_RX_BUFFER_COUNT,
     };
 
-    k_sem_init(&sh_uart->tx_sem, 0, 1);
+    k_sem_init(&sh_uart->sem, 0, 1);
 
     err = uart_async_rx_init(async_rx, &sh_uart->async_rx_config);
-    (void) err;
     __ASSERT_NO_MSG(err == 0);
 
     uint8_t* buf = uart_async_rx_buf_req(async_rx);
 
     err = uart_callback_set(dev, async_callback, (void*)sh_uart);
-    (void)err;
     __ASSERT_NO_MSG(err == 0);
 
+    sh_uart->shell_enabled = true;
     err = rx_enable(dev, sh_uart, buf, uart_async_rx_get_buf_len(async_rx));
-    (void)err;
     __ASSERT_NO_MSG(err == 0);
+
+    if (err < 0) {
+        sh_uart->shell_enabled = false;
+    }
 }
 
 static void polling_rx_timeout_handler(struct k_timer* timer) {
@@ -351,9 +358,28 @@ static void irq_uninit(struct shell_uart_int_driven* sh_uart) {
 }
 
 static void async_uninit(struct shell_uart_async* sh_uart) {
+    __ASSERT_NO_MSG(!k_is_in_isr());
     const struct device* dev = sh_uart->common.dev;
+    k_timeout_t timeout = K_USEC(CONFIG_SHELL_BACKEND_SERIAL_ASYNC_RX_TIMEOUT);
+    int ret;
 
-    (void) uart_rx_disable(dev);
+    sh_uart->shell_enabled = false;
+
+    ret = uart_tx_abort(dev);
+    if (ret == 0) {
+        ret = k_sem_take(&sh_uart->sem, timeout);
+        if (ret != 0) {
+            __ASSERT_NO_MSG(false);
+            return;
+        }
+    }
+
+    ret = uart_rx_disable(dev);
+    if (ret == 0) {
+        /* Wait for RX to be disabled */
+        ret = k_sem_take(&sh_uart->sem, timeout);
+        __ASSERT_NO_MSG(ret == 0);
+    }
 }
 
 static void polling_uninit(struct shell_uart_polling* sh_uart) {
@@ -425,7 +451,7 @@ static int async_write(struct shell_uart_async* sh_uart,
         return (err);
     }
 
-    err  = k_sem_take(&sh_uart->tx_sem, K_FOREVER);
+    err  = k_sem_take(&sh_uart->sem, K_FOREVER);
     *cnt = length;
 
     sh_uart->common.handler(SHELL_TRANSPORT_EVT_TX_RDY, sh_uart->common.context);
@@ -595,6 +621,7 @@ static int enable_shell_uart(void) {
             CONFIG_LOG_MAX_LEVEL : CONFIG_SHELL_BACKEND_SERIAL_LOG_LEVEL;
     static const struct shell_backend_config_flags cfg_flags =
                                     SHELL_DEFAULT_BACKEND_CONFIG_FLAGS;
+    int ret;
 
     if (!device_is_ready(dev)) {
         return (-ENODEV);
@@ -604,9 +631,9 @@ static int enable_shell_uart(void) {
         smp_shell_init();
     }
 
-    shell_init(&shell_uart, dev, cfg_flags, log_backend, level);
+    ret = shell_init(&shell_uart, dev, cfg_flags, log_backend, level);
 
-    return (0);
+    return (ret);
 }
 
 SYS_INIT(enable_shell_uart, POST_KERNEL,
