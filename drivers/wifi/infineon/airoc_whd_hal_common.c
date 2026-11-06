@@ -156,7 +156,7 @@ int airoc_wifi_power_on(const struct device *dev)
 			config->wifi_reg_on_gpio.port->name, config->wifi_reg_on_gpio.pin);
 		return ret;
 	}
-	k_msleep(WLAN_POWER_UP_DELAY_MS);
+	k_msleep(WLAN_POWER_UP_DELAY_MS);	// AIROC_WIFI_STA_SEQ02 (WL_REG_ON low, then high)
 
 	/*
 	 * The chip only answers on SDIO once BT_REG_ON rises while WL_REG_ON is already up. This is
@@ -164,7 +164,7 @@ int airoc_wifi_power_on(const struct device *dev)
 	 * before the Wi-Fi host driver touches the bus. The Bluetooth firmware download is not
 	 * needed. The module holds the pin low until it is raised here.
 	 */
-	ret = airoc_wifi_assert_pin(&config->wifi_bt_reg_on_gpio, "bt_reg_on");
+	ret = airoc_wifi_assert_pin(&config->wifi_bt_reg_on_gpio, "bt_reg_on");	// AIROC_WIFI_STA_SEQ03 (BT_REG_ON edge)
 	if (ret) {
 		return ret;
 	}

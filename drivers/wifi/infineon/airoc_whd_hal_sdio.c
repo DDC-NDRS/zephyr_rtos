@@ -69,12 +69,13 @@ int airoc_wifi_init_primary(const struct device *dev, whd_interface_t *interface
 		return -ENODEV;
 	}
 
-	ret = sd_init(config->bus_dev.bus_sdio, &data->card);
+	ret = sd_init(config->bus_dev.bus_sdio, &data->card);	// AIROC_WIFI_STA_SEQ04 (SDIO card enumeration)
 	if (ret) {
 		return ret;
 	}
 
 	/* Init SDIO functions */
+	// AIROC_WIFI_STA_SEQ05 (SDIO functions 0..2 and block sizes)
 	ret = sdio_init_func(&data->card, &data->card.func0, (enum sdio_func_num)BUS_FUNCTION);
 	if (ret) {
 		LOG_ERR("sdio_enable_func BUS_FUNCTION, error: %x", ret);
@@ -107,14 +108,16 @@ int airoc_wifi_init_primary(const struct device *dev, whd_interface_t *interface
 	}
 
 	/* Init wifi host driver (whd) */
+	// AIROC_WIFI_STA_SEQ06 (WHD driver init)
 	cy_rslt_t whd_ret = whd_init(&data->whd_drv, &init_config_default, &resource_ops, buffer_if,
 				     netif_funcs);
 	if (whd_ret == CY_RSLT_SUCCESS) {
+		// AIROC_WIFI_STA_SEQ07 (WHD attached to the SDIO bus)
 		whd_ret = whd_bus_sdio_attach(data->whd_drv, &whd_sdio_config,
 					      (whd_sdio_t)&data->card);
 
 		if (whd_ret == CY_RSLT_SUCCESS) {
-			whd_ret = whd_wifi_on(data->whd_drv, interface);
+			whd_ret = whd_wifi_on(data->whd_drv, interface);	// AIROC_WIFI_STA_SEQ08 (Wi-Fi firmware download)
 		}
 
 		if (whd_ret != CY_RSLT_SUCCESS) {

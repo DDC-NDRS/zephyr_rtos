@@ -243,7 +243,7 @@ int bt_h4_vnd_open(const struct device *dev, const struct device *uart, struct b
 #endif /* DT_INST_NODE_HAS_PROP(0, bt_reg_on_gpios) */
 
 	/* BT settling time after power on */
-	(void)k_msleep(BT_POWER_ON_SETTLING_TIME_MS);
+	(void)k_msleep(BT_POWER_ON_SETTLING_TIME_MS);	// AIROC_BT_STA_SEQ05 (inside bt_enable(); BT_REG_ON came from the Wi-Fi driver)
 
 	/* Newer controllers like CYW555xx require Download mode for firmware upload.
 	 * In Download mode, the baudrate cannot be changed without the Minidriver.
@@ -251,14 +251,14 @@ int bt_h4_vnd_open(const struct device *dev, const struct device *uart, struct b
 	 */
 	if (IS_ENABLED(CONFIG_AIROC_AUTOBAUD_MODE) &&
 	    (fw_download_speed != default_uart_speed)) {
-		err = bt_hci_uart_set_baudrate(uart, fw_download_speed);
+		err = bt_hci_uart_set_baudrate(uart, fw_download_speed);	// AIROC_BT_STA_SEQ06 (autobaud: UART to download speed)
 		if (err) {
 			return err;
 		}
 	}
 
 	/* Send HCI_RESET */
-	err = bt_hci_lockstep_cmd_send_sync(ls, BT_HCI_OP_RESET, NULL, NULL);
+	err = bt_hci_lockstep_cmd_send_sync(ls, BT_HCI_OP_RESET, NULL, NULL);	// AIROC_BT_STA_SEQ07
 	if (err) {
 		LOG_ERR("HCI_RESET (1st) failed (err %d)", err);
 		return err;
@@ -274,7 +274,7 @@ int bt_h4_vnd_open(const struct device *dev, const struct device *uart, struct b
 	}
 
 	/* BT firmware download */
-	err = bt_firmware_download(ls, brcm_patchram_buf, (uint32_t)brcm_patch_ram_length);
+	err = bt_firmware_download(ls, brcm_patchram_buf, (uint32_t)brcm_patch_ram_length);	// AIROC_BT_STA_SEQ08
 	if (err) {
 		LOG_ERR("FW download failed (err %d)", err);
 		return err;
@@ -285,14 +285,14 @@ int bt_h4_vnd_open(const struct device *dev, const struct device *uart, struct b
 
 	/* When FW launched, HCI UART baudrate should be configured to default */
 	if (fw_download_speed != default_uart_speed) {
-		err = bt_hci_uart_set_baudrate(uart, default_uart_speed);
+		err = bt_hci_uart_set_baudrate(uart, default_uart_speed);	// AIROC_BT_STA_SEQ09 (firmware runs at the default speed)
 		if (err) {
 			return err;
 		}
 	}
 
 	/* Send HCI_RESET */
-	err = bt_hci_lockstep_cmd_send_sync(ls, BT_HCI_OP_RESET, NULL, NULL);
+	err = bt_hci_lockstep_cmd_send_sync(ls, BT_HCI_OP_RESET, NULL, NULL);	// AIROC_BT_STA_SEQ10
 	if (err) {
 		LOG_ERR("HCI_RESET (2nd) failed (err %d)", err);
 		return err;
@@ -302,7 +302,7 @@ int bt_h4_vnd_open(const struct device *dev, const struct device *uart, struct b
 	 * after fw downloading.
 	 */
 	if (hci_operation_speed != default_uart_speed) {
-		err = bt_update_controller_baudrate(uart, ls, hci_operation_speed);
+		err = bt_update_controller_baudrate(uart, ls, hci_operation_speed);	// AIROC_BT_STA_SEQ11 (normal operation speed)
 		if (err) {
 			return err;
 		}
@@ -325,7 +325,7 @@ int bt_h4_vnd_open(const struct device *dev, const struct device *uart, struct b
 		 * Transport and Host is not setting SCO PKT Size and Count, Controller
 		 * sends invalid command response. So set the default route to PCM
 		 */
-		err = bt_update_sco_route(ls);
+		err = bt_update_sco_route(ls);	// AIROC_BT_STA_SEQ12 (last step; bt_enable() then returns)
 		if (err) {
 			LOG_ERR("Failed to update SCO route (err %d)", err);
 			return err;

@@ -1329,8 +1329,9 @@ static int airoc_init(const struct device *dev)
 		LOG_ERR("ERROR spawning tx thread");
 		return -EAGAIN;
 	}
-	k_thread_name_set(tid, "airoc_event");
+	k_thread_name_set(tid, "airoc_event");	// AIROC_WIFI_STA_SEQ00 (device init, before main(): event thread)
 
+	// AIROC_WIFI_STA_SEQ01 (bring the module up: power, SDIO, WHD)
 	whd_ret = airoc_wifi_init_primary(dev, &airoc_sta_if, &airoc_wifi_netif_if_default,
 					  &airoc_wifi_buffer_if_default);
 	if (whd_ret != CY_RSLT_SUCCESS) {
