@@ -136,7 +136,7 @@ manifest:
       groups:
         - hal
     - name: dhara
-      revision: 6f163ca05e174b168b4d148160b50eeaeeb561fc
+      revision: 0e083ded62b911dc1eca1ee99176342541af95c5
       path: modules/lib/dhara
     - name: edtt
       revision: c282625e694f0b53ea53e13231ea6d2f49411768
@@ -205,7 +205,7 @@ manifest:
       groups:
         - hal
     - name: hal_nordic
-      revision: 75d7594f4bfb00cdec5c5501387cbb4c5b9fed0a
+      revision: 62de98d1d2ab05e9fe41679158042c1237843c38
       path: modules/hal/nordic
       groups:
         - hal
@@ -355,7 +355,7 @@ manifest:
       groups:
         - tools
     - name: nrf_hw_models
-      revision: 50187f3879ffaafc171d364490bead27557f5192
+      revision: 0569cfac3d8dd9c69f959dbc877f386139ebffcf
       path: modules/bsim_hw_models/nrf_hw_models
     - name: nrf_wifi
       revision: 45cb18fd563d7212d2a828da94d1a16455ec80e5

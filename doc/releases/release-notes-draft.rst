@@ -64,6 +64,11 @@ Libraries / Subsystems
   * Added a PSA Protected Storage backend, enabled with
     :kconfig:option:`CONFIG_FIDO2_STORAGE_PSA_PROTECTED_STORAGE`.
 
+* LoRaWAN
+
+  * The native backend now supports the AS923 region
+    (:kconfig:option:`CONFIG_LORAWAN_REGION_AS923`).
+
 * Networking
 
   * :kconfig:option:`CONFIG_NET_DHCPV6_START_ON_RA` starts the DHCPv6 client
@@ -102,6 +107,15 @@ Libraries / Subsystems
       block them, unless the device also reports the new
       :c:enumerator:`ETHERNET_HW_STP_PORT_STATE` capability and takes the port state and FDB
       flushes from the protocol.
+
+* PTP Clock
+
+  * :c:func:`ptp_clock_adjust_rate` adjusts the clock rate by an offset in scaled parts per
+    million, as used by gPTP and IEEE 1588, instead of a floating-point ratio, so rate
+    corrections no longer need floating-point arithmetic.
+
+  * :ref:`MQTT 5.0 <mqtt_socket_interface>` support in the MQTT client
+    (:kconfig:option:`CONFIG_MQTT_VERSION_5_0`) is no longer experimental.
 
 Devicetree
 **********

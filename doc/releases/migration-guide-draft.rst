@@ -150,6 +150,25 @@ OPAMP
   without device runtime PM are unaffected: the device is resumed at init and the instance comes
   up enabled as before. (:github:`122135`)
 
+PTP Clock
+=========
+
+* :c:func:`ptp_clock_rate_adjust` and the :c:member:`ptp_clock_driver_api.rate_adjust` driver
+  operation, which take the clock rate as a floating-point ratio, have been deprecated. Use
+  :c:func:`ptp_clock_adjust_rate` and implement :c:member:`ptp_clock_driver_api.adjust_rate`
+  instead, which take the rate offset from the nominal frequency as scaled parts per million,
+  that is parts per million with a 16-bit binary fractional field:
+  ``scaled_ppm = (ratio - 1) * 1000000 * 65536``. :c:macro:`PTP_CLOCK_SCALED_PPM_ONE` is 1 ppm.
+
+  A driver only has to implement one of the two operations. Both functions work with either of
+  them and convert the argument if necessary, so applications and drivers can be migrated
+  independently.
+
+  Drivers can use :c:func:`ptp_clock_scaled_ppm_to_ppb` if the hardware takes the offset in
+  parts per billion, and :c:func:`ptp_clock_adjust_by_scaled_ppm` to compute the value of an
+  addend register from its nominal value. All in-tree drivers have been converted.
+  (:github:`120828`)
+
 .. zephyr-keep-sorted-stop
 
 Bluetooth
@@ -183,6 +202,14 @@ Bluetooth Classic
   :c:func:`bt_l2cap_br_echo_rsp`. The stack answers a received ECHO request with an ECHO response
   without data, unless a registered ``req`` callback handles it.
 
+Bluetooth HCI
+=============
+
+* The STM32WB HCI driver now constructs its generated public Bluetooth address using the low
+  16 bits of the device UDN, the device ID, and the full 24-bit ST company ID. This corrects the
+  previous address layout and changes the generated address on affected devices. Previously bonded
+  peers may need to remove the old bond and pair with the device again.
+
 Bluetooth Host
 ==============
 
@@ -214,6 +241,11 @@ Shell
 
 Modules
 *******
+
+* The `zephyr-lang-rust <https://github.com/zephyrproject-rtos/zephyr-lang-rust>`_ module providing
+  Rust language support is no longer an optional module of the Zephyr manifest. It is now an
+  :ref:`external module <external_module_rust>`; add it to the application manifest to keep using
+  Rust. The ``manifest.project-filter +zephyr-lang-rust`` west setting no longer has an effect.
 
 Architectures
 *************

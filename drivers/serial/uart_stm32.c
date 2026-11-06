@@ -209,7 +209,7 @@ static void uart_stm32_pm_policy_state_lock_put(struct device const* dev) {
 
 #ifdef CONFIG_UART_ASYNC_API
 static __maybe_unused void uart_stm32_rx_wakeup_lock_get(struct device const* dev) {
-    struct uart_stm32_data *data = dev->data;
+    struct uart_stm32_data* data = dev->data;
 
     if (!data->rx_woken) {
         data->rx_woken = true;
@@ -218,12 +218,49 @@ static __maybe_unused void uart_stm32_rx_wakeup_lock_get(struct device const* de
 }
 
 static __maybe_unused void uart_stm32_rx_wakeup_lock_put(struct device const* dev) {
-    struct uart_stm32_data *data = dev->data;
+    struct uart_stm32_data* data = dev->data;
 
     if (data->rx_woken) {
         data->rx_woken = false;
         uart_stm32_pm_policy_state_lock_put_unconditional();
     }
+}
+
+/*
+ * The IDLE and RTO interrupts that end a reception can't wake the SoC from
+ * STOP, so the RX wake lock must be held from the first received byte. The
+ * WKUP interrupt only covers a reception that starts while the SoC is in
+ * STOP; arm RXNE as a one-shot start-of-reception interrupt for a reception
+ * that starts while the SoC is awake.
+ */
+static __maybe_unused void uart_stm32_rx_start_irq_arm(struct device const* dev) {
+    const struct uart_stm32_config* config = dev->config;
+    struct uart_stm32_data* data = dev->data;
+
+    if (config->wakeup_source && data->dma_rx.enabled) {
+        ll_usart_irq_rx_enable(config->usart);
+    }
+}
+
+/*
+ * DMA drains the receive register, so RXNE may already be clear by the time
+ * the ISR runs. Also look at the DMA position. If neither shows new data,
+ * the caller leaves RXNE armed and the next byte triggers it again.
+ */
+static __maybe_unused bool uart_stm32_rx_started(struct device const* dev) {
+    const struct uart_stm32_config* config = dev->config;
+    struct uart_stm32_data* data = dev->data;
+    struct dma_status stat;
+
+    if (ll_usart_is_active_rxne(config->usart)) {
+        return (true);
+    }
+
+    if (dma_get_status(data->dma_rx.dma_dev, data->dma_rx.dma_channel, &stat) != 0) {
+        return (false);
+    }
+
+    return ((data->dma_rx.buffer_length - stat.pending_length) != data->dma_rx.offset);
 }
 #endif /* CONFIG_UART_ASYNC_API */
 #endif /* CONFIG_PM */
@@ -1473,6 +1510,15 @@ static void uart_stm32_isr(struct device const* dev) {
         return;
     }
     #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
+
+    #ifdef CONFIG_PM
+    /* Start of reception while awake. Don't touch the data, DMA owns it. */
+    if (data->dma_rx.enabled && ll_usart_is_enabled_rxne(usart) && uart_stm32_rx_started(dev)) {
+        ll_usart_irq_rx_disable(usart);
+        uart_stm32_rx_wakeup_lock_get(dev);
+    }
+    #endif
+
     if (LL_USART_IsEnabledIT_IDLE(usart) &&
         LL_USART_IsActiveFlag_IDLE(usart)) {
 
@@ -1482,6 +1528,9 @@ static void uart_stm32_isr(struct device const* dev) {
         #ifdef CONFIG_PM
         /* Allow SoC to enter STOP mode now that RX is IDLE */
         uart_stm32_rx_wakeup_lock_put(dev);
+
+        /* Re-arm before the flush: its callback may disable RX */
+        uart_stm32_rx_start_irq_arm(dev);
         #endif
 
         if (data->dma_rx.timeout == 0) {
@@ -1522,6 +1571,9 @@ static void uart_stm32_isr(struct device const* dev) {
         #ifdef CONFIG_PM
         /* Allow SoC to enter STOP mode now that RX has timed out */
         uart_stm32_rx_wakeup_lock_put(dev);
+
+        /* Re-arm before the flush: its callback may disable RX */
+        uart_stm32_rx_start_irq_arm(dev);
         #endif
 
         uart_stm32_dma_rx_flush(dev);
@@ -1638,6 +1690,13 @@ static int uart_stm32_async_rx_disable(struct device const* dev) {
 
     /* Disable error interrupt to prevent spurious ISRs when async RX is disabled */
     LL_USART_DisableIT_ERROR(usart);
+
+    ll_usart_irq_rx_disable(usart);
+
+    #ifdef CONFIG_PM
+    /* RX stopped before IDLE/RTO fired, e.g. mid-frame */
+    uart_stm32_rx_wakeup_lock_put(dev);
+    #endif
 
     uart_stm32_dma_rx_flush(dev);
 
@@ -2034,6 +2093,10 @@ static int uart_stm32_async_rx_enable(struct device const* dev,
     uart_stm32_dma_rx_enable(dev);
 
     set_timeout_itr(usart, data->uart_cfg->baudrate, timeout);
+
+    #ifdef CONFIG_PM
+    uart_stm32_rx_start_irq_arm(dev);
+    #endif
 
     LL_USART_EnableIT_ERROR(usart);
 

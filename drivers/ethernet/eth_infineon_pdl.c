@@ -193,10 +193,6 @@ static void eth_infineon_pdl_rx_work_handler(struct k_work* work) {
                 net_pkt_unref(pkt);
                 eth_stats_update_errors_rx(data->iface);
             }
-            else {
-                eth_stats_update_bytes_rx(data->iface, len);
-                eth_stats_update_pkts_rx(data->iface);
-            }
         }
         else {
             net_pkt_unref(pkt);             /* net_pkt_unref(NULL) is a no-op */
@@ -254,10 +250,6 @@ static int eth_infineon_pdl_tx(const struct device* dev, struct net_pkt* pkt) {
     if (k_sem_take(&data->tx_sem, K_MSEC(100)) != 0) {
         eth_stats_update_errors_tx(data->iface);
         ret = -ETIMEDOUT;
-    }
-    else {
-        eth_stats_update_bytes_tx(data->iface, len);
-        eth_stats_update_pkts_tx(data->iface);
     }
 
 out :

@@ -403,6 +403,7 @@ Alif Semiconductor Platforms:
     - dts/arm/alif/
     - dts/bindings/*/alif,*
     - include/zephyr/dt-bindings/*/alif*.h
+    - scripts/west_commands/runners/alif_flash.py
     - soc/alif/
   labels:
     - "platform: Alif Semiconductor"
@@ -1492,6 +1493,19 @@ Display controllers:
     - display.cfb
     - drivers.display
     - sample.display
+
+Division by Reciprocal:
+  status: maintained
+  maintainers:
+    - npitre
+  files:
+    - doc/kernel/div64.rst
+    - include/zephyr/sys/div64.h
+    - lib/os/div64.c
+    - tests/lib/div64/
+    - tests/unit/time_units/reciprocal.c
+  tests:
+    - libraries.div64
 
 Documentation:
   status: maintained
@@ -5890,6 +5904,20 @@ Rockchip Platforms:
   labels:
     - "platform: Rockchip"
 
+Rust:
+  status: maintained
+  maintainers:
+    - d3zd3z
+  collaborators:
+    - felipebalbi
+    - kurtjd
+    - jerrysxie
+  files:
+    - doc/develop/languages/rust/
+    - modules/Kconfig.rust
+  labels:
+    - "area: Rust"
+
 SPARC arch:
   status: odd fixes
   collaborators:
@@ -7102,6 +7130,8 @@ West:
     - modules/dhara/
   labels:
     - "area: Disk Access"
+  tests:
+    - drivers.disk.ftl
 
 "West project: edtt":
   status: maintained
@@ -7932,18 +7962,6 @@ West:
     - modules/zcbor/
   labels:
     - "area: CBOR"
-
-"West project: zephyr-lang-rust":
-  status: maintained
-  maintainers:
-    - d3zd3z
-  collaborators:
-    - felipebalbi
-    - kurtjd
-    - jerrysxie
-  files: []
-  labels:
-    - "area: Rust"
 
 "West project: zephyr-xenlib":
   status: maintained

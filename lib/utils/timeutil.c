@@ -18,6 +18,7 @@
 
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/clock.h>
+#include <zephyr/sys/div64.h>
 #include <zephyr/sys/timeutil.h>
 
 /** Convert a civil (proleptic Gregorian) date to days relative to
@@ -37,7 +38,7 @@ static int64_t time_days_from_civil(int64_t y,
                                     unsigned int d) {
     y -= m <= 2;
 
-    int64_t era = ((y >= 0) ? y : (y - 399)) / 400;
+    int64_t era = sys_sdiv64_u32_const((y >= 0) ? y : (y - 399), 400);
     unsigned int yoe = (unsigned int)(y - (era * 400));
     unsigned int doy = (153U * (m + ((m > 2) ? -3 : 9)) + 2U) / 5U + d;
     unsigned int doe = yoe * 365U + yoe / 4U - yoe / 100U + doy;

@@ -999,8 +999,8 @@ static int ifx_cat1_uart_async_tx(struct device const* dev, uint8_t const* tx_da
                 dma_tx->buf     = NULL;
                 dma_tx->buf_len = 0;
             }
-            else if ((timeout != SYS_FOREVER_US) && (timeout != 0)) {
-                /* Configure timeout */
+            else if (data->cfg.flow_ctrl && (timeout != SYS_FOREVER_US) && (timeout != 0)) {
+                /* Configure timeout - per Zephyr API, valid only if flow control is enabled */
                 k_work_reschedule(&dma_tx->timeout_work, K_USEC(timeout));
             }
             else {
@@ -1025,46 +1025,61 @@ static int ifx_cat1_uart_async_tx_abort(struct device const* dev) {
     struct ifx_cat1_dma_stream_tx* const dma_tx = &async->dma_tx;
     struct uart_event evt;
     struct dma_status stat;
-    bool stopped;
+    bool stopped = false;
     int ret;
 
-    unsigned int key = irq_lock();
-
-    k_work_cancel_delayable(&dma_tx->timeout_work);
-
-    ret = dma_stop(dma_tx->dma_dev, dma_tx->dma_channel);
-    if (ret == 0) {
-        ret = dma_get_status(dma_tx->dma_dev, dma_tx->dma_channel, &stat);
-        if (ret == 0) {
-            evt.type        = UART_TX_ABORTED;
-            evt.data.tx.buf = dma_tx->buf;
-            evt.data.tx.len = 0;
-
-            if (async->cb) {
-                async->cb(dev, &evt, async->user_data);
-            }
-        }
-        else {
-            LOG_ERR("Error stopping Tx DMA (%d)", ret);
-        }
-
-        /* DMA is stopped, so end the session; the event above already read buf. */
-        dma_tx->buf = NULL;
-        dma_tx->buf_len = 0;
-        stopped = true;
+    if (dma_tx->dma_dev == NULL) {
+        ret = -ENODEV;
     }
     else {
-        LOG_ERR("Error stopping Tx DMA (%d)", ret);
-        stopped = false;
-    }
+        unsigned int key = irq_lock();
 
-    irq_unlock(key);
+        if (dma_tx->buf == NULL) {
+            ret = -EFAULT;
+        }
+        else {
+            k_work_cancel_delayable(&dma_tx->timeout_work);
 
-    /* Release outside the irq_lock (thread context). If not stopped, keep the
-     * ref; the DMA completion path releases it.
-     */
-    if (stopped == true) {
-        ifx_cat1_uart_pm_ref_put(dev, IFX_CAT1_UART_PM_REF_ASYNC_TX, true);
+            ret = dma_stop(dma_tx->dma_dev, dma_tx->dma_channel);
+            if (ret == 0) {
+                ret = dma_get_status(dma_tx->dma_dev, dma_tx->dma_channel, &stat);
+                if (ret != 0) {
+                    LOG_WRN("Error getting Tx DMA status (%d), assuming 0 bytes sent", ret);
+                    evt.data.tx.len = 0;
+                    ret = 0;
+                }
+                else if (dma_tx->buf_len >= stat.pending_length) {
+                    evt.data.tx.len = dma_tx->buf_len - stat.pending_length;
+                }
+                else {
+                    evt.data.tx.len = 0;
+                }
+
+                evt.type        = UART_TX_ABORTED;
+                evt.data.tx.buf = dma_tx->buf;
+
+                if (async->cb) {
+                    async->cb(dev, &evt, async->user_data);
+                }
+
+                /* DMA is stopped, so end the session; the event above already read buf. */
+                dma_tx->buf     = NULL;
+                dma_tx->buf_len = 0;
+                stopped = true;
+            }
+            else {
+                LOG_ERR("Error stopping Tx DMA (%d)", ret);
+            }
+        }
+
+        irq_unlock(key);
+
+        /* Release outside the irq_lock (thread context). If not stopped, keep the
+         * ref; the DMA completion path releases it.
+         */
+        if (stopped == true) {
+            ifx_cat1_uart_pm_ref_put(dev, IFX_CAT1_UART_PM_REF_ASYNC_TX, true);
+        }
     }
 
     return (ret);
@@ -1080,33 +1095,35 @@ static void dma_callback_tx_done(const struct device* dma_dev, void* arg, uint32
 
     unsigned int key = irq_lock();
 
-    if (status == 0) {
-        k_work_cancel_delayable(&dma_tx->timeout_work);
-        dma_stop(dma_tx->dma_dev, dma_tx->dma_channel);
+    if (dma_tx->buf != NULL) {
+        if (status == 0) {
+            k_work_cancel_delayable(&dma_tx->timeout_work);
+            dma_stop(dma_tx->dma_dev, dma_tx->dma_channel);
 
-        struct uart_event evt = {
-            .type        = UART_TX_DONE,
-            .data.tx.buf = dma_tx->buf,
-            .data.tx.len = dma_tx->buf_len
-        };
+            struct uart_event evt = {
+                .type        = UART_TX_DONE,
+                .data.tx.buf = dma_tx->buf,
+                .data.tx.len = dma_tx->buf_len
+            };
 
-        dma_tx->buf     = NULL;
-        dma_tx->buf_len = 0;
+            dma_tx->buf     = NULL;
+            dma_tx->buf_len = 0;
 
-        if (async->cb) {
-            async->cb(uart_dev, &evt, async->user_data);
+            if (async->cb) {
+                async->cb(uart_dev, &evt, async->user_data);
+            }
         }
-    }
-    else {
-        /* DMA error */
-        dma_stop(dma_tx->dma_dev, dma_tx->dma_channel);
+        else {
+            /* DMA error */
+            dma_stop(dma_tx->dma_dev, dma_tx->dma_channel);
 
-        data->async.dma_tx.buf = NULL;
-        data->async.dma_tx.buf_len = 0;
-    }
+            data->async.dma_tx.buf = NULL;
+            data->async.dma_tx.buf_len = 0;
+        }
 
-    /* TX finished (done or error); release from ISR via async put. */
-    ifx_cat1_uart_pm_ref_put(uart_dev, IFX_CAT1_UART_PM_REF_ASYNC_TX, true);
+        /* TX finished (done or error); release from ISR via async put. */
+        ifx_cat1_uart_pm_ref_put(uart_dev, IFX_CAT1_UART_PM_REF_ASYNC_TX, true);
+    }
 
     irq_unlock(key);
 }
@@ -1506,6 +1523,12 @@ static void ifx_cat1_uart_dma_trigmux_connect(const struct device *dev) {
             PERI_0_TRIG_IN_MUX_0_SCB_RX_TR_OUT0 + data->hw_resource.block_num,
             PERI_0_TRIG_OUT_MUX_0_PDMA0_TR_IN0 + dma_rx->dma_channel, false,
             TRIGGER_TYPE_LEVEL);
+        #elif defined(CONFIG_SOC_DIE_PSC3M6)
+        /* PSC3M6 trigger mux has 6 entries per SCB, so stride is 6. */
+        Cy_TrigMux_Connect(
+            TRIG_IN_MUX_0_SCB_RX0 + (6 * data->hw_resource.block_num),
+            TRIG_OUT_MUX_0_PDMA0_TR_IN0 + dma_rx->dma_channel,
+            false, TRIGGER_TYPE_LEVEL);
         #else
         Cy_TrigMux_Connect(
             TRIG_IN_MUX_0_SCB_RX0 + (3 * data->hw_resource.block_num),
@@ -1520,6 +1543,11 @@ static void ifx_cat1_uart_dma_trigmux_connect(const struct device *dev) {
             PERI_0_TRIG_IN_MUX_0_SCB_TX_TR_OUT0 + data->hw_resource.block_num,
             PERI_0_TRIG_OUT_MUX_0_PDMA0_TR_IN0 + dma_tx->dma_channel, false,
             TRIGGER_TYPE_EDGE);
+        #elif defined(CONFIG_SOC_DIE_PSC3M6)
+        Cy_TrigMux_Connect(
+            TRIG_IN_MUX_0_SCB_TX0 + (6 * data->hw_resource.block_num),
+            TRIG_OUT_MUX_0_PDMA0_TR_IN0 + dma_tx->dma_channel,
+            false, TRIGGER_TYPE_EDGE);
         #else
         Cy_TrigMux_Connect(
             TRIG_IN_MUX_0_SCB_TX0 + (3 * data->hw_resource.block_num),
