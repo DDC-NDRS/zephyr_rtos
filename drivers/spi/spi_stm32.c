@@ -2746,16 +2746,16 @@ static int spi_stm32_pm_action(const struct device* dev, enum pm_device_action a
 
     switch (action) {
         case PM_DEVICE_ACTION_RESUME :
+            /* Configure pins for active mode */
+            ret = spi_stm32_pinctrl_apply(dev, PINCTRL_STATE_DEFAULT);
+            if (ret < 0) {
+                return (ret);
+            }
+
             /* Enable clock */
             ret = clock_control_on(clk, (clock_control_subsys_t)&config->pclken[0]);
             if (ret != 0) {
                 LOG_ERR("Could not enable SPI clock");
-                return (ret);
-            }
-
-            /* Configure pins for active mode */
-            ret = spi_stm32_pinctrl_apply(dev, PINCTRL_STATE_DEFAULT);
-            if (ret < 0) {
                 return (ret);
             }
 
@@ -2857,7 +2857,7 @@ static int spi_stm32_init(const struct device* dev) {
 
 #if defined(CONFIG_SPI_STM32_INTERRUPT)
 #define STM32_SPI_IRQ_CONNECT(id)                   \
-    COND_CODE_1(DT_INST_PROP(id, stpm3x_isr),       \
+    COND_CODE_1(DT_INST_PROP_OR(id, stpm3x_isr, 0), \
         (IRQ_CONNECT(DT_INST_IRQN(id),              \
                      DT_INST_IRQ(id, priority),     \
                      spi_stpm3x_isr,                \

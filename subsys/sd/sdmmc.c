@@ -18,6 +18,10 @@
 
 LOG_MODULE_DECLARE(sd, CONFIG_SD_LOG_LEVEL);
 
+/* #CUSTOM@NDRS: all 'struct sdhc_command cmd' here are not zero-initialized as upstream;
+ * response[] is output only.*/
+
+/* #CUSTOM@NDRS: returns the version; reserved sd_spec gives 0 (upstream keeps the old value). */
 static inline uint8_t sdmmc_decode_scr(struct sd_scr* scr, uint32_t const raw_scr[]) {
     uint32_t version;
     uint32_t tmp_scr0;
