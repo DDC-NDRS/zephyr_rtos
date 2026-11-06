@@ -579,10 +579,28 @@ def gen_all_obj_files(searchpath):
 def get_obj_filename(all_obj_files, filename):
     # get the object file name which is almost always pended with .obj
     obj_filename = filename.split("/")[-1] + ".obj"
+    parent_name = filename.split("/")[-2]
 
-    for obj_file in all_obj_files:
-        if obj_file.name == obj_filename and filename.split("/")[-2] in obj_file.parent.name:
-            return str(obj_file)
+    candidates = [
+        obj_file
+        for obj_file in all_obj_files
+        if obj_file.name == obj_filename and parent_name in obj_file.parent.name
+    ]
+    if len(candidates) > 1:  # #CUSTOM@NDRS
+        # Several sources can share a file name and a directory name fragment, for example kernel/sleep.c and
+        # subsys/shell/modules/kernel_service/sleep.c. Keep the objects whose path has the source's directory as
+        # a whole path component, then the ones that match most of the source's directory chain.
+        exact = [obj_file for obj_file in candidates if parent_name in obj_file.parts]
+        if exact:
+            candidates = exact
+        source_dirs = filename.split("/")[:-1]
+
+        def chain_score(obj_file):
+            return sum(1 for part in source_dirs if part in obj_file.parts)
+
+        candidates.sort(key=chain_score, reverse=True)
+    if candidates:
+        return str(candidates[0])
 
     for obj_file in all_obj_files:
         if obj_file.name == obj_filename and obj_file.parent.name == 'app.dir':
