@@ -32,6 +32,15 @@ config SOC_SERIES_PSE84_M55
 config SOC_SERIES_PSE84_M33
 	select SOC_LATE_INIT_HOOK
 
+config PSE84_M33CODE_READ_ONLY
+	bool "Map the M33CODE window read-only and executable"
+	depends on SOC_SERIES_PSE84_M33 && TRUSTED_EXECUTION_NONSECURE && CODE_DATA_RELOCATION
+	help
+	  The M33CODE window is the only SRAM the non-secure M33 may execute from. By default it is read-write
+	  and executable. This makes it read-only and executable, so a stray write cannot change code that was
+	  copied there at boot (the copy runs before the MPU is enabled). Only text and read-only data may
+	  then be relocated into it: the Infineon HAL relocation entries then leave .data and .bss in the normal RAM.
+
 config PSOC_EDGE_M55_SRF_SUPPORT
 	bool "Select whether to enable the SRF support on m55"
 	select USE_INFINEON_ABSTRACTION_RTOS

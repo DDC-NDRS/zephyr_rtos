@@ -20,5 +20,10 @@ if(CONFIG_USE_INFINEON_SMIF AND CONFIG_XIP)
     set(sram_code ITCM)
   endif()
 
+  if(sram_code STREQUAL M33CODE AND CONFIG_PSE84_M33CODE_READ_ONLY)  # #CUSTOM@NDRS
+    # The window is read-only: keep the writable .data and .bss of the relocated files in the normal RAM
+    set(sram_code M33CODE_TEXT_RODATA)
+  endif()
+
   zephyr_code_relocate(FILES ${serial_memory_dir}/source/mtb_serial_memory.c LOCATION ${sram_code})
 endif()

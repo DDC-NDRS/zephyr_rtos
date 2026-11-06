@@ -26,6 +26,20 @@
  * We are expected to give *CONFIG_SIZE* in KB, but REGION_ATTR
  * expects bytes, so we multiply by 1024 to convert.
  */
+#if defined(CONFIG_PSE84_M33CODE_READ_ONLY)  /* #CUSTOM@NDRS */
+/* Read-only and executable SRAM window for code that was copied there at boot */
+#define REGION_RAM_RO_ATTR_WITH_EXEC(base, size)                                \
+	{                                                                       \
+		.rbar = P_RO_U_RO_Msk | NON_SHAREABLE_Msk, /* AP, SH */         \
+		.mair_idx = MPU_MAIR_INDEX_SRAM,           /* Cache-ability */  \
+		.r_limit = REGION_LIMIT_ADDR(base, size),  /* Region Limit */   \
+		IF_ENABLED(CONFIG_ARM_MPU_PXN, (.pxn = !PRIV_EXEC_NEVER,))      \
+	}
+#define M33CODE_ATTR REGION_RAM_RO_ATTR_WITH_EXEC
+#else
+#define M33CODE_ATTR REGION_RAM_ATTR_WITH_EXEC
+#endif
+
 static const struct arm_mpu_region mpu_regions[] = {
 	MPU_REGION_ENTRY(
 		"FLASH",
@@ -86,7 +100,7 @@ static const struct arm_mpu_region mpu_regions[] = {
 	MPU_REGION_ENTRY(
 		"M33CODE",
 		DT_REG_ADDR(DT_NODELABEL(m33_code)),
-		REGION_RAM_ATTR_WITH_EXEC(
+		M33CODE_ATTR(
 			DT_REG_ADDR(DT_NODELABEL(m33_code)),
 			DT_REG_SIZE(DT_NODELABEL(m33_code)))),
 #endif
