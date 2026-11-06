@@ -455,6 +455,12 @@ cy_rslt_t ifx_cat1_uart_set_baud(struct device const* dev, uint32_t baudrate) {
     return (status);
 }
 
+/*
+ * ifx_cat1_uart_get_num_in_tx_fifo() and ifx_cat1_uart_get_tx_active() are
+ * exported by the upstream PDL driver but intentionally not provided here:
+ * nothing in the tree calls them.
+ */
+
 /* Add or drop the TX-done cause in the interrupt mask; callers serialize the RMW. */
 static inline void ifx_cat1_uart_tx_done_irq_set(CySCB_Type* base, bool enable) {
     uint32_t mask = Cy_SCB_GetTxInterruptMask(base);
