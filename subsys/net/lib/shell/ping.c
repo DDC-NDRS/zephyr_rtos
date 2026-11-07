@@ -13,6 +13,9 @@ LOG_MODULE_DECLARE(net_shell);
 #include <zephyr/random/random.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/net/icmp.h>
+#if defined(CONFIG_DNS_RESOLVER)
+#include <zephyr/net/dns_resolve.h>
+#endif
 #include <zephyr/net/net_linkaddr.h>
 
 #include "net_shell_private.h"
@@ -464,6 +467,95 @@ out:
 
 #endif /* CONFIG_NET_IP */
 
+#if defined(CONFIG_DNS_RESOLVER)
+#define PING_DNS_TIMEOUT_MS 5000
+#define PING_DNS_WAIT_MS   (PING_DNS_TIMEOUT_MS + 1000)
+
+struct ping_dns_context {
+	struct k_sem done;
+	char addr_str[NET_IPV6_ADDR_LEN];
+	bool got;
+};
+
+static struct ping_dns_context ping_dns_ctx;
+
+static void handle_dns_result(enum dns_resolve_status status, struct dns_addrinfo *info,
+			      void *user_data)
+{
+	ARG_UNUSED(user_data);
+
+	if (status == DNS_EAI_INPROGRESS) {
+		if (info != NULL && !ping_dns_ctx.got) {
+			const void *src = NULL;
+
+			if (info->ai_family == NET_AF_INET) {
+				src = &net_sin(&info->ai_addr)->sin_addr;
+			} else if (info->ai_family == NET_AF_INET6) {
+				src = &net_sin6(&info->ai_addr)->sin6_addr;
+			}
+
+			if (src != NULL &&
+			    net_addr_ntop(info->ai_family, src, ping_dns_ctx.addr_str,
+					  sizeof(ping_dns_ctx.addr_str)) != NULL) {
+				ping_dns_ctx.got = true;
+			}
+		}
+
+		return;
+	}
+
+	k_sem_give(&ping_dns_ctx.done);
+}
+
+static bool ping_host_is_literal(const char *host)
+{
+	struct net_in_addr addr4;
+	struct net_in6_addr addr6;
+
+	if (net_addr_pton(NET_AF_INET, host, &addr4) == 0) {
+		return true;
+	}
+
+	return IS_ENABLED(CONFIG_NET_IPV6) && net_addr_pton(NET_AF_INET6, host, &addr6) == 0;
+}
+
+/* Resolve host to a printable address in ping_dns_ctx.addr_str, A record first, then AAAA */
+static bool ping_resolve_host(const struct shell *sh, const char *host)
+{
+	static const enum dns_query_type types[] = {
+		DNS_QUERY_TYPE_A,
+#if defined(CONFIG_NET_IPV6)
+		DNS_QUERY_TYPE_AAAA,
+#endif
+	};
+
+	for (size_t i = 0; i < ARRAY_SIZE(types); i++) {
+		uint16_t dns_id;
+		int ret;
+
+		k_sem_init(&ping_dns_ctx.done, 0, 1);
+		ping_dns_ctx.got = false;
+
+		ret = dns_resolve_name(dns_resolve_get_default(), host, types[i], &dns_id,
+				       handle_dns_result, NULL, PING_DNS_TIMEOUT_MS);
+		if (ret < 0) {
+			PR_WARNING("DNS query for %s failed (%d)\n", host, ret);
+			return false;
+		}
+
+		if (k_sem_take(&ping_dns_ctx.done, K_MSEC(PING_DNS_WAIT_MS)) != 0) {
+			(void)dns_resolve_cancel(dns_resolve_get_default(), dns_id);
+		}
+
+		if (ping_dns_ctx.got) {
+			return true;
+		}
+	}
+
+	return false;
+}
+#endif /* CONFIG_DNS_RESOLVER */
+
 static int cmd_net_ping(const struct shell *sh, size_t argc, char *argv[])
 {
 #if !defined(CONFIG_NET_IPV4) && !defined(CONFIG_NET_IPV6)
@@ -553,6 +645,18 @@ static int cmd_net_ping(const struct shell *sh, size_t argc, char *argv[])
 		PR_WARNING("Target host missing\n");
 		return -ENOEXEC;
 	}
+
+#if defined(CONFIG_DNS_RESOLVER)
+	if (!ping_host_is_literal(host)) {
+		if (!ping_resolve_host(sh, host)) {
+			PR_WARNING("Cannot resolve %s\n", host);
+			return 0;
+		}
+
+		PR("%s is %s\n", host, ping_dns_ctx.addr_str);
+		host = ping_dns_ctx.addr_str;
+	}
+#endif
 
 	memset(&ping_ctx, 0, sizeof(ping_ctx));
 
