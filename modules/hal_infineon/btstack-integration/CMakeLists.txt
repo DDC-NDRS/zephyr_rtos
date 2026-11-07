@@ -104,8 +104,8 @@ if(CONFIG_CYW55513IUBG_SM)
 endif()
 
 # CYW55513 Ezurio Sona IF513 Module
-# The HCD is tracked in the HAL tree (not fetched as a blob): it is the module's own build,
-# CYW55500A1_v001.002.032.0227.0080, from bt-fw-ifx-cyw55500a1 COMPONENT_wlbga_SONA-IF513.
+# The HCD is tracked in the HAL tree (not fetched as a blob): it is the module's own build.
+# CYW55500A1_v001.002.032.0253.0124.hcd (Ezurio LRD-REL-14.8.0.13)
 if(CONFIG_CYW55513_EZURIO_SONA_IF513)
   set(blob_hcd_file  ${btstack_integration}/firmware/COMPONENT_CYW55513/COMPONENT_BTFW_SONA-IF513/bt_firmware.hcd)
 endif()
