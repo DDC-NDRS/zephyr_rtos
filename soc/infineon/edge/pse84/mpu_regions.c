@@ -76,6 +76,21 @@ static const struct arm_mpu_region mpu_regions[] = {
 			DT_REG_SIZE(DT_NODELABEL(m55_allocatable_shared)))),
 #endif
 
+	/* #CUSTOM@NDRS: inter-core link rings, the first 12 KB of SOCMEMSHARED (bcu-mv25_memory_map.dtsi). One
+	 * non-cached region from the first ring to the end of the last one, on both cores, so icmsg needs no
+	 * dcache-alignment. The nodes exist only in the ns+m55 scenario.
+	 */
+#if DT_NODE_EXISTS(DT_NODELABEL(ipc_fast_m33_m55)) && DT_NODE_EXISTS(DT_NODELABEL(ipc_slow_m55_m33))
+	MPU_REGION_ENTRY(
+		"IPCRING",
+		DT_REG_ADDR(DT_NODELABEL(ipc_fast_m33_m55)),
+		REGION_RAM_NOCACHE_ATTR(
+			DT_REG_ADDR(DT_NODELABEL(ipc_fast_m33_m55)),
+			DT_REG_ADDR(DT_NODELABEL(ipc_slow_m55_m33)) +
+				DT_REG_SIZE(DT_NODELABEL(ipc_slow_m55_m33)) -
+				DT_REG_ADDR(DT_NODELABEL(ipc_fast_m33_m55)))),
+#endif
+
 	/* Secure CM33 code-in-SRAM window: only meaningful for the secure CM33
 	 * image. The m33s_code node is also visible to a non-secure CM33 build, so
 	 * gate it on TRUSTED_EXECUTION_SECURE (not just !CM55) to keep it off the

@@ -63,13 +63,33 @@ properties:
   msg-size-bytes:
     type: int
     default: 8
-    enum: [4, 8]
+    enum: [0, 4, 8]
     description: |
       Fixed message size, in bytes, carried by every channel of this
       controller. 4 bytes uses IPC DATA0 only; 8 bytes uses DATA0 and DATA1 and
       requires an IPC block that implements DATA1 (M33SYSCPUSS, M7CPUSS or
       M4CPUSS v2, e.g. PSE84 and TRAVEO T2G). Use 4 on IP that has only DATA0
       (e.g. M4CPUSS v1). Defaults to 8 to match the PSE84 series.
+
+      0 selects signalling mode (mbox_mtu_get() returns 0, mbox_send() takes a
+      NULL message, callbacks get a NULL message). A send only raises the
+      receiver's interrupt, so it never returns -EBUSY and no data is lost.
+      The ipc backends that signal with a NULL message (icmsg, icbmsg) need it.
+
+  tx-only-mask:
+    type: int
+    default: 0
+    description: |
+      Bitmask over the "ipc-configs" indices (bit i = entry i). A set bit marks
+      a channel that this core only sends on. It may not be enabled with
+      mbox_set_enabled() (-EINVAL) and is ignored by the check that rejects two
+      receive channels sharing one interrupt structure.
+      Its "interrupts" entry is still required so both arrays keep the same
+      length. The driver connects that vector like any other but never enables
+      it, so give it a valid vector of this core that no other entry uses.
+      An mbox_send() on a transmit-only channel notifies the interrupt
+      structure named in its "ipc-configs" entry, which is the one the peer
+      core receives on.
 
 mbox-cells:
   - channel

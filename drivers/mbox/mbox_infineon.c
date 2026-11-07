@@ -74,7 +74,8 @@ LOG_MODULE_REGISTER(mbox_infineon, CONFIG_MBOX_LOG_LEVEL);
 
 struct ifx_mbox_config {
 	uint32_t num_channels;
-	uint8_t msg_words;
+	uint8_t msg_words;      /* 0 = signalling mode, 1 or 2 = data mode */
+	uint32_t tx_only_mask;  /* #CUSTOM@NDRS bit i set: channel i only sends, never receives */
 	const mem_addr_t *ipc_base;
 	const uint8_t *ipc_channel;
 	const uint8_t *ipc_intr;
@@ -102,8 +103,8 @@ static inline mem_addr_t ifx_mbox_intr_addr(const struct ifx_mbox_config *cfg, u
 
 static void ifx_mbox_handle_channel(const struct device *dev, uint32_t channel)
 {
-	const struct ifx_mbox_config *cfg = dev->config;
-	struct ifx_mbox_data *data = dev->data;
+	const struct ifx_mbox_config *cfg = (const struct ifx_mbox_config *)dev->config;
+	struct ifx_mbox_data *data = (struct ifx_mbox_data *)dev->data;
 	mem_addr_t ipc = ifx_mbox_channel_addr(cfg, channel);
 	mem_addr_t intr = ifx_mbox_intr_addr(cfg, channel);
 	uint32_t ch_mask = BIT(cfg->ipc_channel[channel]);
@@ -119,6 +120,18 @@ static void ifx_mbox_handle_channel(const struct device *dev, uint32_t channel)
 	 */
 	sys_write32(FIELD_PREP(IFX_IPC_INTR_NOTIFY_MASK, ch_mask), intr + IFX_IPC_INTR);
 	(void)sys_read32(intr + IFX_IPC_INTR);
+
+	/* #CUSTOM@NDRS Signalling mode: there is no data and no lock to release. The flag was
+	 * cleared above, before the callback, so a notify raised while the callback runs raises
+	 * the interrupt again and nothing is lost.
+	 */
+	if (cfg->msg_words == 0U) {
+		if (data->enabled[channel] && (data->cb[channel] != NULL)) {
+			data->cb[channel](dev, channel, data->user_data[channel], NULL);
+		}
+
+		return;
+	}
 
 	/* A disabled channel still needs the lock released so the sender can
 	 * reuse it.
@@ -152,7 +165,7 @@ static void ifx_mbox_handle_channel(const struct device *dev, uint32_t channel)
 
 static int ifx_mbox_send(const struct device *dev, uint32_t channel, const struct mbox_msg *msg)
 {
-	const struct ifx_mbox_config *cfg = dev->config;
+	const struct ifx_mbox_config *cfg = (const struct ifx_mbox_config *)dev->config;
 	uint32_t words[IFX_MBOX_MSG_WORDS_MAX];
 	mem_addr_t ipc;
 
@@ -160,8 +173,22 @@ static int ifx_mbox_send(const struct device *dev, uint32_t channel, const struc
 		return -EINVAL;
 	}
 
+	/* #CUSTOM@NDRS Signalling mode: only raise the receiver's interrupt. No lock is taken, so
+	 * a send never returns -EBUSY, and the receiver finds the flag whenever it looks.
+	 */
+	if (cfg->msg_words == 0U) {
+		if (msg != NULL) {
+			return -EMSGSIZE;
+		}
+
+		sys_write32(BIT(cfg->ipc_intr[channel]),
+			    ifx_mbox_channel_addr(cfg, channel) + IFX_IPC_NOTIFY);
+
+		return 0;
+	}
+
 	if (msg == NULL) {
-		/* Signalling mode is not supported; a data word is required. */
+		/* Data mode needs a data word. */
 		return -ENOTSUP;
 	}
 
@@ -193,8 +220,8 @@ static int ifx_mbox_send(const struct device *dev, uint32_t channel, const struc
 static int ifx_mbox_register_callback(const struct device *dev, uint32_t channel,
 				      mbox_callback_t cb, void *user_data)
 {
-	const struct ifx_mbox_config *cfg = dev->config;
-	struct ifx_mbox_data *data = dev->data;
+	const struct ifx_mbox_config *cfg = (const struct ifx_mbox_config *)dev->config;
+	struct ifx_mbox_data *data = (struct ifx_mbox_data *)dev->data;
 
 	if (channel >= cfg->num_channels) {
 		return -EINVAL;
@@ -208,26 +235,31 @@ static int ifx_mbox_register_callback(const struct device *dev, uint32_t channel
 
 static int ifx_mbox_mtu_get(const struct device *dev)
 {
-	const struct ifx_mbox_config *cfg = dev->config;
+	const struct ifx_mbox_config *cfg = (const struct ifx_mbox_config *)dev->config;
 
 	return cfg->msg_words * 4U;
 } /* ifx_mbox_mtu_get() */
 
 static uint32_t ifx_mbox_max_channels_get(const struct device *dev)
 {
-	const struct ifx_mbox_config *cfg = dev->config;
+	const struct ifx_mbox_config *cfg = (const struct ifx_mbox_config *)dev->config;
 
 	return cfg->num_channels;
 } /* ifx_mbox_max_channels_get() */
 
 static int ifx_mbox_set_enabled(const struct device *dev, uint32_t channel, bool enable)
 {
-	const struct ifx_mbox_config *cfg = dev->config;
-	struct ifx_mbox_data *data = dev->data;
+	const struct ifx_mbox_config *cfg = (const struct ifx_mbox_config *)dev->config;
+	struct ifx_mbox_data *data = (struct ifx_mbox_data *)dev->data;
 	mem_addr_t intr;
 	uint32_t mask, ch_mask;
 
 	if (channel >= cfg->num_channels) {
+		return -EINVAL;
+	}
+
+	/* #CUSTOM@NDRS A transmit-only channel has no receive interrupt to enable. */
+	if ((cfg->tx_only_mask & BIT(channel)) != 0U) {
 		return -EINVAL;
 	}
 
@@ -260,14 +292,22 @@ static int ifx_mbox_set_enabled(const struct device *dev, uint32_t channel, bool
 
 static int ifx_mbox_init(const struct device *dev)
 {
-	const struct ifx_mbox_config *cfg = dev->config;
+	const struct ifx_mbox_config *cfg = (const struct ifx_mbox_config *)dev->config;
 
 	/* The ISR maps one interrupt line to one channel and never decodes the
 	 * NOTIFY field, so channels sharing an interrupt structure is not
 	 * supported and is rejected here.
 	 */
 	for (uint32_t i = 0U; i < cfg->num_channels; i++) {
+		if ((cfg->tx_only_mask & BIT(i)) != 0U) {
+			continue;
+		}
+
 		for (uint32_t j = i + 1U; j < cfg->num_channels; j++) {
+			if ((cfg->tx_only_mask & BIT(j)) != 0U) {
+				continue;
+			}
+
 			if (ifx_mbox_intr_addr(cfg, i) == ifx_mbox_intr_addr(cfg, j)) {
 				LOG_ERR("channels %u and %u share an interrupt structure", i, j);
 				return -EINVAL;
@@ -354,12 +394,13 @@ static DEVICE_API(mbox, ifx_mbox_api) = {
                                                                                \
 	static mbox_callback_t ifx_mbox_cb_##n[IFX_MBOX_N_CH(n)];                    \
 	static void *ifx_mbox_user_data_##n[IFX_MBOX_N_CH(n)];                      \
-	static uint32_t ifx_mbox_received_##n[IFX_MBOX_N_CH(n) * IFX_MBOX_MSG_WORDS(n)]; \
+	static uint32_t ifx_mbox_received_##n[IFX_MBOX_N_CH(n) * MAX(IFX_MBOX_MSG_WORDS(n), 1U)]; \
 	static bool ifx_mbox_enabled_##n[IFX_MBOX_N_CH(n)];                          \
                                                                               \
 	static const struct ifx_mbox_config ifx_mbox_config_##n = {                    \
 		.num_channels = IFX_MBOX_N_CH(n),                                         \
 		.msg_words = IFX_MBOX_MSG_WORDS(n),                                       \
+		.tx_only_mask = DT_INST_PROP(n, tx_only_mask),                           \
 		.ipc_base = ifx_mbox_ipc_base_##n,                                   \
 		.ipc_channel = ifx_mbox_ipc_channel_##n,                                    \
 		.ipc_intr = ifx_mbox_ipc_intr_##n,                                     \
