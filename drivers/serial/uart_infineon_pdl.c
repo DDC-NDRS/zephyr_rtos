@@ -44,6 +44,7 @@ LOG_MODULE_REGISTER(uart_ifx, CONFIG_UART_LOG_LEVEL);
 #define IFX_UART_OVERSAMPLE_MIN  8UL
 #define IFX_UART_OVERSAMPLE_MAX 16UL
 #define IFX_UART_MAX_BAUD_PERCENT_DIFFERENCE 10U
+#define IFX_UART_DIV_FRAC_STEPS 32U /* The fraction of a 16.5 / 24.5 bit divider has 5 bits */
 
 #if defined(CONFIG_SOC_FAMILY_INFINEON_PSOC4)
 #define IFX_UART_RX_FIFO_TRIGGER_LEVEL 7
@@ -326,6 +327,107 @@ static inline uint32_t ifx_uart_divider(uint32_t freq, uint32_t baud, uint32_t o
     return (freq + ((baud * oversample) / 2U)) / (baud * oversample);
 }
 
+#if !defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
+/* The oversample and divider that ifx_uart_baud_plan() chose, and the baud rate they give. */
+struct ifx_uart_baud_plan {
+    uint32_t oversample;
+    uint32_t divider; /* integer part, 0 when no setting fits */
+    uint32_t frac;    /* 1/32 steps, always 0 for an integer-only divider */
+    uint32_t actual;
+};
+
+/*
+ * Divider in 1/32 steps, rounded to nearest. An integer divider (and every 8 and 16 bit divider)
+ * gives a multiple of 32, so both kinds share one representation.
+ */
+static uint32_t ifx_uart_div32(uint32_t freq, uint32_t baud, uint32_t oversample, bool frac) {
+    uint64_t const den = (uint64_t)baud * oversample;
+    uint32_t div32;
+
+    if (frac) {
+        div32 = (uint32_t)((((uint64_t)freq * IFX_UART_DIV_FRAC_STEPS) + (den / 2U)) / den);
+    }
+    else {
+        div32 = ifx_uart_divider(freq, baud, oversample) * IFX_UART_DIV_FRAC_STEPS;
+    }
+
+    return (div32);
+}
+
+static uint32_t ifx_uart_baud_from_div32(uint32_t freq, uint32_t div32, uint32_t oversample) {
+    uint32_t baud = 0U;
+
+    if (div32 != 0U) {
+        baud = (uint32_t)(((uint64_t)freq * IFX_UART_DIV_FRAC_STEPS) /
+                          ((uint64_t)div32 * oversample));
+    }
+
+    return (baud);
+}
+
+/*
+ * Worst-case displacement of a sample point, in ppm of a bit. The stop bit of a character is
+ * sampled 9.5 bit times after the start edge, so:
+ * - the baud rate error adds up: 9.5 x error;
+ * - a divider with a fraction moves each edge by up to one source clock cycle, which is
+ *   baud / freq of a bit. This does not add up from bit to bit.
+ * A divider without a fraction has no such jitter. The error is compared in absolute terms: an
+ * integer percentage rounds every sub-1% candidate to 0 and can leave a several-tenths-of-a-percent
+ * error that causes intermittent framing errors on sustained transfers.
+ */
+static uint32_t ifx_uart_sample_error(uint32_t freq, uint32_t baud, uint32_t actual,
+                                      uint32_t div32) {
+    uint32_t const error = (actual > baud) ? (actual - baud) : (baud - actual);
+    uint32_t score = (uint32_t)((9500000ULL * error) / baud);
+
+    if ((div32 % IFX_UART_DIV_FRAC_STEPS) != 0U) {
+        score += (uint32_t)(((uint64_t)baud * 1000000ULL) / freq);
+    }
+
+    return (score);
+}
+
+/*
+ * Select the oversample factor and divider with the smallest sample point displacement. A 16.5 or
+ * 24.5 bit divider is tried both as an integer and with its fraction, so a fraction is used only
+ * where it lowers the displacement. The first candidate with the smallest score wins (the integer
+ * one, then the smaller oversample).
+ * plan->divider stays 0 when no candidate gives a divider of at least 1.
+ */
+static void ifx_uart_baud_plan(uint32_t freq, uint32_t baud, bool is_frac,
+                               struct ifx_uart_baud_plan* plan) {
+    uint32_t best_score = UINT32_MAX;
+
+    plan->oversample = IFX_UART_OVERSAMPLE_MIN;
+    plan->divider = 0U;
+    plan->frac    = 0U;
+    plan->actual  = 0U;
+
+    for (uint32_t i = IFX_UART_OVERSAMPLE_MIN; i < (IFX_UART_OVERSAMPLE_MAX + 1); i++) {
+        for (uint32_t k = 0U; k < (is_frac ? 2U : 1U); k++) {
+            uint32_t const div32 = ifx_uart_div32(freq, baud, i, (k != 0U));
+            uint32_t actual;
+            uint32_t score;
+
+            if (div32 < IFX_UART_DIV_FRAC_STEPS) {
+                continue;
+            }
+
+            actual = ifx_uart_baud_from_div32(freq, div32, i);
+            score = ifx_uart_sample_error(freq, baud, actual, div32);
+
+            if (score < best_score) {
+                best_score       = score;
+                plan->oversample = i;
+                plan->divider    = (div32 / IFX_UART_DIV_FRAC_STEPS);
+                plan->frac       = (div32 % IFX_UART_DIV_FRAC_STEPS);
+                plan->actual     = actual;
+            }
+        }
+    }
+}
+#endif /* !CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2 */
+
 static inline uint32_t ifx_uart_mem_width(uint32_t data_width) {
     #if defined(CONFIG_SOC_FAMILY_INFINEON_PSOC4)
     return (data_width <= CY_SCB_BYTE_WIDTH) ? CY_SCB_CTRL_MEM_WIDTH_BYTE
@@ -343,9 +445,8 @@ cy_rslt_t ifx_cat1_uart_set_baud(struct device const* dev, uint32_t baudrate) {
     cy_rslt_t status;
 
     #if !defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
-    uint32_t best_oversample = IFX_UART_OVERSAMPLE_MIN;
-    uint32_t best_difference = UINT32_MAX;
-    uint32_t divider;
+    struct ifx_uart_baud_plan plan;
+    bool is_frac;
     #endif /* !CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2 */
 
     uint32_t peri_frequency;
@@ -380,52 +481,27 @@ cy_rslt_t ifx_cat1_uart_set_baud(struct device const* dev, uint32_t baudrate) {
     peri_frequency = Cy_SysClk_ClkHfGetFrequency();
     #endif
 
-    /*
-     * Select the oversample factor that yields the smallest absolute baud
-     * rate error.  The error must be compared in absolute terms (Hz): an
-     * integer-percentage comparison rounds every sub-1% candidate to 0 and
-     * always selects the minimum oversample, which can leave a several-
-     * tenths-of-a-percent error and degraded sampling margin that causes
-     * intermittent framing errors on sustained transfers.
-     */
-    for (size_t i = IFX_UART_OVERSAMPLE_MIN; i < (IFX_UART_OVERSAMPLE_MAX + 1); i++) {
-        uint32_t tmp_divider = ((peri_frequency + ((baudrate * i) / 2))) / (baudrate * i);
-        uint32_t actual_baud;
-        uint32_t difference;
+    /* A 16.5 or 24.5 bit divider gets a fraction where it lowers the sample error, see ifx_uart_baud_plan() */
+    is_frac = ifx_cat1_utils_peri_is_fract_div(&data->clock);
+    ifx_uart_baud_plan(peri_frequency, baudrate, is_frac, &plan);
 
-        if (tmp_divider == 0U) {
-            continue;
-        }
+    data->scb_config.oversample = plan.oversample;
 
-        actual_baud = (peri_frequency / (tmp_divider * i));
-        difference = (actual_baud > baudrate) ? (actual_baud - baudrate)
-                                              : (baudrate - actual_baud);
-
-        if (difference < best_difference) {
-            best_difference = difference;
-            best_oversample = i;
-        }
-    }
-
-    data->scb_config.oversample = best_oversample;
-
-    divider = ifx_uart_divider(peri_frequency, baudrate, best_oversample);
-
-    if (ifx_uart_baud_diff(peri_frequency / (divider * best_oversample), baudrate) >
-        IFX_UART_MAX_BAUD_PERCENT_DIFFERENCE) {
+    if ((plan.divider == 0U) || (ifx_uart_baud_diff(plan.actual, baudrate) >
+                                 IFX_UART_MAX_BAUD_PERCENT_DIFFERENCE)) {
         status = -EINVAL;
     }
     else {
         /* Disable, reprogram, then re-enable so the new rate takes effect. */
         (void) ifx_cat1_utils_peri_pclk_disable_divider(config->clk_dst, &data->clock);
 
-        if ((data->clock.block & 0x02) == 0) {
-            status = ifx_cat1_utils_peri_pclk_set_divider(config->clk_dst, &data->clock,
-                                                          (divider - 1));
+        if (is_frac) {
+            status = ifx_cat1_utils_peri_pclk_set_frac_divider(config->clk_dst, &data->clock,
+                                                               (plan.divider - 1), plan.frac);
         }
         else {
-            status = ifx_cat1_utils_peri_pclk_set_frac_divider(config->clk_dst, &data->clock,
-                                                               (divider - 1), 0);
+            status = ifx_cat1_utils_peri_pclk_set_divider(config->clk_dst, &data->clock,
+                                                          (plan.divider - 1));
         }
 
         /* A failed set leaves the register unchanged, so this re-enables the old rate. */
@@ -438,13 +514,13 @@ cy_rslt_t ifx_cat1_uart_set_baud(struct device const* dev, uint32_t baudrate) {
         SCB_CTRL(base) =
             _BOOL2FLD(SCB_CTRL_ADDR_ACCEPT, data->scb_config.acceptAddrInFifo) |
             _BOOL2FLD(SCB_CTRL_MEM_WIDTH, ifx_uart_mem_width(data->scb_config.dataWidth)) |
-            _VAL2FLD(SCB_CTRL_OVS, best_oversample - 1) |
+            _VAL2FLD(SCB_CTRL_OVS, plan.oversample - 1) |
             _VAL2FLD(SCB_CTRL_MODE, CY_SCB_CTRL_MODE_UART);
         #else /* Older versions of the block */
         SCB_CTRL(base) =
             _BOOL2FLD(SCB_CTRL_ADDR_ACCEPT, data->scb_config.acceptAddrInFifo) |
             _BOOL2FLD(SCB_CTRL_BYTE_MODE, (data->scb_config.dataWidth <= CY_SCB_BYTE_WIDTH)) |
-            _VAL2FLD(SCB_CTRL_OVS, best_oversample - 1) |
+            _VAL2FLD(SCB_CTRL_OVS, plan.oversample - 1) |
             _VAL2FLD(SCB_CTRL_MODE, CY_SCB_CTRL_MODE_UART);
         #endif
 
