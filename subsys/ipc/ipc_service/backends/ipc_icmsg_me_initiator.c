@@ -166,7 +166,7 @@ static int send(const struct device *instance, void *token,
 	return icmsg_me_send(conf, &dev_data->icmsg_me_data, *id, msg, len);
 }
 
-const static struct ipc_service_backend backend_ops = {
+static struct ipc_service_backend const backend_ops = {
 	.open_instance = open,
 	.register_endpoint = register_ept,
 	.send = send,

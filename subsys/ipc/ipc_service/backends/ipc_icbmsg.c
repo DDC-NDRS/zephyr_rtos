@@ -1355,7 +1355,7 @@ static int backend_init(const struct device *instance)
 /**
  * IPC service backend callbacks.
  */
-const static struct ipc_service_backend backend_ops = {
+static struct ipc_service_backend const backend_ops = {
 	.open_instance = open,
 	.close_instance = IS_ENABLED(CONFIG_IPC_SERVICE_BACKEND_ICBMSG_DEINIT) ? close : NULL,
 	.send = send,

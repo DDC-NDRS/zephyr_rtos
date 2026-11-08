@@ -43,7 +43,7 @@ static int send(const struct device *instance, void *token,
 	return icmsg_send(conf, dev_data, msg, len);
 }
 
-const static struct ipc_service_backend backend_ops = {
+static struct ipc_service_backend const backend_ops = {
 	.register_endpoint = register_ept,
 	.deregister_endpoint = deregister_ept,
 	.send = send,

@@ -260,7 +260,7 @@ static int send(const struct device *instance, void *token,
 			     user_len);
 }
 
-const static struct ipc_service_backend backend_ops = {
+static struct ipc_service_backend const backend_ops = {
 	.open_instance = open,
 	.register_endpoint = register_ept,
 	.send = send,
