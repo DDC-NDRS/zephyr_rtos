@@ -185,6 +185,14 @@ if(CONFIG_BUILD_WITH_TFM OR CONFIG_PSOC_EDGE_M55_SRF_SUPPORT)
       ${tfm_ifx_dir}/interface/src/ifx_mtb_mailbox/ifx_mtb_mailbox_psa_ns_api.c
       ${tfm_ifx_dir}/interface/src/ifx_mtb_mailbox/ifx_mtb_mailbox.c
     )
+
+    # #CUSTOM@NDRS: the PSA Crypto API of the CM55 is the TF-M crypto client (psa_*() -> psa_call() -> mailbox), the same
+    # file the CM33 NS build gets from the TF-M api_ns library. PSA_CRYPTO_PROVIDER_CUSTOM keeps the local Mbed TLS PSA
+    # core (which defines the same psa_*() symbols) out of the image.
+    zephyr_library_sources_ifdef(CONFIG_PSA_CRYPTO_PROVIDER_CUSTOM
+      ${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/interface/src/tfm_crypto_api.c
+    )
+
     # #CUSTOM@NDRS: declare the SRF client context for the mailbox client when "cybsp.h" is the Wi-Fi driver stub
     # (the object is built by the library target of the parent directory, hence TARGET_DIRECTORY)
     set_source_files_properties(
@@ -192,8 +200,16 @@ if(CONFIG_BUILD_WITH_TFM OR CONFIG_PSOC_EDGE_M55_SRF_SUPPORT)
       TARGET_DIRECTORY ${ZEPHYR_CURRENT_LIBRARY}
       PROPERTIES COMPILE_OPTIONS "-include;${CMAKE_CURRENT_LIST_DIR}/ndrs_srf_client.h"
     )
+
+    # #CUSTOM@NDRS: with the TF-M crypto client the source tree's interface/include stays off the include path of the whole
+    # image: its psa/crypto.h, mbedtls/ and tf-psa-crypto/ shadow the headers of the Mbed TLS module that the TLS code needs
+    # (ssl.h then misses MBEDTLS_ECP_MAX_BYTES). The client headers (psa/client.h, tfm_crypto_defs.h, psa_manifest/) come
+    # from the api_ns copy of the CM33 NS TF-M build, added further down.
+    if(NOT CONFIG_PSA_CRYPTO_PROVIDER_CUSTOM)
+      zephyr_include_directories(${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/interface/include)
+    endif()
+
     zephyr_include_directories(
-      ${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/interface/include
       ${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/secure_fw/include
       ${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/secure_fw/spm/include
       ${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/config
