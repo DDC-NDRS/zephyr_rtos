@@ -695,6 +695,14 @@ static void telnet_restart_server(void)
 	}
 }
 
+/* #CUSTOM@NDRS: called once a client connected and the option negotiation was started, from the socket service thread. The
+ * application may use it to show something to the new session (a history of messages, a status). It must not block.
+ */
+__weak void shell_telnet_client_connected_hook(const struct shell *sh)
+{
+	ARG_UNUSED(sh);
+}
+
 static void telnet_accept(struct zsock_pollfd *pollfd)
 {
 	int sock, ret = 0;
@@ -755,6 +763,8 @@ static void telnet_accept(struct zsock_pollfd *pollfd)
 		 */
 		(void)telnet_echo_set(sh_telnet->shell_context, false);
 	}
+
+	shell_telnet_client_connected_hook(sh_telnet->shell_context);
 
 	return;
 
