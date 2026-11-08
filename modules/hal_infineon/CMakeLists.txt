@@ -83,7 +83,10 @@ if(CONFIG_SOC_FAMILY_INFINEON_EDGE)
   add_subdirectory(mtb-dsl-pse8xxgp)
 
   if(CONFIG_PSOC_EDGE_M55_SRF_SUPPORT)
-    add_subdirectory(abstraction-rtos)
+    # #CUSTOM@NDRS: the CONFIG_WIFI_AIROC block below adds abstraction-rtos too, and a directory can be added once
+    if(NOT CONFIG_WIFI_AIROC)
+      add_subdirectory(abstraction-rtos)
+    endif()
     add_subdirectory(mtb-ipc)
     zephyr_compile_definitions(COMPONENT_MW_MTB_IPC)
     zephyr_compile_definitions(COMPONENT_MW_MTB_SRF)

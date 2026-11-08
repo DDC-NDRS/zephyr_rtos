@@ -185,6 +185,13 @@ if(CONFIG_BUILD_WITH_TFM OR CONFIG_PSOC_EDGE_M55_SRF_SUPPORT)
       ${tfm_ifx_dir}/interface/src/ifx_mtb_mailbox/ifx_mtb_mailbox_psa_ns_api.c
       ${tfm_ifx_dir}/interface/src/ifx_mtb_mailbox/ifx_mtb_mailbox.c
     )
+    # #CUSTOM@NDRS: declare the SRF client context for the mailbox client when "cybsp.h" is the Wi-Fi driver stub
+    # (the object is built by the library target of the parent directory, hence TARGET_DIRECTORY)
+    set_source_files_properties(
+      ${tfm_ifx_dir}/interface/src/ifx_mtb_mailbox/ifx_mtb_mailbox.c
+      TARGET_DIRECTORY ${ZEPHYR_CURRENT_LIBRARY}
+      PROPERTIES COMPILE_OPTIONS "-include;${CMAKE_CURRENT_LIST_DIR}/ndrs_srf_client.h"
+    )
     zephyr_include_directories(
       ${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/interface/include
       ${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/secure_fw/include
@@ -195,11 +202,19 @@ if(CONFIG_BUILD_WITH_TFM OR CONFIG_PSOC_EDGE_M55_SRF_SUPPORT)
     # Paired-build setup: consume generated PSA manifest headers from the
     # CM33-NS TF-M build. Override at configure time, e.g.:
     #   west build ... -- -DPSE84_CM33_BUILD_DIR=/abs/path/to/cm33_ns/build/tfm
+    # #CUSTOM@NDRS: under sysbuild the value arrives in the sysbuild cache, not in this image's CMake cache.
+    # zephyr_get() takes it from there (or from the cache/environment), the set() below only gives the default.
+    zephyr_get(PSE84_CM33_BUILD_DIR SYSBUILD GLOBAL)
     set(PSE84_CM33_BUILD_DIR "${ZEPHYR_BASE}/build"
         CACHE PATH
         "Path to the CM33-NS build output directory consumed by the CM55 paired build")
 
-    if(NOT EXISTS "${PSE84_CM33_BUILD_DIR}/tfm/generated/interface/include")
+    # #CUSTOM@NDRS: under sysbuild the TF-M output is produced while the main image is built, after this configure.
+    # sysbuild.cmake makes the CM55 image depend on the main image, so the headers exist when the CM55 compiles.
+    if(NOT EXISTS "${PSE84_CM33_BUILD_DIR}/tfm/generated/interface/include" AND SYSBUILD)
+      message(STATUS "PSE84_CM33_BUILD_DIR='${PSE84_CM33_BUILD_DIR}': the PSA manifest headers come from the "
+                     "TF-M build of the main image, which sysbuild runs first")
+    elseif(NOT EXISTS "${PSE84_CM33_BUILD_DIR}/tfm/generated/interface/include")
       message(FATAL_ERROR
         "PSE84_CM33_BUILD_DIR='${PSE84_CM33_BUILD_DIR}' does not contain "
         "/tfm/generated/interface/include. The CM55 build needs the PSA manifest headers "
