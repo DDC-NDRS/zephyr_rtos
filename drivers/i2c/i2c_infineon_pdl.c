@@ -1525,6 +1525,7 @@ static int ifx_cat1_i2c_recover_bus(struct device const* dev) {
     };
     uint32_t bitrate_cfg;
     bool scb_was_enabled;
+    bool is_ready;
     int error = 0;
 
     is_ready = gpio_is_ready_dt(&config->scl);

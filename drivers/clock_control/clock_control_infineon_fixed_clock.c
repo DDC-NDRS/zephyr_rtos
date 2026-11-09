@@ -41,6 +41,7 @@ struct fixed_rate_clock_config {
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(dpll_hp))  || \
     DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(dpll_lp0)) || \
     DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(dpll_lp1)) || \
+    DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(clk_eco))  || \
     (DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(clk_wco)) && \
      !IS_ENABLED(CONFIG_SOC_FAMILY_INFINEON_PSOC4))
 static void clock_startup_error(uint32_t error) {
@@ -157,7 +158,7 @@ static const cy_stc_clk_eco_config_t srss_0_clock_0_eco_0_config = {
 #define CY_CFG_SYSCLK_ECO_FREQ 17203200UL
 #define CY_CFG_SYSCLK_ECO_ERROR 1
 
-void clk_eco_init(void) {
+static void clk_eco_init(void) {
     (void) Cy_GPIO_Pin_FastInit(GPIO_PRT19, 0, CY_GPIO_DM_ANALOG, 0UL, HSIOM_SEL_GPIO);
     (void) Cy_GPIO_Pin_FastInit(GPIO_PRT19, 1, CY_GPIO_DM_ANALOG, 0UL, HSIOM_SEL_GPIO);
 
