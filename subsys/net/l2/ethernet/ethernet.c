@@ -262,7 +262,7 @@ static int ethernet_mcast_filter_set(struct net_if *iface,
 		return -ENOTSUP;
 	}
 
-	if (!api || !api->set_config) {
+	if (api->set_config == NULL) {
 		return -ENOTSUP;
 	}
 
@@ -1413,9 +1413,7 @@ void ethernet_init(struct net_if *iface)
 	dsa_eth_init(iface);
 #endif
 
-	if ((caps & ETHERNET_LLDP) != 0) {
-		net_lldp_set_lldpdu(iface);
-	}
+	net_lldp_set_lldpdu(iface);
 
 	ctx->is_init = true;
 }

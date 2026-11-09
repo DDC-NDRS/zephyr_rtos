@@ -161,6 +161,10 @@ Ethernet
   ``reset-deassertion-timeout-ms`` with ``reset-deassert-us``, multiplying its value by 1000 as
   it is now in microseconds. (:github:`124061`)
 
+* The ``ETHERNET_LLDP`` value of :c:enum:`ethernet_hw_caps` has been removed. LLDP is now enabled
+  on every Ethernet interface when :kconfig:option:`CONFIG_NET_LLDP` is set. Out-of-tree Ethernet
+  drivers must stop reporting it. (:github:`124787`)
+
 OPAMP
 =====
 
@@ -265,6 +269,12 @@ Networking
   ``zvfs_fdtable_call_poll_prepare()``, ``zvfs_fdtable_call_poll_update()``, and
   ``zvfs_fdtable_call_poll_offload()``, as in-tree sockets no longer handle the ``ZFD_IOCTL_POLL_*``
   requests in their ioctl handlers.
+
+* For ``AF_UNSPEC`` lookups, :c:func:`zsock_getaddrinfo` now returns IPv6 addresses before IPv4
+  ones, unless only the IPv4 addresses are reachable, and queries AAAA records before A records.
+  Applications that use the first result now connect over IPv6 where they used IPv4. Enable
+  :kconfig:option:`CONFIG_NET_SOCKETS_DNS_PREFER_IPV4` to keep IPv4 first, for example with
+  offloaded network interfaces, where reachability cannot be determined.
 
 Other subsystems
 ****************

@@ -184,9 +184,6 @@ enum ethernet_hw_caps {
     /** MAC address filtering supported */
     ETHERNET_HW_FILTERING           = BIT(12),
 
-    /** Link Layer Discovery Protocol supported */
-    ETHERNET_LLDP                   = BIT(13),
-
     /** VLAN Tag stripping */
     ETHERNET_HW_VLAN_TAG_STRIP      = BIT(14),
 
@@ -1135,7 +1132,7 @@ enum ethernet_hw_caps net_eth_get_hw_capabilities(struct net_if* iface) {
     NET_ASSERT(dev != NULL);
 
     api = (struct ethernet_api const*)dev->api;
-    if (api == NULL || api->get_capabilities == NULL) {
+    if (api->get_capabilities == NULL) {
         return (caps);
     }
 

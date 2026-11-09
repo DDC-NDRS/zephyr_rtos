@@ -39,7 +39,7 @@ manifest:
       remote: babblesim
       repo-path: base
       path: tools/bsim/components
-      revision: 68baf150660213d67c29acb14bf9fccecf4612eb
+      revision: b40fdb2f98409a3c3b596f1595e50e39b78491d9
       groups:
         - babblesim
     - name: babblesim_ext_2G4_channel_NtNcable
@@ -81,7 +81,7 @@ manifest:
       remote: babblesim
       repo-path: ext_2G4_libPhyComv1
       path: tools/bsim/components/ext_2G4_libPhyComv1
-      revision: 27eb408f952182a646eac1abb7dc12b7b565655b
+      revision: c8e8089a0a67c4da4bfc74ab348d6888fac81962
       groups:
         - babblesim
     - name: babblesim_ext_2G4_modem_BLE_simple
@@ -114,7 +114,7 @@ manifest:
         - babblesim
     - name: bsim
       repo-path: babblesim-manifest
-      revision: 0673623452f0a3cb50b7563c32ac7683304cb6fc
+      revision: 5793402979b984dd81dc699780ae314f0e728ca0
       path: tools/bsim
       groups:
         - babblesim
@@ -190,7 +190,7 @@ manifest:
       groups:
         - hal
     - name: hal_infineon
-      revision: 4e9ddef3e65153791e487cee887abcd6f671cf1a
+      revision: 2c866d7587ca5c13bf48d6bdde919072f8f18be5
       path: modules/hal/infineon
       groups:
         - hal
@@ -237,7 +237,7 @@ manifest:
         - hal
     - name: hal_renesas
       path: modules/hal/renesas
-      revision: 0c0beea010e78899c8ffbfd995cbfe50d3e6595e
+      revision: 445939f67cd06271db07efe1daa3fff8135e161c
       groups:
         - hal
     - name: hal_rpi_pico
@@ -364,7 +364,7 @@ manifest:
       revision: 6833b0d2cd8dcb0fa51908a5c2e3732e2a82048f
       path: modules/lib/open-amp
     - name: openthread
-      revision: 4a8d33459567cc611bf9d4d810c2201a24a64d84
+      revision: 123c5b2022d04122e9fbb42fce4999b5f73b540e
       path: modules/lib/openthread
     - name: percepio
       path: modules/debug/percepio
@@ -410,7 +410,7 @@ manifest:
       groups:
         - tee
     - name: trusted-firmware-m
-      revision: bcfa5ab339731da5e2d0e4c97b966bae2e3858d1
+      revision: 214c1c37a0eafe5d3394d79871112cecc4ff579e
       path: modules/tee/tf-m/trusted-firmware-m
       groups:
         - tee

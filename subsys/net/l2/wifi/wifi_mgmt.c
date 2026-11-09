@@ -497,7 +497,7 @@ static struct wifi_mgmt_ops const* get_wifi_api(struct net_if* iface) {
     struct net_wifi_mgmt_offload* off_api;
 
     if ((dev == NULL) || !net_if_is_wifi(iface)) {
-        return NULL;
+        return (NULL);
     }
 
     off_api = (struct net_wifi_mgmt_offload *) dev->api;
@@ -505,10 +505,10 @@ static struct wifi_mgmt_ops const* get_wifi_api(struct net_if* iface) {
     struct wifi_nm_instance* nm = wifi_nm_get_instance_iface(iface);
 
     if (nm) {
-        return nm->ops;
+        return (nm->ops);
     }
     #endif /* CONFIG_WIFI_NM */
-    return off_api ? off_api->wifi_mgmt_api : NULL;
+    return (off_api->wifi_mgmt_api);
 }
 
 static int wifi_connect(uint64_t mgmt_request, struct net_if* iface,
