@@ -60,6 +60,19 @@ if(CONFIG_BUILD_WITH_TFM)
       # as relwithdebinfo (-O2); uncomment the next line to build it at -O0, then do a clean TF-M configure:
       # -DTF_PSA_CRYPTO_BUILD_TYPE=Debug
     )
+
+    # CUSTOM@NDRS: dual-core build, the M55 (PC 6) is kept out of the M33 NS RAM and out of the peripherals that only the M33
+    # uses. cycfg_system.c reads the defines that pse84/board/spe/CMakeLists.txt makes from these options.
+    if(CONFIG_BCU_MV25_M33_RAM_ISOLATED)
+      set_property(TARGET zephyr_property_target APPEND PROPERTY TFM_CMAKE_OPTIONS
+        -DBCU_MV25_M33_RAM_ISOLATED=ON
+      )
+    endif()
+    if(CONFIG_BCU_MV25_M33_PERIPH_ISOLATED)
+      set_property(TARGET zephyr_property_target APPEND PROPERTY TFM_CMAKE_OPTIONS
+        -DBCU_MV25_M33_PERIPH_ISOLATED=ON
+      )
+    endif()
   else()
     message(FATAL_ERROR "No supported board selected.")
   endif()
