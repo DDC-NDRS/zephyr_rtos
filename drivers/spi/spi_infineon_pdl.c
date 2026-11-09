@@ -753,7 +753,7 @@ static int spi_ifx_init(const struct device* dev) {
 #endif
 
 /* Account for spelling error in older version of the PDL */
-#if defined(CONFIG_SOC_FAMILY_INFINEON_EDGE)
+#if defined(CONFIG_IFX_SPI_PDL_TYPO_FIXED)
 #define EN_XFER_SEPARATION enableTransferSeparation
 #else
 #define EN_XFER_SEPARATION enableTransferSeperation

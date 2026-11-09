@@ -281,7 +281,7 @@ static uint32_t get_sysclk_frequency(void) {
                                 STM32_PLL_M_DIVISOR,
                                 STM32_PLL_N_MULTIPLIER,
                                 STM32_PLL_FRACN_VALUE,
-				    STM32_PLL_P_DIVISOR);
+                    STM32_PLL_P_DIVISOR);
     #elif defined(STM32_SYSCLK_SRC_CSI)
     return STM32_CSI_FREQ;
     #elif defined(STM32_SYSCLK_SRC_HSE)
@@ -337,6 +337,16 @@ static int32_t prepare_regulator_voltage_scale(void) {
         if (IS_ENABLED(__GTEST)) {
             break;
         }
+    }
+    #endif
+
+    #if defined(FLASH_OPTSR2_CPUFREQ_BOOST)
+    /* Above 520MHz, VOS0 voltage scale also requires OptionByte CPUFREQ_BOOST to be set */
+    if ((CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC > MHZ(520)) &&
+        (stm32_reg_read_bits(&FLASH->OPTSR2_PRG, FLASH_OPTSR2_CPUFREQ_BOOST)) !=
+         FLASH_OPTSR2_CPUFREQ_BOOST) {
+        __ASSERT(0, "CPU freq above 520MHz requires CPUFREQ_BOOST Option Byte");
+        return (-ENOTSUP);
     }
     #endif
 
@@ -435,12 +445,12 @@ int enabled_clock(uint32_t src_clk) {
         ((src_clk == STM32_SRC_PLL3_Q)  && IS_ENABLED(STM32_PLL3_Q_ENABLED)) ||
         (src_clk == STM32_SRC_TIMPCLK1) ||
         (src_clk == STM32_SRC_TIMPCLK2) ||
-	    (src_clk == STM32_SRC_PCLK1) ||
-	    (src_clk == STM32_SRC_PCLK2) ||
-	    (src_clk == STM32_SRC_PCLK4) ||
-	    (src_clk == STM32_SRC_HCLK3) ||
+        (src_clk == STM32_SRC_PCLK1) ||
+        (src_clk == STM32_SRC_PCLK2) ||
+        (src_clk == STM32_SRC_PCLK4) ||
+        (src_clk == STM32_SRC_HCLK3) ||
 #if !defined(CONFIG_SOC_SERIES_STM32H7RSX)
-	    (src_clk == STM32_SRC_PCLK3) ||
+        (src_clk == STM32_SRC_PCLK3) ||
 #else
         (src_clk == STM32_SRC_HCLK1) ||
         (src_clk == STM32_SRC_HCLK2) ||
@@ -573,8 +583,8 @@ static int stm32_clock_control_get_subsys_rate(const struct device* clock,
         case STM32_CLOCK_BUS_AHB2 :
         case STM32_CLOCK_BUS_AHB3 :
         case STM32_CLOCK_BUS_AHB4 :
-	/* HCLKn is a possible source clock for some peripherals */
-	case STM32_SRC_HCLK3:
+    /* HCLKn is a possible source clock for some peripherals */
+    case STM32_SRC_HCLK3:
         #if defined(CONFIG_SOC_SERIES_STM32H7RSX)
         case STM32_SRC_HCLK1 :
         case STM32_SRC_HCLK2 :
@@ -599,14 +609,14 @@ static int stm32_clock_control_get_subsys_rate(const struct device* clock,
 
         #if !defined(CONFIG_SOC_SERIES_STM32H7RSX)
         case STM32_CLOCK_BUS_APB3 :
-	/* PCLK3 is a possible source clock for some peripherals */
-	case STM32_SRC_PCLK3:
+    /* PCLK3 is a possible source clock for some peripherals */
+    case STM32_SRC_PCLK3:
             *rate = apb3_clock;
             break;
         #endif /* !CONFIG_SOC_SERIES_STM32H7RSX */
 
         case STM32_CLOCK_BUS_APB4 :
-	/* PCLK4 is a possible source clock for some peripherals */
+    /* PCLK4 is a possible source clock for some peripherals */
         case STM32_SRC_PCLK4 :
             *rate = apb4_clock;
             break;
@@ -1282,7 +1292,11 @@ int stm32_clock_control_init(const struct device* dev) {
     set_up_fixed_clock_sources();
 
     /* Configure Voltage scale to comply with the desired system frequency */
-    prepare_regulator_voltage_scale();
+    r = prepare_regulator_voltage_scale();
+    if (r < 0) {
+        __ASSERT(0, "Voltage regulator setup failed");
+        return (r);
+    }
 
     /* Current hclk value */
     old_hclk_freq = get_startup_hclk_frequency();
