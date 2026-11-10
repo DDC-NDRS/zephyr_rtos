@@ -1472,6 +1472,10 @@ static int ifx_cat1_i2c_target_unregister(struct device const* dev, struct i2c_t
      * speed chosen by the application survives a target registration.
      */
     ret = ifx_cat1_i2c_configure(dev, data->controller_config);
+
+    /* Drop the runtime PM reference taken by target_register(), success or not. */
+    (void) pm_device_runtime_put(dev);
+
     if (ret < 0) {
         /*
          * i2c_target_unregister() lists no errno for a hardware failure,
