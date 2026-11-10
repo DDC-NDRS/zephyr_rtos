@@ -61,6 +61,10 @@ Boards
   (P2.0 to P2.2) was removed. SCB2 is now ``arduino_spi`` on the Arduino header pins D11 to D13
   (P10.0 to P10.2), disabled by default.
 
+* LiteX: The deprecated ``CONFIG_LITEX_CSR_DATA_WIDTH`` Kconfig option has been removed. Only the
+  32 bit CSR data width is supported. Designs that use an 8 bit CSR data width must be rebuilt with
+  a 32 bit CSR data width. (:github:`124793`)
+
 Device Drivers and Devicetree
 *****************************
 
@@ -165,6 +169,19 @@ Ethernet
   on every Ethernet interface when :kconfig:option:`CONFIG_NET_LLDP` is set. Out-of-tree Ethernet
   drivers must stop reporting it. (:github:`124787`)
 
+Modem
+=====
+
+* Sierra Wireless HL78xx: the ``CONFIG_HL78XX_EVT_MONITOR_HEAP_SIZE`` option has been replaced
+  by :kconfig:option:`CONFIG_HL78XX_EVT_MONITOR_QUEUE_DEPTH`. The queue of notifications
+  waiting for the deferred event monitors is now sized as a number of notifications instead of
+  a heap size in bytes. Applications that set the old option must remove it, and set the new
+  one if the default of 16 notifications is not enough. A notification that does not fit is
+  dropped and counted; the count is available from
+  :c:func:`hl78xx_evt_monitor_dropped_count`. The slots are reserved statically, one queued
+  notification each, so the default of 16 uses more RAM than the 256-byte heap it replaces.
+  (:github:`120425`)
+
 OPAMP
 =====
 
@@ -201,6 +218,35 @@ PTP Clock
   parts per billion, and :c:func:`ptp_clock_adjust_by_scaled_ppm` to compute the value of an
   addend register from its nominal value. All in-tree drivers have been converted.
   (:github:`120828`)
+
+Timers
+======
+
+* The deprecated Cortex-M SysTick low-power companion Kconfig options have been removed.
+  Replace them with their generic system timer equivalents:
+
+  .. list-table::
+     :header-rows: 1
+
+     * - Removed option
+       - Replacement
+     * - ``CONFIG_CORTEX_M_SYSTICK_LPM_TIMER_NONE``
+       - :kconfig:option:`CONFIG_SYSTEM_TIMER_LPM_COMPANION_NONE`
+     * - ``CONFIG_CORTEX_M_SYSTICK_LPM_TIMER_COUNTER``
+       - :kconfig:option:`CONFIG_SYSTEM_TIMER_LPM_COMPANION_COUNTER`
+     * - ``CONFIG_CORTEX_M_SYSTICK_LPM_TIMER_HOOKS``
+       - :kconfig:option:`CONFIG_SYSTEM_TIMER_LPM_COMPANION_HOOKS`
+     * - ``CONFIG_CORTEX_M_SYSTICK_RESET_BY_LPM``
+       - :kconfig:option:`CONFIG_SYSTEM_TIMER_RESET_BY_LPM`
+
+* The deprecated chosen ``/chosen/zephyr,cortex-m-idle-timer`` is no longer supported. Use the
+  :ref:`zephyr,system-timer-companion <devicetree-chosen-nodes>` chosen instead to select the
+  low-power companion counter.
+
+* The deprecated ``drivers/timer/cortex_m_systick.h`` compatibility header has been removed.
+  Include :zephyr_file:`include/zephyr/drivers/timer/system_timer_lpm.h` instead, and replace
+  ``z_cms_lptim_hook_on_lpm_entry`` and ``z_cms_lptim_hook_on_lpm_exit`` with
+  :c:func:`z_sys_clock_lpm_enter` and :c:func:`z_sys_clock_lpm_exit`, respectively. (:github:`124238`).
 
 .. zephyr-keep-sorted-stop
 
