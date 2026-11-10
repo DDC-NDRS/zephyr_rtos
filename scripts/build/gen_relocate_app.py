@@ -199,9 +199,16 @@ extern char __{mem}_{kind}_reloc_size[];
 
 
 DATA_COPY_FUNCTION = """
+/* #CUSTOM@NDRS: an application can override this to copy more code into the same regions (libc.a is prebuilt, so
+ * the objects of the build are the only thing this script can place). Runs once all generated copies are done. */
+__weak void ndrs_data_copy_xip_relocation_hook(void)
+{{
+}}
+
 FUNC_NO_STACK_PROTECTOR void data_copy_xip_relocation(void)
 {{
 {0}
+	ndrs_data_copy_xip_relocation_hook();
 }}
 """
 
