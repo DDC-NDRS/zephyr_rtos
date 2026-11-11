@@ -435,7 +435,7 @@ static inline uint32_t ring_buf_get(struct ring_buf *rb, uint8_t *data, uint32_t
 		if (chunk == 0U) {
 			break;
 		}
-		if (!IS_ENABLED(CONFIG_RING_BUFFER) || data != NULL) {
+		if (!IS_ENABLED(CONFIG_RING_BUFFER) || (data != NULL)) {
 			memcpy(&data[total], src, chunk);
 		}
 		total += chunk;

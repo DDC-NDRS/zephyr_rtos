@@ -2596,8 +2596,17 @@ static int ifx_autanalog_sar_get_decoder(const struct device* dev,
             .fifo_sel = (uint8_t)DT_PROP_OR(child_node_id, fifo_sel, 0), \
         },), ())
 
+#define IFX_COUNT_CHAN_DT(child) + DT_NODE_HAS_PROP(child, reg)
+
+#define IFX_CHAN_DT_CFG_COUNT(n)                                \
+    (0 DT_INST_FOREACH_CHILD_STATUS_OKAY(n, IFX_COUNT_CHAN_DT))
+
+#define IFX_CHAN_DT_CFG_PDL_COUNT(n)                            \
+    (IFX_CHAN_DT_CFG_COUNT(n) + !IFX_CHAN_DT_CFG_COUNT(n))
+
 #define IFX_CHAN_DT_CFG_ARRAY(n)                                \
-    static const struct ifx_autanalog_sar_channel_dt_config ifx_sar_chan_dt_cfg_##n[] = { \
+    static const struct ifx_autanalog_sar_channel_dt_config     \
+        ifx_sar_chan_dt_cfg_##n[IFX_CHAN_DT_CFG_PDL_COUNT(n)] = { \
         DT_INST_FOREACH_CHILD_STATUS_OKAY(n, IFX_CHAN_DT_CFG_ENTRY)}
 
 /* FIFO configuration from DT child node named "fifo" */
@@ -2663,7 +2672,7 @@ static int ifx_autanalog_sar_get_decoder(const struct device* dev,
 /* Declare the const config array of HS sequencer entries for instance n */
 #define IFX_SEQ_HS_CFG_ARRAY(n)                                 \
     static const struct ifx_autanalog_sar_seq_hs_config         \
-        ifx_sar_seq_hs_cfg_##n[] = {                            \
+        ifx_sar_seq_hs_cfg_##n[IFX_HS_SEQ_PDL_COUNT(n)] = {     \
         DT_INST_FOREACH_CHILD_STATUS_OKAY(n, IFX_SEQ_HS_CFG_ENTRY) \
     }
 
@@ -2696,7 +2705,7 @@ static int ifx_autanalog_sar_get_decoder(const struct device* dev,
 /* Declare the const config array of LP sequencer entries for instance n */
 #define IFX_SEQ_LP_CFG_ARRAY(n)                                 \
     static const struct ifx_autanalog_sar_seq_lp_config         \
-        ifx_sar_seq_lp_cfg_##n[] = {                            \
+        ifx_sar_seq_lp_cfg_##n[IFX_LP_SEQ_PDL_COUNT(n)] = {     \
         DT_INST_FOREACH_CHILD_STATUS_OKAY(n, IFX_SEQ_LP_CFG_ENTRY) \
     }
 
@@ -2756,7 +2765,7 @@ static int ifx_autanalog_sar_get_decoder(const struct device* dev,
         .fifo_enabled = IFX_FIFO_ENABLED(n),                    \
         .fifo_cfg = COND_CODE_1(IFX_FIFO_ENABLED(n),            \
                     (IFX_FIFO_CFG_INIT(n)), ({0})),             \
-        .num_dt_channels = ARRAY_SIZE(ifx_sar_chan_dt_cfg_##n), \
+        .num_dt_channels = IFX_CHAN_DT_CFG_COUNT(n),            \
         .dt_channels = ifx_sar_chan_dt_cfg_##n,                 \
         .num_hs_seq = IFX_HS_SEQ_PDL_COUNT(n),                  \
         .hs_seq = (IFX_HS_SEQ_DT_COUNT(n) > 0) ? ifx_sar_seq_hs_cfg_##n : NULL, \
