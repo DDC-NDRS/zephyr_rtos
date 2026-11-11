@@ -253,7 +253,8 @@ static void eth_stm32_iface_init(struct net_if *iface)
 
 	ret = eth_stm32_hal_init(dev);
 	if (ret != 0) {
-		LOG_ERR("Failed to initialize HAL");
+		LOG_ERR("Failed to initialize HAL (%d)", ret);
+		return;
 	}
 
 	eth_stm32_setup_mac_filter(heth);

@@ -376,7 +376,7 @@ MODEM_CMD_DIRECT_DEFINE(on_cmd_cwlap) {                         /* ESP_AT_STA_SE
         return (-EBADMSG);
     }
 
-    res.ssid_length = MIN(sizeof(res.ssid), (uint8_t)strlen(ssid));
+    res.ssid_length = MIN(sizeof(res.ssid), strlen(ssid));
     memcpy(res.ssid, ssid, res.ssid_length);
 
     res.rssi = (int8_t)rssi;

@@ -1610,7 +1610,7 @@ static int spi_nor_configure_semper_flash(const struct device* dev) {
         }
     }
 
-    return rc;
+    return (rc);
 }
 
 /**
@@ -1784,7 +1784,7 @@ static int spi_nor_configure(const struct device* dev) {
         rc = spi_nor_configure_semper_flash(dev);
     }
 
-    return (rc);
+    return ((rc < 0) ? rc : 0);
 }
 
 static int spi_nor_pm_control(const struct device* dev, enum pm_device_action action) {
@@ -1823,7 +1823,7 @@ static int spi_nor_pm_control(const struct device* dev, enum pm_device_action ac
             rc = -ENOSYS;
     }
 
-    return rc;
+    return (rc);
 }
 
 /**
