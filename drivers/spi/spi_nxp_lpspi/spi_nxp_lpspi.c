@@ -212,8 +212,6 @@ static inline void lpspi_end_xfer(const struct device* dev) {
     struct lpspi_data* data = dev->data;
     struct spi_context* ctx = &data->ctx;
 
-    spi_context_complete(ctx, dev, 0);
-
     #ifdef CONFIG_CPU_CORTEX_M
     const struct lpspi_config* config = dev->config;
     NVIC_ClearPendingIRQ(config->irqn);
@@ -225,7 +223,9 @@ static inline void lpspi_end_xfer(const struct device* dev) {
     }
 
     spi_context_cs_control(ctx, false);
-    spi_context_release(ctx, 0);
+
+    /* Last, as the caller may start the next transfer as soon as it is woken */
+    spi_context_complete(ctx, dev, 0);
 }
 
 static void lpspi_isr(const struct device* dev) {
@@ -418,14 +418,21 @@ static int lpspi_ll_transceive(const struct device* dev, const struct spi_config
     lpspi->IER |= (LPSPI_IER_TDIE_MASK | LPSPI_IER_RDIE_MASK);
 
     ret = spi_context_wait_for_completion(ctx);
-    if (ret >= 0) {
-        return ret;
+
+    /* spi_context_complete() releases the lock of an asynchronous transfer, and
+     * by now ctx may already belong to the next caller.
+     */
+    if (asynchronous && (ret >= 0)) {
+        return (ret);
     }
 
 error :
+    /* Not from the ISR: the next caller could then take this caller's
+     * completion from the shared semaphore.
+     */
     spi_context_release(ctx, ret);
 
-    return ret;
+    return (ret);
 }
 
 static int lpspi_transceive_sync(const struct device* dev, const struct spi_config* spi_cfg,
@@ -464,7 +471,7 @@ static int lpspi_init(const struct device* dev) {
 
     ret = spi_nxp_init_common(dev);
     if (ret != 0) {
-        return ret;
+        return (ret);
     }
 
     lpspi = (LPSPI_Type*)DEVICE_MMIO_NAMED_GET(dev, reg_base);
@@ -479,7 +486,7 @@ static int lpspi_init(const struct device* dev) {
 
     spi_context_unlock_unconditionally(&data->ctx);
 
-    return 0;
+    return (0);
 }
 
 #define LPSPI_INIT(n)                                           \

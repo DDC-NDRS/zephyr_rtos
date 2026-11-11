@@ -3727,7 +3727,7 @@ int net_if_set_name(struct net_if* iface, char const* buf);
 int net_if_get_by_name(char const* name);
 
 /** @cond INTERNAL_HIDDEN */
-struct net_if_api {
+__subsystem struct net_if_driver_api {
     void (*init)(struct net_if* iface);
 };
 

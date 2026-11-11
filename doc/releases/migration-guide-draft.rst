@@ -23,6 +23,11 @@ the :ref:`release notes<zephyr_4.6>`.
 Common
 ******
 
+* The :file:`scripts/footprint/size_report`, :file:`scripts/footprint/compare_footprint`, and
+  :file:`scripts/kconfig/diffconfig` scripts have been renamed to
+  :file:`scripts/footprint/size_report.py`, :file:`scripts/footprint/compare_footprint.py`, and
+  :file:`scripts/kconfig/diffconfig.py`, respectively. Users must update their invocations.
+
 Build System
 ************
 
@@ -64,6 +69,38 @@ Boards
 * LiteX: The deprecated ``CONFIG_LITEX_CSR_DATA_WIDTH`` Kconfig option has been removed. Only the
   32 bit CSR data width is supported. Designs that use an 8 bit CSR data width must be rebuilt with
   a 32 bit CSR data width. (:github:`124793`)
+
+* The Andes AE350 SoC is now provided per AndesCore core, for example ``ae350_a25`` for the A25
+  core. The ``ae350`` SoC and :kconfig:option:`CONFIG_SOC_AE350` are deprecated and will be
+  removed in a future release. Kconfig, CMake and code checking
+  :kconfig:option:`CONFIG_SOC_AE350` should check :kconfig:option:`CONFIG_SOC_SERIES_AE350`
+  instead. (:github:`122288`)
+
+  * The AE350 board targets of :zephyr:board:`adp_xc7k` and
+    :zephyr:board:`tang_mega_138k_pro_dock` have been renamed after the core. The previous board
+    targets are deprecated and map to the new board targets:
+
+    * ``adp_xc7k/ae350`` to ``adp_xc7k/ae350_a25``
+    * ``adp_xc7k/ae350/clic`` to ``adp_xc7k/ae350_d23/clic``
+    * ``tang_mega_138k_pro_dock/ae350`` to ``tang_mega_138k_pro_dock/ae350_a25``
+    * ``tang_mega_138k_pro_dock/ae350/demo`` to ``tang_mega_138k_pro_dock/ae350_a25/demo``
+
+  * Applications must rename their board specific files after the new board targets, for
+    example :file:`boards/adp_xc7k_ae350.overlay` to :file:`boards/adp_xc7k_ae350_a25.overlay`,
+    as the files named after the previous board targets are no longer applied. Kconfig, CMake
+    and code checking ``CONFIG_BOARD_ADP_XC7K_AE350`` must check
+    ``CONFIG_BOARD_ADP_XC7K_AE350_A25`` instead.
+  * Out-of-tree boards using the ``ae350`` SoC should use the ``ae350_<core>`` SoC of their core
+    in ``board.yml``, rename the board files named after the SoC, select ``SOC_AE350_<core>``
+    instead of ``SOC_AE350``, and include the :file:`riscv/andes/andes_v5_ae350_<core>.dtsi` of
+    their core. Boards describing their own CPU nodes must use the compatible of the core, for
+    example :dtcompatible:`andestech,a25`, which enables the ``CONFIG_CPU_ANDES_<core>`` option
+    selecting the CPU features of the core.
+  * :file:`riscv/andes/andes_v5_ae350.dtsi` now describes a single CPU instead of eight, and the
+    PLIC also has the supervisor mode context of the hart. Out-of-tree boards including it must
+    drop the deletes of the other CPU nodes. Multicore boards must add the other CPU nodes and
+    add them to the ``interrupts-extended`` of ``plic0``, ``mtimer`` and ``plic_sw``, or include
+    the :file:`riscv/andes/andes_v5_ae350_<core>mp.dtsi` of their core.
 
 Device Drivers and Devicetree
 *****************************
@@ -305,6 +342,19 @@ Bluetooth Host
   multiplied by ``CONFIG_BT_MAX_CONN``, which keeps every connection's capacity independent
   of the other connections.
 
+Bluetooth Mesh
+==============
+
+* The deprecated legacy provisioning OOB API was removed together with the
+  ``CONFIG_BT_MESH_PROV_OOB_API_LEGACY`` Kconfig option. The maximum numeric OOB
+  authentication size is now always 32 bytes. Applications must replace:
+
+  * ``bt_mesh_input_number()`` with :c:func:`bt_mesh_input_numeric`, which takes the
+    numeric value as a little-endian byte array and its size.
+  * The ``output_number`` callback of :c:struct:`bt_mesh_prov` with
+    :c:member:`bt_mesh_prov.output_numeric`, which receives the numeric value as a
+    little-endian byte array and its size.
+
 Networking
 **********
 
@@ -321,6 +371,28 @@ Networking
   Applications that use the first result now connect over IPv6 where they used IPv4. Enable
   :kconfig:option:`CONFIG_NET_SOCKETS_DNS_PREFER_IPV4` to keep IPv4 first, for example with
   offloaded network interfaces, where reachability cannot be determined.
+
+* Network interface driver APIs are now device API classes. Out-of-tree network drivers must define
+  their API instances with :c:macro:`DEVICE_API` and use the renamed structs:
+
+  * ``struct net_if_api`` is now :c:struct:`net_if_driver_api`.
+  * ``struct ethernet_api`` is now :c:struct:`ethernet_driver_api`.
+  * ``struct dummy_api`` is now :c:struct:`dummy_driver_api`.
+  * ``struct ppp_api`` is now :c:struct:`ppp_driver_api`.
+  * ``struct canbus_api`` is now :c:struct:`canbus_driver_api`.
+  * ``struct offloaded_if_api`` is now :c:struct:`offloaded_if_driver_api`.
+  * ``struct virtual_interface_api`` is now :c:struct:`virtual_interface_driver_api`.
+  * ``struct hdlc_api`` is now :c:struct:`hdlc_driver_api`.
+  * ``struct ieee802154_radio_api`` is now :c:struct:`ieee802154_radio_driver_api`.
+
+  For example, ``static const struct ethernet_api api = {...}`` becomes
+  ``static DEVICE_API(ethernet, api) = {...}``. API instances are now always constant, and cannot
+  be modified at runtime. (:github:`124334`)
+
+* Wi-Fi drivers must define their API with ``DEVICE_API(wifi_native, name)`` when
+  :kconfig:option:`CONFIG_WIFI_USE_NATIVE_NETWORKING` is enabled, or with
+  ``DEVICE_API(wifi_offload, name)`` otherwise. ``struct net_wifi_mgmt_offload`` remains available
+  to refer to the selected type. (:github:`124334`)
 
 Other subsystems
 ****************

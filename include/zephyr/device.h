@@ -504,7 +504,7 @@ struct device_state {
     /** Indicates the device initialization function has been
      * invoked and succeeded.
      */
-    bool initialized : 1;
+    bool initialized;
 };
 
 struct pm_device_base;
@@ -1505,12 +1505,18 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_DEVICE_DECLARE_INTERNAL)
  * to identify the API classes that are extended from others and build an API class hierarchy.
  * @endinternal
  */
+#if !defined(_MSC_VER)                      /* #CUSTOM@NDRS */
 #define DEVICE_API_EXTENDS(_child, _parent, _member)                            \
     MSC_DECLARE_SECTION("._" #_child "_driver_api_ext.static")                  \
     CONTAINER_OF_VALIDATE((struct Z_DEVICE_API_TYPE(_parent)*)0,                \
                           struct Z_DEVICE_API_TYPE(_child), _member)            \
     BUILD_ASSERT((offsetof(struct Z_DEVICE_API_TYPE(_child), _member) == 0),    \
                  "Parent API struct must be the first member of child API struct")
+#else
+#define DEVICE_API_EXTENDS(_child, _parent, _member)                            \
+    BUILD_ASSERT((offsetof(struct Z_DEVICE_API_TYPE(_child), _member) == 0),    \
+                 "Parent API struct must be the first member of child API struct")
+#endif
 
 /**
  * @brief Macro that evaluates to a boolean that can be used to check if

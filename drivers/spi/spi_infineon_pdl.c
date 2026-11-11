@@ -486,6 +486,10 @@ static int spi_ifx_configure(const struct device* dev, const struct spi_config* 
     /* Write 0 when NULL buffer is provided for Tx/Rx */
     data->write_fill = 0;
 
+    #if defined(CONFIG_SPI_INFINEON_PDL_PERIPHERAL_NO_CLOCK_STALL)
+    Cy_SCB_SPI_SetTxDefaultValue(config->reg_addr, data->write_fill, &data->context);
+    #endif
+
     /* Register common SPI callback */
     spi_ifx_register_callback(dev, spi_ifx_interrupt_callback, (void*)dev);
 
@@ -915,16 +919,21 @@ cy_rslt_t spi_ifx_transfer_async(const struct device* dev, uint8_t const* tx, si
             /* I) read only. */
             data->pending = IFX_SPI_PENDING_RX;
 
-            if (rx_words > 1) {
-                data->rx_buffer = rx + 1;
+            /* A peripheral cannot pause the controller's clock, so the per-word
+             * split below would race it and wedge the SCB ACTIVE; take the whole
+             * frame in one Transfer().
+             */
+            if (IS_ENABLED(CONFIG_SPI_INFINEON_PDL_PERIPHERAL_NO_CLOCK_STALL) &&
+                data->is_peripheral) {
+                tx = NULL;
+                tx_words = rx_words;
             }
             else {
-                data->rx_buffer = NULL;
+                data->rx_buffer = (rx_words > 1) ? rx + 1 : NULL;
+                data->rx_buffer_size = rx_words - 1;
+                tx = &data->write_fill;
+                tx_words = 1;
             }
-
-            data->rx_buffer_size = rx_words - 1;
-            tx = &data->write_fill;
-            tx_words = 1;
         }
     }
     else {

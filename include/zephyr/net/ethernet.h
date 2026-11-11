@@ -611,47 +611,47 @@ enum ethernet_stats_type {
 };
 
 /** Ethernet L2 API operations. */
-struct ethernet_api {
+__subsystem struct ethernet_driver_api {
     /**
-     * The net_if_api must be placed in first position in this
+     * The net_if_driver_api must be placed in first position in this
      * struct so that we are compatible with network interface API.
      */
-    struct net_if_api iface_api;
+    struct net_if_driver_api iface_api;
 
     /** Collect optional ethernet specific statistics. This pointer
      * should be set by driver if statistics needs to be collected
      * for that driver.
      */
     #if defined(CONFIG_NET_STATISTICS_ETHERNET)
-    struct net_stats_eth* (*get_stats)(const struct device* dev, struct net_if* iface);
+    struct net_stats_eth* (*get_stats)(struct device const* dev, struct net_if* iface);
 
     /** Optional function to collect ethernet specific statistics with
      * type filter. If NULL, get_stats() will be called instead, which
      * is equivalent to calling this with ETHERNET_STATS_TYPE_ALL.
      * @param type Bitmask of ethernet_stats_type values.
      */
-    struct net_stats_eth* (*get_stats_type)(const struct device* dev,
+    struct net_stats_eth* (*get_stats_type)(struct device const* dev,
                                             struct net_if* iface,
                                             uint32_t type);
     #endif
 
     /** Start the device */
-    int (*start)(const struct device* dev, struct net_if* iface);
+    int (*start)(struct device const* dev, struct net_if* iface);
 
     /** Stop the device */
-    int (*stop)(const struct device* dev, struct net_if* iface);
+    int (*stop)(struct device const* dev, struct net_if* iface);
 
     /** Get the device capabilities */
-    enum ethernet_hw_caps (*get_capabilities)(const struct device* dev, struct net_if* iface);
+    enum ethernet_hw_caps (*get_capabilities)(struct device const* dev, struct net_if* iface);
 
     /** Set specific hardware configuration */
-    int (*set_config)(const struct device* dev,
+    int (*set_config)(struct device const* dev,
                       struct net_if* iface,
                       enum ethernet_config_type type,
                       const struct ethernet_config* config);
 
     /** Get hardware specific configuration */
-    int (*get_config)(const struct device* dev,
+    int (*get_config)(struct device const* dev,
                       struct net_if* iface,
                       enum ethernet_config_type type,
                       struct ethernet_config* config);
@@ -662,28 +662,25 @@ struct ethernet_api {
      * this information if needed.
      */
     #if defined(CONFIG_NET_VLAN)
-    int (*vlan_setup)(const struct device* dev, struct net_if* iface,
+    int (*vlan_setup)(struct device const* dev, struct net_if* iface,
                       uint16_t tag, bool enable);
     #endif /* CONFIG_NET_VLAN */
 
     /** Return ptp_clock device that is tied to this ethernet device */
     #if defined(CONFIG_PTP_CLOCK)
-    const struct device* (*get_ptp_clock)(const struct device* dev, struct net_if* iface);
+    const struct device* (*get_ptp_clock)(struct device const* dev, struct net_if* iface);
     #endif /* CONFIG_PTP_CLOCK */
 
     /** Return PHY device that is tied to this ethernet device */
-    const struct device* (*get_phy)(const struct device* dev, struct net_if* iface);
+    const struct device* (*get_phy)(struct device const* dev, struct net_if* iface);
 
     /** Send a network packet */
-    int (*send)(const struct device* dev, struct net_pkt* pkt);
+    int (*send)(struct device const* dev, struct net_pkt* pkt);
 };
 
 /** @cond INTERNAL_HIDDEN */
 
-/* Make sure that the network interface API is properly setup inside
- * Ethernet API struct (it is the first one).
- */
-BUILD_ASSERT(offsetof(struct ethernet_api, iface_api) == 0, "offsetof shall == 0");
+DEVICE_API_EXTENDS(ethernet, net_if, iface_api);
 
 struct net_eth_hdr {
     struct net_eth_addr dst;
@@ -1115,7 +1112,7 @@ static inline int net_eth_mcast_ip_addr_update(struct net_if *iface __unused,
 static inline
 enum ethernet_hw_caps net_eth_get_hw_capabilities(struct net_if* iface) {
     struct device const* dev = net_if_get_device(iface);
-    struct ethernet_api const* api;
+    struct ethernet_driver_api const* api;
     enum ethernet_hw_caps caps = (enum ethernet_hw_caps)0;
     #if defined(CONFIG_NET_DSA)
     struct ethernet_context *eth_ctx = net_if_l2_data(iface);
@@ -1131,7 +1128,7 @@ enum ethernet_hw_caps net_eth_get_hw_capabilities(struct net_if* iface) {
     #endif
     NET_ASSERT(dev != NULL);
 
-    api = (struct ethernet_api const*)dev->api;
+    api = (struct ethernet_driver_api const*)dev->api;
     if (api->get_capabilities == NULL) {
         return (caps);
     }
@@ -1151,12 +1148,12 @@ enum ethernet_hw_caps net_eth_get_hw_capabilities(struct net_if* iface) {
 static inline
 int net_eth_get_hw_config(struct net_if* iface, enum ethernet_config_type type,
                           struct ethernet_config* config) {
-    const struct device* dev = net_if_get_device(iface);
-    struct ethernet_api const* eth;
+    struct device const* dev = net_if_get_device(iface);
+    struct ethernet_driver_api const* eth;
 
     NET_ASSERT(dev != NULL);
 
-    eth = (const struct ethernet_api *)dev->api;
+    eth = (struct ethernet_driver_api const*)dev->api;
 
     NET_ASSERT(eth != NULL);
 

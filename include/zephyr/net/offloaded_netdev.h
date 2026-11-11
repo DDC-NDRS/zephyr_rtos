@@ -47,15 +47,15 @@ enum offloaded_net_if_types {
 };
 
 /**
- * @brief Extended net_if_api for offloaded ifaces/network devices, allowing handling of
+ * @brief Extended net_if_driver_api for offloaded ifaces/network devices, allowing handling of
  * admin up/down state changes
  */
-struct offloaded_if_api {
+__subsystem struct offloaded_if_driver_api {
     /**
-     * The net_if_api must be placed in first position in this
+     * The net_if_driver_api must be placed in first position in this
      * struct so that we are compatible with network interface API.
      */
-    struct net_if_api iface_api;
+    struct net_if_driver_api iface_api;
 
     /** Enable or disable the device (in response to admin state change) */
     int (*enable)(const struct net_if* iface, bool state);
@@ -64,8 +64,9 @@ struct offloaded_if_api {
     enum offloaded_net_if_types (*get_type)(void);
 };
 
-/* Ensure offloaded_if_api is compatible with net_if_api */
-BUILD_ASSERT(offsetof(struct offloaded_if_api, iface_api) == 0, "offsetof shall == 0");
+/** @cond INTERNAL_HIDDEN */
+DEVICE_API_EXTENDS(offloaded_if, net_if, iface_api);
+/** @endcond */
 
 /**
  * @brief Check if the offloaded network interface supports Wi-Fi.
@@ -76,11 +77,11 @@ BUILD_ASSERT(offsetof(struct offloaded_if_api, iface_api) == 0, "offsetof shall 
  */
 static inline bool net_off_is_wifi_offloaded(struct net_if* iface) {
     struct device const* dev = net_if_get_device(iface);
-    struct offloaded_if_api const* api;
+    struct offloaded_if_driver_api const* api;
 
     NET_ASSERT(dev != NULL);
 
-    api = (struct offloaded_if_api const*)dev->api;
+    api = (struct offloaded_if_driver_api const*)dev->api;
 
     NET_ASSERT(api != NULL);
 
