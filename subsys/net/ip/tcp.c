@@ -1282,9 +1282,9 @@ end :
 }
 
 static bool tcp_short_window(struct tcp* conn) {
-    int32_t threshold = MIN(conn_mss(conn), conn->recv_win_max / 2);
+    int32_t threshold = MIN(conn_mss(conn), (int32_t)conn->recv_win_max / 2);
 
-    if (conn->recv_win > threshold) {
+    if ((int32_t)conn->recv_win > threshold) {
         return (false);
     }
 
@@ -1307,14 +1307,14 @@ static bool tcp_should_ack_immediately(struct tcp* conn, bool psh) {
     return (false);
 }
 
-static bool tcp_need_window_update(struct tcp* conn) {
-    int32_t threshold = MAX(conn_mss(conn), conn->recv_win_max / 2);
+static bool tcp_need_window_update(struct tcp const* conn) {
+    int32_t threshold = MAX(conn_mss(conn), (int32_t)conn->recv_win_max / 2);
 
     /* In case window is full again, and we didn't send a window update
      * since the window size dropped below threshold, do it now.
      */
     return ((conn->recv_win == conn->recv_win_max) &&
-            (conn->recv_win_sent <= threshold));
+            ((int32_t)conn->recv_win_sent <= threshold));
 }
 
 /**
@@ -2190,18 +2190,18 @@ static int tcp_unsent_len(struct tcp const* conn) {
     }
 
     unsent_len = conn->send_data_total - conn->unacked_len;
-    if (conn->unacked_len >= conn->send_win) {
+    if (conn->unacked_len >= (int32_t)conn->send_win) {
         unsent_len = 0;
     }
     else {
-        unsent_len = MIN(unsent_len, conn->send_win - conn->unacked_len);
+	    unsent_len = MIN(unsent_len, ((int)conn->send_win - conn->unacked_len));
 
         #ifdef CONFIG_NET_TCP_CONGESTION_AVOIDANCE
-        if (conn->unacked_len >= conn->ca.cwnd) {
+        if (conn->unacked_len >= (int)conn->ca.cwnd) {
             unsent_len = 0;
         }
         else {
-            unsent_len = MIN(unsent_len, conn->ca.cwnd - conn->unacked_len);
+            unsent_len = MIN(unsent_len, ((int)conn->ca.cwnd - conn->unacked_len));
         }
         #endif
     }

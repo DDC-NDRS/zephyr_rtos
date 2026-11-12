@@ -129,6 +129,19 @@ Libraries / Subsystems
   * :ref:`MQTT 5.0 <mqtt_socket_interface>` support in the MQTT client
     (:kconfig:option:`CONFIG_MQTT_VERSION_5_0`) is no longer experimental.
 
+* Utilities
+
+  * :c:func:`utf8_is_valid` checks a given number of bytes for well-formed UTF-8
+    as defined in :rfc:`3629`; overlong sequences, UTF-16 surrogates and code
+    points above U+10FFFF are refused.
+
+* Shell
+
+  * With :kconfig:option:`CONFIG_SHELL_WILDCARD` enabled, an argument containing ``*`` or ``?``
+    that matches no subcommand is now passed to the command handler unchanged. Previously the
+    command was run without that argument and its remaining arguments, which usually failed
+    with a wrong argument count.
+
 Devicetree
 **********
 

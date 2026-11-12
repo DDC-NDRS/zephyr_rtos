@@ -102,6 +102,19 @@ Boards
     add them to the ``interrupts-extended`` of ``plic0``, ``mtimer`` and ``plic_sw``, or include
     the :file:`riscv/andes/andes_v5_ae350_<core>mp.dtsi` of their core.
 
+* The RAKwireless ``rak3172`` board is renamed to :zephyr:board:`rak3272s`. It
+  was named after the WisDuo stamp module it carries rather than the board it
+  describes, which is the RAK3272S Breakout Board. The other carrier for the
+  same module is the new :zephyr:board:`rak3372` WisBlock Core Module.
+  :file:`boards/deprecated.cmake` keeps ``-b rak3172`` working with a warning,
+  but out-of-tree code testing ``CONFIG_BOARD_RAK3172`` must switch to
+  ``CONFIG_BOARD_RAK3272S``.
+
+* :zephyr:board:`rak3272s` no longer defines ``led0``. The RAK3272S carries no
+  LEDs and leaves the two module pins the nodes used unrouted. Applications
+  that relied on the alias, such as :zephyr:code-sample:`blinky`, need an
+  overlay pointing at a LED wired to the headers.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -155,6 +168,15 @@ Audio Codec
   When using a :dtcompatible:`fixed-clock` node,
   :kconfig:option:`CONFIG_CLOCK_CONTROL_FIXED_RATE_CLOCK` must be enabled.
 
+Clock control
+=============
+
+* NXP MCXC and K32L2B3 SoCs now use the :dtcompatible:`nxp,mcg-lite` binding and driver
+  for the MCG-Lite clock generator. Out-of-tree devicetrees must update the mcg node to use
+  the new compatible and replace any use of ``KINETIS_MCG_OUT_CLK`` with
+  ``NXP_MCG_LITE_OUT_CLK``. The ``lircdiv2`` property is no longer supported by
+  :dtcompatible:`nxp,kinetis-mcg` and should be removed from existing devicetrees.
+
 Comparator
 ==========
 
@@ -205,6 +227,15 @@ Ethernet
 * The ``ETHERNET_LLDP`` value of :c:enum:`ethernet_hw_caps` has been removed. LLDP is now enabled
   on every Ethernet interface when :kconfig:option:`CONFIG_NET_LLDP` is set. Out-of-tree Ethernet
   drivers must stop reporting it. (:github:`124787`)
+
+I2S
+===
+
+* :kconfig:option:`CONFIG_I2S_NATIVE_SIM_RX_FILE_PATH` and
+  :kconfig:option:`CONFIG_I2S_NATIVE_SIM_TX_FILE_PATH` are deprecated. Use
+  :kconfig:option:`CONFIG_I2S_NATIVE_SIM_RX_PATH` and
+  :kconfig:option:`CONFIG_I2S_NATIVE_SIM_TX_PATH`, which also accept ALSA devices. Without the
+  ALSA backend the old options still provide their default. (:github:`123474`)
 
 Modem
 =====
