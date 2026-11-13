@@ -344,7 +344,7 @@ static int eth_infineon_pdl_set_config(const struct device* dev,
     }
 }
 
-static struct ethernet_api const eth_infineon_pdl_api = {
+static DEVICE_API(ethernet, eth_infineon_pdl_api) = {
     .iface_api.init   = eth_infineon_pdl_iface_init,
     .get_capabilities = eth_infineon_pdl_get_capabilities,
     .get_phy          = eth_infineon_pdl_get_phy,
