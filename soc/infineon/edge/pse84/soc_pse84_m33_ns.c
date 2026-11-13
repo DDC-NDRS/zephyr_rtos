@@ -85,7 +85,8 @@ static void pse84_srf_pool_init(void)
 #define MTB_IPC_IRQ_SEMA_SRF       (MTB_IPC_IRQ_SEMA_SRF_RELAY)
 #define MTB_IPC_IRQ_QUEUE_SRF      (MTB_IPC_IRQ_QUEUE_SRF_RELAY)
 
-#define THREAD_PRIO                5
+/* #CUSTOM@NDRS upstream fixes this at 5; see PSOC_EDGE_M55_SRF_THREAD_PRIORITY in Kconfig */
+#define THREAD_PRIO                CONFIG_PSOC_EDGE_M55_SRF_THREAD_PRIORITY
 #define SRF_THREAD_STACK_SIZE      4096
 #define SRF_RELAY_READY_TIMEOUT_MS 500
 
@@ -204,11 +205,14 @@ static void pse84_srf_relay_start(void)
 			SRF_THREAD_STACK_SIZE, pse84_srf_receive_thread_entry,
 			&cybsp_mtb_srf_relay_context, NULL, NULL,
 			THREAD_PRIO, 0, K_NO_WAIT);
+	/* #CUSTOM@NDRS named, so "kernel thread list" and the stall probe show them */
+	k_thread_name_set(&pse84_srf_receive_thread, "srf_receive");
 
 	k_thread_create(&pse84_srf_process_thread, pse84_srf_process_stack,
 			SRF_THREAD_STACK_SIZE, pse84_srf_process_thread_entry,
 			&cybsp_mtb_srf_relay_context, NULL, NULL,
 			THREAD_PRIO, 0, K_NO_WAIT);
+	k_thread_name_set(&pse84_srf_process_thread, "srf_process");
 
 	/* Ensure relay threads have started before CM55 can submit first request. */
 	if ((k_sem_take(&pse84_srf_relay_ready_sem,

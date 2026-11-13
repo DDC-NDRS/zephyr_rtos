@@ -47,6 +47,17 @@ config PSOC_EDGE_M55_SRF_SUPPORT
 	help
 	  This option enables the SRF support on m55 core on pse84 and the infrastructure setup on m33/ns to deal with that.
 
+# #CUSTOM@NDRS the priority of the relay threads is a setting; upstream fixes it at 5
+config PSOC_EDGE_M55_SRF_THREAD_PRIORITY
+	int "Priority of the SRF relay threads on the m33/ns core"
+	depends on PSOC_EDGE_M55_SRF_SUPPORT
+	default 5
+	help
+	  The two relay threads run the secure requests of the m55 (PSA, random numbers, clock and power calls) on the m33/ns core. A
+	  request can take milliseconds, and a thread above the application tasks holds them off for that long (bench, 2026-11-14:
+	  the cyclic medium task of the BMS missed its 22 ms limit while the m55 joined Wi-Fi). Set a priority below the application
+	  tasks when the m33/ns core runs a task that has a time limit. 5 is the upstream value.
+
 if SOC_SERIES_PSE84_M33
 
 config SOC_PSE84_M55_ENABLE
