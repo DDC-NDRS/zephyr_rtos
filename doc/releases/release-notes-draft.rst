@@ -64,6 +64,12 @@ Libraries / Subsystems
   * Added a PSA Protected Storage backend, enabled with
     :kconfig:option:`CONFIG_FIDO2_STORAGE_PSA_PROTECTED_STORAGE`.
 
+* I3C
+
+  * The requested tCAS (clock after START) is configurable through
+    :c:member:`i3c_config_controller.tcas_ps` and the ``tcas-ps`` controller
+    Devicetree property.
+
 * LoRaWAN
 
   * The native backend now supports the AS923 region
@@ -83,6 +89,12 @@ Libraries / Subsystems
   * The connection manager tracks name resolution readiness, see
     :ref:`conn_mgr_monitoring_dns`: :c:macro:`NET_EVENT_L4_DNS_READY`,
     :c:macro:`NET_EVENT_L4_DNS_LOST` and :c:func:`conn_mgr_dns_is_ready`.
+  * Threads can block until the network is ready with :c:func:`conn_mgr_wait_ready`,
+    instead of tracking connection manager events, see :ref:`conn_mgr_monitoring_waiting`.
+    With a ``last_seen`` value, it also paces retries after a failed connection attempt.
+  * :c:func:`conn_mgr_get_ready_addr_family` gives the ``ai_family`` to pass to
+    :c:func:`zsock_getaddrinfo` so that hostnames resolve only to addresses of a ready
+    address family, see :ref:`conn_mgr_monitoring_addr_family`.
   * :c:func:`dns_resolve_get_server_families` reports the address families of the
     available unicast DNS servers.
   * :c:func:`zsock_getaddrinfo` orders ``AF_UNSPEC`` results as per a subset of

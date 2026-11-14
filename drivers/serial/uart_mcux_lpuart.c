@@ -123,6 +123,12 @@ struct mcux_lpuart_async_data {
     size_t   next_rx_buffer_len;
     uart_callback_t user_callback;
     void* user_data;
+
+    /* RX line errors the ISR cleared from STAT, reported by uart_err_check().
+     * Dropped together with the STAT error flags when reception is enabled
+     * or the LPUART is reinitialized.
+     */
+    uint32_t rx_errors;
 };
 #endif
 
@@ -291,6 +297,15 @@ static int mcux_lpuart_err_check(struct device const* dev) {
                                     kLPUART_ParityErrorFlag  |
                                     kLPUART_FramingErrorFlag |
                                     kLPUART_NoiseErrorFlag);
+
+    #if LPUART_ASYNC_ENABLE
+    struct mcux_lpuart_data* data = dev->data;
+    unsigned int key = irq_lock();
+
+    err |= data->async.rx_errors;
+    data->async.rx_errors = 0U;
+    irq_unlock(key);
+    #endif
 
     return (err);
 }
@@ -1071,6 +1086,10 @@ static int mcux_lpuart_rx_enable(struct device const* dev, uint8_t* buf, const s
     /* Clear these status flags as they can prevent the UART device from receiving data */
     LPUART_ClearStatusFlags(lpuart, kLPUART_RxOverrunFlag    | kLPUART_ParityErrorFlag |
                                     kLPUART_FramingErrorFlag | kLPUART_NoiseErrorFlag);
+
+    /* Errors of a previous reception do not apply to this one */
+    data->async.rx_errors = 0U;
+
     LPUART_EnableRx(lpuart, true);
     irq_unlock(key);
 
@@ -1170,11 +1189,14 @@ static inline void mcux_lpuart_async_isr(struct device const* dev,
     }
 
     /*
-     * Handle RX errors first — they stop reception, making idle-line
-     * processing pointless.  Per the async UART API contract,
-     * UART_RX_STOPPED must be followed by UART_RX_BUF_RELEASED (for
-     * each buffer) and UART_RX_DISABLED.  mcux_lpuart_rx_disable()
-     * provides that full teardown sequence.
+     * Handle RX errors first. With CONFIG_UART_MCUX_LPUART_ASYNC_RX_STOP_ON_ERROR
+     * they stop reception, making idle-line processing pointless. Per the async
+     * UART API contract, UART_RX_STOPPED must be followed by UART_RX_BUF_RELEASED
+     * (for each buffer) and UART_RX_DISABLED. mcux_lpuart_rx_disable() provides
+     * that full teardown sequence.
+     *
+     * Otherwise only the flags are cleared. The receiver never stops on these
+     * errors, but while STAT[OR] is set no further data is stored in the FIFO.
      */
     if (status & (kLPUART_RxOverrunFlag    | kLPUART_ParityErrorFlag |
                   kLPUART_FramingErrorFlag | kLPUART_NoiseErrorFlag)) {
@@ -1201,6 +1223,7 @@ static inline void mcux_lpuart_async_isr(struct device const* dev,
                                         kLPUART_FramingErrorFlag |
                                         kLPUART_NoiseErrorFlag);
 
+        #ifdef CONFIG_UART_MCUX_LPUART_ASYNC_RX_STOP_ON_ERROR
         struct uart_event event = {
             .type = UART_RX_STOPPED,
             .data.rx_stop.reason = reason,
@@ -1208,6 +1231,9 @@ static inline void mcux_lpuart_async_isr(struct device const* dev,
         async_user_callback(dev, &event);
         mcux_lpuart_rx_disable(dev);
         return;
+        #else
+        data->async.rx_errors |= reason;
+        #endif
     }
 
     if (status & kLPUART_IdleLineFlag) {
@@ -1388,6 +1414,13 @@ static int mcux_lpuart_configure_basic(struct device const* dev, const struct ua
     /* Tx will be enabled manually after set tx-rts */
     uart_config->enableTx = false;
 
+    /* Count the idle character from the stop bit, so trailing 1 data bits of the
+     * last character are not taken as idle time. The async API uses the idle line
+     * interrupt to end a reception.
+     */
+    uart_config->rxIdleType   = kLPUART_IdleTypeStopBit;
+    uart_config->rxIdleConfig = kLPUART_IdleCharacter1;
+
     return (0);
 }
 
@@ -1404,8 +1437,6 @@ static int mcux_lpuart_configure_async(struct device const* dev) {
         return (ret);
     }
 
-    uart_config.rxIdleType         = kLPUART_IdleTypeStopBit;
-    uart_config.rxIdleConfig       = kLPUART_IdleCharacter1;
     data->async.next_rx_buffer     = NULL;
     data->async.next_rx_buffer_len = 0;
     data->async.uart_dev           = dev;
@@ -1489,7 +1520,12 @@ static int mcux_lpuart_configure_init(struct device const* dev, const struct uar
 
     LPUART_Type* lpuart = get_base(dev);
 
-    LPUART_Init(lpuart, &uart_config, clock_freq);
+    #if LPUART_ASYNC_ENABLE
+    /* LPUART_Init() clears the STAT error flags. Errors received with the
+     * previous configuration do not apply to the new one.
+     */
+    data->async.rx_errors = 0U;
+    #endif
 
     #ifdef LPUART_HAS_MODEM
     if (cfg->flow_ctrl == UART_CFG_FLOW_CTRL_RS485) {

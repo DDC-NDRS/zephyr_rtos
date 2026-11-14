@@ -2194,7 +2194,7 @@ static int tcp_unsent_len(struct tcp const* conn) {
         unsent_len = 0;
     }
     else {
-	    unsent_len = MIN(unsent_len, ((int)conn->send_win - conn->unacked_len));
+        unsent_len = MIN(unsent_len, ((int)conn->send_win - conn->unacked_len));
 
         #ifdef CONFIG_NET_TCP_CONGESTION_AVOIDANCE
         if (conn->unacked_len >= (int)conn->ca.cwnd) {
@@ -4215,6 +4215,7 @@ out:
 
         if (connection_ok) {
             conn->in_connect = false;
+            conn->connect_done = true;
             if (conn->connect_cb) {
                 conn->connect_cb(conn->context, 0, conn->context->user_data);
 
@@ -4681,6 +4682,7 @@ int net_tcp_connect(struct net_context* context,
      * a TCP connection to be established
      */
     conn->in_connect = true;
+    conn->connect_done = false;
 
     conn->isn = conn->seq;
 
@@ -4689,7 +4691,7 @@ int net_tcp_connect(struct net_context* context,
         goto out;
     }
 
-    if ((conn->state == TCP_UNUSED) || (conn->state == TCP_CLOSED)) {
+    if (!conn->connect_done && (conn->state == TCP_UNUSED || conn->state == TCP_CLOSED)) {
         if (conn->rst_received) {
             ret = -ECONNREFUSED;
         }
@@ -4698,14 +4700,14 @@ int net_tcp_connect(struct net_context* context,
         }
         goto out;
     }
-    else if ((K_TIMEOUT_EQ(timeout, K_NO_WAIT)) && (conn->state != TCP_ESTABLISHED)) {
+    else if ((K_TIMEOUT_EQ(timeout, K_NO_WAIT)) && !conn->connect_done) {
         ret = -EINPROGRESS;
         goto out;
     }
 
     (void) k_sem_take(&conn->connect_sem, timeout);
 
-    if (conn->state != TCP_ESTABLISHED) {
+    if (!conn->connect_done) {
         if (conn->in_connect) {
             conn->in_connect = false;
             tcp_conn_close(conn, -ETIMEDOUT);

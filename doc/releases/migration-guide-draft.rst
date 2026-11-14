@@ -268,6 +268,19 @@ OPAMP
   without device runtime PM are unaffected: the device is resumed at init and the instance comes
   up enabled as before. (:github:`122135`)
 
+PCIe
+====
+
+* :c:func:`pcie_msi_map` now returns ``uint64_t`` instead of ``uint32_t``, and the ``address``
+  member of :c:struct:`msi_vector_generic` is now ``uint64_t``. Out-of-tree implementations of
+  :c:func:`pcie_msi_map` and code that reads the MSI vector address must be updated. The ITS
+  getter (:c:func:`its_get_msi_addr`) also returns ``uint64_t``. (:github:`124156`)
+
+* A 32-bit MSI capability whose ITS target address is above 4 GiB now makes
+  :c:func:`pcie_msi_enable` return false without writing the configuration space or enabling bus
+  mastering; dependent drivers such as NVMe, ivshmem and IGC fail to initialize. This is
+  intentional: use a 64-bit MSI capability or a target address below 4 GiB. (:github:`124156`)
+
 PTP Clock
 =========
 
@@ -434,6 +447,17 @@ Shell
 * Calling a shell command with an unknown subcommand, such as ``kernel foo``, now returns
   ``-ENOEXEC`` instead of ``SHELL_CMD_HELP_PRINTED`` (1). The help is still printed. Update code
   that checks the return value of :c:func:`shell_execute_cmd` for this case.
+
+Tools
+*****
+
+* Deprecate the ``--esp-baud-rate`` argument on the esp32 runner, the ``-b`` / ``--baudrate``
+  argument on the bflb_mcu_tool runner, the ``-b`` argument on the bflb_flash_command runner and the
+  ``--baudrate`` argument on the amebaflash runner. They are replaced with a generic
+  ``--baud-rate`` argument.
+
+* The stm32flash runner now defaults to 115200 baud instead of 57600 when no ``--baud-rate`` is
+  given. Pass ``--baud-rate=57600`` to keep the previous speed.
 
 Modules
 *******

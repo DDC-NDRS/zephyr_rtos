@@ -976,7 +976,7 @@ static inline size_t sys_count_bits(const void* value, size_t len) {
  * @return The greatest common divisor of a and b, always returns an unsigned value.
  *         If one of the parameters is 0, returns the absolute value of the other parameter.
  */
-#define sys_gcd(a, b) ((((__typeof__(a))-1) < 0) ? sys_gcd_s(a, b) : sys_gcd_u(a, b))
+#define sys_gcd(a, b) sys_gcd_s(a, b)
 
 /**
  * @cond INTERNAL_HIDDEN
@@ -1002,16 +1002,16 @@ static ALWAYS_INLINE uint32_t sys_gcd_u(uint32_t a, uint32_t b) {
     return (b);
 }
 
-static ALWAYS_INLINE uint32_t sys_gcd_s(int32_t a, int32_t b) {
+static ALWAYS_INLINE uint32_t sys_gcd_s(int64_t a, int64_t b) {
     #if defined(_MSC_VER) /* #CUSTOM@NDRS */
     /* Avoid negating unsigned casts on MSVC and handle INT32_MIN safely
      * by widening to 64-bit before negation. */
-    uint32_t abs_a = (a < 0) ? (uint32_t)(-(int64_t)a) : (uint32_t)a;
-    uint32_t abs_b = (b < 0) ? (uint32_t)(-(int64_t)b) : (uint32_t)b;
+    uint32_t abs_a = (a < 0) ? (uint32_t)(-a) : (uint32_t)a;
+    uint32_t abs_b = (b < 0) ? (uint32_t)(-b) : (uint32_t)b;
 
     return sys_gcd_u(abs_a, abs_b);
     #else
-    return sys_gcd_u(a < 0 ? -(uint32_t)a : (uint32_t)a, b < 0 ? -(uint32_t)b : (uint32_t)b);
+    return sys_gcd_u((a < 0) ? -(uint32_t)a : (uint32_t)a, (b < 0) ? -(uint32_t)b : (uint32_t)b);
     #endif
 }
 /**
@@ -1027,7 +1027,7 @@ static ALWAYS_INLINE uint32_t sys_gcd_s(int32_t a, int32_t b) {
  * @retval The least common multiple of a and b.
  * @retval 0 if either input is 0.
  */
-#define sys_lcm(a, b) ((((__typeof__(a))-1) < 0) ? sys_lcm_s(a, b) : sys_lcm_u(a, b))
+#define sys_lcm(a, b) sys_lcm_s(a, b)
 
 /**
  * @cond INTERNAL_HIDDEN
@@ -1040,16 +1040,16 @@ static ALWAYS_INLINE uint64_t sys_lcm_u(uint32_t a, uint32_t b) {
     return (uint64_t)(a / sys_gcd_u(a, b)) * (uint64_t)b;
 }
 
-static ALWAYS_INLINE uint64_t sys_lcm_s(int32_t a, int32_t b) {
+static ALWAYS_INLINE uint64_t sys_lcm_s(int64_t a, int64_t b) {
     #if defined(_MSC_VER) /* #CUSTOM@NDRS */
     /* Avoid negating unsigned casts on MSVC and handle INT32_MIN safely
      * by widening to 64-bit before negation. */
-    uint32_t abs_a = (a < 0) ? (uint32_t)(-(int64_t)a) : (uint32_t)a;
-    uint32_t abs_b = (b < 0) ? (uint32_t)(-(int64_t)b) : (uint32_t)b;
+    uint32_t abs_a = (a < 0) ? (uint32_t)(-a) : (uint32_t)a;
+    uint32_t abs_b = (b < 0) ? (uint32_t)(-b) : (uint32_t)b;
 
     return sys_lcm_u(abs_a, abs_b);
     #else
-    return sys_lcm_u(a < 0 ? -(uint32_t)a : (uint32_t)a, b < 0 ? -(uint32_t)b : (uint32_t)b);
+    return sys_lcm_u((a < 0) ? -(uint32_t)a : (uint32_t)a, (b < 0) ? -(uint32_t)b : (uint32_t)b);
     #endif
 }
 /**
