@@ -71,6 +71,7 @@ struct spi_ifx_config {
     uint8_t cs_oversample[32];
     uint8_t cs_oversample_cnt;
     uint8_t scb_num;
+    bool tx_fill_atomic;                    /* CUSTOM@NDRS: see tx-fill-atomic in the binding */
 };
 
 #ifdef CONFIG_SPI_INFINEON_DMA
@@ -843,6 +844,7 @@ static int spi_ifx_init(const struct device* dev) {
                                                                 \
         .clk_dst = DT_INST_PROP(n, clk_dst),                    \
         .scb_num = DT_INST_PROP(n, scb_index),                  \
+        .tx_fill_atomic = DT_INST_PROP(n, tx_fill_atomic),      \
         .irq_num = DT_INST_IRQN(n),                             \
         .irq_config_func = spi_ifx_irq_config_func_##n,         \
                                                                 \
@@ -1183,7 +1185,21 @@ static void spi_ifx_irq_handler(const struct device* dev) {
     struct spi_ifx_data* const data = dev->data;
     const struct spi_ifx_config* const config = dev->config;
 
-    Cy_SCB_SPI_Interrupt(config->reg_addr, &(data->context));
+    /* CUSTOM@NDRS: The handler fills the TX FIFO while the SCB already shifts.
+     * Locked, no interrupt can empty the FIFO in the middle of a transfer and
+     * make the SCB release the select line.
+     */
+    unsigned int fill_key = 0U;
+
+    if (config->tx_fill_atomic) {
+        fill_key = irq_lock();
+    }
+
+    Cy_SCB_SPI_Interrupt(config->reg_addr, &data->context);
+
+    if (config->tx_fill_atomic) {
+        irq_unlock(fill_key);
+    }
 
     if (data->is_async == false) {
         uint32_t master_intr = Cy_SCB_GetMasterInterruptStatusMasked(config->reg_addr);

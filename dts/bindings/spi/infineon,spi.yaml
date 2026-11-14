@@ -37,3 +37,16 @@ properties:
     description: |
       Adds 1 extra SPI clock cycle inter-frame delay between SS deassertion and
       the next assertion (2.5 vs default 1.5 cycles). Same hardware requirements.
+
+  tx-fill-atomic:
+    type: boolean
+    description: |
+      CUSTOM@NDRS: run the interrupt handler of this SCB with interrupts locked.
+      The handler fills the transmit FIFO a byte at a time while the SCB already
+      shifts the first bytes out.
+      With the continuous select (the default) an interrupt that comes in during
+      the fill, or a bus stall, empties the FIFO, the SCB releases the select line
+      in the middle of the transfer and a read returns the rest of the block as 0xff.
+      A handler runs for a few microseconds (the transfers of the interrupt path are
+      128 bytes or less), so enable it on a bus whose slave must not see a split
+      transfer (the settings FRAM).

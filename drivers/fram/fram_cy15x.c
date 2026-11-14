@@ -65,6 +65,13 @@ struct fram_cy15x_config {
 
 struct fram_cy15x_data {
     struct k_mutex lock;
+
+    #if defined(CONFIG_FRAM_CY15X_VERIFY)
+    /* CUSTOM@NDRS: the second read of a block, or the read back of a written one (the lock
+     * guards it)
+     */
+    uint8_t verify_buf[CY15X_SPI_MAX_CHUNK];
+    #endif
 };
 
 #if ANY_INST_HAS_WP_GPIOS
@@ -97,6 +104,173 @@ static inline int fram_cy15x_write_enable(const struct device* dev) {
 }
 #endif /* ANY_INST_HAS_WP_GPIOS */
 
+#if defined(CONFIG_FRAM_CY15X_VERIFY)
+/* The settings store (ZMS) saw "Invalid data CRC" at boot, with a different record each time.
+ * These helpers tell a block that was read wrong from one that was written wrong, and show which
+ * bytes differ.
+ */
+
+/* The number of bytes that differ between two blocks; the index of the first and of the last one */
+static size_t fram_cy15x_diff(uint8_t const* a, uint8_t const* b, size_t len, size_t* first,
+                              size_t* last) {
+    size_t count = 0U;
+
+    for (size_t i = 0U; i < len; i++) {
+        if (a[i] != b[i]) {
+            if (count == 0U) {
+                *first = i;
+            }
+
+            *last = i;
+            count++;
+        }
+    }
+
+    return (count);
+}
+
+/* The first bytes of a block as hex, for the log: up to 16, "..." when the block is longer */
+static void fram_cy15x_hex(char* out, size_t out_len, uint8_t const* p, size_t len) {
+    size_t const shown = MIN(len, 16U);
+    size_t pos = 0U;
+
+    out[0] = '\0';
+
+    for (size_t i = 0U; (i < shown) && ((pos + 4U) < out_len); i++) {
+        pos += snprintk(&out[pos], (out_len - pos), "%02x ", p[i]);
+    }
+
+    if ((len > shown) && ((pos + 4U) < out_len)) {
+        (void)snprintk(&out[pos], (out_len - pos), "...");
+    }
+}
+
+/* Read the block again until two reads in a row agree; the caller's buffer holds the agreed read */
+static int fram_cy15x_verify_read(const struct device* dev, off_t offset, uint8_t* pbuf,
+                                  size_t len) {
+    const struct fram_cy15x_config* config = dev->config;
+    struct fram_cy15x_data* data = dev->data;
+    int ret = -EIO;
+
+    for (uint8_t attempt = 0U; attempt < 3U; attempt++) {
+        int rc = config->read_fn(dev, offset, data->verify_buf, len);
+        size_t first = 0U;
+        size_t last = 0U;
+
+        if (rc < 0) {
+            ret = rc;
+            break;
+        }
+
+        /* Equal almost every time: memcmp decides, and the byte loop only counts for the log */
+        if (memcmp(pbuf, data->verify_buf, len) == 0) {
+            ret = (int)len;
+            break;
+        }
+
+        size_t diff = fram_cy15x_diff(pbuf, data->verify_buf, len, &first, &last);
+
+        char before[3U * 16U + 4U];
+        char now[3U * 16U + 4U];
+
+        fram_cy15x_hex(before, sizeof(before), pbuf, len);
+        fram_cy15x_hex(now, sizeof(now), data->verify_buf, len);
+
+        LOG_WRN("read of %u bytes at 0x%x differs from the read before: %u bytes, first at +%u, "
+                "last at +%u",
+                (unsigned int)len, (unsigned int)offset, (unsigned int)diff,
+                (unsigned int)first, (unsigned int)last);
+        LOG_WRN("  before: %s", before);
+        LOG_WRN("  now   : %s", now);
+
+        /* The newer read is the one to compare the next with */
+        memcpy(pbuf, data->verify_buf, len);
+    }
+
+    if (ret == -EIO) {
+        LOG_ERR("read of %u bytes at 0x%x: three reads in a row differ", (unsigned int)len,
+                (unsigned int)offset);
+    }
+
+    return (ret);
+}
+
+/* Read a written block back and compare it with what was written; 0 if they match */
+static int fram_cy15x_verify_write(const struct device* dev, off_t offset, uint8_t const* pbuf,
+                                   size_t len) {
+    const struct fram_cy15x_config* config = dev->config;
+    struct fram_cy15x_data* data = dev->data;
+    int ret = -EIO;
+
+    /* The read back can be the wrong side: a second read back decides before the write is blamed */
+    for (uint8_t attempt = 0U; attempt < 2U; attempt++) {
+        int rc = config->read_fn(dev, offset, data->verify_buf, len);
+        size_t first = 0U;
+        size_t last = 0U;
+
+        if (rc < 0) {
+            ret = rc;
+            break;
+        }
+
+        if (memcmp(pbuf, data->verify_buf, len) == 0) {
+            ret = 0;
+            break;
+        }
+
+        size_t diff = fram_cy15x_diff(pbuf, data->verify_buf, len, &first, &last);
+
+        char wrote[3U * 16U + 4U];
+        char readback[3U * 16U + 4U];
+
+        fram_cy15x_hex(wrote, sizeof(wrote), pbuf, len);
+        fram_cy15x_hex(readback, sizeof(readback), data->verify_buf, len);
+
+        LOG_WRN("write of %u bytes at 0x%x reads back different (read back %u): %u bytes, "
+                "first at +%u, last at +%u",
+                (unsigned int)len, (unsigned int)offset, (unsigned int)attempt,
+                (unsigned int)diff, (unsigned int)first, (unsigned int)last);
+        LOG_WRN("  wrote: %s", wrote);
+        LOG_WRN("  read : %s", readback);
+    }
+
+    return (ret);
+}
+#endif /* CONFIG_FRAM_CY15X_VERIFY */
+
+/* One chunk of a write. With CONFIG_FRAM_CY15X_VERIFY the chunk is read back; one that does not
+ * match is written again
+ */
+static int fram_cy15x_write_chunk(const struct device* dev, off_t offset, const uint8_t* pbuf,
+                                  size_t len) {
+    const struct fram_cy15x_config* config = dev->config;
+    int ret = config->write_fn(dev, offset, pbuf, len);
+
+    #if defined(CONFIG_FRAM_CY15X_VERIFY)
+    if (ret > 0) {
+        size_t const written = (size_t)ret;
+        int rc = fram_cy15x_verify_write(dev, offset, pbuf, written);
+
+        if (rc != 0) {
+            LOG_WRN("writing the %u bytes at 0x%x again", (unsigned int)written,
+                    (unsigned int)offset);
+
+            ret = config->write_fn(dev, offset, pbuf, written);
+            if (ret > 0) {
+                rc = fram_cy15x_verify_write(dev, offset, pbuf, (size_t)ret);
+                if (rc != 0) {
+                    LOG_ERR("write of %u bytes at 0x%x still reads back different",
+                            (unsigned int)written, (unsigned int)offset);
+                    ret = rc;
+                }
+            }
+        }
+    }
+    #endif
+
+    return (ret);
+}
+
 static int fram_cy15x_read(const struct device* dev, off_t offset, void* buf, size_t len) {
     const struct fram_cy15x_config* config = dev->config;
     struct fram_cy15x_data* data = dev->data;
@@ -120,6 +294,22 @@ static int fram_cy15x_read(const struct device* dev, off_t offset, void* buf, si
             k_mutex_unlock(&data->lock);
             return ret;
         }
+
+        #if defined(CONFIG_FRAM_CY15X_VERIFY)
+        /* Read the same block again; ret is at most the size of the verify buffer for the SPI
+         * part
+         */
+        if ((size_t)ret > sizeof(data->verify_buf)) {
+            ret = (int)sizeof(data->verify_buf);
+        }
+
+        ret = fram_cy15x_verify_read(dev, offset, pbuf, (size_t)ret);
+        if (ret < 0) {
+            LOG_ERR("failed to read FRAM (err %d)", ret);
+            k_mutex_unlock(&data->lock);
+            return ret;
+        }
+        #endif
 
         pbuf   += ret;
         offset += ret;
@@ -159,7 +349,7 @@ static int fram_cy15x_write(const struct device* dev, off_t offset,
         ret = fram_cy15x_write_enable(dev);
         if (ret == 0) {
             while (len) {
-                ret = config->write_fn(dev, offset, pbuf, len);
+                ret = fram_cy15x_write_chunk(dev, offset, pbuf, len);
                 if (ret < 0) {
                     LOG_ERR("failed to write to FRAM (err %d)", ret);
                     break;
@@ -183,7 +373,7 @@ static int fram_cy15x_write(const struct device* dev, off_t offset,
     else {
         ret = 0;
         while (len) {
-            ret = config->write_fn(dev, offset, pbuf, len);
+            ret = fram_cy15x_write_chunk(dev, offset, pbuf, len);
             if (ret < 0) {
                 LOG_ERR("failed to write to FRAM (err %d)", ret);
                 break;
@@ -388,6 +578,12 @@ static int fram_cy15xq_read(const struct device* dev, off_t offset, void* buf, s
      * Cy_SCB_SPI_Transfer() calls, de-asserting SSEL between command and data phases. */
     memcpy(&tx_buf[0], cmd, cmd_len);
 
+    /* The chip ignores these bytes while it reads. If the select is released in the
+     * middle of the transfer the rest is clocked in as a new command: zero is no command, stack
+     * garbage can be one (WREN, WRITE, WRSR).
+     */
+    memset(&tx_buf[cmd_len], 0, len);
+
     struct spi_buf tx_buffers = {
         .buf = tx_buf,
         .len = (cmd_len + len)
@@ -488,7 +684,11 @@ static int fram_cy15xq_write(const struct device* dev, off_t offset, const void*
 
     ret = spi_write_dt(&config->bus.spi, &tx_bufs);
     if (ret != 0) {
+        /* The failure was logged and the chunk still reported as written, so ZMS
+         * kept a record that never reached the chip
+         */
         LOG_ERR("failed to write to FRAM (err %d)", ret);
+        return (ret);
     }
 
     return (len);

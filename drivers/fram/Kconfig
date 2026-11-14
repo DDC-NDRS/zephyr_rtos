@@ -44,6 +44,16 @@ config FRAM_CY15X
 	  Enable support for Infineon CY15X (and compatible) I2C/SPI
 	  FRAMs.
 
+# CUSTOM@NDRS: a probe for the settings store (ZMS), which saw "Invalid data CRC" at boot on the bcu-mv25.
+config FRAM_CY15X_VERIFY
+	bool "Verify every FRAM read and write"
+	depends on FRAM_CY15X
+	help
+	  Read every block twice and compare the two reads, and read every written block back. A block that
+	  differs is logged with the offset, the number of bytes that differ and the first and last one, and is
+	  read or written again. Tells a block that was read wrong from one that was written wrong. Doubles the
+	  read time of the store.
+
 config FRAM_CY15XJ
 	bool "Infineon CY15J (and compatible) I2C FRAM support"
 	default y
