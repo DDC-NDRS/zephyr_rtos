@@ -10,7 +10,6 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
-#include <zephyr/logging/log.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(infineon_airoc_wifi, CONFIG_WIFI_LOG_LEVEL);
@@ -22,198 +21,184 @@ extern "C" {
 /******************************************************
  *                 Function
  ******************************************************/
-
 #define AIROC_WIFI_PIN_SETTLE_MS (100)
 #define AIROC_WIFI_BT_PULSE_MS   (100)
 #define AIROC_WIFI_POWER_DOWN_MS (100)
 
-/* Drive an optional power-up pin of the module to its active level, if the board declares it */
-static int airoc_wifi_assert_pin(const struct gpio_dt_spec *spec, const char *name)
-{
-	int ret;
+/* Drive an optional power-up pin of the module to the given level, if the board declares it */
+static int airoc_wifi_set_pin(struct gpio_dt_spec const* spec, char const* name, gpio_flags_t flags) {
+    int ret = 0;
 
-	if (spec->port == NULL) {
-		return 0;
-	}
+    if (spec->port != NULL) {
+        if (!device_is_ready(spec->port)) {
+            LOG_ERR("Error: failed to configure %s %s pin %d",
+                    name, spec->port->name, spec->pin);
+            ret = -EIO;
+        }
+        else {
+            ret = gpio_pin_configure_dt(spec, flags);
+            if (ret != 0) {
+                LOG_ERR("Error %d: failed to drive %s %s pin %d",
+                        ret, name, spec->port->name, spec->pin);
+            }
+        }
+    }
 
-	if (!device_is_ready(spec->port)) {
-		LOG_ERR("Error: failed to configure %s %s pin %d", name, spec->port->name,
-			spec->pin);
-		return -EIO;
-	}
-
-	ret = gpio_pin_configure_dt(spec, GPIO_OUTPUT_ACTIVE);
-	if (ret) {
-		LOG_ERR("Error %d: failed to drive %s %s pin %d", ret, name, spec->port->name,
-			spec->pin);
-		return ret;
-	}
-
-	LOG_INF("%s driven active", name);
-	return 0;
+    return (ret);
 }
 
-/* Drive an optional power-up pin of the module to its inactive level, if the board declares it */
-static int airoc_wifi_deassert_pin(const struct gpio_dt_spec *spec, const char *name)
-{
-	int ret;
+static int airoc_wifi_assert_pin(struct gpio_dt_spec const* spec, char const* name) {
+    int ret;
 
-	if (spec->port == NULL) {
-		return 0;
-	}
+    ret = airoc_wifi_set_pin(spec, name, GPIO_OUTPUT_ACTIVE);
+    if ((ret == 0) && (spec->port != NULL)) {
+        LOG_INF("%s driven active", name);
+    }
 
-	if (!device_is_ready(spec->port)) {
-		LOG_ERR("Error: failed to configure %s %s pin %d", name, spec->port->name,
-			spec->pin);
-		return -EIO;
-	}
-
-	ret = gpio_pin_configure_dt(spec, GPIO_OUTPUT_INACTIVE);
-	if (ret) {
-		LOG_ERR("Error %d: failed to drive %s %s pin %d low", ret, name, spec->port->name,
-			spec->pin);
-		return ret;
-	}
-
-	return 0;
+    return (ret);
 }
 
-int airoc_wifi_power_on(const struct device *dev)
-{
-#if DT_INST_NODE_HAS_PROP(0, wifi_reg_on_gpios)
-	int ret;
-	const struct airoc_wifi_config *config = dev->config;
+static int airoc_wifi_deassert_pin(struct gpio_dt_spec const* spec, char const* name) {
+    int ret;
 
-	/* Check WIFI REG_ON gpio instance */
-	if (!device_is_ready(config->wifi_reg_on_gpio.port)) {
-		LOG_ERR("Error: failed to configure wifi_reg_on %s pin %d",
-			config->wifi_reg_on_gpio.port->name, config->wifi_reg_on_gpio.pin);
-		return -EIO;
-	}
+    ret = airoc_wifi_set_pin(spec, name, GPIO_OUTPUT_INACTIVE);
 
-#if defined(AIROC_WIFI_SDIO_DAT2_HOLD)
-	/*
-	 * Some modules (Ezurio Sona IF513) latch SDIO_DATA2 when WL_REG_ON first rises and need
-	 * it high, while the board may have no pull-up on it. Drive it high as a GPIO across that
-	 * edge; the SDHC gets the pin back after the power-up delay below.
-	 */
-	if (!device_is_ready(config->wifi_sdio_dat2_gpio.port)) {
-		LOG_ERR("Error: failed to configure sdio_dat2 %s pin %d",
-			config->wifi_sdio_dat2_gpio.port->name, config->wifi_sdio_dat2_gpio.pin);
-		return -EIO;
-	}
+    return (ret);
+}
 
-	ret = gpio_pin_configure_dt(&config->wifi_sdio_dat2_gpio, GPIO_OUTPUT_ACTIVE);
-	if (ret) {
-		LOG_ERR("Error %d: failed to hold sdio_dat2 %s pin %d high", ret,
-			config->wifi_sdio_dat2_gpio.port->name, config->wifi_sdio_dat2_gpio.pin);
-		return ret;
-	}
-#endif /* AIROC_WIFI_SDIO_DAT2_HOLD */
+int airoc_wifi_power_on(struct device const* dev) {
+    #if DT_INST_NODE_HAS_PROP(0, wifi_reg_on_gpios)
+    int ret;
+    struct airoc_wifi_config const* config = dev->config;
+    struct gpio_dt_spec const* wifi_reg_on_spec = &config->wifi_reg_on_gpio;
 
-	/*
-	 * Infineon's reference BSP has the wake pins low from boot, before WL_REG_ON rises. Do the
-	 * same here if the board declares the pin.
-	 */
-	ret = airoc_wifi_assert_pin(&config->wifi_dev_wake_gpio, "wl_dev_wake");
-	if (ret) {
-		return ret;
-	}
+    /* Check WIFI REG_ON gpio instance */
+    if (!device_is_ready(wifi_reg_on_spec->port)) {
+        LOG_ERR("Error: failed to configure wifi_reg_on %s pin %d",
+                wifi_reg_on_spec->port->name, wifi_reg_on_spec->pin);
+        return (-EIO);
+    }
 
-	if (config->wifi_dev_wake_gpio.port != NULL) {
-		/* The reference waits the same after it drives the wake pin low, before WL_REG_ON */
-		k_msleep(AIROC_WIFI_PIN_SETTLE_MS);
-	}
+    #if defined(AIROC_WIFI_SDIO_DAT2_HOLD)
+    /*
+     * Some modules (Ezurio Sona IF513) latch SDIO_DATA2 when WL_REG_ON first rises and need
+     * it high, while the board may have no pull-up on it. Drive it high as a GPIO across that
+     * edge; the SDHC gets the pin back after the power-up delay below.
+     */
+    struct gpio_dt_spec const* sdio_dat2_spec = &config->wifi_sdio_dat2_gpio;
 
-	/*
-	 * CUSTOM@NDRS: power the module down first. After a power-on both pins are already low and
-	 * this only adds a delay, but after a soft reset (kernel reboot) the module is still powered,
-	 * running its old firmware with the SDIO bus in 4-bit HS mode, and it ignores CMD5 at
-	 * 400 kHz. Dropping WL_REG_ON resets the whole chip, Bluetooth included. That is harmless
-	 * here: this runs at device init, before the Bluetooth host has used the chip.
-	 */
-	ret = airoc_wifi_deassert_pin(&config->wifi_bt_reg_on_gpio, "bt_reg_on");
-	if (ret) {
-		return ret;
-	}
+    if (!device_is_ready(sdio_dat2_spec->port)) {
+        LOG_ERR("Error: failed to configure sdio_dat2 %s pin %d",
+                sdio_dat2_spec->port->name, sdio_dat2_spec->pin);
+        return (-EIO);
+    }
 
-	ret = gpio_pin_configure_dt(&config->wifi_reg_on_gpio, GPIO_OUTPUT_INACTIVE);
-	if (ret) {
-		LOG_ERR("Error %d: failed to drop wifi_reg_on %s pin %d", ret,
-			config->wifi_reg_on_gpio.port->name, config->wifi_reg_on_gpio.pin);
-		return ret;
-	}
+    ret = gpio_pin_configure_dt(sdio_dat2_spec, GPIO_OUTPUT_ACTIVE);
+    if (ret != 0) {
+        LOG_ERR("Error %d: failed to hold sdio_dat2 %s pin %d high",
+                ret, sdio_dat2_spec->port->name, sdio_dat2_spec->pin);
+        return (ret);
+    }
+    #endif /* AIROC_WIFI_SDIO_DAT2_HOLD */
 
-	k_msleep(AIROC_WIFI_POWER_DOWN_MS);
+    /*
+     * Infineon's reference BSP has the wake pins low from boot, before WL_REG_ON rises. Do the
+     * same here if the board declares the pin.
+     */
+    ret = airoc_wifi_assert_pin(&config->wifi_dev_wake_gpio, "wl_dev_wake");
+    if (ret != 0) {
+        return (ret);
+    }
 
-	/* Allow CBUCK regulator to discharge, then raise WL_REG_ON. */
-	k_msleep(WLAN_CBUCK_DISCHARGE_MS);
+    if (config->wifi_dev_wake_gpio.port != NULL) {
+        /* The reference waits the same after it drives the wake pin low, before WL_REG_ON */
+        k_msleep(AIROC_WIFI_PIN_SETTLE_MS);
+    }
 
-	/* WIFI power on */
-	ret = gpio_pin_configure_dt(&config->wifi_reg_on_gpio, GPIO_OUTPUT_ACTIVE);
-	if (ret) {
-		LOG_ERR("Error %d: failed to raise wifi_reg_on %s pin %d", ret,
-			config->wifi_reg_on_gpio.port->name, config->wifi_reg_on_gpio.pin);
-		return ret;
-	}
-	k_msleep(WLAN_POWER_UP_DELAY_MS);	// AIROC_WIFI_STA_SEQ02 (WL_REG_ON low, then high)
+    /*
+     * CUSTOM@NDRS: power the module down first. After a power-on both pins are already low and
+     * this only adds a delay, but after a soft reset (kernel reboot) the module is still powered,
+     * running its old firmware with the SDIO bus in 4-bit HS mode, and it ignores CMD5 at
+     * 400 kHz. Dropping WL_REG_ON resets the whole chip, Bluetooth included. That is harmless
+     * here: this runs at device init, before the Bluetooth host has used the chip.
+     */
+    ret = airoc_wifi_deassert_pin(&config->wifi_bt_reg_on_gpio, "bt_reg_on");
+    if (ret != 0) {
+        return (ret);
+    }
 
-	/*
-	 * The chip only answers on SDIO once BT_REG_ON rises while WL_REG_ON is already up. This is
-	 * the pin-level part of the reference's Bluetooth open (its autobaud step), which runs
-	 * before the Wi-Fi host driver touches the bus. The Bluetooth firmware download is not
-	 * needed. The module holds the pin low until it is raised here.
-	 */
-	ret = airoc_wifi_assert_pin(&config->wifi_bt_reg_on_gpio, "bt_reg_on");	// AIROC_WIFI_STA_SEQ03 (BT_REG_ON edge)
-	if (ret) {
-		return ret;
-	}
+    ret = gpio_pin_configure_dt(wifi_reg_on_spec, GPIO_OUTPUT_INACTIVE);
+    if (ret != 0) {
+        LOG_ERR("Error %d: failed to drop wifi_reg_on %s pin %d",
+                ret, wifi_reg_on_spec->port->name, wifi_reg_on_spec->pin);
+        return (ret);
+    }
 
-	if (config->wifi_bt_reg_on_gpio.port != NULL) {
-		k_msleep(AIROC_WIFI_BT_PULSE_MS);
-	}
+    k_msleep(AIROC_WIFI_POWER_DOWN_MS);
 
-#if defined(AIROC_WIFI_SDIO_DAT2_HOLD)
-	/* WL_REG_ON has risen and the module had time to latch DAT2: give the pin back to the SDHC */
-	ret = pinctrl_apply_state(config->sdio_pcfg, PINCTRL_STATE_DEFAULT);
-	if (ret) {
-		LOG_ERR("Error %d: failed to give sdio_dat2 back to the SDHC", ret);
-		return ret;
-	}
-	LOG_INF("WL_REG_ON raised with SDIO DAT2 held high");
-#endif /* AIROC_WIFI_SDIO_DAT2_HOLD */
-#endif /* DT_INST_NODE_HAS_PROP(0, reg_on_gpios) */
+    /* Allow CBUCK regulator to discharge, then raise WL_REG_ON. */
+    k_msleep(WLAN_CBUCK_DISCHARGE_MS);
 
-	return 0;
+    /* WIFI power on */
+    ret = gpio_pin_configure_dt(wifi_reg_on_spec, GPIO_OUTPUT_ACTIVE);
+    if (ret != 0) {
+        LOG_ERR("Error %d: failed to raise wifi_reg_on %s pin %d",
+                ret, wifi_reg_on_spec->port->name, wifi_reg_on_spec->pin);
+        return (ret);
+    }
+    k_msleep(WLAN_POWER_UP_DELAY_MS); // AIROC_WIFI_STA_SEQ02 (WL_REG_ON low, then high)
+
+    /*
+     * The chip only answers on SDIO once BT_REG_ON rises while WL_REG_ON is already up. This is
+     * the pin-level part of the reference's Bluetooth open (its autobaud step), which runs
+     * before the Wi-Fi host driver touches the bus. The Bluetooth firmware download is not
+     * needed. The module holds the pin low until it is raised here.
+     */
+    ret = airoc_wifi_assert_pin(&config->wifi_bt_reg_on_gpio, "bt_reg_on"); // AIROC_WIFI_STA_SEQ03 (BT_REG_ON edge)
+    if (ret != 0) {
+        return (ret);
+    }
+
+    if (config->wifi_bt_reg_on_gpio.port != NULL) {
+        k_msleep(AIROC_WIFI_BT_PULSE_MS);
+    }
+
+    #if defined(AIROC_WIFI_SDIO_DAT2_HOLD)
+    /* WL_REG_ON has risen and the module had time to latch DAT2: give the pin back to the SDHC */
+    ret = pinctrl_apply_state(config->sdio_pcfg, PINCTRL_STATE_DEFAULT);
+    if (ret != 0) {
+        LOG_ERR("Error %d: failed to give sdio_dat2 back to the SDHC", ret);
+        return (ret);
+    }
+    LOG_INF("WL_REG_ON raised with SDIO DAT2 held high");
+    #endif /* AIROC_WIFI_SDIO_DAT2_HOLD */
+    #endif /* DT_INST_NODE_HAS_PROP(0, reg_on_gpios) */
+
+    return (0);
 }
 
 /*
  * Implement WHD memory wrappers
  */
 
-inline void *whd_mem_malloc(size_t size)
-{
-	return k_malloc(size);
+inline void* whd_mem_malloc(size_t size) {
+    return k_malloc(size);
 }
 
-inline void *whd_mem_calloc(size_t nitems, size_t size)
-{
-	return k_calloc(nitems, size);
+inline void* whd_mem_calloc(size_t nitems, size_t size) {
+    return k_calloc(nitems, size);
 }
 
-inline void whd_mem_free(void *ptr)
-{
-	k_free(ptr);
+inline void whd_mem_free(void* ptr) {
+    k_free(ptr);
 }
 
-inline void whd_mem_memcpy(void *dest, const void *src, size_t len)
-{
-	memcpy(dest, src, len);
+inline void whd_mem_memcpy(void* dest, void const* src, size_t len) {
+    memcpy(dest, src, len);
 }
 
-inline void whd_mem_memset(void *buf, int val, size_t len)
-{
-	memset(buf, val, len);
+inline void whd_mem_memset(void* buf, int val, size_t len) {
+    memset(buf, val, len);
 }
 
 #ifdef __cplusplus

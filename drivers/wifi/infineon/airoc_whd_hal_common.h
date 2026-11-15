@@ -48,4 +48,4 @@
 
 extern whd_resource_source_t resource_ops;
 
-int airoc_wifi_power_on(const struct device *dev);
+int airoc_wifi_power_on(struct device const* dev);
