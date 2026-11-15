@@ -1520,6 +1520,8 @@ static int mcux_lpuart_configure_init(struct device const* dev, const struct uar
 
     LPUART_Type* lpuart = get_base(dev);
 
+    LPUART_Init(lpuart, &uart_config, clock_freq);
+
     #if LPUART_ASYNC_ENABLE
     /* LPUART_Init() clears the STAT error flags. Errors received with the
      * previous configuration do not apply to the new one.

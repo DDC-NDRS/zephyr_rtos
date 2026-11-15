@@ -2362,12 +2362,12 @@ static int wait_dma_rx_tx_done(struct device const* dev) {
 
     while (1) {
         #ifdef CONFIG_SPI_STM32_DMA_RX_AUTO_SUSPEND
-        res = k_sem_take(&data->status_sem, sys_timepoint_timeout(end));
+        ret = k_sem_take(&data->status_sem, sys_timepoint_timeout(end));
         #else
-        res = k_sem_take(&data->status_sem, timeout);
+        ret = k_sem_take(&data->status_sem, timeout);
         #endif /* CONFIG_SPI_STM32_DMA_RX_AUTO_SUSPEND */
 
-        if (res != 0) {
+        if (ret != 0) {
             if (IS_ENABLED(CONFIG_SPI_STM32_DMA_CACHED_MEMORY)) {
                 /*
                  * Without the error interrupt an overrun only shows up as this
@@ -2387,7 +2387,7 @@ static int wait_dma_rx_tx_done(struct device const* dev) {
             /* k_sem_take() says -EBUSY for the K_NO_WAIT of a passed deadline */
             return (-EAGAIN);
             #else
-            return (res);
+            return (ret);
             #endif /* CONFIG_SPI_STM32_DMA_RX_AUTO_SUSPEND */
         }
 

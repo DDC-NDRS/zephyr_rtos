@@ -786,7 +786,7 @@ static inline void uart_esp32_async_timer_start(struct k_work_delayable* work, i
 }
 #endif
 
-#if (CONFIG_UART_ASYNC_API || CONFIG_UART_INTERRUPT_DRIVEN)
+#if CONFIG_UART_INTERRUPT_DRIVEN
 static void uart_esp32_irq_rx_enable(const struct device* dev) {
     struct uart_esp32_data* data = dev->data;
 
@@ -796,6 +796,9 @@ static void uart_esp32_irq_rx_enable(const struct device* dev) {
     uart_hal_ena_intr_mask(&data->hal, UART_INTR_RXFIFO_TOUT);
 }
 
+#endif
+
+#if (CONFIG_UART_ASYNC_API || CONFIG_UART_INTERRUPT_DRIVEN)
 static void uart_esp32_irq_rx_disable(const struct device* dev) {
     struct uart_esp32_data* data = dev->data;
 

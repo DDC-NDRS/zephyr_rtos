@@ -1341,7 +1341,7 @@ static int tcp_update_recv_wnd(struct tcp* conn, int32_t delta) {
 
     short_win_before = tcp_short_window(conn);
 
-    conn->recv_win = (uint16_t)new_win;
+    conn->recv_win = (uint32_t)new_win;
 
     short_win_after = tcp_short_window(conn);
 
@@ -1439,7 +1439,7 @@ static enum net_verdict tcp_data_get(struct tcp* conn, struct net_pkt* pkt, size
             conn->recv_win_sent = 0;
         }
         else {
-            conn->recv_win_sent -= (uint16_t)tmp_len;
+            conn->recv_win_sent -= (uint32_t)tmp_len;
         }
 
         /* Do not pass data to application with TCP conn
