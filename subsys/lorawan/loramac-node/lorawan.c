@@ -101,7 +101,10 @@ struct lorawan_context {
     lorawan_link_check_ans_cb_t link_check_cb;
 };
 
-static struct lorawan_context lw_context;
+static struct lorawan_context lw_context = {
+    .selected_region = DEFAULT_LORAWAN_REGION,
+};
+
 static ATOMIC_DEFINE(lorawan_flags, LORAWAN_FLAG_COUNT);
 
 static LoRaMacPrimitives_t const lw_mac_primitives = {
@@ -879,8 +882,6 @@ static int lorawan_init(void) {
     struct lorawan_context* context = &lw_context;
 
     sys_slist_init(&context->dl_callbacks);
-
-    context->selected_region = DEFAULT_LORAWAN_REGION;
 
     return (0);
 }

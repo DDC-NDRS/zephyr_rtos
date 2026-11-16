@@ -406,11 +406,15 @@ static inline uint32_t uart_stm32_get_databits(USART_TypeDef const* usart) {
     return LL_USART_GetDataWidth(usart);
 }
 
+/* The RTS erratum mapping (RTS_CTS <-> CTS) is not applied here; callers must apply it,
+ * see uart_stm32_parameters_set() and uart_stm32_config_get().
+ */
 static inline void uart_stm32_set_hwctrl(USART_TypeDef* usart,
                                          uint32_t hwctrl) {
     LL_USART_SetHWFlowCtrl(usart, hwctrl);
 }
 
+/* Returns the raw register value, without the RTS erratum mapping (see above). */
 static inline uint32_t uart_stm32_get_hwctrl(USART_TypeDef const* usart) {
     return LL_USART_GetHWFlowCtrl(usart);
 }
