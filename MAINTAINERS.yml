@@ -745,7 +745,6 @@ Bluetooth HCI:
     - sjanc
     - HoZHel
     - cvinayak
-    - HaavardRei
     - MerinMGeorge
   files:
     - include/zephyr/drivers/bluetooth/
@@ -1527,7 +1526,6 @@ Documentation:
     - carlescufi
   files:
     - AGENTS.md
-    - CLAUDE.md
     - CODE_OF_CONDUCT.md
     - CONTRIBUTING.rst
     - doc/glossary.rst
@@ -3058,6 +3056,7 @@ Documentation Infrastructure:
   collaborators:
     - teburd
     - andyross
+    - ZhaoxiangJin
   files:
     - drivers/timer/
     - include/zephyr/drivers/timer/

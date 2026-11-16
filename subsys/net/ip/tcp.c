@@ -38,10 +38,10 @@ LOG_MODULE_REGISTER(net_tcp, CONFIG_NET_TCP_LOG_LEVEL);
 #define ZWP_MAX_DELAY_MS        120000
 #define DUPLICATE_ACK_RETRANSMIT_TRHESHOLD 3
 
-static int tcp_rto     = CONFIG_NET_TCP_INIT_RETRANSMISSION_TIMEOUT;
-static int tcp_retries = CONFIG_NET_TCP_RETRY_COUNT;
+static int const tcp_rto     = CONFIG_NET_TCP_INIT_RETRANSMISSION_TIMEOUT;
+static int const tcp_retries = CONFIG_NET_TCP_RETRY_COUNT;
 static int tcp_max_timeout_ms;
-static uint32_t tcp_rx_window =
+static uint32_t const tcp_rx_window =
 #if (CONFIG_NET_TCP_MAX_RECV_WINDOW_SIZE != 0)
     CONFIG_NET_TCP_MAX_RECV_WINDOW_SIZE;
 #else
@@ -53,7 +53,7 @@ static uint32_t tcp_rx_window =
 #endif /* CONFIG_NET_BUF_FIXED_DATA_SIZE */
 #endif
 
-static uint32_t tcp_tx_window =
+static uint32_t const tcp_tx_window =
 #if (CONFIG_NET_TCP_MAX_SEND_WINDOW_SIZE != 0)
     CONFIG_NET_TCP_MAX_SEND_WINDOW_SIZE;
 #else

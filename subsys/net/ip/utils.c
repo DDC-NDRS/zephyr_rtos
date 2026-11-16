@@ -1239,7 +1239,7 @@ int net_mask_len_to_netmask(net_sa_family_t family, uint8_t mask_len, struct net
 
         mask4->sin_family = NET_AF_INET;
         mask4->sin_port   = 0;
-        addr4->s_addr_be  = net_htonl(UINT32_MAX << (32 - mask_len));
+        addr4->s_addr_be  = (mask_len == 0U) ? 0U : net_htonl(UINT32_MAX << (32 - mask_len));
     }
     else if (family == NET_AF_INET6) {
         struct net_in6_addr* addr6 = &net_sin6(mask)->sin6_addr;

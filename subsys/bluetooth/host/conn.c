@@ -1065,7 +1065,7 @@ static bool below_tx_share(struct bt_conn *conn, struct tx_pool_users *users, si
 	total = MIN(pkts->limit, ARRAY_SIZE(conn_tx));
 	n = MAX(tx_pool_users_get(users, len, pkts), 1U);
 
-	return atomic_get(&conn->in_ll) < MAX(total / n, 1U);
+	return (atomic_get(&conn->in_ll) < (atomic_val_t)MAX(total / n, 1U));
 #else
 	ARG_UNUSED(users);
 	ARG_UNUSED(len);

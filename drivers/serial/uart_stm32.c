@@ -2602,29 +2602,41 @@ static int uart_stm32_init(struct device const* dev) {
 }
 
 #ifdef CONFIG_PM_DEVICE
-static void uart_stm32_suspend_setup(struct device const* dev) {
-    USART_TypeDef* usart = DEVICE_STM32_GET_USART(dev);
+static int uart_stm32_suspend_setup(struct device const* dev) {
+    struct uart_stm32_config const* config = dev->config;
+    USART_TypeDef* usart = config->usart;
 
     #ifdef USART_ISR_BUSY
     /* Make sure that no USART transfer is on-going */
-    while (LL_USART_IsActiveFlag_BUSY(usart) == 1) {
-        /* pass */
+    if (!WAIT_FOR(LL_USART_IsActiveFlag_BUSY(usart) == 0,
+                  CONFIG_UART_STM32_SUSPEND_TIMEOUT_US,
+                  NULL)) {
+        LOG_ERR("%s: receiver busy, not suspending", dev->name);
+        return (-EBUSY);
     }
     #endif
 
-    while (LL_USART_IsActiveFlag_TC(usart) == 0) {
-        /* pass */
+    if (!WAIT_FOR(LL_USART_IsActiveFlag_TC(usart) == 1,
+                  CONFIG_UART_STM32_SUSPEND_TIMEOUT_US,
+                  NULL)) {
+        LOG_ERR("%s: transmission not complete, not suspending", dev->name);
+        return (-EBUSY);
     }
 
     #ifdef USART_ISR_REACK
     /* Make sure that USART is ready for reception */
-    while (LL_USART_IsActiveFlag_REACK(usart) == 0) {
-        /* pass */
+    if (!WAIT_FOR(LL_USART_IsActiveFlag_REACK(usart) == 1,
+                  CONFIG_UART_STM32_SUSPEND_TIMEOUT_US,
+                  NULL)) {
+        LOG_ERR("%s: receiver not enabled, not suspending", dev->name);
+        return (-EBUSY);
     }
     #endif
 
     /* Clear OVERRUN flag */
     LL_USART_ClearFlag_ORE(usart);
+
+    return (0);
 }
 
 static int uart_stm32_pm_action(struct device const* dev,
@@ -2673,7 +2685,10 @@ static int uart_stm32_pm_action(struct device const* dev,
             break;
 
         case PM_DEVICE_ACTION_SUSPEND :
-            uart_stm32_suspend_setup(dev);
+            ret = uart_stm32_suspend_setup(dev);
+            if (ret < 0) {
+                return (ret);
+            }
 
             /* Stop device clock. Note: fixed clocks are not handled yet. */
             ret = clock_control_off(config->clock, (clock_control_subsys_t)&config->pclken[0]);

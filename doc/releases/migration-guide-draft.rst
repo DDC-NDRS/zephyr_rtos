@@ -54,6 +54,16 @@ Boards
   * Remove custom nodes and linker sections that reserve the push area, such as
     ``nrf_kmu_reserved_push_area``. They would overlap the ``kmu_push_area`` node.
 
+* On Nordic SoCs, :kconfig:option:`CONFIG_TRUSTED_EXECUTION_NONSECURE` no longer enables
+  :kconfig:option:`CONFIG_BUILD_WITH_TFM` by default, as TF-M is not the only possible secure
+  firmware. The in-tree ``/ns`` board targets now enable TF-M themselves. Out-of-tree non-secure
+  board targets that use TF-M must do the same, in their :file:`Kconfig.defconfig`:
+
+  .. code-block:: kconfig
+
+     configdefault BUILD_WITH_TFM
+             default y if BOARD_MY_BOARD_NRF9160_NS
+
 * :zephyr:board:`stm32_min_dev` now declares two SoCs, so the SoC qualifier is
   mandatory. Applications and test configurations that used ``stm32_min_dev``,
   ``stm32_min_dev@blue`` or ``stm32_min_dev@black`` must use
@@ -237,6 +247,15 @@ I2S
   :kconfig:option:`CONFIG_I2S_NATIVE_SIM_TX_PATH`, which also accept ALSA devices. Without the
   ALSA backend the old options still provide their default. (:github:`123474`)
 
+MFD
+===
+
+* nPM13xx event callbacks now use :c:struct:`mfd_npm13xx_event_callback` instead of
+  :c:struct:`gpio_callback`. Set its ``handler`` and ``event_mask`` fields directly instead of
+  calling ``gpio_init_callback()``. The handler takes a pointer to the new callback structure
+  and an ``npm13xx_event_t`` event mask; existing ``BIT(NPM13XX_EVENT_*)`` masks are unchanged.
+  (:github:`123060`)
+
 Modem
 =====
 
@@ -338,6 +357,12 @@ Bluetooth Audio
 ===============
 
 .. zephyr-keep-sorted-start re(^\* \w)
+
+* BAP
+
+  * ``CONFIG_BT_BAP_UNICAST_CLIENT_GROUP_STREAM_COUNT`` has been renamed to
+    :kconfig:option:`CONFIG_BT_BAP_UNICAST_CLIENT_GROUP_CIS_COUNT`. All applications must apply a
+    search and replace on this.
 
 * MCP
 
