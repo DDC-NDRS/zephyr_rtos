@@ -448,6 +448,16 @@ Bluetooth Host
   recommended sizing is ``CONFIG_BT_ATT_PREPARE_COUNT`` = buffers needed by one client
   multiplied by ``CONFIG_BT_MAX_CONN``, which keeps every connection's capacity independent
   of the other connections.
+* ``CONFIG_BT_ISO_TX_MTU`` has been removed. Applications should define their own SDU buffer sizes.
+  The ISO HCI data buffer size can be configured for the Controller with
+  :kconfig:option:`CONFIG_BT_CTLR_ISO_TX_BUFFER_SIZE`, and the SDU size with
+  :kconfig:option:`CONFIG_BT_CTLR_ISO_TX_SDU_LEN_MAX`.
+  In most cases :kconfig:option:`CONFIG_BT_CTLR_ISO_TX_BUFFER_SIZE` should be set to 4
+  (if timestamps are not used) or 8 (if timestamps are used) above
+  :kconfig:option:`CONFIG_BT_CTLR_ISO_TX_SDU_LEN_MAX`. For larger values of
+  :kconfig:option:`CONFIG_BT_CTLR_ISO_TX_SDU_LEN_MAX` it may be better to increase
+  :kconfig:option:`CONFIG_BT_CTLR_ISO_TX_BUFFERS` instead of
+  :kconfig:option:`CONFIG_BT_CTLR_ISO_TX_BUFFER_SIZE`.
 
 Bluetooth Mesh
 ==============
@@ -461,6 +471,17 @@ Bluetooth Mesh
   * The ``output_number`` callback of :c:struct:`bt_mesh_prov` with
     :c:member:`bt_mesh_prov.output_numeric`, which receives the numeric value as a
     little-endian byte array and its size.
+
+* The Bluetooth Mesh shell ``sar rx-set`` command now takes its arguments in the order the SAR
+  Receiver states are documented and printed: ``<SegThresh> <AckDelayInc> <DiscardTimeout>
+  <RxSegIntStep> <AckRetransCount>``. ``AckRetransCount`` moved from the third position to the
+  last, so an existing invocation keeps the same number of arguments but assigns them to
+  different states. The ``sar rx-get`` and ``sar rx-set`` responses are printed in this new
+  order too. Update scripts that call ``sar rx-set`` or parse those responses.
+
+* The Bluetooth Mesh shell ``dfu cli send`` command now takes the transfer mode as ``push`` or
+  ``pull`` instead of a number, matching ``blob cli tx``. Replace a numeric mode argument with
+  ``push`` or ``pull``.
 
 Networking
 **********
@@ -500,6 +521,22 @@ Networking
   :kconfig:option:`CONFIG_WIFI_USE_NATIVE_NETWORKING` is enabled, or with
   ``DEVICE_API(wifi_offload, name)`` otherwise. ``struct net_wifi_mgmt_offload`` remains available
   to refer to the selected type. (:github:`124334`)
+
+* The extra config files of the samples in :zephyr_file:`samples/net`,
+  :zephyr_file:`samples/subsys/mgmt/hawkbit`, :zephyr_file:`samples/subsys/mgmt/updatehub` and
+  :zephyr_file:`samples/drivers/modem/hello_hl78xx`, and of the network tests, no longer start with
+  ``overlay-`` or ``overlay_``, as that name is reserved for devicetree overlays. Drop the prefix
+  from the names passed in ``EXTRA_CONF_FILE``, for example ``-DEXTRA_CONF_FILE=tls.conf`` instead
+  of ``-DEXTRA_CONF_FILE=overlay-tls.conf``. These files use new names instead:
+
+  * :zephyr_file:`samples/net/mqtt_publisher/testing.conf` replaces ``overlay-sample.conf``.
+  * :zephyr_file:`samples/net/dhcpv6_pd/pd-server.conf` and
+    :zephyr_file:`samples/net/dhcpv6_pd/pd-server.overlay` replace ``overlay-server.conf`` and
+    ``overlay-server.overlay``.
+  * :zephyr_file:`samples/net/ethernet/gptp/multiport.overlay` replaces
+    ``overlay-multiport.overlay``.
+  * :zephyr_file:`samples/subsys/mgmt/updatehub/local.conf.example` replaces
+    ``overlay-prj.conf.example``.
 
 Other subsystems
 ****************

@@ -41,6 +41,15 @@ Security Vulnerability Related
 Libraries / Subsystems
 **********************
 
+* Architectures
+
+  * arm64: the x19-x28 callee-saved registers are now captured in the exception
+    stack frame on the paths that may dump or unwind it (synchronous faults,
+    SError, kernel oops and syscall entry) and are included in the coredump
+    architecture block, version 3, when
+    :kconfig:option:`CONFIG_EXTRA_EXCEPTION_INFO` is enabled. The gdbstub
+    coredump decoder was updated accordingly.
+
 * Bluetooth
 
   * Added a HID Service server (:kconfig:option:`CONFIG_BT_HIDS`), the service
@@ -91,6 +100,9 @@ Libraries / Subsystems
     longer held back by the client's delayed acknowledgements. Applications that
     prefer Nagle's algorithm can disable
     :kconfig:option:`CONFIG_HTTP_SERVER_TCP_NODELAY`.
+  * HTTP server: HTTPS services no longer run the TLS handshake inside ``accept()``. A client that
+    opens a connection and then stalls its handshake used to stop the whole server, HTTP services
+    included, for up to :kconfig:option:`CONFIG_NET_SOCKETS_TLS_CONNECT_TIMEOUT` per connection.
   * The connection manager tracks name resolution readiness, see
     :ref:`conn_mgr_monitoring_dns`: :c:macro:`NET_EVENT_L4_DNS_READY`,
     :c:macro:`NET_EVENT_L4_DNS_LOST` and :c:func:`conn_mgr_dns_is_ready`.

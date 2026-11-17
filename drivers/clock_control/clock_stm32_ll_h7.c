@@ -195,14 +195,6 @@ static mem_addr_t const rcc_dt_reg_addr = DT_REG_ADDR(DT_NODELABEL(rcc));
 static mem_addr_t rcc_dt_reg_addr;
 #endif
 
-#if defined(CONFIG_CPU_CORTEX_M7)
-/* Offset to access bus clock registers from M7 (or only) core */
-#define STM32H7_BUS_CLK_REG rcc_dt_reg_addr
-#elif defined(CONFIG_CPU_CORTEX_M4)
-/* Offset to access bus clock registers from M4 core */
-#define STM32H7_BUS_CLK_REG (rcc_dt_reg_addr + 0x60)
-#endif
-
 #if IS_ENABLED(STM32_PLL_P_ENABLED)
 BUILD_ASSERT(((STM32_PLL_P_DIVISOR == 1) || (STM32_PLL_P_DIVISOR % 2) == 0),
              "STM32H7/H7RS PLL1 DIVP divisor factor must be 1 or even");
@@ -482,11 +474,11 @@ static int stm32_clock_control_on(const struct device* dev, clock_control_subsys
 
     z_stm32_hsem_lock(CFG_HW_RCC_SEMID, HSEM_LOCK_DEFAULT_RETRY);
 
-    sys_set_bits(STM32H7_BUS_CLK_REG + pclken->bus, pclken->enr);
+    sys_set_bits(rcc_dt_reg_addr + pclken->bus, pclken->enr);
     /* Delay after enabling the clock, to allow it to become active.
      * See RM0433 8.5.10 "Clock enabling delays"
      */
-    temp = sys_read32(STM32H7_BUS_CLK_REG + pclken->bus);
+    temp = sys_read32(rcc_dt_reg_addr + pclken->bus);
     (void)temp;
 
     z_stm32_hsem_unlock(CFG_HW_RCC_SEMID);
@@ -506,7 +498,7 @@ static int stm32_clock_control_off(const struct device* dev, clock_control_subsy
 
     z_stm32_hsem_lock(CFG_HW_RCC_SEMID, HSEM_LOCK_DEFAULT_RETRY);
 
-    sys_clear_bits(STM32H7_BUS_CLK_REG + pclken->bus, pclken->enr);
+    sys_clear_bits(rcc_dt_reg_addr + pclken->bus, pclken->enr);
 
     z_stm32_hsem_unlock(CFG_HW_RCC_SEMID);
 
@@ -848,7 +840,7 @@ static enum clock_control_status stm32_clock_control_get_status(const struct dev
 
     if (IN_RANGE(pclken->bus, STM32_PERIPH_BUS_MIN, STM32_PERIPH_BUS_MAX) == true) {
         /* Gated clocks */
-        if ((sys_read32(STM32H7_BUS_CLK_REG + pclken->bus) & pclken->enr)
+        if ((sys_read32(rcc_dt_reg_addr + pclken->bus) & pclken->enr)
             == pclken->enr) {
             return (CLOCK_CONTROL_STATUS_ON);
         }

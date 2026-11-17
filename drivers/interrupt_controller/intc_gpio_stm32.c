@@ -17,6 +17,7 @@
 #include <stm32_ll_bus.h>
 #include <stm32_ll_gpio.h> /* For STM32F1 series */
 #include <stm32_ll_exti.h>
+#include <stm32_ll_sbs.h>
 #include <stm32_ll_system.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/util.h>
@@ -77,7 +78,7 @@ static inline uint32_t stm32_exti_linenum_to_src_cfg_line(gpio_pin_t linenum) {
         defined(CONFIG_SOC_SERIES_STM32F0X)
     return ((linenum % 4 * 4) << 16) | (linenum / 4);
     #elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32g0_exti) || \
-          defined(CONFIG_SOC_SERIES_STM32MP2X)
+          defined(CONFIG_SOC_SERIES_STM32MP2X) || defined(CONFIG_SOC_SERIES_STM32H7PX)
     #if defined(CONFIG_STM32_HAL2)
     return (linenum & 0xF) | ((linenum / 4) << LL_EXTI_CR_REGISTER_SHIFT);
     #else /* CONFIG_STM32_HAL2 */
@@ -322,7 +323,7 @@ void stm32_exti_set_line_src_port(gpio_pin_t line, uint32_t port) {
 
     #elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32g0_exti)
     LL_EXTI_SetEXTISource(port, ll_line);
-    #elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7rs_exti)
+    #elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7rs_exti) || defined(CONFIG_SOC_SERIES_STM32H7PX)
     LL_SBS_SetEXTISource(port, ll_line);
     #elif defined(CONFIG_SOC_SERIES_STM32MP2X)
     LL_EXTI_SetEXTISource(EXTI2, port, ll_line);
@@ -340,7 +341,7 @@ uint32_t stm32_exti_get_line_src_port(gpio_pin_t line) {
     port = LL_GPIO_AF_GetEXTISource(ll_line);
     #elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32g0_exti)
     port = LL_EXTI_GetEXTISource(ll_line);
-    #elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7rs_exti)
+    #elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7rs_exti) || defined(CONFIG_SOC_SERIES_STM32H7PX)
     port = LL_SBS_GetEXTISource(ll_line);
     #elif defined(CONFIG_SOC_SERIES_STM32MP2X)
     port = LL_EXTI_GetEXTISource(EXTI2, ll_line);

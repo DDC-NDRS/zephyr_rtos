@@ -215,7 +215,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: 09679fae4b52dbbc41c3c5e59e4828bb9b671b4f
+      revision: 3eca8e3ba662a5c33d35db36f09841735dc7ec2b
       path: modules/hal/nxp
       groups:
         - hal
@@ -251,7 +251,7 @@ manifest:
       groups:
         - hal
     - name: hal_silabs
-      revision: 3402d10d7bbe0f323e018a4142b7ab7d45f9308b
+      revision: 3bf15af7154aa46b1d4c306fbf44c95837695ec3
       path: modules/hal/silabs
       groups:
         - hal
@@ -261,7 +261,7 @@ manifest:
       groups:
         - hal
     - name: hal_stm32
-      revision: c47e65ae68007106504dc6ddba9317a87b041be9
+      revision: 0845dd7c77fe53b3e58be5178a1d57cbd2287570
       path: modules/hal/stm32
       groups:
         - hal
