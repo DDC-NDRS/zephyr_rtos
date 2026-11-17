@@ -500,6 +500,7 @@ SHELL_SUBCMD_DICT_SET_CREATE(sub_ref_cmds, cmd_adc_ref,
 );
 
 SHELL_SUBCMD_DICT_SET_CREATE(sub_gain_cmds, cmd_adc_gain,
+    (GAIN_1_8, ADC_GAIN_1_8, "x 1/8"),
     (GAIN_1_6, ADC_GAIN_1_6, "x 1/6"),
     (GAIN_1_5, ADC_GAIN_1_5, "x 1/5"),
     (GAIN_1_4, ADC_GAIN_1_4, "x 1/4"),

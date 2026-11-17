@@ -1692,7 +1692,7 @@ static int flash_stm32_qspi_init(struct device const* dev) {
 
             if (ret != 0) {
                 LOG_ERR("SFDP BFP failed: %d", ret);
-                break;
+                return (ret);
             }
         }
         ++php;
