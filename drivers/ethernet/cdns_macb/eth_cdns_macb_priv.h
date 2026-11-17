@@ -337,7 +337,7 @@ void cdns_macb_isr(const struct device *dev);
  * glue fills in rings_phys and connects the interrupt.
  */
 int cdns_macb_platform_init(const struct device *dev);
-extern const struct ethernet_api cdns_macb_api;
+extern const struct ethernet_driver_api cdns_macb_api;
 
 /*
  * Register offsets
