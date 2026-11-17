@@ -199,12 +199,6 @@ struct spsc {
  *
  * @param spsc SPSC to produce all previously acquired elements or do nothing
  */
-#if defined(_MSC_VER)
-#define spsc_produce_all(spsc)              \
-    do {                                    \
-        /* pass: unsupported compilation error */   \
-    } while (false)
-#else
 #define spsc_produce_all(spsc)              \
     ({                                      \
         if ((spsc)->_spsc.acquire > 0) {    \
@@ -213,7 +207,6 @@ struct spsc {
             atomic_add(&(spsc)->_spsc.in, acquired);    \
         }                                               \
     })
-#endif
 
 /**
  * @brief Drop all previously acquired elements
