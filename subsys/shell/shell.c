@@ -245,7 +245,7 @@ static void history_handle(struct shell const* sh, bool up) {
 
     /* Start by checking if history is not empty. */
     history_mode = z_shell_history_get(sh->history, up,
-                                       ctx->cmd_buff, &len);
+                                       (uint8_t*)ctx->cmd_buff, &len);
 
     /* On exiting history mode print backed up command. */
     if (!history_mode) {
@@ -1074,7 +1074,7 @@ static int execute(struct shell const* sh) {
 
     if (IS_ENABLED(CONFIG_SHELL_HISTORY)) {
         z_shell_cmd_trim(sh);
-        history_put(sh, ctx->cmd_buff, ctx->cmd_buff_len);
+        history_put(sh, (uint8_t*)ctx->cmd_buff, ctx->cmd_buff_len);
     }
 
     if (IS_ENABLED(CONFIG_SHELL_WILDCARD)) {
@@ -2460,8 +2460,11 @@ static int cmd_help(struct shell const* sh, size_t argc, char** argv) {
 
     if (IS_ENABLED(CONFIG_SHELL_HELP)) {
         /* For NULL argument function will print all root commands */
+        z_shell_lock(sh);
         z_shell_help_subcmd_print(sh, NULL,
                                   "\nAvailable commands:\n");
+        z_transport_buffer_flush(sh);
+        z_shell_unlock(sh);
     }
     else {
         const struct shell_static_entry* entry;

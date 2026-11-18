@@ -274,6 +274,16 @@ static void zsock_received_cb(struct net_context *ctx,
 		(void)k_mutex_lock(ctx->cond.lock, K_FOREVER);
 	}
 
+	if (!net_context_is_used(ctx)) {
+		/* close() released the context while this waited for the
+		 * descriptor lock, after it flushed the queue.
+		 */
+		NET_DBG("%sctx=%p, pkt=%p, st=%d, user_data=%p",
+			"DROP: ", ctx, pkt, status, user_data);
+		net_pkt_unref(pkt);
+		goto unlock;
+	}
+
 	NET_DBG("%sctx=%p, pkt=%p, st=%d, user_data=%p", "", ctx, pkt, status,
 		user_data);
 
@@ -2305,6 +2315,15 @@ int zsock_getsockopt_ctx(struct net_context *ctx, int level, int optname,
 
 			return 0;
 
+		case ZSOCK_TCP_QUICKACK:
+			ret = net_tcp_get_option(ctx, TCP_OPT_QUICKACK, optval, optlen);
+			if (ret < 0) {
+				errno = -ret;
+				return -1;
+			}
+
+			return 0;
+
 		case ZSOCK_TCP_KEEPIDLE:
 			__fallthrough;
 		case ZSOCK_TCP_KEEPINTVL:
@@ -3004,6 +3023,15 @@ int zsock_setsockopt_ctx(struct net_context *ctx, int level, int optname,
 		case ZSOCK_TCP_NODELAY:
 			ret = net_tcp_set_option(ctx,
 						 TCP_OPT_NODELAY, optval, optlen);
+			if (ret < 0) {
+				errno = -ret;
+				return -1;
+			}
+
+			return 0;
+
+		case ZSOCK_TCP_QUICKACK:
+			ret = net_tcp_set_option(ctx, TCP_OPT_QUICKACK, optval, optlen);
 			if (ret < 0) {
 				errno = -ret;
 				return -1;

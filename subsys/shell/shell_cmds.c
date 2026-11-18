@@ -194,6 +194,7 @@ static int terminal_size_get(const struct shell *sh)
 	uint16_t y; /* vertical position */
 	int ret_val = 0;
 
+	z_shell_lock(sh);
 	z_cursor_save(sh);
 
 	/* Assumption: terminal width and height < 999. */
@@ -210,6 +211,8 @@ static int terminal_size_get(const struct shell *sh)
 	}
 
 	z_cursor_restore(sh);
+	z_transport_buffer_flush(sh);
+	z_shell_unlock(sh);
 	return ret_val;
 }
 
@@ -226,8 +229,11 @@ static int cmd_clear(const struct shell *sh, size_t argc, char **argv)
 {
 	ARG_UNUSED(argv);
 
+	z_shell_lock(sh);
 	Z_SHELL_VT100_CMD(sh, SHELL_VT100_CURSORHOME);
 	Z_SHELL_VT100_CMD(sh, SHELL_VT100_CLEARSCREEN);
+	z_transport_buffer_flush(sh);
+	z_shell_unlock(sh);
 
 	return 0;
 }
@@ -373,7 +379,7 @@ static int cmd_history(const struct shell *sh, size_t argc, char **argv)
 
 	while (1) {
 		z_shell_history_get(sh->history, true,
-				    sh->ctx->temp_buff, &len);
+				    (uint8_t *)sh->ctx->temp_buff, &len);
 
 		if (len) {
 			shell_print(sh, "[%3d] %s",
@@ -417,9 +423,12 @@ static int cmd_resize_default(const struct shell *sh,
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
+	z_shell_lock(sh);
 	Z_SHELL_VT100_CMD(sh, SHELL_VT100_SETCOL_80);
 	sh->ctx->vt100_ctx.cons.terminal_wid = CONFIG_SHELL_DEFAULT_TERMINAL_WIDTH;
 	sh->ctx->vt100_ctx.cons.terminal_hei = CONFIG_SHELL_DEFAULT_TERMINAL_HEIGHT;
+	z_transport_buffer_flush(sh);
+	z_shell_unlock(sh);
 
 	return 0;
 }

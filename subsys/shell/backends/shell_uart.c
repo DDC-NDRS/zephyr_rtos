@@ -178,7 +178,7 @@ static bool uart_dtr_check(const struct device* dev) {
                  "DTR check requires CONFIG_UART_LINE_CTRL");
 
     if (IS_ENABLED(CONFIG_SHELL_BACKEND_SERIAL_CHECK_DTR)) {
-        int dtr;
+        uint32_t dtr;
         int err;
 
         err = uart_line_ctrl_get(dev, UART_LINE_CTRL_DTR, &dtr);
