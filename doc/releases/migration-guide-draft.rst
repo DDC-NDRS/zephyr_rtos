@@ -34,6 +34,11 @@ Build System
 Kernel
 ******
 
+* :c:func:`k_queue_cancel_wait` and :c:macro:`k_fifo_cancel_wait` now wake every :c:func:`k_poll`
+  call waiting on the queue with ``-EINTR`` and submit every :c:func:`k_work_poll_submit` item
+  waiting on it, not only the first. Code that treated a cancel as addressed to one waiter must
+  re-check its own condition.
+
 Boards
 ******
 
@@ -174,6 +179,10 @@ Boards
   been removed because they had no effect. Remove them from configuration files. Board
   ``Kconfig.defconfig`` files must drop their ``choice SPIRAM_TYPE`` overrides. The flash size
   comes from the ``zephyr,flash`` devicetree node.
+
+* On LiteX SoCs, :kconfig:option:`CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC` no longer falls back to the
+  CPU ``clock-frequency`` when ``/cpus`` has no ``timebase-frequency``. Out-of-tree boards must
+  set ``timebase-frequency`` on the ``/cpus`` node. (:github:`124446`)
 
 Device Drivers and Devicetree
 *****************************
@@ -595,6 +604,13 @@ Networking
   * :zephyr_file:`samples/subsys/mgmt/updatehub/local.conf.example` replaces
     ``overlay-prj.conf.example``.
 
+OpenThread
+==========
+
+* The :kconfig:option:`OPENTHREAD_THREAD_VERSION_1_4` Kconfig option is now enabled by default.
+
+* Applications that require an older OpenThread version must explicitly select the desired version in their project Kconfig configuration.
+
 Other subsystems
 ****************
 
@@ -660,3 +676,10 @@ Modules
 
 Architectures
 *************
+
+* On ARM Cortex-A/R with :kconfig:option:`CONFIG_USE_SWITCH`, ISRs run in SYS mode instead of
+  IRQ mode, and nested interrupts and the handlers they call use the per-CPU interrupt stack
+  rather than the interrupted thread's stack. Boards and applications that sized
+  :kconfig:option:`CONFIG_ISR_STACK_SIZE` for the outermost ISR frame alone may need a larger
+  interrupt stack, and code or debuggers that inspect the processor mode inside an ISR see SYS
+  mode. (:github:`123041`)

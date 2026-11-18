@@ -2697,6 +2697,10 @@ static int spi_stm32_ll_transceive_dma(struct device const* dev,
             (void) spi_dma_move_rx_buffers(dev, data->rx_len);
         }
 
+        if (ret != 0) {
+            break;
+        }
+
         #ifdef CONFIG_SPI_ASYNC
         if (ctx->asynchronous) {
             ret = spi_context_wait_for_completion(ctx);

@@ -66,8 +66,33 @@ BUILD_ASSERT(sizeof(long_payload) - 1 > CONFIG_HTTP_SERVER_CLIENT_BUFFER_SIZE,
 #define TEST_HTTP2_SETTINGS \
 	0x00, 0x00, 0x0c, 0x04, 0x00, 0x00, 0x00, 0x00,	0x00, \
 	0x00, 0x03, 0x00, 0x00, 0x00, 0x64, 0x00, 0x04, 0x00, 0x00, 0xff, 0xff
+#define TEST_HTTP2_SETTINGS_EMPTY \
+	0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00
 #define TEST_HTTP2_SETTINGS_ACK \
 	0x00, 0x00, 0x00, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00
+#define TEST_HTTP2_PING_PAYLOAD \
+	0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
+#define TEST_HTTP2_PING \
+	0x00, 0x00, 0x08, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, \
+	TEST_HTTP2_PING_PAYLOAD
+#define TEST_HTTP2_PING_ACK \
+	0x00, 0x00, 0x08, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, \
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+#define TEST_HTTP2_PING_SHORT \
+	0x00, 0x00, 0x04, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, \
+	0x01, 0x02, 0x03, 0x04
+/* Frame type 0x20 is not defined, 0xfb neither. */
+#define TEST_HTTP2_UNKNOWN_FRAME_HEADER \
+	0x00, 0x00, 0x05, 0x20, 0xff, 0x00, 0x00, 0x00, TEST_STREAM_ID_1
+#define TEST_HTTP2_UNKNOWN_FRAME_PAYLOAD_START \
+	0x01, 0x02
+#define TEST_HTTP2_UNKNOWN_FRAME_PAYLOAD_END \
+	0x03, 0x04, 0x05
+#define TEST_HTTP2_UNKNOWN_FRAME_EMPTY \
+	0x00, 0x00, 0x00, 0xfb, 0x00, 0x00, 0x00, 0x00, 0x00
+#define TEST_HTTP2_PUSH_PROMISE \
+	0x00, 0x00, 0x04, 0x05, 0x04, 0x00, 0x00, 0x00, TEST_STREAM_ID_1, \
+	0x00, 0x00, 0x00, 0x02
 #define TEST_HTTP2_GOAWAY \
 	0x00, 0x00, 0x08, 0x07, 0x00, 0x00, 0x00, 0x00, \
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
@@ -149,6 +174,12 @@ BUILD_ASSERT(sizeof(long_payload) - 1 > CONFIG_HTTP_SERVER_CLIENT_BUFFER_SIZE,
 	0x21, 0x6c, 0x47, 0x86, 0x41, 0x87, 0x0b, 0xe2, 0x5c, 0x0b, 0x89, 0x70, \
 	0xff, 0x7a, 0x88, 0x25, 0xb6, 0x50, 0xc3, 0xab, 0xbc, 0x15, 0xc1, 0x53, \
 	0x03, 0x2a, 0x2f, 0x2a
+#define TEST_HTTP2_HEADERS_POST_RESPONSE_HEADERS_NO_BODY_STREAM_1 \
+	0x00, 0x00, 0x28, 0x01, 0x05, 0x00, 0x00, 0x00, TEST_STREAM_ID_1, \
+	0x83, 0x04, 0x8c, 0x62, 0xc2, 0xa2, 0xb3, 0xd4, 0x82, 0xc5, 0x39, 0x47, \
+	0x21, 0x6c, 0x47, 0x86, 0x41, 0x87, 0x0b, 0xe2, 0x5c, 0x0b, 0x89, 0x70, \
+	0xff, 0x7a, 0x88, 0x25, 0xb6, 0x50, 0xc3, 0xab, 0xbc, 0x15, 0xc1, 0x53, \
+	0x03, 0x2a, 0x2f, 0x2a
 #define TEST_HTTP2_HEADERS_POST_DYNAMIC_STREAM_1 \
 	0x00, 0x00, 0x30, 0x01, 0x04, 0x00, 0x00, 0x00, TEST_STREAM_ID_1, \
 	0x83, 0x86, 0x41, 0x87, 0x0b, 0xe2, 0x5c, 0x0b, 0x89, 0x70, 0xff, 0x04, \
@@ -226,8 +257,17 @@ BUILD_ASSERT(sizeof(long_payload) - 1 > CONFIG_HTTP_SERVER_CLIENT_BUFFER_SIZE,
 	0x69, 0xd2, 0x9a, 0xc4, 0xc0, 0x57, 0x68, 0x0b, 0x83
 #define TEST_HTTP2_HEADERS_PRIORITY_SHORT_STREAM_1 \
 	0x00, 0x00, 0x03, 0x01, 0x24, 0x00, 0x00, 0x00, TEST_STREAM_ID_1, 0x00, 0x00, 0x00
+#define TEST_HTTP2_HEADERS_GET_ROOT_NO_END_HEADERS_STREAM_1 \
+	0x00, 0x00, 0x21, 0x01, 0x01, 0x00, 0x00, 0x00, TEST_STREAM_ID_1, \
+	0x82, 0x84, 0x86, 0x41, 0x8a, 0x0b, 0xe2, 0x5c, 0x0b, 0x89, 0x70, 0xdc, \
+	0x78, 0x0f, 0x03, 0x53, 0x03, 0x2a, 0x2f, 0x2a, 0x90, 0x7a, 0x8a, 0xaa, \
+	0x69, 0xd2, 0x9a, 0xc4, 0xc0, 0x57, 0x68, 0x0b, 0x83
+#define TEST_HTTP2_CONTINUATION_EMPTY_STREAM_1 \
+	0x00, 0x00, 0x00, 0x09, 0x04, 0x00, 0x00, 0x00, TEST_STREAM_ID_1
 #define TEST_HTTP2_DATA_EMPTY_STREAM_1 \
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, TEST_STREAM_ID_1
+#define TEST_HTTP2_DATA_EMPTY_END_STREAM_STREAM_1 \
+	0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, TEST_STREAM_ID_1
 #define TEST_HTTP2_DATA_PADDING_ONLY_STREAM_1 \
 	0x00, 0x00, 0x05, 0x00, 0x08, 0x00, 0x00, 0x00, TEST_STREAM_ID_1, 0x04, \
 	0x00, 0x00, 0x00, 0x00
@@ -299,6 +339,7 @@ static uint8_t dynamic_payload[32];
 static size_t dynamic_payload_len = sizeof(dynamic_payload);
 static bool dynamic_error;
 static bool dynamic_complete;
+static int dynamic_final_count;
 
 static int dynamic_cb(struct http_client_ctx *client, enum http_transaction_status status,
 		      const struct http_request_ctx *request_ctx,
@@ -346,6 +387,7 @@ static int dynamic_cb(struct http_client_ctx *client, enum http_transaction_stat
 
 		if (status == HTTP_SERVER_REQUEST_DATA_FINAL) {
 			/* All data received, reset progress. */
+			dynamic_final_count++;
 			dynamic_payload_len = offset;
 			offset = 0;
 		}
@@ -510,6 +552,7 @@ enum dynamic_response_headers_variant {
 
 static uint8_t dynamic_response_headers_variant;
 static const char *connection_specific_header_name;
+static bool dynamic_response_headers_complete;
 static uint8_t dynamic_response_headers_buffer[sizeof(long_payload)];
 static K_SEM_DEFINE(dynamic_response_headers_done, 0, 1);
 
@@ -548,6 +591,9 @@ static int dynamic_response_headers_cb(struct http_client_ctx *client,
 	    status == HTTP_SERVER_TRANSACTION_COMPLETE) {
 		offset = 0;
 		k_sem_give(&dynamic_response_headers_done);
+		if (status == HTTP_SERVER_TRANSACTION_COMPLETE) {
+			dynamic_response_headers_complete = true;
+		}
 		return 0;
 	}
 
@@ -911,6 +957,40 @@ struct http_resource_detail_dynamic response_writes_detail = {
 HTTP_RESOURCE_DEFINE(response_writes_resource, test_http_service, "/response_writes",
 		     &response_writes_detail);
 
+/* Larger than the largest HTTP/2 frame payload a client accepts by default */
+#define TEST_LARGE_BODY_FRAME_SIZE 16384
+#define TEST_LARGE_BODY_SIZE       (TEST_LARGE_BODY_FRAME_SIZE + 100)
+
+static uint8_t large_body[TEST_LARGE_BODY_SIZE];
+
+/* Respond with the whole body in a single callback */
+static int large_body_cb(struct http_client_ctx *client, enum http_transaction_status status,
+			 const struct http_request_ctx *request_ctx,
+			 struct http_response_ctx *response_ctx, void *user_data)
+{
+	if (status != HTTP_SERVER_REQUEST_DATA_FINAL) {
+		return 0;
+	}
+
+	response_ctx->body = large_body;
+	response_ctx->body_len = sizeof(large_body);
+	response_ctx->final_chunk = true;
+
+	return 0;
+}
+
+struct http_resource_detail_dynamic large_body_detail = {
+	.common = {
+		.type = HTTP_RESOURCE_TYPE_DYNAMIC,
+		.bitmask_of_supported_http_methods = BIT(HTTP_GET),
+		.content_type = "text/plain",
+	},
+	.cb = large_body_cb,
+	.user_data = NULL
+};
+
+HTTP_RESOURCE_DEFINE(large_body_resource, test_http_service, "/large_body", &large_body_detail);
+
 static int client_fd = -1;
 static uint8_t buf[BUFFER_SIZE];
 
@@ -1090,6 +1170,45 @@ static void expect_http2_data_frame(size_t *offset, int stream_id,
 	test_consume_data(offset, frame.length);
 }
 
+/* Content of the responses that do not fit the receive buffer */
+static uint8_t test_pattern_byte(size_t pos)
+{
+	return '0' + pos % 10;
+}
+
+/* Expect a data frame of exactly "payload_len" bytes, which may be more than
+ * the receive buffer holds, with the content of test_pattern_byte() from
+ * "*pos" on.
+ */
+static void expect_http2_data_frame_pattern(size_t *offset, int stream_id, size_t payload_len,
+					    uint8_t flags, size_t *pos)
+{
+	struct http2_frame frame;
+	size_t remaining;
+
+	test_get_frame_header(offset, &frame);
+
+	zassert_equal(frame.type, HTTP2_DATA_FRAME, "Expected data frame");
+	zassert_equal(frame.stream_identifier, stream_id, "Invalid data frame stream ID");
+	zassert_equal(frame.flags, flags, "Unexpected flags received");
+	zassert_equal(frame.length, payload_len, "Unexpected data frame length (%u)", frame.length);
+
+	remaining = frame.length;
+	while (remaining > 0) {
+		size_t len = MIN(remaining, sizeof(buf));
+
+		test_read_data(offset, len);
+		for (size_t i = 0; i < len; i++) {
+			zassert_equal(buf[i], test_pattern_byte(*pos + i),
+				      "Unexpected data payload at %zu", *pos + i);
+		}
+		test_consume_data(offset, len);
+
+		*pos += len;
+		remaining -= len;
+	}
+}
+
 static void expect_http2_window_update_frame(size_t *offset, int stream_id)
 {
 	struct http2_frame frame;
@@ -1109,6 +1228,145 @@ static void expect_http2_window_update_frame(size_t *offset, int stream_id)
 	/* Consume window update payload */
 	test_read_data(offset, frame.length);
 	test_consume_data(offset, frame.length);
+}
+
+static void expect_http2_ping_ack_frame(size_t *offset, const uint8_t *payload)
+{
+	struct http2_frame frame;
+
+	test_get_frame_header(offset, &frame);
+
+	zassert_equal(frame.type, HTTP2_PING_FRAME, "Expected ping frame");
+	zassert_equal(frame.stream_identifier, 0, "Ping frame stream ID must be 0");
+	zassert_equal(frame.flags, HTTP2_FLAG_PING_ACK, "Expected ping ACK flag");
+	zassert_equal(frame.length, HTTP2_PING_FRAME_LEN, "Invalid ping frame length");
+
+	test_read_data(offset, frame.length);
+	zassert_mem_equal(buf, payload, frame.length, "Unexpected ping payload");
+	test_consume_data(offset, frame.length);
+}
+
+ZTEST(server_function_tests, test_http2_ping)
+{
+	/* A PING is acknowledged with its own payload, an acknowledgment is
+	 * not answered, and the connection goes on with the next request.
+	 */
+	static const uint8_t request_ping_get[] = {
+		TEST_HTTP2_MAGIC,
+		TEST_HTTP2_SETTINGS,
+		TEST_HTTP2_SETTINGS_ACK,
+		TEST_HTTP2_PING,
+		TEST_HTTP2_PING_ACK,
+		TEST_HTTP2_HEADERS_GET_ROOT_STREAM_1,
+		TEST_HTTP2_GOAWAY,
+	};
+	static const uint8_t ping_payload[] = {
+		TEST_HTTP2_PING_PAYLOAD,
+	};
+	size_t offset = 0;
+	int ret;
+
+	ret = zsock_send(client_fd, request_ping_get, sizeof(request_ping_get), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	memset(buf, 0, sizeof(buf));
+
+	expect_http2_settings_frame(&offset, false);
+	expect_http2_settings_frame(&offset, true);
+	expect_http2_ping_ack_frame(&offset, ping_payload);
+	expect_http2_headers_frame(&offset, TEST_STREAM_ID_1, HTTP2_FLAG_END_HEADERS, NULL, 0);
+	expect_http2_data_frame(&offset, TEST_STREAM_ID_1, TEST_STATIC_PAYLOAD,
+				strlen(TEST_STATIC_PAYLOAD), HTTP2_FLAG_END_STREAM);
+}
+
+ZTEST(server_function_tests, test_http2_ping_invalid_length)
+{
+	/* A PING whose payload is not 8 bytes long is a connection error. */
+	static const uint8_t request_ping_short[] = {
+		TEST_HTTP2_MAGIC,
+		TEST_HTTP2_SETTINGS,
+		TEST_HTTP2_SETTINGS_ACK,
+		TEST_HTTP2_PING_SHORT,
+		TEST_HTTP2_HEADERS_GET_ROOT_STREAM_1,
+	};
+	size_t offset = 0;
+	int ret;
+
+	ret = zsock_send(client_fd, request_ping_short, sizeof(request_ping_short), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	memset(buf, 0, sizeof(buf));
+
+	expect_http2_settings_frame(&offset, false);
+	expect_http2_settings_frame(&offset, true);
+
+	/* Nothing is answered, the connection is closed. */
+	ret = zsock_recv(client_fd, buf, sizeof(buf), 0);
+	zassert_equal(ret, 0, "Connection should've been closed (%d)", ret);
+}
+
+ZTEST(server_function_tests, test_http2_unknown_frame)
+{
+	/* Frames of unknown types are discarded, with a payload that arrives
+	 * in two parts and without one, and the connection goes on with the
+	 * next request.
+	 */
+	static const uint8_t request_unknown_start[] = {
+		TEST_HTTP2_MAGIC,
+		TEST_HTTP2_SETTINGS,
+		TEST_HTTP2_SETTINGS_ACK,
+		TEST_HTTP2_UNKNOWN_FRAME_HEADER,
+		TEST_HTTP2_UNKNOWN_FRAME_PAYLOAD_START,
+	};
+	static const uint8_t request_unknown_end_get[] = {
+		TEST_HTTP2_UNKNOWN_FRAME_PAYLOAD_END,
+		TEST_HTTP2_UNKNOWN_FRAME_EMPTY,
+		TEST_HTTP2_HEADERS_GET_ROOT_STREAM_1,
+		TEST_HTTP2_GOAWAY,
+	};
+	size_t offset = 0;
+	int ret;
+
+	ret = zsock_send(client_fd, request_unknown_start, sizeof(request_unknown_start), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	memset(buf, 0, sizeof(buf));
+
+	expect_http2_settings_frame(&offset, false);
+	expect_http2_settings_frame(&offset, true);
+
+	ret = zsock_send(client_fd, request_unknown_end_get, sizeof(request_unknown_end_get), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	expect_http2_headers_frame(&offset, TEST_STREAM_ID_1, HTTP2_FLAG_END_HEADERS, NULL, 0);
+	expect_http2_data_frame(&offset, TEST_STREAM_ID_1, TEST_STATIC_PAYLOAD,
+				strlen(TEST_STATIC_PAYLOAD), HTTP2_FLAG_END_STREAM);
+}
+
+ZTEST(server_function_tests, test_http2_push_promise)
+{
+	/* A PUSH_PROMISE from a client is a connection error. */
+	static const uint8_t request_push_promise[] = {
+		TEST_HTTP2_MAGIC,
+		TEST_HTTP2_SETTINGS,
+		TEST_HTTP2_SETTINGS_ACK,
+		TEST_HTTP2_PUSH_PROMISE,
+		TEST_HTTP2_HEADERS_GET_ROOT_STREAM_1,
+	};
+	size_t offset = 0;
+	int ret;
+
+	ret = zsock_send(client_fd, request_push_promise, sizeof(request_push_promise), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	memset(buf, 0, sizeof(buf));
+
+	expect_http2_settings_frame(&offset, false);
+	expect_http2_settings_frame(&offset, true);
+
+	/* Nothing is answered, the connection is closed. */
+	ret = zsock_recv(client_fd, buf, sizeof(buf), 0);
+	zassert_equal(ret, 0, "Connection should've been closed (%d)", ret);
 }
 
 ZTEST(server_function_tests, test_http2_get_concurrent_streams)
@@ -1831,6 +2089,87 @@ ZTEST(server_function_tests, test_http1_dynamic_upgrade_post_split_body)
 	zexpect_true(dynamic_complete, "Callback not called with transaction complete status");
 }
 
+/* An upgrade POST without a body is finished by the headers call, and only once. */
+ZTEST(server_function_tests, test_http1_dynamic_upgrade_post_no_body)
+{
+	static const char http1_request[] =
+		"POST /dynamic HTTP/1.1\r\n"
+		"Host: 127.0.0.1:8080\r\n"
+		"Content-Length: 0\r\n"
+		"Connection: Upgrade, HTTP2-Settings\r\n"
+		"Upgrade: h2c\r\n"
+		"HTTP2-Settings: AAMAAABkAAQAoAAAAAIAAAAA\r\n"
+		"\r\n";
+	size_t offset = 0;
+	int ret;
+
+	ret = zsock_send(client_fd, http1_request, strlen(http1_request), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	memset(buf, 0, sizeof(buf));
+
+	expect_http1_switching_protocols(&offset);
+	expect_http2_settings_frame(&offset, false);
+	expect_http2_headers_frame(&offset, UPGRADE_STREAM_ID,
+				   HTTP2_FLAG_END_HEADERS | HTTP2_FLAG_END_STREAM, NULL, 0);
+
+	/* Give a frame from a second final callback time to arrive */
+	k_msleep(100);
+
+	ret = zsock_recv(client_fd, buf, sizeof(buf), ZSOCK_MSG_DONTWAIT);
+	zassert_true(offset == 0 && ret < 0 && errno == EAGAIN, "Unexpected trailing data");
+	zassert_equal(dynamic_final_count, 1, "Final data reported %d times", dynamic_final_count);
+	zassert_equal(dynamic_payload_len, 0, "Wrong dynamic resource length");
+	zassert_true(dynamic_complete, "Callback not called with transaction complete status");
+}
+
+/* A chunked upgrade POST whose last chunk arrives in its own read is finished only once. */
+ZTEST(server_function_tests, test_http1_dynamic_upgrade_post_chunked_last_read)
+{
+	static const char http1_request[] =
+		"POST /dynamic HTTP/1.1\r\n"
+		"Host: 127.0.0.1:8080\r\n"
+		"Transfer-Encoding: chunked\r\n"
+		"Connection: Upgrade, HTTP2-Settings\r\n"
+		"Upgrade: h2c\r\n"
+		"HTTP2-Settings: AAMAAABkAAQAoAAAAAIAAAAA\r\n"
+		"\r\n"
+		"11\r\n"
+		TEST_DYNAMIC_POST_PAYLOAD "\r\n";
+	static const char last_chunk[] = "0\r\n\r\n";
+	size_t offset = 0;
+	int ret;
+
+	ret = zsock_send(client_fd, http1_request, strlen(http1_request), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	memset(buf, 0, sizeof(buf));
+
+	expect_http1_switching_protocols(&offset);
+	expect_http2_settings_frame(&offset, false);
+
+	/* Let the server process the first chunk before the last one is sent */
+	k_msleep(100);
+
+	ret = zsock_send(client_fd, last_chunk, strlen(last_chunk), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	expect_http2_headers_frame(&offset, UPGRADE_STREAM_ID,
+				   HTTP2_FLAG_END_HEADERS | HTTP2_FLAG_END_STREAM, NULL, 0);
+
+	/* Give a frame from a second final callback time to arrive */
+	k_msleep(100);
+
+	ret = zsock_recv(client_fd, buf, sizeof(buf), ZSOCK_MSG_DONTWAIT);
+	zassert_true(offset == 0 && ret < 0 && errno == EAGAIN, "Unexpected trailing data");
+	zassert_equal(dynamic_final_count, 1, "Final data reported %d times", dynamic_final_count);
+	zassert_equal(dynamic_payload_len, strlen(TEST_DYNAMIC_POST_PAYLOAD),
+		      "Wrong dynamic resource length");
+	zassert_mem_equal(dynamic_payload, TEST_DYNAMIC_POST_PAYLOAD, dynamic_payload_len,
+			  "Wrong dynamic resource data");
+	zassert_true(dynamic_complete, "Callback not called with transaction complete status");
+}
+
 /* Common code to verify POST/PUT/PATCH */
 static void common_verify_http1_dynamic_post(const uint8_t *method)
 {
@@ -2008,6 +2347,46 @@ static void common_verify_http2_dynamic_get_request(const uint8_t *request,
 	expect_http2_data_frame(&offset, TEST_STREAM_ID_1, TEST_DYNAMIC_GET_PAYLOAD,
 				strlen(TEST_DYNAMIC_GET_PAYLOAD), HTTP2_FLAG_END_STREAM);
 	zassert_true(dynamic_complete, "Callback not called with transaction complete status");
+}
+
+/* HPACK-encoded "GET /large_body" request */
+#define TEST_HTTP2_HEADERS_GET_LARGE_BODY_STREAM_1 \
+	0x00, 0x00, 0x0f, 0x01, 0x05, 0x00, 0x00, 0x00, TEST_STREAM_ID_1, \
+	0x82, 0x86, 0x04, 0x0b, 0x2f, 0x6c, 0x61, 0x72, 0x67, 0x65, 0x5f, 0x62, \
+	0x6f, 0x64, 0x79
+
+/* A body larger than the largest frame the client accepts has to be sent in
+ * several data frames, the last of them ending the stream.
+ */
+ZTEST(server_function_tests, test_http2_dynamic_get_large_body)
+{
+	static const uint8_t request_get_large_body[] = {
+		TEST_HTTP2_MAGIC,
+		TEST_HTTP2_SETTINGS,
+		TEST_HTTP2_SETTINGS_ACK,
+		TEST_HTTP2_HEADERS_GET_LARGE_BODY_STREAM_1,
+	};
+	size_t offset = 0;
+	size_t pos = 0;
+	int ret;
+
+	for (size_t i = 0; i < sizeof(large_body); i++) {
+		large_body[i] = test_pattern_byte(i);
+	}
+
+	ret = zsock_send(client_fd, request_get_large_body, sizeof(request_get_large_body), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	memset(buf, 0, sizeof(buf));
+
+	expect_http2_settings_frame(&offset, false);
+	expect_http2_settings_frame(&offset, true);
+	expect_http2_headers_frame(&offset, TEST_STREAM_ID_1, HTTP2_FLAG_END_HEADERS, NULL, 0);
+	expect_http2_data_frame_pattern(&offset, TEST_STREAM_ID_1, TEST_LARGE_BODY_FRAME_SIZE, 0,
+					&pos);
+	expect_http2_data_frame_pattern(&offset, TEST_STREAM_ID_1,
+					TEST_LARGE_BODY_SIZE - TEST_LARGE_BODY_FRAME_SIZE,
+					HTTP2_FLAG_END_STREAM, &pos);
 }
 
 ZTEST(server_function_tests, test_http2_dynamic_get)
@@ -2986,6 +3365,90 @@ ZTEST(server_function_tests, test_http2_post_data_empty)
 	zassert_mem_equal(dynamic_payload, TEST_DYNAMIC_POST_PAYLOAD,
 			  dynamic_payload_len, "Wrong dynamic resource data");
 	zassert_true(dynamic_complete, "Callback not called with transaction complete status");
+}
+
+ZTEST(server_function_tests, test_http2_post_data_empty_end_stream_last)
+{
+	/* The request ends with an empty DATA frame that carries END_STREAM,
+	 * and the client sends nothing after it. The request has to be
+	 * answered without waiting for more bytes.
+	 */
+	static const uint8_t request_post_dynamic[] = {
+		TEST_HTTP2_MAGIC,
+		TEST_HTTP2_SETTINGS,
+		TEST_HTTP2_SETTINGS_ACK,
+		TEST_HTTP2_HEADERS_POST_DYNAMIC_STREAM_1,
+		TEST_HTTP2_DATA_POST_DYNAMIC_STREAM_1_NO_END_STREAM,
+		TEST_HTTP2_DATA_EMPTY_END_STREAM_STREAM_1,
+	};
+	size_t offset = 0;
+	int ret;
+
+	ret = zsock_send(client_fd, request_post_dynamic, sizeof(request_post_dynamic), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	memset(buf, 0, sizeof(buf));
+
+	expect_http2_settings_frame(&offset, false);
+	expect_http2_settings_frame(&offset, true);
+	expect_http2_window_update_frame(&offset, TEST_STREAM_ID_1);
+	expect_http2_window_update_frame(&offset, 0);
+	expect_http2_headers_frame(&offset, TEST_STREAM_ID_1,
+				   HTTP2_FLAG_END_HEADERS | HTTP2_FLAG_END_STREAM, NULL, 0);
+
+	zassert_equal(dynamic_payload_len, strlen(TEST_DYNAMIC_POST_PAYLOAD),
+		      "Wrong dynamic resource length");
+	zassert_mem_equal(dynamic_payload, TEST_DYNAMIC_POST_PAYLOAD,
+			  dynamic_payload_len, "Wrong dynamic resource data");
+	zassert_true(dynamic_complete, "Callback not called with transaction complete status");
+}
+
+ZTEST(server_function_tests, test_http2_settings_empty_last)
+{
+	/* A SETTINGS frame without parameters is acknowledged although no
+	 * bytes follow its header.
+	 */
+	static const uint8_t request_settings[] = {
+		TEST_HTTP2_MAGIC,
+		TEST_HTTP2_SETTINGS_EMPTY,
+	};
+	size_t offset = 0;
+	int ret;
+
+	ret = zsock_send(client_fd, request_settings, sizeof(request_settings), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	memset(buf, 0, sizeof(buf));
+
+	expect_http2_settings_frame(&offset, false);
+	expect_http2_settings_frame(&offset, true);
+}
+
+ZTEST(server_function_tests, test_http2_continuation_empty_last)
+{
+	/* The header block ends with an empty CONTINUATION frame that carries
+	 * END_HEADERS, and the client sends nothing after it.
+	 */
+	static const uint8_t request_get[] = {
+		TEST_HTTP2_MAGIC,
+		TEST_HTTP2_SETTINGS,
+		TEST_HTTP2_SETTINGS_ACK,
+		TEST_HTTP2_HEADERS_GET_ROOT_NO_END_HEADERS_STREAM_1,
+		TEST_HTTP2_CONTINUATION_EMPTY_STREAM_1,
+	};
+	size_t offset = 0;
+	int ret;
+
+	ret = zsock_send(client_fd, request_get, sizeof(request_get), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	memset(buf, 0, sizeof(buf));
+
+	expect_http2_settings_frame(&offset, false);
+	expect_http2_settings_frame(&offset, true);
+	expect_http2_headers_frame(&offset, TEST_STREAM_ID_1, HTTP2_FLAG_END_HEADERS, NULL, 0);
+	expect_http2_data_frame(&offset, TEST_STREAM_ID_1, TEST_STATIC_PAYLOAD,
+				strlen(TEST_STATIC_PAYLOAD), HTTP2_FLAG_END_STREAM);
 }
 
 ZTEST(server_function_tests, test_http2_post_headers_with_priority)
@@ -4045,6 +4508,48 @@ ZTEST(server_function_tests, test_http2_dynamic_get_response_header_combined)
 ZTEST(server_function_tests, test_http2_dynamic_post_response_header_combined)
 {
 	test_http2_dynamic_response_header_combined(true);
+}
+
+/* A POST answered in full in its final callback still completes. */
+ZTEST(server_function_tests, test_http2_dynamic_post_response_complete)
+{
+	size_t offset = 0;
+	const struct http_header expected_headers[] = {
+		{.name = ":status", .value = "200"},
+		{.name = "test-header", .value = "test_data"},
+	};
+
+	dynamic_response_headers_variant = DYNAMIC_RESPONSE_HEADERS_VARIANT_BODY_COMBINED;
+
+	test_http2_dynamic_response_headers_default(expected_headers, ARRAY_SIZE(expected_headers),
+						    true, false, &offset);
+	expect_http2_data_frame(&offset, TEST_STREAM_ID_1, TEST_DYNAMIC_GET_PAYLOAD,
+				strlen(TEST_DYNAMIC_GET_PAYLOAD), HTTP2_FLAG_END_STREAM);
+	zassert_true(dynamic_response_headers_complete, "Transaction not completed");
+}
+
+/* A POST without a body ends the stream with its HEADERS frame. The application's
+ * response is sent instead of a default one, and the transaction completes.
+ */
+ZTEST(server_function_tests, test_http2_dynamic_post_no_body_response_header_422)
+{
+	static const uint8_t request[] = {
+		TEST_HTTP2_MAGIC,
+		TEST_HTTP2_SETTINGS,
+		TEST_HTTP2_SETTINGS_ACK,
+		TEST_HTTP2_HEADERS_POST_RESPONSE_HEADERS_NO_BODY_STREAM_1,
+		TEST_HTTP2_GOAWAY,
+	};
+	const struct http_header expected_headers[] = {
+		{.name = ":status", .value = "422"},
+	};
+	size_t offset = 0;
+
+	dynamic_response_headers_variant = DYNAMIC_RESPONSE_HEADERS_VARIANT_422;
+
+	test_http2_dynamic_response_headers(request, sizeof(request), expected_headers,
+					    ARRAY_SIZE(expected_headers), true, &offset);
+	zassert_true(dynamic_response_headers_complete, "Transaction not completed");
 }
 
 ZTEST(server_function_tests, test_http1_dynamic_get_response_header_long)
@@ -5502,8 +6007,9 @@ ZTEST(server_function_tests, test_http1_static_fs_overlap)
 #include <zephyr/fs/fs.h>
 #include <zephyr/fs/fs_sys.h>
 
-/* A file system holding one file whose content does not match the size stat
- * reports: reads deliver the first mock_fs_content_len bytes of MOCK_FS_CONTENT
+/* A file system holding one file whose content may not match the size stat
+ * reports: stat reports mock_fs_file_size, reads deliver the first
+ * mock_fs_content_len bytes of MOCK_FS_CONTENT, repeated as often as needed,
  * and then return mock_fs_read_result, a negative error or 0 for end of file.
  */
 #define MOCK_FS_TYPE		FS_TYPE_EXTERNAL_BASE
@@ -5516,6 +6022,7 @@ ZTEST(server_function_tests, test_http1_static_fs_overlap)
 				MOCK_FS_CONTENT_10 MOCK_FS_CONTENT_10 MOCK_FS_CONTENT_10 \
 				MOCK_FS_CONTENT_10
 
+static size_t mock_fs_file_size;
 static size_t mock_fs_content_len;
 static ssize_t mock_fs_read_result;
 static size_t mock_fs_pos;
@@ -5536,7 +6043,7 @@ static int mock_fs_stat(struct fs_mount_t *mountp, const char *path, struct fs_d
 	}
 
 	entry->type = FS_DIR_ENTRY_FILE;
-	entry->size = MOCK_FS_FILE_SIZE;
+	entry->size = mock_fs_file_size;
 
 	return 0;
 }
@@ -5566,7 +6073,9 @@ static ssize_t mock_fs_read(struct fs_file_t *filp, void *dest, size_t nbytes)
 	}
 
 	len = MIN(nbytes, mock_fs_content_len - mock_fs_pos);
-	memcpy(dest, &MOCK_FS_CONTENT[mock_fs_pos], len);
+	for (size_t i = 0; i < len; i++) {
+		((uint8_t *)dest)[i] = MOCK_FS_CONTENT[(mock_fs_pos + i) % strlen(MOCK_FS_CONTENT)];
+	}
 	mock_fs_pos += len;
 
 	return len;
@@ -5599,7 +6108,7 @@ static struct http_resource_detail_static_fs mock_fs_resource_detail = {
 HTTP_RESOURCE_DEFINE(mock_fs_resource, test_http_service, MOCK_FS_FILE,
 		     &mock_fs_resource_detail);
 
-static void setup_mock_fs(size_t content_len, ssize_t read_result)
+static void setup_mock_fs_file(size_t file_size, size_t content_len, ssize_t read_result)
 {
 	static struct fs_mount_t mock_fs_mnt = {
 		.type = MOCK_FS_TYPE,
@@ -5616,9 +6125,14 @@ static void setup_mock_fs(size_t content_len, ssize_t read_result)
 		mounted = true;
 	}
 
-	zassert_true(content_len < sizeof(MOCK_FS_CONTENT), "Mock fs content too short");
+	mock_fs_file_size = file_size;
 	mock_fs_content_len = content_len;
 	mock_fs_read_result = read_result;
+}
+
+static void setup_mock_fs(size_t content_len, ssize_t read_result)
+{
+	setup_mock_fs_file(MOCK_FS_FILE_SIZE, content_len, read_result);
 }
 
 static void test_http1_static_fs_short_read(ssize_t read_result)
@@ -5767,6 +6281,49 @@ ZTEST(server_function_tests, test_http2_static_fs_read_eof)
 	test_http2_static_fs_short_read(0);
 }
 
+/* File data the server sends per data frame */
+#define TEST_HTTP2_STATIC_FS_CHUNK_SIZE                                                            \
+	COND_CODE_0(CONFIG_HTTP_SERVER_STATIC_FS_RESPONSE_SIZE, (64),                              \
+		    (MIN(CONFIG_HTTP_SERVER_STATIC_FS_RESPONSE_SIZE, 16384)))
+
+/* A file is sent in data frames of the configured chunk size, the rest of it
+ * in the last one, which ends the stream.
+ */
+ZTEST(server_function_tests, test_http2_static_fs_frame_size)
+{
+	static const uint8_t request_get_mock_fs[] = {
+		TEST_HTTP2_MAGIC,
+		TEST_HTTP2_SETTINGS,
+		TEST_HTTP2_SETTINGS_ACK,
+		TEST_HTTP2_HEADERS_GET_MOCK_FS(TEST_STREAM_ID_1),
+	};
+	/* Less than the smallest chunk size */
+	const size_t rest_len = 30;
+	const size_t file_size = 2 * TEST_HTTP2_STATIC_FS_CHUNK_SIZE + rest_len;
+	size_t offset = 0;
+	size_t pos = 0;
+	int ret;
+
+	/* More content than the size stat reports, none of it may be sent */
+	setup_mock_fs_file(file_size, file_size + 20U, 0);
+
+	ret = zsock_send(client_fd, request_get_mock_fs, sizeof(request_get_mock_fs), 0);
+	zassert_not_equal(ret, -1, "send() failed (%d)", errno);
+
+	memset(buf, 0, sizeof(buf));
+
+	expect_http2_settings_frame(&offset, false);
+	expect_http2_settings_frame(&offset, true);
+	expect_http2_headers_frame(&offset, TEST_STREAM_ID_1, HTTP2_FLAG_END_HEADERS, NULL, 0);
+	expect_http2_data_frame_pattern(&offset, TEST_STREAM_ID_1, TEST_HTTP2_STATIC_FS_CHUNK_SIZE,
+					0, &pos);
+	expect_http2_data_frame_pattern(&offset, TEST_STREAM_ID_1, TEST_HTTP2_STATIC_FS_CHUNK_SIZE,
+					0, &pos);
+	expect_http2_data_frame_pattern(&offset, TEST_STREAM_ID_1, rest_len, HTTP2_FLAG_END_STREAM,
+					&pos);
+	zassert_equal(offset, 0, "Unexpected data after the last frame");
+}
+
 #endif /* CONFIG_FILE_SYSTEM */
 
 static void http_server_tests_before(void *fixture)
@@ -5787,6 +6344,8 @@ static void http_server_tests_before(void *fixture)
 	dynamic_payload_len = 0;
 	dynamic_error = false;
 	dynamic_complete = false;
+	dynamic_final_count = 0;
+	dynamic_response_headers_complete = false;
 
 	ret = http_server_start();
 	if (ret < 0) {
