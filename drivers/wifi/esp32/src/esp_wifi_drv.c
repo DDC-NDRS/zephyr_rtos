@@ -2897,6 +2897,9 @@ static int esp32_wifi_ap_config_params(const struct device* dev, struct net_if* 
     }
 
     if ((params->type & WIFI_AP_CONFIG_PARAM_MAX_NUM_STA) != 0) {
+        /* Note: this re-applies the whole AP configuration, which may drop
+         * connected stations; it fails with -EIO while the AP is not up.
+         */
         wifi_config.ap.max_connection = (uint8_t)params->max_num_sta;
 
         /* The driver rejects values above the chip's soft-AP limit */

@@ -1288,7 +1288,7 @@ end :
 }
 
 static bool tcp_short_window(struct tcp* conn) {
-    int32_t threshold = MIN(conn_mss(conn), (int32_t)conn->recv_win_max / 2);
+    int32_t threshold = MIN(conn_mss(conn), (int32_t)(conn->recv_win_max / 2U));
 
     if ((int32_t)conn->recv_win > threshold) {
         return (false);
@@ -1316,7 +1316,7 @@ static bool tcp_should_ack_immediately(struct tcp* conn, bool psh) {
 }
 
 static bool tcp_need_window_update(struct tcp const* conn) {
-    int32_t threshold = MAX(conn_mss(conn), (int32_t)conn->recv_win_max / 2);
+    int32_t threshold = MAX(conn_mss(conn), (int32_t)(conn->recv_win_max / 2U));
 
     /* In case window is full again, and we didn't send a window update
      * since the window size dropped below threshold, do it now.

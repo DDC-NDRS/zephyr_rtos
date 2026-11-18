@@ -394,6 +394,19 @@ static bool mbs_fc03_hreg_read(struct modbus_context* ctx) {
             float fp;
             uint32_t reg;
 
+            /* A request that starts in the integer range may cross into the
+             * floating-point range; validate what the up-front check skipped.
+             */
+            if (ctx->mbs_user_cb->holding_reg_rd_fp == NULL) {
+                mbs_exception_rsp(ctx, MODBUS_EXC_ILLEGAL_FC);
+                return (true);
+            }
+
+            if (reg_qty < 2U) {
+                mbs_exception_rsp(ctx, MODBUS_EXC_ILLEGAL_DATA_VAL);
+                return (true);
+            }
+
             /* Read floating-point register */
             err = ctx->mbs_user_cb->holding_reg_rd_fp(reg_addr, &fp);
             if (err == 0) {
@@ -515,6 +528,19 @@ static bool mbs_fc04_inreg_read(struct modbus_context* ctx) {
         else if (IS_ENABLED(CONFIG_MODBUS_FP_EXTENSIONS)) {
             float fp;
             uint32_t reg;
+
+            /* A request that starts in the integer range may cross into the
+             * floating-point range; validate what the up-front check skipped.
+             */
+            if (ctx->mbs_user_cb->input_reg_rd_fp == NULL) {
+                mbs_exception_rsp(ctx, MODBUS_EXC_ILLEGAL_FC);
+                return (true);
+            }
+
+            if (reg_qty < 2U) {
+                mbs_exception_rsp(ctx, MODBUS_EXC_ILLEGAL_DATA_VAL);
+                return (true);
+            }
 
             /* Read floating-point register */
             err = ctx->mbs_user_cb->input_reg_rd_fp(reg_addr, &fp);
