@@ -618,7 +618,7 @@ static int i2c_infineon_set_peri_divider(struct device const* dev, uint32_t freq
  *
  * The caller must hold operation_sem.
  */
-static int i2c_infineon_configure(struct device const* dev, uint32_t dev_config) {
+static int i2c_infineon_configure_locked(struct device const* dev, uint32_t dev_config) {
     struct i2c_infineon_data* data = dev->data;
     struct i2c_infineon_config const* config = dev->config;
     int ret;
@@ -777,8 +777,8 @@ static int i2c_infineon_configure(struct device const* dev, uint32_t dev_config)
     return (0);
 }
 
-static int ifx_cat1_i2c_configure(struct device const* dev, uint32_t dev_config) {
-    struct ifx_cat1_i2c_data* data = dev->data;
+static int i2c_infineon_configure(struct device const* dev, uint32_t dev_config) {
+    struct i2c_infineon_data* data = dev->data;
     int ret;
 
     /* Acquire semaphore (block I2C operation for another thread) */
@@ -787,7 +787,7 @@ static int ifx_cat1_i2c_configure(struct device const* dev, uint32_t dev_config)
         return (-EIO);
     }
 
-    ret = ifx_cat1_i2c_configure_locked(dev, dev_config);
+    ret = i2c_infineon_configure_locked(dev, dev_config);
 
     /* Release semaphore */
     k_sem_give(&data->operation_sem);
@@ -1414,7 +1414,7 @@ static int i2c_infineon_target_register(struct device const* dev, struct i2c_tar
     data->p_target_config = cfg;
     data->target_address  = (uint8_t)cfg->address;
 
-    ret = i2c_infineon_configure(dev, I2C_SPEED_SET(I2C_SPEED_FAST));
+    ret = i2c_infineon_configure_locked(dev, I2C_SPEED_SET(I2C_SPEED_FAST));
     if (ret == 0) {
         /* Arm the RX buffer so the first write after register is ACKed. */
         i2c_infineon_target_arm(dev);
