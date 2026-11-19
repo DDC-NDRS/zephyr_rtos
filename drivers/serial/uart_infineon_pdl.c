@@ -166,6 +166,9 @@ struct ifx_cat1_uart_config {
     uint16_t irq_num;
     uint8_t irq_priority;
     uint8_t scb_num;
+    bool msb_first;                         /* #CUSTOM@NDRS: devicetree msb-first,
+                                             * TX_CTRL and RX_CTRL MSB_FIRST
+                                             */
     en_clk_dst_t clk_dst;
 
     #if CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2
@@ -1664,6 +1667,12 @@ static int ifx_cat1_uart_init(struct device const* dev) {
     }
 
     data->scb_config = _uart_default_config;
+
+    /* #CUSTOM@NDRS: uart_configure() re-inits from this stored config,
+     * so the bit order survives it
+     */
+    data->scb_config.enableMsbFirst = config->msb_first;
+
     #if defined(CONFIG_UART_ASYNC_API)
     data->scb_config.rxFifoTriggerLevel = 0;
     data->scb_config.txFifoTriggerLevel = 1;
@@ -2001,6 +2010,7 @@ static DEVICE_API(uart, ifx_cat1_uart_driver_api) = {
         .reg_addr         = (CySCB_Type*)DT_INST_REG_ADDR(n),   \
         .clk_dst          = DT_INST_PROP(n, clk_dst),           \
         .scb_num          = DT_INST_PROP(n, scb_index),         \
+        .msb_first        = DT_INST_PROP(n, msb_first),         \
         CLOCK_GET(n)                                            \
         IRQ_INFO(n)                                             \
     };                                                          \

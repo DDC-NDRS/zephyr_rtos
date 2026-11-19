@@ -56,3 +56,12 @@ properties:
     description: |
       Sets the number of data bits. Defaults to standard of 8 if not specified.
     default: 8
+
+  msb-first:
+    type: boolean
+    description: |
+      Shifts the data MSB first in hardware
+      (SCBx_TX_CTRL.MSB_FIRST and SCBx_RX_CTRL.MSB_FIRST, bit 8).
+      The default is LSB first, as a standard UART.
+      For a link whose frames are MSB first on the wire, such as the iso UART frames
+      of the TLE9015DQU bridge, which then need no bit reversal in software.
