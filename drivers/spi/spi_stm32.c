@@ -563,7 +563,7 @@ static void spi_stm32_dma_tx_done(struct device const* dev) {
     #endif /* SPI_SR_FTLVL */
 }
 
-static void spi_stm32_dma_rx_done(struct device const* dev, const struct spi_config* config) {
+static void spi_stm32_dma_rx_done(struct device const* dev, struct spi_config const* config) {
     const struct spi_stm32_config* cfg = dev->config;
     struct spi_stm32_data* data = dev->data;
     struct spi_context* ctx = &data->ctx;
@@ -1051,12 +1051,12 @@ static void spi_stm32_msg_start(struct device const* dev, bool is_rx_empty) {
 
 #ifdef CONFIG_SPI_RTIO
 /* Forward declaration for RTIO handlers convenience */
-static void spi_stm32_iodev_complete(const struct device *dev, int status);
+static void spi_stm32_iodev_complete(struct device const* dev, int status);
 static int spi_stm32_configure(struct device const* dev,
-                               const struct spi_config* config,
+                               struct spi_config const* config,
                                bool write, bool read);
 static int32_t spi_stm32_set_transfer_size(struct device const* dev,
-                                           const struct spi_config* config,
+                                           struct spi_config const* config,
                                            struct spi_buf_set const* tx_bufs,
                                            struct spi_buf_set const* rx_bufs);
 
@@ -1799,7 +1799,7 @@ __maybe_unused static void /**/spi_stpm3x_isr(struct device const* dev) {
 #endif /* CONFIG_SPI_STM32_INTERRUPT */
 
 static void spi_stm32_set_transfer_direction(struct device const* dev,
-                                             const struct spi_config* config,
+                                             struct spi_config const* config,
                                              bool write, bool read) {
     const struct spi_stm32_config* cfg = dev->config;
     SPI_TypeDef* spi = cfg->spi;
@@ -1834,7 +1834,7 @@ static void spi_stm32_set_transfer_direction(struct device const* dev,
 }
 
 static int spi_stm32_configure(struct device const* dev,
-                               const struct spi_config* config,
+                               struct spi_config const* config,
                                bool write, bool read) {
     struct spi_stm32_config const* cfg = dev->config;
     struct spi_stm32_data* data = dev->data;
@@ -2056,7 +2056,7 @@ static int spi_stm32_configure(struct device const* dev,
     return (0);
 }
 
-static int spi_stm32_release(struct device const* dev, const struct spi_config* config) {
+static int spi_stm32_release(struct device const* dev, struct spi_config const* config) {
     struct spi_stm32_data* data = dev->data;
     const struct spi_stm32_config* cfg = dev->config;
 
@@ -2067,7 +2067,7 @@ static int spi_stm32_release(struct device const* dev, const struct spi_config* 
 }
 
 #ifndef CONFIG_SPI_RTIO
-static int32_t spi_stm32_count_bufset_frames(const struct spi_config* config,
+static int32_t spi_stm32_count_bufset_frames(struct spi_config const* config,
                                              struct spi_buf_set const* bufs) {
     if (bufs == NULL) {
         return (0);
@@ -2094,7 +2094,7 @@ static int32_t spi_stm32_count_bufset_frames(const struct spi_config* config,
 #endif /* CONFIG_SPI_RTIO */
 
 static int32_t spi_stm32_set_transfer_size(struct device const* dev,
-                                           const struct spi_config* config,
+                                           struct spi_config const* config,
                                            struct spi_buf_set const* tx_bufs,
                                            struct spi_buf_set const* rx_bufs) {
     struct spi_stm32_data* data = dev->data;
@@ -2292,47 +2292,82 @@ int spi_stpm3x_init(struct spi_dt_spec const* spec,
 #if defined(CONFIG_SPI_STM32_DMA)
 #if !defined(CONFIG_SPI_RTIO)
 
-#ifdef CONFIG_SPI_STM32_DMA_CACHED_MEMORY
 #define SPI_STM32_DMA_TIMEOUT_MIN_MS        1000U
 
-/* Count at half the frequency: the prescaler gives an SCK above half the requested one */
-static __noinline k_timeout_t spi_stm32_dma_timeout(struct device const* dev) {
+/* Clocks per frame on the wire, idle clocks between frames (midi-clock) included */
+static inline uint32_t spi_stm32_frame_clocks(struct device const* dev,
+                                              struct spi_config const* config) {
+    uint32_t clocks = SPI_WORD_SIZE_GET(config->operation);
+
+    #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
     const struct spi_stm32_config* cfg = dev->config;
-    struct spi_stm32_data* data = dev->data;
-    const struct spi_config* config = data->ctx.config;
-    uint64_t frames = MAX(data->tx_len, data->rx_len);
-    uint32_t frame_clocks = SPI_WORD_SIZE_GET(config->operation) + cfg->midi_clocks;
-    uint64_t timeout_ms = SPI_STM32_DMA_TIMEOUT_MIN_MS;
 
-    if (config->frequency >= 2U) {
-        uint64_t wire_ms =
-            DIV_ROUND_UP(frames * frame_clocks * MSEC_PER_SEC, config->frequency / 2U);
+    clocks += cfg->midi_clocks;
+    #else
+    ARG_UNUSED(dev);
+    #endif /* st_stm32h7_spi */
 
-        timeout_ms = MAX(timeout_ms, wire_ms + CONFIG_SPI_COMPLETION_TIMEOUT_TOLERANCE);
+    return (clocks);
+}
+
+/* Longest time on the wire, in ms, whose timeout (plus the tolerance) still fits in K_MSEC() */
+#define SPI_STM32_DMA_WIRE_MS_MAX (INT32_MAX - CONFIG_SPI_COMPLETION_TIMEOUT_TOLERANCE)
+
+/*
+ * Count at half the requested SCK: the prescaler gives an SCK above half of it, unless the
+ * requested SCK is above the fastest SCK. In 32 bits: the rate is rounded down to whole clocks
+ * per ms (or the period up to whole ms), which only lengthens the timeout.
+ */
+static __noinline k_timeout_t spi_stm32_dma_timeout(struct spi_config const* config,
+                                                    uint32_t frames, uint32_t frame_clocks) {
+    const uint32_t half_freq = (config->frequency / 2U);
+    uint32_t wire_ms;
+
+    if (half_freq >= MSEC_PER_SEC) {
+        uint32_t const clocks_per_ms = (half_freq / MSEC_PER_SEC);
+
+        /* ceil(frames * frame_clocks / clocks_per_ms) without a product that overflows */
+        uint32_t const whole = (frames / clocks_per_ms);
+        uint32_t const part  = (frames % clocks_per_ms);
+
+        /* part < clocks_per_ms, so wire_ms <= (whole + 1) * frame_clocks */
+        if (whole >= SPI_STM32_DMA_WIRE_MS_MAX / frame_clocks) {
+            return K_MSEC(INT32_MAX);
+        }
+
+        wire_ms = ((whole * frame_clocks) + DIV_ROUND_UP(part * frame_clocks, clocks_per_ms));
+    }
+    else {
+        uint32_t const ms_per_clock = DIV_ROUND_UP(MSEC_PER_SEC, MAX(half_freq, 1U));
+
+        if (frames > SPI_STM32_DMA_WIRE_MS_MAX / ms_per_clock / frame_clocks) {
+            return K_MSEC(INT32_MAX);
+        }
+
+        wire_ms = (frames * frame_clocks * ms_per_clock);
     }
 
-    return K_MSEC(MIN(timeout_ms, INT32_MAX));
+    return K_MSEC(MAX(wire_ms + CONFIG_SPI_COMPLETION_TIMEOUT_TOLERANCE,
+                      SPI_STM32_DMA_TIMEOUT_MIN_MS));
 }
 
 /*
- * At most 0.5 s on the wire at half the frequency and at most 0.5 s of tolerance: the 1 s
+ * At most 0.5 s on the wire at half the requested SCK and at most 0.5 s of tolerance: the 1 s
  * minimum. spi_stm32_dma_timeout() stays out of line, off the path of short transfers.
  */
 static inline k_timeout_t spi_stm32_dma_wait_timeout(struct device const* dev) {
-    const struct spi_stm32_config* cfg = dev->config;
     struct spi_stm32_data* data = dev->data;
-    const struct spi_config* config = data->ctx.config;
-    uint64_t clocks = (uint64_t)MAX(data->tx_len, data->rx_len) *
-                                (SPI_WORD_SIZE_GET(config->operation) + cfg->midi_clocks);
+    struct spi_config const* config = data->ctx.config;
+    uint32_t const frames = MAX(data->tx_len, data->rx_len);
+    uint32_t const frame_clocks = spi_stm32_frame_clocks(dev, config);
 
     if ((CONFIG_SPI_COMPLETION_TIMEOUT_TOLERANCE <= 500) &&
-        (clocks <= (config->frequency / 4U))) {
+        (frames <= (config->frequency / 4U) / frame_clocks)) {
         return K_MSEC(SPI_STM32_DMA_TIMEOUT_MIN_MS);
     }
 
-    return spi_stm32_dma_timeout(dev);
+    return spi_stm32_dma_timeout(config, frames, frame_clocks);
 }
-#endif /* CONFIG_SPI_STM32_DMA_CACHED_MEMORY */
 
 static int wait_dma_rx_tx_done(struct device const* dev) {
     struct spi_stm32_data* data = dev->data;
@@ -2348,11 +2383,7 @@ static int wait_dma_rx_tx_done(struct device const* dev) {
         timeout = K_FOREVER;
     }
     else {
-        #ifdef CONFIG_SPI_STM32_DMA_CACHED_MEMORY
         timeout = spi_stm32_dma_wait_timeout(dev);
-        #else
-        timeout = K_MSEC(1000);
-        #endif /* CONFIG_SPI_STM32_DMA_CACHED_MEMORY */
     }
 
     #ifdef CONFIG_SPI_STM32_DMA_RX_AUTO_SUSPEND
@@ -2472,7 +2503,7 @@ static bool spi_buf_set_in_nocache(struct spi_buf_set const* bufs) {
 static void spi_stm32_dma_callback_async(const struct device* spi_dev, uint32_t channel, int status) {
     struct spi_stm32_data* data = spi_dev->data;
     struct spi_context* ctx = &data->ctx;
-    const struct spi_config* config = data->ctx.owner;
+    struct spi_config const* config = data->ctx.owner;
     const struct spi_stm32_config* cfg = spi_dev->config;
     SPI_TypeDef* spi = cfg->spi;
     unsigned int key = irq_lock();
@@ -2634,7 +2665,7 @@ static void spi_stm32_dma_callback(const struct device* dma_dev, void* arg, uint
 
 #if !defined(CONFIG_SPI_RTIO)
 static int spi_stm32_ll_transceive_dma(struct device const* dev,
-                                       const struct spi_config* config) {
+                                       struct spi_config const* config) {
     const struct spi_stm32_config* cfg = dev->config;
     struct spi_stm32_data* data = dev->data;
     struct spi_context* ctx = &data->ctx;
@@ -2791,7 +2822,7 @@ static int spi_stm32_ll_transceive_dma(struct device const* dev,
 #endif /* CONFIG_SPI_STM32_DMA */
 
 static int spi_stm32_ll_transceive(struct device const* dev,
-                                   const struct spi_config* config,
+                                   struct spi_config const* config,
                                    struct spi_buf_set const* tx_bufs,
                                    struct spi_buf_set const* rx_bufs,
                                    bool asynchronous,
@@ -2947,7 +2978,7 @@ end :
 }
 
 static int spi_stm32_transceive_sync(struct device const* dev,
-                                     const struct spi_config* config,
+                                     struct spi_config const* config,
                                      struct spi_buf_set const* tx_bufs,
                                      struct spi_buf_set const* rx_bufs) {
     int ret;
@@ -2960,7 +2991,7 @@ static int spi_stm32_transceive_sync(struct device const* dev,
 
 #ifdef CONFIG_SPI_ASYNC
 static int spi_stm32_transceive_async(struct device const* dev,
-                                      const struct spi_config* config,
+                                      struct spi_config const* config,
                                       struct spi_buf_set const* tx_bufs,
                                       struct spi_buf_set const* rx_bufs,
                                       spi_callback_t cb,

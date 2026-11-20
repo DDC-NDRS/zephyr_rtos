@@ -184,6 +184,21 @@ Boards
   CPU ``clock-frequency`` when ``/cpus`` has no ``timebase-frequency``. Out-of-tree boards must
   set ``timebase-frequency`` on the ``/cpus`` node. (:github:`124446`)
 
+* The NXP LPC54xxx DTSI files are named after the sub-family they describe and all live in
+  :file:`dts/arm/nxp/lpc/lpc54xxx/`. Out-of-tree boards must update their includes:
+
+  * LPC5411x: :file:`nxp/lpc/lpc54xxx/nxp_lpc54xxx.dtsi`,
+    :file:`nxp/lpc/lpc54xxx/nxp_lpc54xxx_m4.dtsi` and
+    :file:`nxp/lpc/lpc54xxx/nxp_lpc54xxx_m0.dtsi` are now
+    :file:`nxp/lpc/lpc54xxx/nxp_lpc5411x.dtsi`,
+    :file:`nxp/lpc/lpc54xxx/nxp_lpc5411x_m4.dtsi` and
+    :file:`nxp/lpc/lpc54xxx/nxp_lpc5411x_m0.dtsi`.
+  * LPC546xx: :file:`nxp/lpc/nxp_lpc546xx.dtsi` is now
+    :file:`nxp/lpc/lpc54xxx/nxp_lpc546xx.dtsi`.
+
+  The root compatible of the LPCXpresso54114 board is now ``nxp,lpc5411x`` instead of
+  ``nxp,lpc54xxx``. (:github:`125465`)
+
 Device Drivers and Devicetree
 *****************************
 
@@ -431,6 +446,10 @@ Timers
   ``z_cms_lptim_hook_on_lpm_entry`` and ``z_cms_lptim_hook_on_lpm_exit`` with
   :c:func:`z_sys_clock_lpm_enter` and :c:func:`z_sys_clock_lpm_exit`, respectively. (:github:`124238`).
 
+* The ``CONFIG_MCUX_OS_TIMER_MIN_DELAY`` Kconfig option has been removed. The NXP OS Timer driver
+  now uses the generic system timer core, which keeps the match value at least 16 timer cycles
+  ahead of the counter. Remove the option from application and board configurations.
+
 W1
 ==
 
@@ -622,6 +641,28 @@ Networking
     ``overlay-multiport.overlay``.
   * :zephyr_file:`samples/subsys/mgmt/updatehub/local.conf.example` replaces
     ``overlay-prj.conf.example``.
+
+Ethernet
+========
+
+* Checksum offload capabilities are now advertised with one bit per IP version and protocol.
+  ``ETHERNET_CHECKSUM_SUPPORT_IPV6_HEADER``, ``ETHERNET_CHECKSUM_SUPPORT_TCP`` and
+  ``ETHERNET_CHECKSUM_SUPPORT_UDP`` have been removed. :c:enumerator:`NET_IF_CHECKSUM_IPV6_HEADER`
+  has been deprecated, as IPv6 has no header checksum and no interface advertises it anymore.
+  Drivers reporting ``ETHERNET_CONFIG_TYPE_RX_CHECKSUM_SUPPORT`` or
+  ``ETHERNET_CONFIG_TYPE_TX_CHECKSUM_SUPPORT`` must set
+  :c:enumerator:`ETHERNET_CHECKSUM_SUPPORT_IPV4_TCP`,
+  :c:enumerator:`ETHERNET_CHECKSUM_SUPPORT_IPV4_UDP`,
+  :c:enumerator:`ETHERNET_CHECKSUM_SUPPORT_IPV6_TCP` and
+  :c:enumerator:`ETHERNET_CHECKSUM_SUPPORT_IPV6_UDP` for the combinations they offload. The old
+  bits map per IP version:
+
+  * ``ETHERNET_CHECKSUM_SUPPORT_IPV4_HEADER`` together with ``ETHERNET_CHECKSUM_SUPPORT_TCP`` or
+    ``ETHERNET_CHECKSUM_SUPPORT_UDP`` becomes :c:enumerator:`ETHERNET_CHECKSUM_SUPPORT_IPV4_TCP`
+    or :c:enumerator:`ETHERNET_CHECKSUM_SUPPORT_IPV4_UDP`.
+  * ``ETHERNET_CHECKSUM_SUPPORT_IPV6_HEADER`` together with ``ETHERNET_CHECKSUM_SUPPORT_TCP`` or
+    ``ETHERNET_CHECKSUM_SUPPORT_UDP`` becomes :c:enumerator:`ETHERNET_CHECKSUM_SUPPORT_IPV6_TCP`
+    or :c:enumerator:`ETHERNET_CHECKSUM_SUPPORT_IPV6_UDP`.
 
 OpenThread
 ==========

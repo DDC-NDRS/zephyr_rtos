@@ -158,6 +158,11 @@ Libraries / Subsystems
   * :ref:`MQTT 5.0 <mqtt_socket_interface>` support in the MQTT client
     (:kconfig:option:`CONFIG_MQTT_VERSION_5_0`) is no longer experimental.
 
+* USB Type-C
+
+  * Dual-role ports can prefer the Sink role through the Try.SNK and TryWait.SRC states
+    (:kconfig:option:`CONFIG_USBC_CSM_DRP_TRY_SNK`).
+
 * Utilities
 
   * :c:func:`utf8_is_valid` checks a given number of bytes for well-formed UTF-8
@@ -211,6 +216,10 @@ Other notable changes
 
   * :kconfig:option:`CONFIG_BT_PRIVACY` can now be enabled in Broadcaster- and Observer-only builds,
     without :kconfig:option:`CONFIG_BT_SMP`.
+
+* Hardware information
+
+  * NXP RW61x hwinfo reports PM4 wakeup resets as :c:macro:`RESET_LOW_POWER_WAKE`.
 
 ..
   Any more descriptive subsystem or driver changes. Do you really want to write

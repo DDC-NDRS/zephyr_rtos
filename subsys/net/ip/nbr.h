@@ -37,8 +37,10 @@ struct net_nbr_lladdr {
 #define NET_NBR_LLADDR_INIT(_name, _count)	\
 	struct net_nbr_lladdr _name[_count] = { }
 
-/* Alignment needed for various parts of the neighbor definition */
-#define __net_nbr_align __aligned(sizeof(int))
+/* Alignment needed for various parts of the neighbor definition.
+ * The neighbor data holds 64-bit fields, such as in struct net_ipv6_nbr_data.
+ */
+#define __net_nbr_align sizeof(int64_t)
 
 /* The neighbor node generic data. There can be sub-system specific
  * data at the end of the node.
@@ -77,9 +79,9 @@ struct net_nbr {
 	 *  (the data pointer should be used instead).
 	 */
 	#if defined(_MSC_VER) /* #CUSTOM@NDRS */
-	uint8_t __nbr[1] __net_nbr_align;
+	uint8_t __nbr[1] __aligned(__net_nbr_align);
 	#else
-	uint8_t __nbr[] __net_nbr_align;
+	uint8_t __nbr[] __aligned(__net_nbr_align);
 	#endif
 };
 
@@ -88,7 +90,7 @@ struct net_nbr {
 #define NET_NBR_POOL_INIT(_name, _count, _size, _remove)		\
 	struct _name##_t {						\
 		struct net_nbr nbr;					\
-		uint8_t data[ROUND_UP(_size, 4)] __net_nbr_align;	\
+		uint8_t data[ROUND_UP(_size, 4)] __aligned(__net_nbr_align);	\
 	} _name[_count];						\
 	void _name##_init(struct _name##_t* obj, uint16_t count, uint16_t sz, void (* fp)(struct net_nbr *nbr)) { \
 		for (int i = 0; i < count; i++) {			\
@@ -101,12 +103,13 @@ struct net_nbr {
 #define NET_NBR_POOL_INIT(_name, _count, _size, _remove)		\
 	struct {							\
 		struct net_nbr nbr;					\
-		uint8_t data[ROUND_UP(_size, 4)] __net_nbr_align;	\
+		uint8_t data[ROUND_UP(_size, __net_nbr_align)]		\
+			__aligned(__net_nbr_align);			\
 	} _name[_count] = {						\
 		[0 ... (_count - 1)] = { .nbr = {			\
 			.idx = NET_NBR_LLADDR_UNKNOWN,			\
 			.remove = _remove,				\
-			.size = ROUND_UP(_size, 4) } },			\
+			.size = ROUND_UP(_size, __net_nbr_align) } },	\
 	}
 #endif
 
