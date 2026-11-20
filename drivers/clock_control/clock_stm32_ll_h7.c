@@ -1275,7 +1275,9 @@ static int set_up_plls(void) {
 
     LL_RCC_PLL2_Enable();
     while (LL_RCC_PLL2_IsReady() != 1U) {
-        /* pass */
+        if (IS_ENABLED(__GTEST)) {
+            break;
+        }
     }
 
     #endif /* STM32_PLL2_ENABLED */
@@ -1329,7 +1331,9 @@ static int set_up_plls(void) {
 
     LL_RCC_PLL3_Enable();
     while (LL_RCC_PLL3_IsReady() != 1U) {
-        /* pass */
+        if (IS_ENABLED(__GTEST)) {
+            break;
+        }
     }
 
     #endif /* STM32_PLL3_ENABLED */

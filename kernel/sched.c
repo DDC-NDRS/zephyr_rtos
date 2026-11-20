@@ -549,7 +549,13 @@ static inline void unpend_all(_wait_q_t* wait_q) {
     }
 }
 
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+void z_sched_unpend_all_locked(_wait_q_t* wait_q) {
+    unpend_all(wait_q);
+}
+#else
 void z_sched_unpend_all_locked(_wait_q_t* wait_q) ALIAS_OF(unpend_all);
+#endif
 
 /**
  * @brief Dequeues the specified thread
@@ -680,8 +686,14 @@ static void halt_thread(struct k_thread* thread, uint8_t new_state, k_spinlock_k
     }
 }
 
+#if defined(_MSC_VER) /* #CUSTOM@NDRS */
+void z_sched_halt_thread_locked(struct k_thread* thread, uint8_t new_state, k_spinlock_key_t* key) {
+    halt_thread(thread, new_state, key);
+}
+#else
 void z_sched_halt_thread_locked(struct k_thread* thread, uint8_t new_state, k_spinlock_key_t* key)
     ALIAS_OF(halt_thread);
+#endif
 
 void z_thread_suspend_current(struct k_thread* thread) {
     k_spinlock_key_t key = z_sched_spinlock_lock();

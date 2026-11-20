@@ -2717,15 +2717,15 @@ static int spi_stm32_ll_transceive_dma(struct device const* dev,
 
         if (transfer_dir == STM32_SPI_FULL_DUPLEX) {
             data->tx_len = data->rx_len = spi_context_max_continuous_chunk(ctx);
-            (void) spi_dma_move_buffers(dev, data->tx_len);
+            ret = spi_dma_move_buffers(dev, data->tx_len);
         }
         else if (transfer_dir == STM32_SPI_HALF_DUPLEX_TX) {
             data->tx_len = ctx->tx.len;
-            (void) spi_dma_move_tx_buffers(dev, data->tx_len);
+            ret = spi_dma_move_tx_buffers(dev, data->tx_len);
         }
         else {
             data->rx_len = ctx->rx.len;
-            (void) spi_dma_move_rx_buffers(dev, data->rx_len);
+            ret = spi_dma_move_rx_buffers(dev, data->rx_len);
         }
 
         if (ret != 0) {
