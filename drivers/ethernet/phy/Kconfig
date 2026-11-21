@@ -101,13 +101,19 @@ config PHY_MICROCHIP_LAN8710AI
 	bool "Microchip LAN8710AI PHY Driver"
 	default y
 	depends on DT_HAS_MICROCHIP_LAN8710AI_ENABLED
+	select MDIO
+	select GPIO if ($(dt_compat_any_has_prop,$(DT_COMPAT_MICROCHIP_LAN8710AI),reset-gpios) || \
+			$(dt_compat_any_has_prop,$(DT_COMPAT_MICROCHIP_LAN8710AI),int-gpios))
+	help
+	  Enable Microchip LAN8710AI Ethernet PHY Driver
 
 config PHY_MICROCHIP_LAN8742
 	bool "Microchip LAN8742 PHY Driver"
 	default y
 	depends on DT_HAS_MICROCHIP_LAN8742_ENABLED
 	select MDIO
-	select GPIO if ($(dt_compat_any_has_prop,$(DT_COMPAT_MICROCHIP_LAN8742),reset-gpios))
+	select GPIO if ($(dt_compat_any_has_prop,$(DT_COMPAT_MICROCHIP_LAN8742),reset-gpios) || \
+			$(dt_compat_any_has_prop,$(DT_COMPAT_MICROCHIP_LAN8742),int-gpios))
 	help
 	  Enable Microchip LAN8742 Ethernet PHY Driver
 
@@ -156,7 +162,8 @@ config PHY_MARVELL_88E1510
 	default y
 	depends on DT_HAS_MARVELL_88E1510_ENABLED
 	select MDIO
-	select GPIO if $(dt_compat_any_has_prop,$(DT_COMPAT_MARVELL_88E1510),reset-gpios)
+	select GPIO if ($(dt_compat_any_has_prop,$(DT_COMPAT_MARVELL_88E1510),reset-gpios) || \
+			$(dt_compat_any_has_prop,$(DT_COMPAT_MARVELL_88E1510),int-gpios))
 	help
 	  Enable Marvell 88E1510 Gigabit Ethernet PHY Driver.
 

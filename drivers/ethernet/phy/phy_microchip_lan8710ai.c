@@ -22,31 +22,98 @@ LOG_MODULE_REGISTER(phy_lan8710ai, CONFIG_PHY_LOG_LEVEL);
 #define LAN8710_PHY_ID2      0xC0F0U
 #define LAN8710_PHY_ID2_MASK 0xFFF0U
 
-/* Maximum retries waiting for BMCR soft-reset self-clear (10 ms each) */
-#define LAN8710_RESET_RETRIES 50
+#define MII_INVALID_PHY_ID   UINT32_MAX
+
+/* Mode Control/Status register */
+#define LAN8710_REG_MCSR            17
+#define LAN8710_MCSR_EDPWRDOWN      BIT(13)
+#define LAN8710_MCSR_ALTINT         BIT(6)
+
+/* Special Modes register */
+#define LAN8710_REG_SMR             18
+#define LAN8710_SMR_MODE_MASK       GENMASK(7, 5)
+#define LAN8710_SMR_MODE_100FD_NOAN 3U      /* MODE[2:0] straps 000..011 disable autoneg */
+#define LAN8710_SMR_MODE_PWRDOWN    6U
+
+/* Special Control/Status Indications register */
+#define LAN8710_REG_SCSIR           27
+#define LAN8710_SCSIR_AMDIXCTRL     BIT(15) /* 1 = auto-MDIX disabled */
+#define LAN8710_SCSIR_CH_SELECT     BIT(13) /* 0 = MDI, 1 = MDIX (manual only) */
+
+/* Interrupt Source Flag (read clears) and Interrupt Mask registers */
+#define LAN8710_REG_ISR             29
+#define LAN8710_REG_IMR             30
+#define LAN8710_INT_ANEG_COMPLETE   BIT(6)
+#define LAN8710_INT_LINK_DOWN       BIT(4)
+
+/* PHY Special Control/Status register */
+#define LAN8710_REG_PSCSR           31
+#define LAN8710_PSCSR_AUTODONE      BIT(12)
+#define LAN8710_PSCSR_HCDSPEED_MASK GENMASK(4, 2)
+#define LAN8710_HCDSPEED_10HD       0x01U   /* 10BASE-T half-duplex */
+#define LAN8710_HCDSPEED_10FD       0x05U   /* 10BASE-T full-duplex */
+#define LAN8710_HCDSPEED_100HD      0x02U   /* 100BASE-T half-duplex */
+#define LAN8710_HCDSPEED_100FD      0x06U   /* 100BASE-T full-duplex */
+
+/* Values of the mdix-mode devicetree property (enum index) */
+#define LAN8710_MDIX_AUTO           0
+#define LAN8710_MDIX_MDI            1
+#define LAN8710_MDIX_MDIX           2
+
+/* Wait up to 0.6 s for the BMCR soft-reset bit to self-clear (IEEE 802.3, 22.2.4.1.1) */
+#define LAN8710_RESET_POLL_MS       10
+#define LAN8710_RESET_RETRIES       60
+
+/* How often to poll auto-negotiation status while waiting for it to complete */
 #define MII_AUTONEG_POLL_INTERVAL_MS 100
+/* Retry delay when the monitor finds the PHY busy */
+#define PHY_BUSY_RETRY_MS            10
+
+#define ANY_RESET_GPIO DT_ANY_INST_HAS_PROP_STATUS_OKAY(reset_gpios)
+#define ANY_INT_GPIO   DT_ANY_INST_HAS_PROP_STATUS_OKAY(int_gpios)
 
 struct phy_lan8710ai_config {
     const struct device* mdio_dev;
-    struct gpio_dt_spec  reset_gpio;        /* zeroed if not in DT */
-    enum phy_link_speed  default_speeds;
     uint8_t phy_addr;
+    bool no_reset;
+    enum phy_link_speed default_speeds;
+    uint8_t mdix_mode;
+    bool edpd;
+    bool apply_mdix_edpd;
+
+    #if ANY_INT_GPIO
+    struct gpio_dt_spec int_gpio;           /* zeroed if not in DT */
+    #endif /* ANY_INT_GPIO */
+
+    #if ANY_RESET_GPIO
+    struct gpio_dt_spec reset_gpio;         /* zeroed if not in DT */
+    uint32_t reset_assert_us;
+    uint32_t reset_deassert_us;
+    #endif /* ANY_RESET_GPIO */
 };
 
 struct phy_lan8710ai_data {
-    const struct device* dev;               /* self-pointer for work handler */
+    struct device const* dev;               /* self-pointer for work handler */
     phy_callback_t cb;
     void* cb_data;
     struct phy_link_state state;
     struct k_mutex lock;
     struct k_work_delayable monitor_work;
     bool autoneg_in_progress;
+    k_timepoint_t autoneg_timeout;
+
+    #if ANY_INT_GPIO
+    struct gpio_callback int_cb;
+    #endif /* ANY_INT_GPIO */
 };
+
+static void phy_lan8710ai_invoke_link_cb(struct device const* dev);
+static int  phy_lan8710ai_check_autoneg_completion(struct device const* dev);
 
 /* -------------------------------------------------------------------
  * Low-level MDIO read/write helpers
  * ------------------------------------------------------------------- */
-static int phy_lan8710ai_read(const struct device* dev, uint16_t reg_addr, uint32_t* data) {
+static int phy_lan8710ai_read(struct device const* dev, uint16_t reg_addr, uint32_t* data) {
     const struct phy_lan8710ai_config* cfg = dev->config;
     uint16_t val;
     int ret;
@@ -59,7 +126,7 @@ static int phy_lan8710ai_read(const struct device* dev, uint16_t reg_addr, uint3
     return (ret);
 }
 
-static int phy_lan8710ai_write(const struct device* dev, uint16_t reg_addr, uint32_t data) {
+static int phy_lan8710ai_write(struct device const* dev, uint16_t reg_addr, uint32_t data) {
     const struct phy_lan8710ai_config* cfg = dev->config;
     int ret;
 
@@ -69,74 +136,373 @@ static int phy_lan8710ai_write(const struct device* dev, uint16_t reg_addr, uint
 }
 
 /* -------------------------------------------------------------------
- * Invoke registered MAC callback with current state.
- * Must be called while holding data->lock.
+ * PHY reset: hard reset through GPIO if wired, else BMCR soft-reset
  * ------------------------------------------------------------------- */
-static void phy_lan8710ai_invoke_cb(const struct device* dev) {
-    struct phy_lan8710ai_data* data = dev->data;
+#if ANY_RESET_GPIO
+static int phy_lan8710ai_hw_reset(struct device const* dev) {
+    const struct phy_lan8710ai_config* cfg = dev->config;
+    int ret;
 
-    if (data->cb) {
-        data->cb(dev, &data->state, data->cb_data);
+    ret = gpio_pin_configure_dt(&cfg->reset_gpio, GPIO_OUTPUT_ACTIVE);
+    if (ret < 0) {
+        LOG_ERR("Failed to configure RST pin (%d)", ret);
     }
+    else {
+        k_busy_wait(cfg->reset_assert_us);
+
+        ret = gpio_pin_set_dt(&cfg->reset_gpio, 0);
+        if (ret < 0) {
+            LOG_ERR("Failed to de-assert RST pin (%d)", ret);
+        }
+        else {
+            (void)k_usleep(cfg->reset_deassert_us);
+        }
+    }
+
+    return (ret);
+}
+#endif /* ANY_RESET_GPIO */
+
+static int phy_lan8710ai_soft_reset(struct device const* dev) {
+    uint32_t bmcr;
+    int retries;
+    int ret;
+
+    ret = phy_lan8710ai_write(dev, MII_BMCR, MII_BMCR_RESET);
+    if (ret < 0) {
+        ret = -EIO;
+    }
+    else {
+        ret = -ETIMEDOUT;
+
+        for (retries = 0; (retries < LAN8710_RESET_RETRIES) && (ret == -ETIMEDOUT); retries++) {
+            k_msleep(LAN8710_RESET_POLL_MS);
+
+            if (phy_lan8710ai_read(dev, MII_BMCR, &bmcr) < 0) {
+                ret = -EIO;
+            }
+            else if ((bmcr & MII_BMCR_RESET) == 0U) {
+                ret = 0;
+            }
+            else {
+                /* Reset still in progress, poll again */
+            }
+        }
+    }
+
+    return (ret);
+}
+
+static int phy_lan8710ai_reset(struct device const* dev) {
+    int ret = 0;
+    bool need_soft_reset = true;
+
+    #if ANY_RESET_GPIO
+    const struct phy_lan8710ai_config* cfg = dev->config;
+
+    /* A hardware reset replaces the soft reset */
+    if (cfg->reset_gpio.port != NULL) {
+        if (gpio_is_ready_dt(&cfg->reset_gpio) == true) {
+            ret = phy_lan8710ai_hw_reset(dev);
+            need_soft_reset = false;
+        }
+        else {
+            LOG_WRN("PHY (%d) reset GPIO not ready, using soft reset", cfg->phy_addr);
+        }
+    }
+    #endif /* ANY_RESET_GPIO */
+
+    if ((ret == 0) && (need_soft_reset == true)) {
+        ret = phy_lan8710ai_soft_reset(dev);
+    }
+
+    return (ret);
+}
+
+static int phy_lan8710ai_get_id(struct device const* dev, uint32_t* id1, uint32_t* id2) {
+    int ret;
+
+    ret = phy_lan8710ai_read(dev, MII_PHYID1R, id1);
+    if (ret == 0) {
+        ret = phy_lan8710ai_read(dev, MII_PHYID2R, id2);
+    }
+
+    if (ret != 0) {
+        ret = -EIO;
+    }
+
+    return (ret);
+}
+
+static int phy_lan8710ai_verify_id(struct device const* dev) {
+    const struct phy_lan8710ai_config* cfg = dev->config;
+    uint32_t id1 = 0U;
+    uint32_t id2 = 0U;
+    int ret;
+
+    ret = phy_lan8710ai_get_id(dev, &id1, &id2);
+    if (ret < 0) {
+        LOG_ERR("Failed to read PHY (%d) ID: %d", cfg->phy_addr, ret);
+    }
+    else if (((id1 << 16) | id2) == MII_INVALID_PHY_ID) {
+        LOG_ERR("No PHY found at address %d", cfg->phy_addr);
+        ret = -EINVAL;
+    }
+    else if ((id1 != LAN8710_PHY_ID1) || ((id2 & LAN8710_PHY_ID2_MASK) != LAN8710_PHY_ID2)) {
+        LOG_ERR("PHY (%d) unexpected ID 0x%04x:0x%04x", cfg->phy_addr, id1, id2);
+        ret = -ENODEV;
+    }
+    else {
+        LOG_INF("PHY (%d) ID 0x%04x:0x%04x", cfg->phy_addr, id1, id2);
+    }
+
+    return (ret);
 }
 
 /* -------------------------------------------------------------------
- * Link state update — reads PHY registers and fires callback on change.
- * Called from monitor_work (thread context); lock must NOT be held on entry.
+ * Read the speed/duplex resolved by the PHY (register 31, HCDSPEED).
+ * Returns 0 on success, negative if autonegotiation is not done or the
+ * encoding is not a valid 10/100 value.
  * ------------------------------------------------------------------- */
-static void phy_lan8710ai_update_link_state(const struct device* dev) {
-    struct phy_lan8710ai_data* data = dev->data;
-    struct phy_link_state new_state = {0};
-    uint32_t bmsr;
-    uint32_t anlpar;
-    bool link_up;
+static int phy_lan8710ai_get_hcd_speed(struct device const* dev, enum phy_link_speed* speed) {
+    uint32_t pscsr;
+    int ret;
 
-    /* Read BMSR twice: link-status bit is latching-low (cleared on read) */
-    phy_lan8710ai_read(dev, MII_BMSR, &bmsr);
-    phy_lan8710ai_read(dev, MII_BMSR, &bmsr);
-    link_up = (bmsr & MII_BMSR_LINK_STATUS) != 0U;
-
-    if (!link_up) {
-        new_state.is_up = false;
-        goto check_change;
+    ret = phy_lan8710ai_read(dev, LAN8710_REG_PSCSR, &pscsr);
+    if (ret < 0) {
+        ret = -EIO;
     }
-
-    if (data->autoneg_in_progress) {
-        if (!(bmsr & MII_BMSR_AUTONEG_COMPLETE)) {
-            return; /* still negotiating — no state change yet */
-        }
-
-        phy_lan8710ai_read(dev, MII_ANLPAR, &anlpar);
-        if (anlpar & MII_ADVERTISE_100_FULL) {
-            new_state.speed = LINK_FULL_100BASE;
-        }
-        else if (anlpar & MII_ADVERTISE_100_HALF) {
-            new_state.speed = LINK_HALF_100BASE;
-        }
-        else if (anlpar & MII_ADVERTISE_10_FULL) {
-            new_state.speed = LINK_FULL_10BASE;
-        }
-        else {
-            new_state.speed = LINK_HALF_10BASE;
-        }
-
-        new_state.is_up = true;
-        data->autoneg_in_progress = false;
+    else if ((pscsr & LAN8710_PSCSR_AUTODONE) == 0U) {
+        ret = -EAGAIN;
     }
     else {
-        /* Link already up — preserve negotiated speed */
-        new_state = data->state;
-        new_state.is_up = true;
+        ret = 0;
+
+        switch (FIELD_GET(LAN8710_PSCSR_HCDSPEED_MASK, pscsr)) {
+            case LAN8710_HCDSPEED_100FD :
+                *speed = LINK_FULL_100BASE;
+                break;
+
+            case LAN8710_HCDSPEED_100HD :
+                *speed = LINK_HALF_100BASE;
+                break;
+
+            case LAN8710_HCDSPEED_10FD :
+                *speed = LINK_FULL_10BASE;
+                break;
+
+            case LAN8710_HCDSPEED_10HD :
+                *speed = LINK_HALF_10BASE;
+                break;
+
+            default :
+                ret = -EINVAL;
+                break;
+        }
     }
 
-check_change :
-    k_mutex_lock(&data->lock, K_FOREVER);
-    if (memcmp(&new_state, &data->state, sizeof(new_state)) != 0) {
-        data->state = new_state;
-        phy_lan8710ai_invoke_cb(dev);
+    return (ret);
+}
+
+/* Resolve the link speed, preferring the PHY result (it also covers parallel detection) */
+static int phy_lan8710ai_resolve_speed(struct device const* dev, enum phy_link_speed* speed) {
+    uint32_t anar_reg = 0U;
+    uint32_t anlpar_reg = 0U;
+    uint32_t common;
+    int ret;
+
+    ret = phy_lan8710ai_get_hcd_speed(dev, speed);
+    if (ret != 0) {
+        /* Read PHY advertising parameters and the link partner abilities */
+        ret = phy_lan8710ai_read(dev, MII_ANAR, &anar_reg);
+        if (ret == 0) {
+            ret = phy_lan8710ai_read(dev, MII_ANLPAR, &anlpar_reg);
+        }
+
+        if (ret != 0) {
+            ret = -EIO;
+        }
+        else {
+            common = anar_reg & anlpar_reg;
+
+            if ((common & MII_ADVERTISE_100_FULL) != 0U) {
+                *speed = LINK_FULL_100BASE;
+            }
+            else if ((common & MII_ADVERTISE_100_HALF) != 0U) {
+                *speed = LINK_HALF_100BASE;
+            }
+            else if ((common & MII_ADVERTISE_10_FULL) != 0U) {
+                *speed = LINK_FULL_10BASE;
+            }
+            else {
+                *speed = LINK_HALF_10BASE;
+            }
+        }
     }
 
-    k_mutex_unlock(&data->lock);
+    return (ret);
+}
+
+/* -------------------------------------------------------------------
+ * Link state handling. Called from monitor_work with the lock held.
+ * Returns 0 when the state changed, -EAGAIN when nothing changed and
+ * -EINPROGRESS while auto-negotiation is still running.
+ * ------------------------------------------------------------------- */
+static int phy_lan8710ai_update_link_state(struct device const* dev) {
+    const struct phy_lan8710ai_config* cfg = dev->config;
+    struct phy_lan8710ai_data* data = dev->data;
+    struct phy_link_state* const state = &data->state;
+    enum phy_link_speed new_speed;
+    uint32_t bmcr_reg;
+    uint32_t bmsr_reg;
+    int ret;
+
+    ret = phy_lan8710ai_read(dev, MII_BMSR, &bmsr_reg);
+    if (ret == 0) {
+        /* Link status is latched low: the second read gives the current state */
+        ret = phy_lan8710ai_read(dev, MII_BMSR, &bmsr_reg);
+    }
+
+    if (ret < 0) {
+        ret = -EIO;
+    }
+    else if ((bmsr_reg & MII_BMSR_LINK_STATUS) == 0U) {
+        /* If link is down, we can stop here. */
+        state->speed = 0;
+
+        if (state->is_up == true) {
+            state->is_up = false;
+            LOG_INF("PHY (%d) is down", cfg->phy_addr);
+            ret = 0;
+        }
+        else {
+            ret = -EAGAIN;
+        }
+    }
+    else {
+        ret = phy_lan8710ai_read(dev, MII_BMCR, &bmcr_reg);
+
+        if (ret < 0) {
+            ret = -EIO;
+        }
+        else if ((bmcr_reg & MII_BMCR_AUTONEG_ENABLE) == 0U) {
+            /* If auto-negotiation is not enabled, we only need to check the link speed */
+            new_speed = phy_mii_get_link_speed_bmcr_reg(dev, bmcr_reg);
+
+            if ((state->speed != new_speed) || (state->is_up == false)) {
+                state->is_up = true;
+                state->speed = new_speed;
+
+                LOG_INF("PHY (%d) Link speed %s Mb, %s duplex", cfg->phy_addr,
+                        PHY_LINK_IS_SPEED_100M(state->speed)  ? "100"  : "10",
+                        PHY_LINK_IS_FULL_DUPLEX(state->speed) ? "full" : "half");
+
+                ret = 0;
+            }
+            else {
+                ret = -EAGAIN;
+            }
+        }
+        else if (state->is_up == true) {
+            /* Auto-negotiation enabled and the link was already up last time we checked:
+             * the link state has not changed.
+             */
+            ret = -EAGAIN;
+        }
+        else {
+            /* The link was down, start the auto-negotiation sequence. */
+            state->is_up = true;
+
+            LOG_DBG("PHY (%d) Starting MII PHY auto-negotiate sequence", cfg->phy_addr);
+
+            data->autoneg_timeout = sys_timepoint_calc(K_MSEC(CONFIG_PHY_AUTONEG_TIMEOUT_MS));
+
+            ret = phy_lan8710ai_check_autoneg_completion(dev);
+        }
+    }
+
+    return (ret);
+}
+
+/* Auto-negotiation did not complete: drop the half-started link so that the next poll retries
+ * instead of waiting for a link-down event that never comes. Returns 0 when a link that was
+ * usable is now down (state changed), @p err otherwise.
+ */
+static int phy_lan8710ai_autoneg_failed(struct device const* dev, int err) {
+    struct phy_lan8710ai_data* data = dev->data;
+    struct phy_link_state* const state = &data->state;
+    bool was_usable = ((state->is_up == true) && (state->speed != 0));
+
+    state->is_up = false;
+    state->speed = 0;
+
+    return ((was_usable == true) && (err != -EIO)) ? 0 : err;
+}
+
+static int phy_lan8710ai_autoneg_poll(struct device const* dev) {
+    const struct phy_lan8710ai_config* cfg = dev->config;
+    struct phy_lan8710ai_data* data = dev->data;
+    struct phy_link_state* const state = &data->state;
+    enum phy_link_speed speed;
+    uint32_t bmsr_reg;
+    int ret;
+
+    ret = phy_lan8710ai_read(dev, MII_BMSR, &bmsr_reg);
+    if (ret < 0) {
+        ret = -EIO;
+    }
+    else if ((bmsr_reg & MII_BMSR_AUTONEG_COMPLETE) == 0U) {
+        if (sys_timepoint_expired(data->autoneg_timeout)) {
+            LOG_DBG("PHY (%d) auto-negotiate timeout", cfg->phy_addr);
+            ret = -ETIMEDOUT;
+        }
+        else {
+            ret = -EINPROGRESS;
+        }
+    }
+    else {
+        /* Link status bit is latched low, so read it again to get current status */
+        if (unlikely((bmsr_reg & MII_BMSR_LINK_STATUS) == 0U)) {
+            ret = phy_lan8710ai_read(dev, MII_BMSR, &bmsr_reg);
+
+            if (ret < 0) {
+                ret = -EIO;
+            }
+            else if ((bmsr_reg & MII_BMSR_LINK_STATUS) == 0U) {
+                ret = -EAGAIN;
+            }
+            else {
+                ret = 0;
+            }
+        }
+
+        if (ret == 0) {
+            LOG_DBG("PHY (%d) auto-negotiate sequence completed", cfg->phy_addr);
+
+            ret = phy_lan8710ai_resolve_speed(dev, &speed);
+            if (ret == 0) {
+                state->speed = speed;
+                state->is_up = true;
+
+                LOG_INF("PHY (%d) Link speed %s Mb, %s duplex", cfg->phy_addr,
+                        PHY_LINK_IS_SPEED_100M(state->speed)  ? "100"  : "10",
+                        PHY_LINK_IS_FULL_DUPLEX(state->speed) ? "full" : "half");
+            }
+        }
+    }
+
+    return (ret);
+}
+
+static int phy_lan8710ai_check_autoneg_completion(struct device const* dev) {
+    int ret;
+
+    ret = phy_lan8710ai_autoneg_poll(dev);
+    if ((ret != 0) && (ret != -EINPROGRESS)) {
+        ret = phy_lan8710ai_autoneg_failed(dev, ret);
+    }
+
+    return (ret);
 }
 
 /* -------------------------------------------------------------------
@@ -146,73 +512,70 @@ static void phy_lan8710ai_monitor_work_fn(struct k_work* work) {
     struct k_work_delayable* dwork = k_work_delayable_from_work(work);
     struct phy_lan8710ai_data* data =
         CONTAINER_OF(dwork, struct phy_lan8710ai_data, monitor_work);
-    const struct device* dev = data->dev;
+    struct device const* dev = data->dev;
+    k_timeout_t delay;
+    int rc;
 
-    phy_lan8710ai_update_link_state(dev);
+    if (k_mutex_lock(&data->lock, K_NO_WAIT) != 0) {
+        /* Busy (cfg_link or get_link running): retry soon so that a pending interrupt,
+         * which would not produce another edge, is not left to the slow poll.
+         */
+        delay = K_MSEC(PHY_BUSY_RETRY_MS);
+    }
+    else {
+        #if ANY_INT_GPIO
+        const struct phy_lan8710ai_config* cfg = dev->config;
+        uint32_t isr;
 
-    /* Poll faster during autoneg, slower once stable */
-    int next_ms = data->autoneg_in_progress ? 100 : 1000;
+        if (cfg->int_gpio.port != NULL) {
+            /* Reading the Interrupt Source Flag register de-asserts nINT */
+            (void)phy_lan8710ai_read(dev, LAN8710_REG_ISR, &isr);
+        }
+        #endif /* ANY_INT_GPIO */
 
-    k_work_reschedule(&data->monitor_work, K_MSEC(next_ms));
-}
-
-/* -------------------------------------------------------------------
- * PHY reset: GPIO (if wired) + BMCR soft-reset
- * ------------------------------------------------------------------- */
-static int phy_lan8710ai_reset(const struct device* dev) {
-    const struct phy_lan8710ai_config* cfg = dev->config;
-    int retries;
-
-    if (cfg->reset_gpio.port != NULL) {
-        if (!gpio_is_ready_dt(&cfg->reset_gpio)) {
-            LOG_ERR("Reset GPIO not ready");
-            return (-ENODEV);
+        if (data->autoneg_in_progress) {
+            rc = phy_lan8710ai_check_autoneg_completion(dev);
+        }
+        else {
+            /* If autonegotiation is not in progress, just update the link state */
+            rc = phy_lan8710ai_update_link_state(dev);
         }
 
-        gpio_pin_configure_dt(&cfg->reset_gpio, GPIO_OUTPUT_ACTIVE);
-        gpio_pin_set_dt(&cfg->reset_gpio, 1);
-        k_sleep(K_MSEC(10));
-        gpio_pin_set_dt(&cfg->reset_gpio, 0);
-        k_sleep(K_MSEC(10));
-    }
+        data->autoneg_in_progress = (rc == -EINPROGRESS);
 
-    phy_lan8710ai_write(dev, MII_BMCR, MII_BMCR_RESET);
+        delay = data->autoneg_in_progress ? K_MSEC(MII_AUTONEG_POLL_INTERVAL_MS)
+                                          : K_MSEC(CONFIG_PHY_MONITOR_PERIOD);
 
-    for (retries = 0; retries < LAN8710_RESET_RETRIES; retries++) {
-        uint32_t bmcr;
+        (void)k_mutex_unlock(&data->lock);
 
-        k_msleep(10);
-        if ((phy_lan8710ai_read(dev, MII_BMCR, &bmcr) == 0) &&
-            ((bmcr & MII_BMCR_RESET) == 0)) {
-            return (0);
+        /* If link state has changed and a callback is set, invoke callback. This is done
+         * without the lock held so that the callback may block or call back into the PHY.
+         */
+        if (rc == 0) {
+            phy_lan8710ai_invoke_link_cb(dev);
         }
     }
 
-    LOG_ERR("PHY soft reset timed out");
-    return (-ETIMEDOUT);
+    (void)k_work_reschedule(&data->monitor_work, delay);
 }
 
 /* -------------------------------------------------------------------
  * PHY API implementations
  * ------------------------------------------------------------------- */
-static int phy_lan8710ai_cfg_link(const struct device* dev,
+static int phy_lan8710ai_cfg_link(struct device const* dev,
                                   enum phy_link_speed adv_speeds,
                                   enum phy_cfg_link_flag flags) {
     const struct phy_lan8710ai_config* cfg = dev->config;
     struct phy_lan8710ai_data* data = dev->data;
     int ret;
 
-    if (cfg->mdio_dev == NULL) {
-        return (-ENODEV);
-    }
-
-    k_mutex_lock(&data->lock, K_FOREVER);
+    (void)k_mutex_lock(&data->lock, K_FOREVER);
 
     if ((flags & PHY_FLAG_AUTO_NEGOTIATION_DISABLED) != 0U) {
         ret = phy_mii_set_bmcr_reg_autoneg_disabled(dev, adv_speeds);
         if (ret >= 0) {
             data->autoneg_in_progress = false;
-            k_work_reschedule(&data->monitor_work, K_NO_WAIT);
+            (void)k_work_reschedule(&data->monitor_work, K_NO_WAIT);
         }
     }
     else {
@@ -220,7 +583,8 @@ static int phy_lan8710ai_cfg_link(const struct device* dev,
         if (ret >= 0) {
             LOG_DBG("PHY (%d) Starting MII PHY auto-negotiate sequence", cfg->phy_addr);
             data->autoneg_in_progress = true;
-            k_work_reschedule(&data->monitor_work, K_MSEC(MII_AUTONEG_POLL_INTERVAL_MS));
+            data->autoneg_timeout = sys_timepoint_calc(K_MSEC(CONFIG_PHY_AUTONEG_TIMEOUT_MS));
+            (void)k_work_reschedule(&data->monitor_work, K_MSEC(MII_AUTONEG_POLL_INTERVAL_MS));
         }
     }
 
@@ -228,82 +592,296 @@ static int phy_lan8710ai_cfg_link(const struct device* dev,
         LOG_DBG("PHY (%d) Link already configured", cfg->phy_addr);
     }
 
-    k_mutex_unlock(&data->lock);
+    (void)k_mutex_unlock(&data->lock);
 
     return (ret);
 }
 
-static int phy_lan8710ai_get_link(const struct device* dev,
+static int phy_lan8710ai_get_link(struct device const* dev,
                                   struct phy_link_state* state) {
     struct phy_lan8710ai_data* data = dev->data;
 
-    k_mutex_lock(&data->lock, K_FOREVER);
+    (void)k_mutex_lock(&data->lock, K_FOREVER);
+
     *state = data->state;
-    k_mutex_unlock(&data->lock);
+
+    if (state->speed == 0) {
+        /* Speed 0 means the link is not (yet) usable, e.g. autonegotiation in progress */
+        state->is_up = false;
+    }
+
+    (void)k_mutex_unlock(&data->lock);
 
     return (0);
 }
 
-static int phy_lan8710ai_link_cb_set(const struct device* dev,
+static void phy_lan8710ai_invoke_link_cb(struct device const* dev) {
+    struct phy_lan8710ai_data* data = dev->data;
+    struct phy_link_state state;
+
+    if (data->cb != NULL) {
+        (void)phy_lan8710ai_get_link(dev, &state);
+
+        data->cb(dev, &state, data->cb_data);
+    }
+}
+
+static int phy_lan8710ai_link_cb_set(struct device const* dev,
                                      phy_callback_t cb, void* user_data) {
     struct phy_lan8710ai_data* data = dev->data;
 
-    k_mutex_lock(&data->lock, K_FOREVER);
     data->cb = cb;
     data->cb_data = user_data; /* caller's opaque pointer (e.g. MAC dev) */
-    k_mutex_unlock(&data->lock);
+
+    /* Immediately notify the caller of the current link status. */
+    phy_lan8710ai_invoke_link_cb(dev);
 
     return (0);
 }
 
-static int phy_lan8710ai_init(const struct device* dev) {
-    const struct phy_lan8710ai_config* cfg = dev->config;
-    struct phy_lan8710ai_data* data = dev->data;
-    uint32_t id1;
-    uint32_t id2;
-    bool is_ready;
+static int phy_lan8710ai_update_bits(struct device const* dev, uint16_t reg,
+                                     uint32_t mask, uint32_t val) {
+    uint32_t reg_val;
     int ret;
 
-    data->state.is_up = false;
-    k_mutex_init(&data->lock);
-    data->dev = dev;
+    ret = phy_lan8710ai_read(dev, reg, &reg_val);
+    if (ret == 0) {
+        reg_val = (reg_val & ~mask) | (val & mask);
 
-    is_ready = device_is_ready(cfg->mdio_dev);
-    if (is_ready == false) {
-        LOG_ERR_DEVICE_NOT_READY(cfg->mdio_dev);
-        return (-ENODEV);
+        ret = phy_lan8710ai_write(dev, reg, reg_val);
     }
 
-    ret = phy_lan8710ai_reset(dev);
+    return (ret);
+}
+
+/* Check the MODE[2:0] straps, which set the register defaults after reset */
+static int phy_lan8710ai_check_straps(struct device const* dev) {
+    const struct phy_lan8710ai_config* cfg = dev->config;
+    uint32_t smr;
+    uint32_t mode;
+    int ret;
+
+    ret = phy_lan8710ai_read(dev, LAN8710_REG_SMR, &smr);
     if (ret < 0) {
-        LOG_ERR("Failed to reset PHY (%d): %d", cfg->phy_addr, ret);
-        return (ret);
+        ret = -EIO;
+    }
+    else {
+        mode = FIELD_GET(LAN8710_SMR_MODE_MASK, smr);
+
+        if (mode == LAN8710_SMR_MODE_PWRDOWN) {
+            LOG_ERR("PHY (%d) MODE straps select power-down mode", cfg->phy_addr);
+            ret = -ENODEV;
+        }
+        else if (mode <= LAN8710_SMR_MODE_100FD_NOAN) {
+            LOG_WRN("PHY (%d) MODE straps (%u) disable auto-negotiation, the driver "
+                    "re-enables it", cfg->phy_addr, mode);
+        }
+        else {
+            /* Auto-negotiation enabled by the straps */
+        }
     }
 
-    /* Verify PHY ID */
-    phy_lan8710ai_read(dev, MII_PHYID1R, &id1);
-    phy_lan8710ai_read(dev, MII_PHYID2R, &id2);
+    return (ret);
+}
 
-    if ((id1 != LAN8710_PHY_ID1) || ((id2 & LAN8710_PHY_ID2_MASK) != LAN8710_PHY_ID2)) {
-        LOG_ERR("No PHY found at address %d (ID 0x%04x:0x%04x)", cfg->phy_addr, id1, id2);
-        return (-EINVAL);
+/* One read-modify-write of a register, used to describe register setup as a table */
+struct phy_lan8710ai_bits_op {
+    uint16_t reg;
+    uint32_t mask;
+    uint32_t val;
+};
+
+static int phy_lan8710ai_update_bits_seq(struct device const* dev,
+                                         const struct phy_lan8710ai_bits_op* ops,
+                                         size_t count) {
+    size_t i;
+    int ret = 0;
+
+    for (i = 0U; (i < count) && (ret == 0); i++) {
+        ret = phy_lan8710ai_update_bits(dev, ops[i].reg, ops[i].mask, ops[i].val);
     }
 
-    LOG_INF("PHY (%d) ID 0x%04x:0x%04x", cfg->phy_addr, id1, id2);
+    return (ret);
+}
 
-    k_work_init_delayable(&data->monitor_work, phy_lan8710ai_monitor_work_fn);
+/* SCSIR value for the configured MDI/MDIX mode */
+static uint32_t phy_lan8710ai_mdix_val(const struct phy_lan8710ai_config* cfg) {
+    uint32_t val = 0U;
+
+    if (cfg->mdix_mode != LAN8710_MDIX_AUTO) {
+        val = LAN8710_SCSIR_AMDIXCTRL;
+        if (cfg->mdix_mode == LAN8710_MDIX_MDIX) {
+            val |= LAN8710_SCSIR_CH_SELECT;
+        }
+    }
+
+    return (val);
+}
+
+static int phy_lan8710ai_cfg_mdix_edpd(struct device const* dev) {
+    const struct phy_lan8710ai_config* cfg = dev->config;
+    const struct phy_lan8710ai_bits_op ops[] = {
+        {LAN8710_REG_SCSIR, LAN8710_SCSIR_AMDIXCTRL | LAN8710_SCSIR_CH_SELECT,
+         phy_lan8710ai_mdix_val(cfg)},
+        {LAN8710_REG_MCSR, LAN8710_MCSR_EDPWRDOWN, cfg->edpd ? LAN8710_MCSR_EDPWRDOWN : 0U},
+    };
+    int ret = 0;
+
+    /* Only when the devicetree sets mdix-mode or energy-detect-power-down: otherwise the
+     * reset or bootloader configuration is kept, as in the baseline driver.
+     */
+    if (cfg->apply_mdix_edpd == true) {
+        ret = phy_lan8710ai_update_bits_seq(dev, ops, ARRAY_SIZE(ops));
+    }
+
+    if (ret < 0) {
+        LOG_ERR("Failed to configure auto-MDIX/EDPD (%d)", ret);
+    }
+
+    return (ret);
+}
+
+#if ANY_INT_GPIO
+static void phy_lan8710ai_int_isr(const struct device* port, struct gpio_callback* cb,
+                                  uint32_t pins) {
+    struct phy_lan8710ai_data* data = CONTAINER_OF(cb, struct phy_lan8710ai_data, int_cb);
+
+    ARG_UNUSED(port);
+    ARG_UNUSED(pins);
+
+    /* Re-evaluate the link now instead of waiting for the next poll */
+    (void)k_work_reschedule(&data->monitor_work, K_NO_WAIT);
+}
+
+/* Primary interrupt system (ALTINT = 0): auto-negotiation complete and link down.
+ * There is no link-up event in forced mode, so the periodic poll stays active.
+ */
+static const struct phy_lan8710ai_bits_op phy_lan8710ai_int_ops[] = {
+    {LAN8710_REG_MCSR, LAN8710_MCSR_ALTINT, 0U},
+    {LAN8710_REG_IMR, LAN8710_INT_ANEG_COMPLETE | LAN8710_INT_LINK_DOWN,
+     LAN8710_INT_ANEG_COMPLETE | LAN8710_INT_LINK_DOWN},
+};
+
+static int phy_lan8710ai_cfg_int(struct device const* dev) {
+    const struct phy_lan8710ai_config* cfg = dev->config;
+    struct phy_lan8710ai_data* data = dev->data;
+    uint32_t isr;
+    int ret;
+
+    if (cfg->int_gpio.port == NULL) {
+        ret = 0;
+    }
+    else if (gpio_is_ready_dt(&cfg->int_gpio) == false) {
+        LOG_ERR("PHY (%d) interrupt GPIO not ready", cfg->phy_addr);
+        ret = -ENODEV;
+    }
+    else {
+        ret = gpio_pin_configure_dt(&cfg->int_gpio, GPIO_INPUT);
+
+        if (ret == 0) {
+            gpio_init_callback(&data->int_cb, phy_lan8710ai_int_isr, BIT(cfg->int_gpio.pin));
+
+            ret = gpio_add_callback_dt(&cfg->int_gpio, &data->int_cb);
+        }
+
+        if (ret == 0) {
+            ret = phy_lan8710ai_update_bits_seq(dev, phy_lan8710ai_int_ops,
+                                                ARRAY_SIZE(phy_lan8710ai_int_ops));
+        }
+
+        if (ret == 0) {
+            /* Clear stale flags, then enable the pin interrupt (nINT is active low) */
+            (void)phy_lan8710ai_read(dev, LAN8710_REG_ISR, &isr);
+
+            ret = gpio_pin_interrupt_configure_dt(&cfg->int_gpio, GPIO_INT_EDGE_TO_ACTIVE);
+        }
+
+        if (ret < 0) {
+            LOG_ERR("Failed to configure interrupt (%d)", ret);
+        }
+    }
+
+    return (ret);
+}
+#endif /* ANY_INT_GPIO */
+
+static int phy_lan8710ai_init_reset(struct device const* dev) {
+    const struct phy_lan8710ai_config* cfg = dev->config;
+    int ret = 0;
+
+    if (cfg->no_reset == false) {
+        ret = phy_lan8710ai_reset(dev);
+        if (ret < 0) {
+            LOG_ERR("Failed to reset PHY (%d): %d", cfg->phy_addr, ret);
+        }
+    }
+
+    return (ret);
+}
+
+static int phy_lan8710ai_init_link(struct device const* dev) {
+    const struct phy_lan8710ai_config* cfg = dev->config;
+    struct phy_lan8710ai_data* data = dev->data;
+    int ret;
 
     /* Advertise default speeds */
     ret = phy_lan8710ai_cfg_link(dev, cfg->default_speeds, 0);
-    if (ret < 0) {
+    if (ret == -EALREADY) {
+        /* Link already configured, e.g. by a bootloader: just wait for it to complete */
+        (void) k_mutex_lock(&data->lock, K_FOREVER);
+        data->autoneg_in_progress = true;
+        data->autoneg_timeout = sys_timepoint_calc(K_MSEC(CONFIG_PHY_AUTONEG_TIMEOUT_MS));
+        (void) k_mutex_unlock(&data->lock);
+        ret = 0;
+    }
+    else if (ret < 0) {
         LOG_ERR("Failed to configure link (%d)", ret);
-        return (ret);
+    }
+    else {
+        /* Auto-negotiation restarted by phy_lan8710ai_cfg_link() */
     }
 
-    /* Schedule the monitor work, if not already scheduled by phy_lan8710ai_cfg_link(). */
-    k_work_schedule(&data->monitor_work, K_NO_WAIT);
+    if (ret == 0) {
+        /* Schedule the monitor work, if not already scheduled by phy_lan8710ai_cfg_link(). */
+        (void)k_work_schedule(&data->monitor_work, K_NO_WAIT);
+    }
 
-    return (0);
+    return (ret);
+}
+
+/* Initialization steps, run in order until one fails */
+static int (*const phy_lan8710ai_init_steps[])(struct device const*) = {
+    phy_lan8710ai_init_reset,
+    phy_lan8710ai_verify_id,
+    phy_lan8710ai_check_straps,
+    phy_lan8710ai_cfg_mdix_edpd,
+    #if ANY_INT_GPIO
+    phy_lan8710ai_cfg_int,
+    #endif /* ANY_INT_GPIO */
+    phy_lan8710ai_init_link,
+};
+
+static int phy_lan8710ai_init(struct device const* dev) {
+    const struct phy_lan8710ai_config* cfg = dev->config;
+    struct phy_lan8710ai_data* data = dev->data;
+    size_t i;
+    int ret = 0;
+
+    data->state.is_up = false;
+    k_mutex_init(&data->lock);
+    k_work_init_delayable(&data->monitor_work, phy_lan8710ai_monitor_work_fn);
+    data->dev = dev;
+
+    if (device_is_ready(cfg->mdio_dev) == false) {
+        LOG_ERR_DEVICE_NOT_READY(cfg->mdio_dev);
+        ret = -ENODEV;
+    }
+
+    for (i = 0U; (i < ARRAY_SIZE(phy_lan8710ai_init_steps)) && (ret == 0); i++) {
+        ret = phy_lan8710ai_init_steps[i](dev);
+    }
+
+    return (ret);
 }
 
 /* -------------------------------------------------------------------
@@ -317,18 +895,39 @@ static DEVICE_API(ethphy, phy_lan8710ai_driver_api) = {
     .write       = phy_lan8710ai_write
 };
 
-#define LAN8710AI_RESET_GPIO_OR_ZERO(n)                         \
-    IF_ENABLED(DT_INST_NODE_HAS_PROP(n, reset_gpios),           \
-               (GPIO_DT_SPEC_INST_GET(n, reset_gpios)))
+#if ANY_INT_GPIO
+#define LAN8710AI_INT_GPIO(n)                                   \
+    .int_gpio = GPIO_DT_SPEC_INST_GET_OR(n, int_gpios, {0}),
+#else
+#define LAN8710AI_INT_GPIO(n)
+#endif /* ANY_INT_GPIO */
+
+#if ANY_RESET_GPIO
+/* Defaults of 10 ms keep the timing of the previous hard-coded sequence */
+#define LAN8710AI_RESET_GPIO(n)                                 \
+    .reset_gpio        = GPIO_DT_SPEC_INST_GET_OR(n, reset_gpios, {0}), \
+    .reset_assert_us   = DT_INST_PROP_OR(n, reset_assert_us, 10000), \
+    .reset_deassert_us = DT_INST_PROP_OR(n, reset_deassert_us, 10000),
+#else
+#define LAN8710AI_RESET_GPIO(n)
+#endif /* ANY_RESET_GPIO */
 
 #define LAN8710AI_INIT(n)                                       \
+    BUILD_ASSERT((PHY_INST_GENERATE_DEFAULT_SPEEDS(n) != 0),    \
+                 "At least one valid speed must be configured for this driver"); \
+                                                                \
     static struct phy_lan8710ai_data phy_lan8710ai_data_##n;    \
     static const struct phy_lan8710ai_config phy_lan8710ai_cfg_##n = { \
         .phy_addr       = DT_INST_REG_ADDR(n),                  \
+        .no_reset       = DT_INST_PROP(n, no_reset),            \
         .mdio_dev       = DEVICE_DT_GET(DT_INST_BUS(n)),        \
         .default_speeds = PHY_INST_GENERATE_DEFAULT_SPEEDS(n),  \
-        IF_ENABLED(DT_INST_NODE_HAS_PROP(n, reset_gpios),       \
-                   (.reset_gpio = GPIO_DT_SPEC_INST_GET(n, reset_gpios), )) \
+        .mdix_mode      = DT_INST_ENUM_IDX(n, mdix_mode),       \
+        .edpd           = DT_INST_PROP(n, energy_detect_power_down), \
+        .apply_mdix_edpd = (DT_INST_NODE_HAS_PROP(n, mdix_mode) || \
+                            DT_INST_NODE_HAS_PROP(n, energy_detect_power_down)), \
+        LAN8710AI_INT_GPIO(n)                                   \
+        LAN8710AI_RESET_GPIO(n)                                 \
     };                                                          \
     DEVICE_DT_INST_DEFINE(n, phy_lan8710ai_init, NULL,          \
                           &phy_lan8710ai_data_##n,              \

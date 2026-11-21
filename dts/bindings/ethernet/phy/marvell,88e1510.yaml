@@ -11,6 +11,18 @@ include:
 on-bus: mdio
 
 properties:
+  no-reset:
+    type: boolean
+    description: Do not reset the PHY during initialization
+
+  int-gpios:
+    type: phandle-array
+    description: |
+      GPIO connected to the LED[2]/INTn pin of the PHY, active low. When present, the driver
+      routes INTn to that pin and enables the auto-negotiation complete, link, speed and duplex
+      change interrupts to react to link changes without waiting for the next poll. The periodic
+      poll stays active as a fallback. LED[2] is then not available as a LED.
+
   led0-function-select:
     type: string
     default: "link-activity"

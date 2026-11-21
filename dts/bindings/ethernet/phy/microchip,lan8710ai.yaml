@@ -1,7 +1,7 @@
 # Copyright (c) 2026
 # SPDX-License-Identifier: Apache-2.0
 
-description: Microchip LAN8710AI Single Port Ethernet PHY
+description: Microchip LAN8710A/LAN8710AI Single Port Ethernet PHY
 
 compatible: "microchip,lan8710ai"
 
@@ -12,32 +12,40 @@ include:
 on-bus: mdio
 
 properties:
+  no-reset:
+    type: boolean
+    description: Do not reset the PHY during initialization
+
   reg:
     required: true
     description: |
       5-bit MDIO PHY address for the attached PHY.
 
-  led1-function-select:
-    type: string
-    default: "link-activity"
-    description: LED1 Function Select
-    enum:
-      - "link-activity"
-      - "#int"
-      - "#pme"
-      - "link-speed"
+  int-gpios:
+    type: phandle-array
+    description: |
+      GPIO connected to the nINT pin of the PHY, active low. When present, the driver enables
+      the auto-negotiation complete and link down interrupts to react to link changes without
+      waiting for the next poll. The periodic poll stays active as a fallback. The nINT/TXER/
+      TXD4 pin must be configured as nINT (nINTSEL strap floating or high).
 
-  led2-function-select:
+  mdix-mode:
     type: string
-    default: "link-speed"
-    description: LED2 Function Select
+    default: "auto"
+    description: |
+      HP Auto-MDIX control. "auto" enables automatic crossover detection, "mdi" and "mdix"
+      force the channel (TX transmits for MDI, TX receives for MDIX).
     enum:
-      - "link-speed"
-      - "#int"
-      - "#pme"
-      - "link-activity"
+      - "auto"
+      - "mdi"
+      - "mdix"
+
+  energy-detect-power-down:
+    type: boolean
+    description: |
+      Enable the energy detect power-down mode: the transceiver powers down while no cable
+      energy is detected.
 
   default-speeds:
     default: ["10BASE Half-Duplex", "10BASE Full-Duplex", "100BASE Half-Duplex",
               "100BASE Full-Duplex"]
-

@@ -5,7 +5,9 @@ description: Single Port Ethernet PHY with RMII 10/100 trancsceiver
 
 compatible: "microchip,lan8742"
 
-include: [ethernet-phy-common.yaml]
+include:
+  - name: ethernet-phy-common.yaml
+  - name: ethernet-phy-reset-gpios.yaml
 
 on-bus: mdio
 
@@ -15,9 +17,35 @@ properties:
     description: |
       5-bit MDIO PHY address for the attached PHY.
 
-  reset-gpios:
+  no-reset:
+    type: boolean
+    description: Do not reset the PHY during initialization
+
+  int-gpios:
     type: phandle-array
-    description: GPIO connected to MAC PHY reset signal pin. Reset is active low.
+    description: |
+      GPIO connected to the nINT output of the PHY, active low. When present, the driver
+      enables the auto-negotiation complete and link down interrupts to react to link changes
+      without waiting for the next poll. The periodic poll stays active as a fallback. The pin
+      must be provided by the nINT/REFCLKO pin (nINTSEL strap high) or by a LED pin selected as
+      nINT with led1-function-select or led2-function-select.
+
+  mdix-mode:
+    type: string
+    default: "auto"
+    description: |
+      HP Auto-MDIX control. "auto" enables automatic crossover detection, "mdi" and "mdix"
+      force the channel (TX transmits for MDI, TX receives for MDIX).
+    enum:
+      - "auto"
+      - "mdi"
+      - "mdix"
+
+  energy-detect-power-down:
+    type: boolean
+    description: |
+      Enable the energy detect power-down mode: the transceiver powers down while no cable
+      energy is detected.
 
   led1-function-select:
     type: string
