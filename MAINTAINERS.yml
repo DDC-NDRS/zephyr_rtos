@@ -406,6 +406,10 @@ Alif Semiconductor Platforms:
     - sudhir-alifsemi
     - AnttiKauppila-AlifSemi
     - VeijoPesonen
+    - danieldegrasse
+    - ehay64
+    - petejohanson-adi
+    - MaureenHelm
   files:
     - boards/alif/
     - drivers/*/*alif*
@@ -960,6 +964,7 @@ Bouffalolab Platforms:
     - boards/**/*bflb*
     - boards/**/*bflb*/
     - boards/aithinker/ai_*/
+    - boards/aithinker/aipi_*/
     - boards/doiting/
     - boards/others/bl704l_dvk/
     - boards/thirdreality/
@@ -1758,9 +1763,7 @@ Documentation Infrastructure:
     - sample.drivers.clock_monitor
 
 "Drivers: Clock control":
-  status: maintained
-  maintainers:
-    - nordic-krch
+  status: odd fixes
   collaborators:
     - danieldegrasse
   files:
@@ -2721,6 +2724,7 @@ Documentation Infrastructure:
     - yangbolu1991
   files:
     - drivers/ptp_clock/
+    - dts/bindings/ptp_clock/
     - include/zephyr/drivers/ptp_clock.h
     - tests/drivers/ptp_clock/
   labels:
@@ -6536,6 +6540,15 @@ TI MSPM Platforms:
     - modules/Kconfig.mspm0
   labels:
     - "platform: TI MSPM"
+
+TI Sensors:
+  status: maintained
+  maintainers:
+    - glneo
+  files:
+    - drivers/sensor/ti/
+  tests:
+    - drivers.sensor
 
 TI SimpleLink Platforms:
   status: maintained
