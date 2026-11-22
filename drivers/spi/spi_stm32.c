@@ -2689,7 +2689,8 @@ static int spi_stm32_ll_transceive_dma(struct device const* dev,
     struct dma_config* tx_cfg = &data->dma_tx.dma_cfg;
     uint32_t transfer_dir = ll_get_transfer_direction(spi);
     int ret;
-    size_t dfs = bits2bytes(config->operation);
+    spi_operation_t operation = config->operation;
+    size_t dfs = bits2bytes(operation);
 
     k_sem_reset(&data->status_sem);
 
@@ -2703,8 +2704,8 @@ static int spi_stm32_ll_transceive_dma(struct device const* dev,
      * Synchronous controller transfers only, where the ISR or the waiting thread releases the
      * suspend. Not below 8-bit frames: MASRX may clock out bits of the next frame (RM0456).
      */
-    bool rx_auto_suspend = (SPI_OP_MODE_GET(config->operation) == SPI_OP_MODE_CONTROLLER) &&
-                           (SPI_WORD_SIZE_GET(config->operation) >= 8U);
+    bool rx_auto_suspend = (SPI_OP_MODE_GET(operation) == SPI_OP_MODE_CONTROLLER) &&
+                           (SPI_WORD_SIZE_GET(operation) >= 8U);
 
     #ifdef CONFIG_SPI_ASYNC
     rx_auto_suspend = rx_auto_suspend && !data->ctx.asynchronous;
@@ -2748,7 +2749,7 @@ static int spi_stm32_ll_transceive_dma(struct device const* dev,
         if (!LL_SPI_IsEnabled(spi)) {
             LL_SPI_Enable(spi);
             #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
-            if (SPI_OP_MODE_GET(config->operation) == SPI_OP_MODE_CONTROLLER) {
+            if (SPI_OP_MODE_GET(operation) == SPI_OP_MODE_CONTROLLER) {
                 LL_SPI_StartMasterTransfer(spi);
             }
             #endif /* st_stm32h7_spi */
