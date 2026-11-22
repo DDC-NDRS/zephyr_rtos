@@ -1015,9 +1015,10 @@ static int cdns_macb_get_config(const struct device *dev, struct net_if *iface,
 				enum ethernet_config_type type, struct ethernet_config *config)
 {
 	struct cdns_macb_priv *p = dev->data;
-	const enum ethernet_checksum_support supported =
-		ETHERNET_CHECKSUM_SUPPORT_IPV4_HEADER | ETHERNET_CHECKSUM_SUPPORT_IPV6_HEADER |
-		ETHERNET_CHECKSUM_SUPPORT_TCP | ETHERNET_CHECKSUM_SUPPORT_UDP;
+	static enum ethernet_checksum_support const supported =
+		ETHERNET_CHECKSUM_SUPPORT_IPV4_HEADER | ETHERNET_CHECKSUM_SUPPORT_IPV4_TCP |
+		ETHERNET_CHECKSUM_SUPPORT_IPV4_UDP | ETHERNET_CHECKSUM_SUPPORT_IPV6_TCP |
+		ETHERNET_CHECKSUM_SUPPORT_IPV6_UDP;
 
 	ARG_UNUSED(iface);
 
