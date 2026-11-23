@@ -252,7 +252,8 @@ k_timepoint_t sys_timepoint_calc(k_timeout_t timeout)
 
 k_timeout_t sys_timepoint_timeout(k_timepoint_t timepoint)
 {
-	uint64_t now, remaining;
+	uint64_t now;
+	uint64_t remaining;
 
 	if (timepoint.tick == UINT64_MAX) {
 		return K_FOREVER;

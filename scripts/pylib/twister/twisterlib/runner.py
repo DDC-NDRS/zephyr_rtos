@@ -332,7 +332,10 @@ class CMake:
 
             if not self.instance.run:
                 self.instance.status = TwisterStatus.NOTRUN
-                self.instance.add_missing_case_status(TwisterStatus.NOTRUN, "Test was built only")
+                self.instance.reason = self.instance.not_run_reason
+                self.instance.add_missing_case_status(
+                    TwisterStatus.NOTRUN, self.instance.reason or "Test was built only"
+                )
             else:
                 self.instance.status = TwisterStatus.PASS
             ret = {"returncode": p.returncode}
@@ -1441,7 +1444,9 @@ class ProjectBuilder(FilterBuilder):
         if self.options.verbose:
             if self.options.cmake_only:
                 more_info = "cmake"
-            elif instance.status in [TwisterStatus.SKIP, TwisterStatus.FILTER]:
+            elif instance.status in [TwisterStatus.SKIP, TwisterStatus.FILTER] or (
+                instance.status == TwisterStatus.NOTRUN and instance.reason
+            ):
                 more_info = instance.reason
             else:
                 if instance.handler.ready and instance.run:
@@ -1688,6 +1693,8 @@ class ProjectBuilder(FilterBuilder):
             harness: Harness = HarnessImporter.get_harness(instance.testsuite.harness.capitalize())
             try:
                 harness.configure(instance)
+                # A harness that runs several things at once takes its extra jobs from here
+                harness.jobserver = self.jobserver
             except ConfigurationError as error:
                 instance.status = TwisterStatus.ERROR
                 instance.reason = str(error)

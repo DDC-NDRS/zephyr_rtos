@@ -397,7 +397,7 @@ void zephyr_gtest_can_ifx(void) {
     struct device const* dev;
     int rc;
 
-    canfd_ifx_ctrl_cfg_0.base = (CANFD_Type*)ut_mcu_canfd0_ptr;
+    canfd_ifx_ctrl_cfg_0.base = (mm_reg_t)ut_mcu_canfd0_ptr;
     dev = DEVICE_DT_GET(DT_NODELABEL(canfd0));
     rc = canfd_ifx_ctrl_init(dev);
     if (rc == 0) {

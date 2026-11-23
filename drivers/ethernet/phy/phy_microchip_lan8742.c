@@ -663,7 +663,7 @@ static DEVICE_API(ethphy, phy_lan8742_driver_api) = {
     .write       = phy_lan8742_write,
 };
 
-static int phy_lan8742_update_bits(struct device const* dev, uint16_t reg,
+static int phy_lan8742_update_bits(struct device const* dev, uint8_t reg,
                                    uint16_t mask, uint16_t val) {
     uint16_t reg_val;
     int ret;
