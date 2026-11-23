@@ -199,6 +199,15 @@ Boards
   The root compatible of the LPCXpresso54114 board is now ``nxp,lpc5411x`` instead of
   ``nxp,lpc54xxx``. (:github:`125465`)
 
+* On :zephyr:board:`mimxrt1180_evk`, the optional DTS overlay files
+  (:file:`cm33_sram_dtcm.overlay`, :file:`cm7_code_hyperram.overlay`,
+  :file:`cm7_flash_boot.overlay`) and on :zephyr:board:`frdm_imxrt1186` the
+  :file:`cm33_sram_dtcm.overlay` file were moved from the board root directory into a
+  dedicated :file:`dts/` subdirectory. Out-of-tree applications that referenced these
+  files with an explicit path must update it to include the ``dts/`` component
+  (e.g. use :zephyr_file:`boards/nxp/mimxrt1180_evk/dts/cm7_flash_boot.overlay`
+  instead of :file:`boards/nxp/mimxrt1180_evk/cm7_flash_boot.overlay`).
+
 Device Drivers and Devicetree
 *****************************
 
@@ -416,6 +425,15 @@ PTP Clock
   parts per billion, and :c:func:`ptp_clock_adjust_by_scaled_ppm` to compute the value of an
   addend register from its nominal value. All in-tree drivers have been converted.
   (:github:`120828`)
+
+Serial
+======
+
+* The ``CONFIG_UART_ESP32_RX_FIFO_THRESH`` and ``CONFIG_UART_ESP32_TX_FIFO_THRESH`` Kconfig options
+  of the Espressif UART driver are deprecated. Set the ``rx-fifo-threshold`` and
+  ``tx-fifo-threshold`` properties of each UART node in devicetree instead. The Kconfig options
+  applied to every UART instance, while the properties apply to the node that sets them.
+  (:github:`119492`)
 
 Timers
 ======

@@ -176,6 +176,7 @@ struct bt_dev bt_dev = {
 	.init = Z_WORK_INITIALIZER(init_work),
 #if defined(CONFIG_BT_PRIVACY)
 	.rpa_timeout = CONFIG_BT_RPA_TIMEOUT,
+	.rpa_update_timeout = CONFIG_BT_RPA_TIMEOUT,
 #endif
 #if defined(CONFIG_BT_DEVICE_APPEARANCE_DYNAMIC)
 	.appearance = CONFIG_BT_DEVICE_APPEARANCE,
@@ -937,12 +938,6 @@ static void hci_acl(struct net_buf *buf)
 
 	LOG_DBG("handle %u len %u flags %u", acl(buf)->handle, len, flags);
 
-	if (buf->len != len) {
-		LOG_ERR("ACL data length mismatch (%u != %u)", buf->len, len);
-		net_buf_unref(buf);
-		return;
-	}
-
 	conn = bt_conn_lookup_handle(acl(buf)->handle, BT_CONN_TYPE_ALL);
 	if (!conn) {
 		LOG_ERR("Unable to find conn for handle %u", acl(buf)->handle);
@@ -950,7 +945,17 @@ static void hci_acl(struct net_buf *buf)
 		return;
 	}
 
+	/* Before the length check, so that a dropped packet is reported as
+	 * completed too.
+	 */
 	acl(buf)->index = bt_conn_index(conn);
+
+	if (buf->len != len) {
+		LOG_ERR("ACL data length mismatch (%u != %u)", buf->len, len);
+		net_buf_unref(buf);
+		bt_conn_unref(conn);
+		return;
+	}
 
 	bt_conn_recv(conn, buf, flags);
 	bt_conn_unref(conn);

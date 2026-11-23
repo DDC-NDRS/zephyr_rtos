@@ -1763,8 +1763,8 @@ Documentation Infrastructure:
     - sample.drivers.clock_monitor
 
 "Drivers: Clock control":
-  status: odd fixes
-  collaborators:
+  status: maintained
+  maintainers:
     - danieldegrasse
   files:
     - drivers/clock_control/
@@ -6456,6 +6456,15 @@ Sysbuild:
   tests:
     - sample.sysbuild
 
+T3 Gemstone Platforms:
+  status: maintained
+  maintainers:
+    - alitalhq
+  files:
+    - boards/t3gemstone/
+  labels:
+    - "platform: T3 Gemstone"
+
 TDK Sensors:
   status: maintained
   maintainers:
@@ -7192,6 +7201,8 @@ West:
     - modules/cmsis-nn/
   labels:
     - "area: CMSIS-NN"
+  tests:
+    - libraries.cmsis_nn
 
 "West project: cmsis_6":
   status: maintained
@@ -7747,6 +7758,7 @@ West:
     - tomi-font
   collaborators:
     - ithinuel
+    - tpambor
   files:
     - modules/mbedtls/
     - tests/crypto/psa/
@@ -7951,6 +7963,8 @@ West:
     - ceolin
     - valeriosetti
     - tomi-font
+  collaborators:
+    - tpambor
   files: []
   labels:
     - "area: TF-PSA-Crypto"
