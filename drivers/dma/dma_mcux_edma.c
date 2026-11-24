@@ -101,7 +101,14 @@ struct call_back {
 	dma_callback_t dma_callback;
 	struct dma_mcux_channel_transfer_edma_settings transfer_settings;
 	bool busy;
+	/* Rate limit of the "cyclic callback without a queued TCD" warning, zero at start */
+	bool empty_cb_logged;
+	uint32_t empty_cb_cnt;
+	uint32_t empty_cb_last_ms;
 };
+
+/* A stale cyclic interrupt can repeat for as long as a peer keeps failing, so the warning is paced */
+#define EDMA_EMPTY_CB_LOG_PERIOD_MS 5000U
 
 struct dma_mcux_edma_data {
 	DEVICE_MMIO_NAMED_RAM(edma_mmio);
@@ -318,7 +325,17 @@ static void nxp_edma_callback(edma_handle_t *handle, void *param, bool transferD
 		const uint8_t completed_tcds = dma_mcux_edma_completed_tcds(handle, data, channel);
 
 		if (completed_tcds == 0U) {
-			LOG_WRN("cyclic callback without a queued TCD");
+			const uint32_t now_ms = k_uptime_get_32();
+
+			data->empty_cb_cnt++;
+			if (!data->empty_cb_logged ||
+			    ((now_ms - data->empty_cb_last_ms) >= EDMA_EMPTY_CB_LOG_PERIOD_MS)) {
+				LOG_WRN("cyclic callback without a queued TCD (channel %u, %u since the last message)",
+					channel, data->empty_cb_cnt);
+				data->empty_cb_cnt = 0U;
+				data->empty_cb_last_ms = now_ms;
+				data->empty_cb_logged = true;
+			}
 			return;
 		}
 
