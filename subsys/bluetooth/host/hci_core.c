@@ -1294,7 +1294,7 @@ static void hci_disconn_complete(struct net_buf *buf)
 	if (!bt_conn_is_le(conn)) {
 #if defined(CONFIG_BT_CLASSIC)
 		if (bt_conn_is_sco(conn)) {
-			bt_sco_cleanup(conn);
+			bt_sco_cleanup(bt_conn_take(&conn));
 			return;
 		}
 		/*
@@ -3830,6 +3830,10 @@ static void read_supported_commands_complete(struct net_buf *buf)
 			  BT_CMD_TEST(cmds, 7, 3) != 0U);
 	atomic_set_bit_to(bt_dev.supported_commands, BT_DEV_CMD_SET_CTL_TO_HOST_FLOW,
 			  BT_CMD_TEST(cmds, 10, 5) != 0U);
+	if (IS_ENABLED(CONFIG_BT_CLASSIC)) {
+		atomic_set_bit_to(bt_dev.supported_commands, BT_DEV_CMD_READ_ENC_KEY_SIZE,
+				  BT_CMD_TEST(cmds, 20, 4) != 0U);
+	}
 	atomic_set_bit_to(bt_dev.supported_commands, BT_DEV_CMD_LE_SET_HOST_CHAN_CLASSIF,
 			  BT_CMD_TEST(cmds, 27, 3) != 0U);
 	atomic_set_bit_to(bt_dev.supported_commands, BT_DEV_CMD_LE_RAND,
@@ -3840,6 +3844,8 @@ static void read_supported_commands_complete(struct net_buf *buf)
 			  BT_CMD_TEST(cmds, 39, 2) != 0U);
 	atomic_set_bit_to(bt_dev.supported_commands, BT_DEV_CMD_LE_READ_BUFFER_SIZE_V2,
 			  BT_CMD_TEST(cmds, 41, 5) != 0U);
+	atomic_set_bit_to(bt_dev.supported_commands, BT_DEV_CMD_SET_MIN_ENCRYPTION_KEY_SIZE,
+			  BT_CMD_TEST(cmds, 45, 7) != 0U);
 	atomic_set_bit_to(bt_dev.supported_commands,
 			  BT_DEV_CMD_LE_READ_ALL_LOCAL_SUPPORTED_FEATURES,
 			  BT_READ_ALL_LOCAL_FEATURES_SUPPORTED(cmds) != 0U);

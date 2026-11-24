@@ -155,6 +155,17 @@ static bool br_sufficient_key_size(struct bt_conn *conn)
 	uint8_t key_size;
 	int err;
 
+	if (!bt_dev_cmd_supported(BT_DEV_CMD_READ_ENC_KEY_SIZE)) {
+		if (!IS_ENABLED(CONFIG_BT_BR_ALLOW_UNKNOWN_ENC_KEY_SIZE)) {
+			LOG_WRN("Controller cannot report the encryption key size");
+			return false;
+		}
+
+		/* The key size stays 0, as unknown */
+		LOG_DBG("Encryption key size unknown");
+		return conn->sec_level < BT_SECURITY_L4;
+	}
+
 	buf = bt_hci_cmd_alloc(K_FOREVER);
 	if (!buf) {
 		LOG_ERR("Failed to allocate command buffer");
@@ -1001,6 +1012,24 @@ int bt_br_init(void)
 		err = bt_hci_cmd_send_sync(BT_HCI_OP_WRITE_SC_HOST_SUPP, buf, NULL);
 		if (err) {
 			return err;
+		}
+	}
+
+	if (bt_dev_cmd_supported(BT_DEV_CMD_SET_MIN_ENCRYPTION_KEY_SIZE)) {
+		struct bt_hci_cp_set_min_encryption_key_size *key_size_cp;
+
+		buf = bt_hci_cmd_alloc(K_FOREVER);
+		if (!buf) {
+			return -ENOBUFS;
+		}
+
+		key_size_cp = net_buf_add(buf, sizeof(*key_size_cp));
+		key_size_cp->min_encryption_key_size = CONFIG_BT_BR_MIN_ENC_KEY_SIZE;
+
+		/* Not fatal: br_sufficient_key_size() checks the negotiated size in any case */
+		err = bt_hci_cmd_send_sync(BT_HCI_OP_SET_MIN_ENCRYPTION_KEY_SIZE, buf, NULL);
+		if (err != 0) {
+			LOG_WRN("Failed to set minimum encryption key size (err %d)", err);
 		}
 	}
 

@@ -350,6 +350,14 @@ void bt_conn_tx_notify(struct bt_conn *conn, bool wait_for_completion)
 #if defined(CONFIG_BT_CONN_TX)
 	/* Ensure that function is called only from a single context. */
 	if (k_current_get() == k_work_queue_thread_get(tx_notify_workqueue_get())) {
+		/* What the queued work would do is done here, and a TX context
+		 * completed later queues it again. Running work is this context
+		 * itself, and cancelling it would refuse the next submission.
+		 */
+		if ((k_work_busy_get(&conn->tx_complete_work) & K_WORK_RUNNING) == 0) {
+			(void)k_work_cancel(&conn->tx_complete_work);
+		}
+
 		tx_notify_process(conn);
 	} else {
 		struct k_work_sync sync;
@@ -2220,9 +2228,6 @@ int bt_conn_disconnect(struct bt_conn *conn, uint8_t reason)
 	case BT_CONN_SCAN_BEFORE_INITIATING:
 		conn->err = reason;
 		bt_conn_set_state(conn, BT_CONN_DISCONNECTED);
-		if (IS_ENABLED(CONFIG_BT_CENTRAL)) {
-			return bt_le_scan_user_add(BT_LE_SCAN_USER_CONN);
-		}
 		return 0;
 	case BT_CONN_INITIATING:
 		if (bt_conn_is_le(conn)) {
@@ -2513,10 +2518,7 @@ static void deferred_work(struct k_work *work)
 	LOG_DBG("conn %p", conn);
 
 	if (conn->state == BT_CONN_DISCONNECTED) {
-#if defined(CONFIG_BT_ISO_UNICAST)
-		bool acl_coupled_with_cis;
-
-		if (bt_conn_is_iso(conn)) {
+		if (IS_ENABLED(CONFIG_BT_ISO) && bt_conn_is_iso(conn)) {
 			/* bt_iso_disconnected is responsible for unref'ing the
 			 * connection pointer, as it is conditional on whether
 			 * the connection is a central or peripheral.
@@ -2524,6 +2526,8 @@ static void deferred_work(struct k_work *work)
 			bt_iso_disconnected(conn);
 			return;
 		}
+#if defined(CONFIG_BT_ISO_UNICAST)
+		bool acl_coupled_with_cis;
 
 		/* Mark all CIS still associated with the ACL conn as disconnecting.
 		 * If any CIS are associated with the ACL, we postpone the disconnect work until

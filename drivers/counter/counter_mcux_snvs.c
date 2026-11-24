@@ -271,24 +271,37 @@ int mcux_snvs_rtc_set(const struct device *dev, uint32_t ticks)
 	const struct mcux_snvs_config *config = dev->config;
 
 #ifdef MCUX_SNVS_SRTC
+	bool running = (config->base->LPCR & SNVS_LPCR_SRTC_ENV_MASK) != 0U;
+
 	SNVS_LP_SRTC_StopTimer(config->base);
 
 	config->base->LPSRTCMR = (uint32_t)(ticks >> 17U);
 	config->base->LPSRTCLR = (uint32_t)(ticks << 15U);
 
-	SNVS_LP_SRTC_StartTimer(config->base);
+	if (running) {
+		SNVS_LP_SRTC_StartTimer(config->base);
+	}
 	/* Sync to our high power RTC */
 	SNVS_HP_RTC_TimeSynchronize(config->base);
 #else
+	bool running = (config->base->HPCR & SNVS_HPCR_RTC_EN_MASK) != 0U;
+
 	SNVS_HP_RTC_StopTimer(config->base);
 
 	config->base->HPRTCMR = (uint32_t)(ticks >> 17U);
 	config->base->HPRTCLR = (uint32_t)(ticks << 15U);
 
-	SNVS_HP_RTC_StartTimer(config->base);
+	if (running) {
+		SNVS_HP_RTC_StartTimer(config->base);
+	}
 #endif
 
 	return 0;
+}
+
+static int mcux_snvs_set_value(const struct device *dev, uint32_t ticks)
+{
+	return mcux_snvs_rtc_set(dev, ticks);
 }
 
 static int mcux_snvs_init(const struct device *dev)
@@ -332,6 +345,7 @@ static DEVICE_API(counter, mcux_snvs_driver_api) = {
 	.start = mcux_snvs_start,
 	.stop = mcux_snvs_stop,
 	.get_value = mcux_snvs_get_value,
+	.set_value = mcux_snvs_set_value,
 	.set_alarm = mcux_snvs_set_alarm,
 	.cancel_alarm = mcux_snvs_cancel_alarm,
 	.set_top_value = mcux_snvs_set_top_value,

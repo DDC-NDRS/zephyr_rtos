@@ -549,16 +549,38 @@ if(CONFIG_INSTRUMENTATION)
   zephyr_compile_options($<$<COMPILE_LANGUAGE:C>:$<TARGET_PROPERTY:compiler,func_instrumentation>>)
   zephyr_compile_options($<$<COMPILE_LANGUAGE:CXX>:$<TARGET_PROPERTY:compiler,func_instrumentation>>)
 
+  # Exclude-list flags are GCC-only; Clang clears these properties. Only apply
+  # them when the toolchain actually provides a non-empty flag value.
+  get_property(INSTR_EXCL_FUNCS TARGET compiler PROPERTY func_instrumentation_exclude_function_list)
+  get_property(INSTR_EXCL_FILES TARGET compiler PROPERTY func_instrumentation_exclude_file_list)
+
+  if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    if(CONFIG_INSTRUMENTATION_EXCLUDE_FUNCTION_LIST)
+      message(WARNING "CONFIG_INSTRUMENTATION_EXCLUDE_FUNCTION_LIST is not supported by Clang and will be ignored.")
+    endif()
+    if(CONFIG_INSTRUMENTATION_EXCLUDE_FILE_LIST)
+      message(WARNING "CONFIG_INSTRUMENTATION_EXCLUDE_FILE_LIST is not supported by Clang and will be ignored.")
+    endif()
+  endif()
+
   # @Intent: Enable function blocklist for the instrumentation subsystem
-  if(CONFIG_INSTRUMENTATION_EXCLUDE_FUNCTION_LIST)
+  if(CONFIG_INSTRUMENTATION_EXCLUDE_FUNCTION_LIST AND INSTR_EXCL_FUNCS)
     zephyr_compile_options($<$<COMPILE_LANGUAGE:C>:$<TARGET_PROPERTY:compiler,func_instrumentation_exclude_function_list>>)
     zephyr_compile_options($<$<COMPILE_LANGUAGE:CXX>:$<TARGET_PROPERTY:compiler,func_instrumentation_exclude_function_list>>)
   endif()
 
   # @Intent: Enable file blocklist for the instrumentation subsystem
-  if(CONFIG_INSTRUMENTATION_EXCLUDE_FILE_LIST)
+  if(CONFIG_INSTRUMENTATION_EXCLUDE_FILE_LIST AND INSTR_EXCL_FILES)
     zephyr_compile_options($<$<COMPILE_LANGUAGE:C>:$<TARGET_PROPERTY:compiler,func_instrumentation_exclude_file_list>>)
     zephyr_compile_options($<$<COMPILE_LANGUAGE:CXX>:$<TARGET_PROPERTY:compiler,func_instrumentation_exclude_file_list>>)
+  endif()
+
+  # @Intent: Never instrument the CMSIS intrinsics when the stack limit is
+  # enforced: their hooks run inside sequences that move PSPLIM and fault.
+  # Added on top of, not via, the user's exclude file list.
+  if(CONFIG_BUILTIN_STACK_GUARD)
+    zephyr_compile_options($<$<COMPILE_LANGUAGE:C>:$<TARGET_PROPERTY:compiler,func_instrumentation_exclude_cmsis>>)
+    zephyr_compile_options($<$<COMPILE_LANGUAGE:CXX>:$<TARGET_PROPERTY:compiler,func_instrumentation_exclude_cmsis>>)
   endif()
 endif()
 
@@ -1099,7 +1121,9 @@ foreach(zephyr_lib ${ZEPHYR_LIBS_PROPERTY})
       get_property(allow_empty TARGET ${zephyr_lib} PROPERTY ALLOW_EMPTY)
       if(NOT "${allow_empty}")
         message(WARNING
-          "No SOURCES given to Zephyr library: ${zephyr_lib}\nExcluding target from build."
+          "No SOURCES given to Zephyr library: ${zephyr_lib}\n"
+          "Excluding target from build.\n"
+          "Consider zephyr_library_amend() or ZEPHYR_CURRENT_LIBRARY for out-of-tree sources.\n"
         )
       endif()
       target_sources(${zephyr_lib} PRIVATE ${ZEPHYR_BASE}/misc/empty_file.c)

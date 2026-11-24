@@ -248,6 +248,7 @@ ADI Platforms:
     - dts/vendor/adi/
     - include/zephyr/drivers/misc/tmc6460/
     - samples/drivers/misc/tmc6460/
+    - samples/shields/adi_lsmspg/
     - soc/adi/
   files-regex:
     - ^drivers/(adc|dac|gpio|mfd|regulator)/.*adp?\d+
@@ -1517,6 +1518,7 @@ Division by Reciprocal:
     - doc/kernel/div64.rst
     - include/zephyr/sys/div64.h
     - lib/os/div64.c
+    - lib/os/time_units.c
     - tests/lib/div64/
     - tests/unit/time_units/reciprocal.c
   tests:
@@ -6874,10 +6876,10 @@ USB:
 USB-C:
   status: maintained
   maintainers:
-    - sambhurst
     - keith-zephyr
   collaborators:
     - ncadieux
+    - alevkoy
   files:
     - drivers/usb_c/
     - dts/bindings/usb-c/

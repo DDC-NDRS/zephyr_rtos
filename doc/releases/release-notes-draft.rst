@@ -59,6 +59,9 @@ Libraries / Subsystems
   * PACS exposes the audio locations through :c:func:`bt_pacs_get_location` and
     reports changes to a registered :c:struct:`bt_pacs_cb`.
   * :c:func:`bt_l2cap_server_unregister` removes a registered L2CAP server.
+  * :c:member:`bt_gatt_cb.execute_write_ended` tells the application how an Execute
+    Write Request ended: whether the client's prepared values were written, cancelled,
+    or discarded after a write failed.
   * The ``bt_mcp_media_control_server_`` API controls the local media player and
     replaces the removed ``media_proxy_`` API, see the :ref:`migration guide
     <migration_4.6>`.
@@ -85,6 +88,9 @@ Libraries / Subsystems
     (:kconfig:option:`CONFIG_LORAWAN_REGION_KR920`,
     :kconfig:option:`CONFIG_LORAWAN_REGION_AS923`,
     :kconfig:option:`CONFIG_LORAWAN_REGION_US915`).
+  * The LoRaWAN services restore the device class that was in use before a
+    multicast class C session started, instead of always reverting to class A.
+    The current class can be read with :c:func:`lorawan_get_class`.
 
 * Mbed TLS
 
@@ -165,6 +171,13 @@ Libraries / Subsystems
   * TCP can scale its window (RFC 7323) when :kconfig:option:`CONFIG_NET_TCP_WINDOW_SCALE` is
     enabled, so a connection can use send and receive windows above 64 KB. The window size
     options, ``SO_RCVBUF`` and ``SO_SNDBUF`` then accept values up to 65535 << 14.
+  * TCP derives the retransmission timeout (RTO) of each connection from its measured round
+    trip time (:rfc:`6298`). :kconfig:option:`CONFIG_NET_TCP_INIT_RETRANSMISSION_TIMEOUT` is
+    only used until the first measurement, so a path slower than that value, for example with
+    large windows or Wi-Fi power save, no longer causes spurious retransmissions of the whole
+    window. The RTO is kept between :kconfig:option:`CONFIG_NET_TCP_MIN_RTO` and
+    :kconfig:option:`CONFIG_NET_TCP_MAX_RTO`. The retransmissions, and so the time until an
+    unanswered connection fails with ``-ETIMEDOUT``, grow with the RTO of the connection.
 
 * PTP Clock
 
