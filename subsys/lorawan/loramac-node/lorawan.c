@@ -250,8 +250,8 @@ static void mlme_confirm_handler(MlmeConfirm_t* mlme_confirm) {
             break;
 
         case MLME_LINK_CHECK :
-            if (link_check_cb != NULL) {
-                link_check_cb(mlme_confirm->DemodMargin, mlme_confirm->NbGateways);
+            if (lw_context.link_check_cb != NULL) {
+                lw_context.link_check_cb(mlme_confirm->DemodMargin, mlme_confirm->NbGateways);
             }
             LOG_INF("Link check done");
             break;
@@ -588,14 +588,16 @@ int lorawan_join_airtime(void) {
 
     k_mutex_lock(&lorawan_join_mutex, K_FOREVER);
 
-    join_datarate = RegionAlternateDr(selected_region, default_datarate, ALTERNATE_DR);
-    (void) RegionAlternateDr(selected_region, default_datarate, ALTERNATE_DR_RESTORE);
+    join_datarate = RegionAlternateDr(lw_context.selected_region, lw_context.default_datarate,
+                                      ALTERNATE_DR);
+    (void) RegionAlternateDr(lw_context.selected_region, lw_context.default_datarate,
+                             ALTERNATE_DR_RESTORE);
 
     phy_params.Datarate  = join_datarate;
     phy_params.Attribute = PHY_SF_FROM_DR;
-    phy_datarate         = RegionGetPhyParam(selected_region, &phy_params).Value;
+    phy_datarate         = RegionGetPhyParam(lw_context.selected_region, &phy_params).Value;
     phy_params.Attribute = PHY_BW_FROM_DR;
-    bandwidth            = RegionGetPhyParam(selected_region, &phy_params).Value;
+    bandwidth            = RegionGetPhyParam(lw_context.selected_region, &phy_params).Value;
 
     if (join_datarate == DR_7) {
         airtime = Radio.TimeOnAir(MODEM_FSK, bandwidth, phy_datarate * 1000U, 0, 5, false,

@@ -1814,7 +1814,6 @@ static int ifx_cat1_uart_pm_action(struct device const* dev, enum pm_device_acti
             #if !defined(CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2)
             cy_rslt_t result;
             #endif /* !CONFIG_CLOCK_CONTROL_IFX_PERI_CLOCK_V2 */
-            int ret;
 
             ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
             if (ret >= 0) {
