@@ -1303,7 +1303,7 @@ int z_vrfy_k_thread_stack_space_get(const struct k_thread* thread,
 #endif /* CONFIG_USERSPACE */
 #endif /* CONFIG_INIT_STACKS && CONFIG_THREAD_STACK_INFO */
 
-#ifdef CONFIG_USERSPACE
+#if defined(CONFIG_USERSPACE) && defined(CONFIG_SYS_CLOCK_EXISTS)
 static inline k_ticks_t z_vrfy_k_thread_timeout_remaining_ticks(const struct k_thread* thread) {
     K_OOPS(K_SYSCALL_OBJ(thread, K_OBJ_THREAD));
     return z_impl_k_thread_timeout_remaining_ticks(thread);
@@ -1317,7 +1317,7 @@ static inline k_ticks_t z_vrfy_k_thread_timeout_expires_ticks(const struct k_thr
 }
 
 #include <zephyr/syscalls/k_thread_timeout_expires_ticks_mrsh.c>
-#endif /* CONFIG_USERSPACE */
+#endif /* CONFIG_USERSPACE && CONFIG_SYS_CLOCK_EXISTS */
 
 #ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
 void z_thread_mark_switched_in(void) {

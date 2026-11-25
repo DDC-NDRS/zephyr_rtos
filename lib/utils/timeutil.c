@@ -14,6 +14,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <float.h>
 #include <time.h>
 
 #include <zephyr/sys/__assert.h>
@@ -82,7 +83,11 @@ int timeutil_sync_state_update(struct timeutil_sync_state* tsp,
         if (tsp->base.ref == 0) {
             tsp->base   = *inst;
             tsp->latest = (struct timeutil_sync_instant){0, 0};
-            tsp->skew   = 1.0f;
+            if ((tsp->skew >= -FLT_EPSILON) &&
+                (tsp->skew <= FLT_EPSILON)) {
+                tsp->skew = 0.0F;           /* Treat skew as zero */
+            }
+
             rv = 0;
         }
         else {
@@ -133,8 +138,8 @@ int timeutil_sync_ref_from_local(const struct timeutil_sync_state* tsp,
     if ((tsp->skew > 0) && (tsp->base.ref > 0) && (refp != NULL)) {
         const struct timeutil_sync_config* cfg = tsp->cfg;
         int64_t local_delta = local - tsp->base.local;
-        /* skew != 1.0f without -Wfloat-equal; skew > 0 above already rules out NaN */
-        bool const skewed = (tsp->skew < 1.0f) || (tsp->skew > 1.0f);
+        /* skew != 1.0F without -Wfloat-equal; skew > 0 above already rules out NaN */
+        bool const skewed = (tsp->skew < 1.0F) || (tsp->skew > 1.0F);
 
         #ifdef CONFIG_TIMEUTIL_APPLY_SKEW
         /* (x * 1.0) != x for large values of x.
@@ -168,8 +173,8 @@ int timeutil_sync_local_from_ref(const struct timeutil_sync_state* tsp,
         const struct timeutil_sync_config* cfg = tsp->cfg;
         int64_t ref_delta = (int64_t)(ref - tsp->base.ref);
         int64_t local_delta = (ref_delta * cfg->local_Hz) / cfg->ref_Hz;
-        /* skew != 1.0f without -Wfloat-equal; skew > 0 above already rules out NaN */
-        bool const skewed = (tsp->skew < 1.0f) || (tsp->skew > 1.0f);
+        /* skew != 1.0F without -Wfloat-equal; skew > 0 above already rules out NaN */
+        bool const skewed = (tsp->skew < 1.0F) || (tsp->skew > 1.0F);
 
         #ifdef CONFIG_TIMEUTIL_APPLY_SKEW
         /* (x / 1.0) != x for large values of x.

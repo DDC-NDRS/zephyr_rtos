@@ -359,6 +359,71 @@ I2S
   :kconfig:option:`CONFIG_I2S_NATIVE_SIM_TX_PATH`, which also accept ALSA devices. Without the
   ALSA backend the old options still provide their default. (:github:`123474`)
 
+Interrupt Controllers
+=====================
+
+* GIC v3 LPI and ITS tables now use static storage instead of the system heap.
+  Applications must provision enough table capacity for their devices and interrupt vectors.
+  (:github:`120728`)
+
+  Enabling :kconfig:option:`CONFIG_GIC_V3_ITS` requires :kconfig:option:`CONFIG_NUM_IRQS` to be
+  greater than 8192 because LPI INTIDs start at 8192. Set :kconfig:option:`CONFIG_NUM_IRQS` to at
+  least 8192 plus the total number of required LPIs across all ITS instances. Hardware support
+  and ``zephyr,lpi-id-bits`` can further limit the usable LPI range.
+
+  Set :kconfig:option:`CONFIG_GIC_V3_ITS_MAX_DEVICES` to at least the number of distinct DeviceIDs
+  registered with each ITS instance; the default is 16. Set
+  :kconfig:option:`CONFIG_GIC_V3_ITS_MAX_VECTORS` to at least the largest number of vectors
+  requested for any one device. Use a power of two from 2 to 2048. The default is 32.
+  Increasing these capacities can increase the statically reserved memory, including space for
+  devices that are not registered.
+
+  The ``zephyr,device-id-bits`` property of :dtcompatible:`arm,gic-v3-its` must cover the largest
+  DeviceID used by the platform, rather than the number of devices. Its default of 16 covers the
+  PCIe RequesterID space. The ``zephyr,lpi-id-bits`` property of :dtcompatible:`arm,gic-v3` controls
+  the LPI table provision and defaults to 16; reduce it only when all required INTIDs fit in the
+  smaller range.
+
+  Platforms with known ITS table geometry can use ``zephyr,device-table-size`` to cap the Device
+  table reservation in bytes. The driver reserves the smaller of this cap and the automatically
+  calculated size. The reservation must fit the direct table or, in indirect mode, the root and
+  enough second-level pages for the configured device capacity. If all supported layouts exceed
+  the reservation or the BASER page limit, ITS initialization fails with ``-ENOSPC`` before
+  enabling the tables.
+
+  Remove application or board :kconfig:option:`CONFIG_HEAP_MEM_POOL_SIZE` overrides that only
+  reserved space for GIC v3 LPI or ITS tables. The ITS no longer contributes a minimum heap size.
+  Retain any heap space needed by other drivers or application allocations.
+
+  :c:func:`its_alloc_intid` is deprecated. Its signature and the
+  :c:type:`its_api_alloc_intid_t` driver callback remain unchanged during deprecation.
+  The GICv3 ITS driver now returns ``0`` from this function when it cannot allocate an LPI INTID.
+  Callers that still use it must check for ``0`` before using the returned INTID.
+  Use :c:func:`its_alloc_intids` with a count of 1 to allocate a single INTID:
+
+  .. code-block:: c
+
+     unsigned int intid;
+     int ret = its_alloc_intids(dev, 1U, &intid);
+
+     if (ret != 0) {
+             /* ret is -ENOSPC or another negative error code. */
+     }
+
+  The new :c:func:`its_alloc_intids` and :c:func:`its_alloc_map_intids` functions return 0 on
+  success, a negative error code on failure, and store the first allocated INTID through the
+  output parameter. The output parameter is left unchanged on failure. ITS driver implementations
+  retain the ``alloc_intid`` callback and implement the new ``alloc_intids`` and ``alloc_map_intids``
+  callbacks for the replacement APIs.
+
+  Map each EventID only once per DeviceID. :c:func:`its_map_intid` returns ``-EBUSY`` for
+  an existing mapping. Use :c:func:`its_send_int` only after mapping the EventID successfully.
+
+  A failed mapping request leaves its output parameter unchanged. If hardware rollback cannot
+  be confirmed, potentially mapped INTIDs and EventIDs remain reserved. These INTIDs reduce
+  the capacity available to later requests, and retrying the same EventIDs returns ``-EBUSY``.
+  Published indirect Device table pages also remain reserved after failed device setup.
+
 MFD
 ===
 
@@ -452,6 +517,13 @@ Serial
   ``tx-fifo-threshold`` properties of each UART node in devicetree instead. The Kconfig options
   applied to every UART instance, while the properties apply to the node that sets them.
   (:github:`119492`)
+
+* The ``CONFIG_UART_XLNX_PS`` Kconfig option has been removed in favour of
+  :kconfig:option:`CONFIG_UART_CDNS`. Nodes with :dtcompatible:`xlnx,xuartps` must add
+  :dtcompatible:`cdns,uart`; the :dtcompatible:`xlnx,xuartps` compatible remains valid as a hardware
+  identifier, the unified driver matches on :dtcompatible:`cdns,uart`. The ``bdiv`` property has been
+  removed; the baud rate is now computed from ``clock-frequency`` and ``current-speed``.
+  (:github:`114729`)
 
 Timers
 ======
@@ -686,6 +758,11 @@ Networking
   * :zephyr_file:`samples/subsys/mgmt/updatehub/local.conf.example` replaces
     ``overlay-prj.conf.example``.
 
+* :c:struct:`ocpp_cs_info` has a new ``auth`` member, which :c:func:`ocpp_init` reads even when
+  :kconfig:option:`CONFIG_OCPP_BASIC_AUTH` is disabled. Applications that fill the structure field
+  by field must zero-initialize it, or set ``auth.username`` to ``NULL`` to connect without
+  authentication. (:github:`125718`)
+
 Ethernet
 ========
 
@@ -707,6 +784,14 @@ Ethernet
   * ``ETHERNET_CHECKSUM_SUPPORT_IPV6_HEADER`` together with ``ETHERNET_CHECKSUM_SUPPORT_TCP`` or
     ``ETHERNET_CHECKSUM_SUPPORT_UDP`` becomes :c:enumerator:`ETHERNET_CHECKSUM_SUPPORT_IPV6_TCP`
     or :c:enumerator:`ETHERNET_CHECKSUM_SUPPORT_IPV6_UDP`.
+
+* The HTTP server no longer writes into the application's resource details, so static, static fs
+  and websocket resource details can be declared ``const`` and placed in flash. Dynamic resource
+  details stay writable, the server keeps the client that holds the resource in them. The
+  ``path_len`` member of :c:struct:`http_resource_detail` is deprecated and no longer updated. A
+  dynamic GET, DELETE or OPTIONS handler that used it to find the request parameters gets them,
+  from the ``?`` on, in the ``data`` of the :c:struct:`http_request_ctx` passed to its first
+  callback.
 
 OpenThread
 ==========

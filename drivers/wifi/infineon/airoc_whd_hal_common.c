@@ -180,7 +180,6 @@ int airoc_wifi_power_on(struct device const* dev) {
 /*
  * Implement WHD memory wrappers
  */
-
 inline void* whd_mem_malloc(size_t size) {
     return k_malloc(size);
 }

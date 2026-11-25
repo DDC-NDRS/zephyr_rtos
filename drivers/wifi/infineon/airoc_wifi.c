@@ -869,6 +869,8 @@ static void airoc_event_task(void) {
 static void airoc_mgmt_init(struct net_if* iface) {
     struct device const* dev = net_if_get_device(iface);
     struct airoc_wifi_data* data = dev->data;
+    whd_result_t result;
+    int ret;
 
     net_eth_set_if_type_wifi(iface);
     data->iface      = iface;
@@ -879,16 +881,18 @@ static void airoc_mgmt_init(struct net_if* iface) {
     #endif
 
     /* Read WLAN MAC Address */
-    if (whd_wifi_get_mac_address(airoc_sta_if, &airoc_sta_if->mac_addr) != WHD_SUCCESS) {
-        LOG_ERR("Failed to get mac address");
-    }
-    else {
+    result = whd_wifi_get_mac_address(airoc_sta_if, &airoc_sta_if->mac_addr);
+    if (result == WHD_SUCCESS) {
         (void) memcpy(&data->mac_addr, &airoc_sta_if->mac_addr,
                       sizeof(airoc_sta_if->mac_addr));
     }
+    else {
+        LOG_ERR("Failed to get mac address");
+    }
 
     /* Assign link local address. */
-    if (net_if_set_link_addr(iface, data->mac_addr, 6, NET_LINK_ETHERNET)) {
+    ret = net_if_set_link_addr(iface, data->mac_addr, 6, NET_LINK_ETHERNET);
+    if (ret != 0) {
         LOG_ERR("Failed to set link addr");
     }
 

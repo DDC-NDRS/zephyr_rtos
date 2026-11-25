@@ -42,8 +42,9 @@ BUILD_ASSERT(0, "Either IPv4 or IPv6 SMP must be enabled for the MCUmgr UDP SMP 
                 "CONFIG_MCUMGR_TRANSPORT_UDP_IPV4 or CONFIG_MCUMGR_TRANSPORT_UDP_IPV6");
 #endif
 
-BUILD_ASSERT(sizeof(struct net_sockaddr) <= CONFIG_MCUMGR_TRANSPORT_NETBUF_USER_DATA_SIZE,
-             "CONFIG_MCUMGR_TRANSPORT_NETBUF_USER_DATA_SIZE must be >= sizeof(struct net_sockaddr)");
+BUILD_ASSERT(sizeof(struct net_sockaddr_storage) <= CONFIG_MCUMGR_TRANSPORT_NETBUF_USER_DATA_SIZE,
+             "CONFIG_MCUMGR_TRANSPORT_NETBUF_USER_DATA_SIZE must be >= sizeof(struct "
+             "net_sockaddr_storage)");
 
 enum smp_udp_proto_type {
     PROTOCOL_IPV4 = 0,
@@ -100,8 +101,12 @@ static int smp_udp4_tx(struct net_buf* nb) {
     int ret;
     struct net_sockaddr* addr = net_buf_user_data(nb);
 
-    ret = zsock_sendto(smp_udp_configs.ipv4.sock, nb->data, nb->len, 0, addr, sizeof(*addr));
-
+    /* The reply goes to the IPv4 peer with the length of its address: a DTLS
+     * server socket matches the session by the exact address length, and
+     * sizeof(struct net_sockaddr) is larger than an IPv4 address.
+     */
+    ret = zsock_sendto(smp_udp_configs.ipv4.sock, nb->data, nb->len, 0, addr,
+                       sizeof(struct net_sockaddr_in));
     if (ret < 0) {
         if (errno == ENOMEM) {
             ret = MGMT_ERR_EMSGSIZE;
@@ -125,8 +130,8 @@ static int smp_udp6_tx(struct net_buf* nb) {
     int ret;
     struct net_sockaddr* addr = net_buf_user_data(nb);
 
-    ret = zsock_sendto(smp_udp_configs.ipv6.sock, nb->data, nb->len, 0, addr, sizeof(*addr));
-
+    ret = zsock_sendto(smp_udp_configs.ipv6.sock, nb->data, nb->len, 0, addr,
+                       sizeof(struct net_sockaddr_in6));
     if (ret < 0) {
         if (errno == ENOMEM) {
             ret = MGMT_ERR_EMSGSIZE;
@@ -152,20 +157,21 @@ static uint16_t smp_udp_get_mtu(const struct net_buf* nb) {
 }
 
 static int smp_udp_ud_copy(struct net_buf* dst, const struct net_buf* src) {
-    struct net_sockaddr* src_ud = net_buf_user_data(src);
-    struct net_sockaddr* dst_ud = net_buf_user_data(dst);
+    struct net_sockaddr_storage const* src_ud = net_buf_user_data(src);
+    struct net_sockaddr_storage* dst_ud = net_buf_user_data(dst);
 
-    memcpy(dst_ud, src_ud, sizeof(struct net_sockaddr));
+    memcpy(dst_ud, src_ud, sizeof(*dst_ud));
 
     return (MGMT_ERR_EOK);
 }
 
 static void smp_udp_ud_init(struct net_buf* nb, void* priv) {
-    struct net_sockaddr *ud = net_buf_user_data(nb);
-    const struct net_sockaddr *addr = priv;
+    struct net_sockaddr_storage* ud = net_buf_user_data(nb);
+    const struct net_sockaddr* addr = priv;
 
-    if (addr) {
-        memcpy(ud, addr, sizeof(*addr));
+    if (addr != NULL) {
+        /* The address may be smaller than the storage, copy its family's size */
+        memcpy(ud, addr, MIN(net_family2size(addr->sa_family), sizeof(*ud)));
     }
 }
 
@@ -270,13 +276,14 @@ static void smp_udp_receive_thread(void* p1, void* p2, void* p3) {
     LOG_INF("Started (%s)", smp_udp_proto_to_name(conf->proto));
 
     while (true) {
-        struct net_sockaddr addr;
+        struct net_sockaddr_storage addr = { 0 };
         net_socklen_t addr_len = sizeof(addr);
 
         int len = zsock_recvfrom(conf->sock, conf->recv_buffer,
-                                 CONFIG_MCUMGR_TRANSPORT_UDP_MTU, 0, &addr, &addr_len);
+                                 CONFIG_MCUMGR_TRANSPORT_UDP_MTU, 0, net_sad(&addr),
+                                 &addr_len);
         if (len > 0) {
-            struct net_sockaddr* ud;
+            struct net_sockaddr_storage* ud;
             struct net_buf*  nb;
 
             /* Store sender address in user data for reply */

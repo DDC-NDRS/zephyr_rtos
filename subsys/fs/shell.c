@@ -165,7 +165,7 @@ static int cmd_cd(const struct shell* sh, size_t argc, char** argv) {
     err = fs_stat(path, &entry);
     if (err != 0) {
         shell_error(sh, "%s doesn't exist", path);
-        return -ENOENT;
+        return (-ENOENT);
     }
 
     if (entry.type != FS_DIR_ENTRY_DIR) {
@@ -745,7 +745,7 @@ static int cmd_read_test(const struct shell* sh, size_t argc, char** argv) {
 
     if (dirent.type != FS_DIR_ENTRY_FILE) {
         shell_error(sh, "Provided path is not a file");
-        return -ENOENT;
+        return (-ENOENT);
     }
 
     /* Store size of file so we can ensure it was fully read */
@@ -919,7 +919,7 @@ static char* mntpt_prepare(char* mntpt) {
 static int cmd_mount_fat(const struct shell* sh, size_t argc, char** argv) {
     if (fatfs_mnt.mnt_point != NULL) {
         shell_error(sh, "%s already mounted at %s", "FAT fs", fatfs_mnt.mnt_point);
-        return -EBUSY;
+        return (-EBUSY);
     }
 
     char* mntpt = mntpt_prepare(argv[1]);
@@ -946,11 +946,68 @@ static int cmd_mount_fat(const struct shell* sh, size_t argc, char** argv) {
 #endif
 
 #if defined(CONFIG_FILE_SYSTEM_LITTLEFS)
-static int cmd_mount_littlefs(const struct shell* sh, size_t argc, char** argv) {
+
+#if !defined(CONFIG_FS_LITTLEFS_BLK_DEV)
+struct flash_area_lookup {
+    char const* label;
+    uint8_t id;
+    bool found;
+};
+
+static void flash_area_lookup_cb(struct flash_area const* fa, void* user_data) {
+    struct flash_area_lookup* lookup = user_data;
+    char const* fa_label = flash_area_label(fa);
+
+    if (lookup->found) {
+        return;
+    }
+
+    if ((fa_label != NULL) && strcmp(fa_label, lookup->label) == 0) {
+        lookup->id = fa->fa_id;
+        lookup->found = true;
+    }
+}
+
+static int flash_area_id_by_label(char const* label, uint8_t* id) {
+    struct flash_area_lookup lookup = {
+        .label = label,
+        .id = 0,
+        .found = false,
+    };
+
+    flash_area_foreach(flash_area_lookup_cb, &lookup);
+
+    if (!lookup.found) {
+        return (-ENOENT);
+    }
+
+    *id = lookup.id;
+    return (0);
+}
+#endif
+
+static int cmd_mount_littlefs(struct shell const* sh, size_t argc, char** argv) {
+    int res;
+
     if (littlefs_mnt.mnt_point != NULL) {
         shell_error(sh, "%s already mounted at %s", "littlefs", littlefs_mnt.mnt_point);
-        return -EBUSY;
+        return (-EBUSY);
     }
+
+    #if !defined(CONFIG_FS_LITTLEFS_BLK_DEV)
+    uint8_t area_id = STORAGE_PARTITION_ID;
+
+    if (argc > 2) {
+        res = flash_area_id_by_label(argv[2], &area_id);
+        if (res != 0) {
+            shell_error(sh, "Partition \"%s\" not found", argv[2]);
+            return (-ENOENT);
+        }
+    }
+
+    littlefs_mnt.storage_dev = (void*)(uintptr_t)area_id;
+    littlefs_mnt.flags = (argc > 2) ? FS_MOUNT_FLAG_NO_FORMAT : 0;
+    #endif
 
     char* mntpt = mntpt_prepare(argv[1]);
 
@@ -961,7 +1018,7 @@ static int cmd_mount_littlefs(const struct shell* sh, size_t argc, char** argv) 
 
     littlefs_mnt.mnt_point = mntpt;
 
-    int res = fs_mount(&littlefs_mnt);
+    res = fs_mount(&littlefs_mnt);
     if (res != 0) {
         shell_error(sh, "Error mounting %s: %d", "littlefs", res);
         k_free((void*)littlefs_mnt.mnt_point);
@@ -979,7 +1036,7 @@ static int cmd_mount_littlefs(const struct shell* sh, size_t argc, char** argv) 
 static int cmd_mount_rpmsgfs(const struct shell* sh, size_t argc, char** argv) {
     if (rpmsgfs_mnt.mnt_point != NULL) {
         shell_error(sh, "%s already mounted at %s", "RPMsgFS", rpmsgfs_mnt.mnt_point);
-        return -EBUSY;
+        return (-EBUSY);
     }
 
     char* remote_dir = (argc > 2) ? argv[2] : "/";
@@ -1008,22 +1065,25 @@ static int cmd_mount_rpmsgfs(const struct shell* sh, size_t argc, char** argv) {
 }
 #endif
 
-SHELL_STATIC_SUBCMD_SET_CREATE(sub_fs_mount,
+SHELL_STATIC_SUBCMD_SET_CREATE(
+    sub_fs_mount,
     #if defined(CONFIG_FAT_FILESYSTEM_ELM)
-    SHELL_CMD_ARG(fat, NULL,
-                  SHELL_HELP("Mount fatfs", "<mount-point>"),
-                  cmd_mount_fat, 2, 0),
+    SHELL_CMD_ARG(fat, NULL, SHELL_HELP("Mount fatfs", "<mount-point>"), cmd_mount_fat, 2, 0),
     #endif
 
     #if defined(CONFIG_FILE_SYSTEM_LITTLEFS)
-    SHELL_CMD_ARG(littlefs, NULL,
-                  SHELL_HELP("Mount littlefs", "<mount-point>"),
+    #if defined(CONFIG_FS_LITTLEFS_BLK_DEV)
+    SHELL_CMD_ARG(littlefs, NULL, SHELL_HELP("Mount littlefs", "<mount-point>"),
                   cmd_mount_littlefs, 2, 0),
+    #else
+    SHELL_CMD_ARG(littlefs, NULL,
+                  SHELL_HELP("Mount littlefs", "<mount-point> [<partition-label>]"),
+                  cmd_mount_littlefs, 2, 1),
+    #endif
     #endif
 
     #if defined(CONFIG_FILE_SYSTEM_RPMSGFS)
-    SHELL_CMD_ARG(rpmsgfs, NULL,
-                  SHELL_HELP("Mount rpmsgfs", "<mount-point> [<remote-path>]"),
+    SHELL_CMD_ARG(rpmsgfs, NULL, SHELL_HELP("Mount rpmsgfs", "<mount-point> [<remote-path>]"),
                   cmd_mount_rpmsgfs, 2, 1),
     #endif
 
