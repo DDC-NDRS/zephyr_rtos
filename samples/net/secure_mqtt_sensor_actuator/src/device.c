@@ -60,7 +60,7 @@ int device_read_sensor(struct sensor_sample* sample) {
      */
     if (dev_sensor == NULL) {
         sample->unit  = SENSOR_UNIT;
-        sample->value = (int)(20.0F + (float)sys_rand32_get() / UINT32_MAX * 5.0F);
+        sample->value = 20.0 + (double)sys_rand32_get() / UINT32_MAX * 5.0;
         return (0);
     }
 

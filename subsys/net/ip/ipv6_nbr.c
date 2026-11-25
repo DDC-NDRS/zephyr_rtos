@@ -164,13 +164,12 @@ static void ipv6_nbr_set_state(struct net_nbr *nbr,
 			/* Global stale counter reached UINT32_MAX, reset it and
 			 * respective neighbors stale counter too.
 			 */
-			struct net_nbr *n = NULL;
+			struct net_nbr const *n;
 			struct net_ipv6_nbr_data *data = NULL;
-			int i;
 
 			stale_counter = 0U;
 
-			for (i = 0; i < CONFIG_NET_IPV6_MAX_NEIGHBORS; i++) {
+			for (int i = 0; i < CONFIG_NET_IPV6_MAX_NEIGHBORS; i++) {
 				n = get_ipv6_nbr(i);
 				if (!n || !n->ref) {
 					continue;

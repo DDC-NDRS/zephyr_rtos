@@ -11,10 +11,10 @@
  */
 
 #include <errno.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <float.h>
 #include <time.h>
 
 #include <zephyr/sys/__assert.h>
@@ -83,9 +83,8 @@ int timeutil_sync_state_update(struct timeutil_sync_state* tsp,
         if (tsp->base.ref == 0) {
             tsp->base   = *inst;
             tsp->latest = (struct timeutil_sync_instant){0, 0};
-            if ((tsp->skew >= -FLT_EPSILON) &&
-                (tsp->skew <= FLT_EPSILON)) {
-                tsp->skew = 0.0F;           /* Treat skew as zero */
+            if (fpclassify(tsp->skew) == FP_ZERO) {
+                tsp->skew = 1.0F;
             }
 
             rv = 0;
