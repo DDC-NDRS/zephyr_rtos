@@ -179,8 +179,15 @@ whd_interface_t airoc_wifi_get_whd_interface(void) {
     return airoc_if;
 }
 
+struct airoc_scan_match {
+    whd_ssid_t ssid;                        /* in : SSID to look for */
+    whd_security_t security;                /* out: WHD_SECURITY_UNKNOWN if not found */
+};
+
 static void airoc_wifi_scan_cb_search(whd_scan_result_t** result_ptr, void* user_data,
                                       whd_scan_status_t status) {
+    struct airoc_scan_match* match = (struct airoc_scan_match*)user_data;
+
     if (status == WHD_SCAN_ABORTED) {
         k_sem_give(&airoc_wifi_data.sema_scan);
         return;
@@ -189,12 +196,14 @@ static void airoc_wifi_scan_cb_search(whd_scan_result_t** result_ptr, void* user
     if (status == WHD_SCAN_COMPLETED_SUCCESSFULLY) {
         k_sem_give(&airoc_wifi_data.sema_scan);
     }
-    else if ((status == WHD_SCAN_INCOMPLETE) && (user_data != NULL) &&
-             ((**result_ptr).SSID.length == ((whd_scan_result_t*)user_data)->SSID.length)) {
-        if (strncmp(((whd_scan_result_t*)user_data)->SSID.value, (**result_ptr).SSID.value,
-                    (**result_ptr).SSID.length) == 0) {
-            memcpy(user_data, *result_ptr, sizeof(whd_scan_result_t));
+    else if ((status == WHD_SCAN_INCOMPLETE) && (match != NULL) &&
+             ((**result_ptr).SSID.length == match->ssid.length)) {
+        if (memcmp(match->ssid.value, (**result_ptr).SSID.value, match->ssid.length) == 0) {
+            match->security = (**result_ptr).security;
         }
+    }
+    else {
+        /* pass */
     }
 }
 
@@ -302,7 +311,7 @@ static int convert_whd_security_to_zephyr(whd_security_t security) {
 }
 
 static whd_security_t convert_zephyr_security_to_whd(int security) {
-    whd_security_t whd_security = (whd_security_t)WIFI_SECURITY_TYPE_UNKNOWN;
+    whd_security_t whd_security = WHD_SECURITY_UNKNOWN;
 
     switch (security) {
         case WIFI_SECURITY_TYPE_NONE :
@@ -952,10 +961,9 @@ static int airoc_mgmt_connect(struct device const* dev,
                               struct wifi_connect_req_params* params) {
     struct airoc_wifi_data* data = (struct airoc_wifi_data*)dev->data;
     int ret = 0;
-    whd_scan_result_t scan_result;
-    whd_scan_result_t usr_result = {0};
-    /* Try to scan ssid to define security */
-    whd_scan_result_t tmp_result = {0};
+    whd_scan_result_t scan_result;      /* WHD scratch buffer, no init needed */
+    struct airoc_scan_match match;
+    whd_security_t security;
     uint8_t const* security_key;
     uint8_t key_length;
     whd_result_t result;
@@ -979,44 +987,43 @@ static int airoc_mgmt_connect(struct device const* dev,
         goto error;
     }
 
-    usr_result.SSID.length = params->ssid_length;
-    memcpy(usr_result.SSID.value, params->ssid, params->ssid_length);
-    usr_result.security = convert_zephyr_security_to_whd(params->security);
+    match.ssid.length = params->ssid_length;
+    memcpy(match.ssid.value, params->ssid, params->ssid_length);
+    match.security = WHD_SECURITY_UNKNOWN;
+    security = convert_zephyr_security_to_whd(params->security);
 
+    /* Try to scan the SSID to define the security */
     if (is_invalid_security(params->security, params->psk_length)) {
         result = whd_wifi_scan(airoc_sta_if, WHD_SCAN_TYPE_ACTIVE, WHD_BSS_TYPE_ANY, NULL, NULL,
-                               NULL, NULL, airoc_wifi_scan_cb_search, &scan_result, &tmp_result);
+                               NULL, NULL, airoc_wifi_scan_cb_search, &scan_result, &match);
         if (result != WHD_SUCCESS) {
             LOG_ERR("Failed start scan");
             ret = -EAGAIN;
             goto error;
         }
 
-        if (k_sem_take(&airoc_wifi_data.sema_scan, K_MSEC(AIROC_WIFI_SCAN_TIMEOUT_MS)) != 0) {
+        if (k_sem_take(&data->sema_scan, K_MSEC(AIROC_WIFI_SCAN_TIMEOUT_MS)) != 0) {
             whd_wifi_stop_scan(airoc_sta_if);
             ret = -EAGAIN;
             goto error;
         }
-    }
-    else {
-        /* Fallback to user input */
-        if (tmp_result.security == WHD_SECURITY_UNKNOWN) {
-            usr_result.security = tmp_result.security;
-        }
+
+        /* The user's NONE contradicts the PSK, so only the scan result counts */
+        security = match.security;
     }
 
-    if (usr_result.security == WHD_SECURITY_UNKNOWN) {
+    if (security == WHD_SECURITY_UNKNOWN) {
         ret = -EAGAIN;
-        LOG_ERR("Could not scan device");
+        LOG_ERR("Unsupported or undetected security");
         goto error;
     }
 
-    if (usr_result.security == WHD_SECURITY_WPA3_WPA2_PSK) {
+    if (security == WHD_SECURITY_WPA3_WPA2_PSK) {
         LOG_WRN("Given security is WPA2-WPA3 mixed, selecting WPA2-AES");
-        usr_result.security = WHD_SECURITY_WPA2_AES_PSK;
+        security = WHD_SECURITY_WPA2_AES_PSK;
     }
 
-    if (usr_result.security == WHD_SECURITY_WPA3_SAE) {
+    if (security == WHD_SECURITY_WPA3_SAE) {
         security_key = params->sae_password;
         key_length   = params->sae_password_length;
     }
@@ -1026,7 +1033,7 @@ static int airoc_mgmt_connect(struct device const* dev,
     }
 
     /* Connect to the network */
-    result = whd_wifi_join(airoc_sta_if, &usr_result.SSID, usr_result.security,
+    result = whd_wifi_join(airoc_sta_if, &match.ssid, security,
                            security_key, key_length);
     if (result != WHD_SUCCESS) {
         LOG_ERR("Failed to connect with network");
