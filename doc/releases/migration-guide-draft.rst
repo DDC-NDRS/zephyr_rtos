@@ -89,6 +89,16 @@ Boards
   instead. ``stm32_min_dev_defconfig`` was renamed accordingly to
   :file:`stm32_min_dev_stm32f103x8_defconfig`.
 
+* The Adafruit ESP32 Feather board target ``adafruit_feather_esp32`` has been renamed to
+  :zephyr:board:`adafruit_feather_esp32_v2` (``adafruit_feather_esp32_v2``) to match the
+  manufacturer's naming: Adafruit ESP32 Feather V2. The old ``adafruit_feather_esp32``
+  board target is deprecated and now automatically redirects to the new target with a warning.
+  Update board targets from ``adafruit_feather_esp32/esp32/procpu`` and
+  ``adafruit_feather_esp32/esp32/appcpu`` to ``adafruit_feather_esp32_v2/esp32/procpu`` and
+  ``adafruit_feather_esp32_v2/esp32/appcpu`` respectively. The new board defines no revisions,
+  so drop the ``@2`` revision suffix if it was specified: ``adafruit_feather_esp32@2`` is not
+  redirected and fails with an invalid board revision error.
+
 * :zephyr:board:`cy8ckit_041s_max`: the console moved from SCB2 to SCB1 on the same pins (P0.4,
   P0.5), and its node label changed from ``uart2`` to ``uart1``. The ``spi1`` node on SCB1
   (P2.0 to P2.2) was removed. SCB2 is now ``arduino_spi`` on the Arduino header pins D11 to D13
@@ -225,6 +235,11 @@ Boards
   files with an explicit path must update it to include the ``dts/`` component
   (e.g. use :zephyr_file:`boards/nxp/mimxrt1180_evk/dts/cm7_flash_boot.overlay`
   instead of :file:`boards/nxp/mimxrt1180_evk/cm7_flash_boot.overlay`).
+
+* On the Alif Ensemble RTSS and Balletto cores, :kconfig:option:`CONFIG_NUM_IRQS` now defaults
+  to the highest IRQ of the enabled devicetree nodes plus one, instead of 480. Applications that
+  connect a higher IRQ with :c:macro:`IRQ_CONNECT()` or :c:func:`irq_connect_dynamic` must set
+  :kconfig:option:`CONFIG_NUM_IRQS` explicitly.
 
 Device Drivers and Devicetree
 *****************************
@@ -720,6 +735,18 @@ Networking
   ``ENETUNREACH``, for example by trying the next address or waiting for the interface to be
   configured.
 
+* The native network stack runs its timers and deferred work on a dedicated work queue,
+  :kconfig:option:`CONFIG_NET_DEDICATED_WORKQUEUE`, which is enabled by default. Code called from
+  that work now runs in the ``net_workq`` thread instead of the system work queue: the DNS resolve
+  callback of a query that timed out, and network management event callbacks with
+  :kconfig:option:`CONFIG_NET_MGMT_EVENT_DIRECT` for the events that work raises. Such code no
+  longer runs serialized with the application's own system work queue items, and must not wait for
+  work that needs the networking work queue. Applications that increased
+  :kconfig:option:`CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE` for the network stack's work should increase
+  :kconfig:option:`CONFIG_NET_DEDICATED_WORKQUEUE_STACK_SIZE` instead. Disabling
+  :kconfig:option:`CONFIG_NET_DEDICATED_WORKQUEUE` restores the previous behavior and saves the
+  thread and its stack.
+
 * Network interface driver APIs are now device API classes. Out-of-tree network drivers must define
   their API instances with :c:macro:`DEVICE_API` and use the renamed structs:
 
@@ -742,6 +769,21 @@ Networking
   ``DEVICE_API(wifi_offload, name)`` otherwise. ``struct net_wifi_mgmt_offload`` remains available
   to refer to the selected type. (:github:`124334`)
 
+* The default Wi-Fi credentials backend has changed for some targets:
+
+  * Non-secure targets with the TF-M Protected Storage partition now use
+    :kconfig:option:`CONFIG_WIFI_CREDENTIALS_BACKEND_PSA_PS` instead of
+    :kconfig:option:`CONFIG_WIFI_CREDENTIALS_BACKEND_PSA`.
+  * Targets that enable :kconfig:option:`CONFIG_SECURE_STORAGE` now use
+    :kconfig:option:`CONFIG_WIFI_CREDENTIALS_BACKEND_PSA_PS` instead of
+    :kconfig:option:`CONFIG_WIFI_CREDENTIALS_BACKEND_SETTINGS`.
+  * Other non-secure targets with TF-M now use
+    :kconfig:option:`CONFIG_WIFI_CREDENTIALS_BACKEND_SETTINGS` instead of
+    :kconfig:option:`CONFIG_WIFI_CREDENTIALS_BACKEND_PSA`, which is deprecated.
+
+  The new default backends can't read credentials that the previous backends stored. To keep
+  those credentials after updating, enable the previous backend explicitly.
+
 * The extra config files of the samples in :zephyr_file:`samples/net`,
   :zephyr_file:`samples/subsys/mgmt/hawkbit`, :zephyr_file:`samples/subsys/mgmt/updatehub` and
   :zephyr_file:`samples/drivers/modem/hello_hl78xx`, and of the network tests, no longer start with
@@ -762,6 +804,10 @@ Networking
   :kconfig:option:`CONFIG_OCPP_BASIC_AUTH` is disabled. Applications that fill the structure field
   by field must zero-initialize it, or set ``auth.username`` to ``NULL`` to connect without
   authentication. (:github:`125718`)
+
+* :c:macro:`NET_REQUEST_WIFI_CONNECT_STORED` now returns the error from the last connect request
+  if it fails for all stored networks, instead of ``0`` (or ``-ENOEXEC`` for static credentials).
+  Update applications that call this request to handle this error.
 
 Ethernet
 ========

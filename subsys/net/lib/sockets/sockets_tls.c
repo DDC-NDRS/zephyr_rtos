@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -217,6 +218,8 @@ __net_socket struct tls_context {
 	 */
 	bool accept_deferred : 1;
 
+	bool is_rx_shutdown : 1;
+
 	/* TLS sessions associated with this socket. In most cases there will
 	 * be one session allocated per TLS context. DTLS server is an exception,
 	 * which can have multiple TLS sessions allocated at the same time.
@@ -346,6 +349,11 @@ static K_MUTEX_DEFINE(dtls_helper_buf_lock);
 
 /* A global pool of TLS contexts. */
 static struct tls_context tls_contexts[CONFIG_NET_SOCKETS_TLS_MAX_CONTEXTS];
+/* Incremented on every tls_release(), so a thread that waited without the
+ * lock can tell its context was closed even if the slot was reused. Kept
+ * outside struct tls_context because tls_alloc() clears the struct.
+ */
+static uint32_t tls_context_generation[CONFIG_NET_SOCKETS_TLS_MAX_CONTEXTS];
 K_MEM_SLAB_DEFINE_STATIC_TYPE(tls_session_contexts, struct tls_session_context,
 			      CONFIG_NET_SOCKETS_TLS_MAX_SESSION_CONTEXTS);
 
@@ -833,6 +841,7 @@ static int tls_release(struct tls_context *tls)
 		tls_session_free(session_ctx);
 	}
 
+	tls_context_generation[ARRAY_INDEX(tls_contexts, tls)]++;
 	tls->is_used = false;
 
 	return 0;
@@ -1140,6 +1149,50 @@ static int wait_for_reason(int sock, int timeout, int reason)
 	k_msleep(TLS_WAIT_MS);
 
 	return 0;
+}
+
+struct tls_unlock_state {
+	struct k_mutex *lock;
+	uint32_t generation;
+	int sock;
+};
+
+static void tls_unlock(struct tls_context *ctx, struct tls_unlock_state *state)
+{
+	state->lock = ctx->lock;
+	state->generation = tls_context_generation[ARRAY_INDEX(tls_contexts, ctx)];
+	state->sock = ctx->sock;
+
+	(void)k_mutex_unlock(state->lock);
+}
+
+static bool tls_relock(struct tls_context *ctx, const struct tls_unlock_state *state)
+{
+	(void)k_mutex_lock(state->lock, K_FOREVER);
+
+	return state->generation != tls_context_generation[ARRAY_INDEX(tls_contexts, ctx)];
+}
+
+#define TLS_WAIT_CTX_RELEASED INT_MIN
+#define TLS_WAIT_RX_SHUTDOWN (INT_MIN + 1)
+
+static int tls_wait_unlocked(struct tls_context *ctx, int timeout, int reason)
+{
+	struct tls_unlock_state state;
+	int ret;
+
+	tls_unlock(ctx, &state);
+	ret = wait_for_reason(state.sock, timeout, reason);
+
+	if (tls_relock(ctx, &state)) {
+		return TLS_WAIT_CTX_RELEASED;
+	}
+
+	if (ctx->is_rx_shutdown) {
+		return TLS_WAIT_RX_SHUTDOWN;
+	}
+
+	return ret;
 }
 
 static bool is_blocking(int sock, int flags)
@@ -2215,9 +2268,10 @@ static int tls_deferred_handshake(struct tls_context *ctx, k_timeout_t timeout)
 			return -EAGAIN;
 		}
 
-		k_mutex_unlock(ctx->lock);
-		ret = wait_for_reason(ctx->sock, timeout_to_ms(&timeout), ctx->handshake_want);
-		k_mutex_lock(ctx->lock, K_FOREVER);
+		ret = tls_wait_unlocked(ctx, timeout_to_ms(&timeout), ctx->handshake_want);
+		if (ret == TLS_WAIT_CTX_RELEASED) {
+			return -EINTR;
+		}
 
 		if (ret != 0) {
 			return ret;
@@ -3568,6 +3622,7 @@ int ztls_accept_ctx(struct tls_context *parent, struct net_sockaddr *addr,
 		    net_socklen_t *addrlen)
 {
 	struct tls_context *child = NULL;
+	struct tls_unlock_state state;
 	int ret, err, fd, sock;
 
 	if (!TLS_ROLE_SERVER_SUPPORTED) {
@@ -3581,9 +3636,14 @@ int ztls_accept_ctx(struct tls_context *parent, struct net_sockaddr *addr,
 	}
 
 
-	k_mutex_unlock(parent->lock);
-	sock = zsock_accept(parent->sock, addr, addrlen);
-	k_mutex_lock(parent->lock, K_FOREVER);
+	tls_unlock(parent, &state);
+	sock = zsock_accept(state.sock, addr, addrlen);
+
+	if (tls_relock(parent, &state)) {
+		ret = -EINTR;
+		goto error;
+	}
+
 	if (sock < 0) {
 		ret = -errno;
 		goto error;
@@ -4054,13 +4114,18 @@ static ssize_t recv_tls(struct tls_context *ctx, void *buf,
 				timeout_ms = timeout_to_ms(&timeout);
 
 				/* Block. */
-				k_mutex_unlock(ctx->lock);
-				ret = wait_for_reason(ctx->sock, timeout_ms, ret);
-				k_mutex_lock(ctx->lock, K_FOREVER);
-
+				ret = tls_wait_unlocked(ctx, timeout_ms, ret);
 				if (ret == 0) {
 					/* Retry. */
 					continue;
+				}
+
+				if (ret == TLS_WAIT_CTX_RELEASED) {
+					if (recv_len > 0U) {
+						return recv_len;
+					}
+
+					ret = -EINTR;
 				}
 			} else {
 				NET_ERR("TLS recv error: -%x", -ret);
@@ -4160,13 +4225,13 @@ static ssize_t recvfrom_dtls_common(struct tls_context *ctx, void *buf,
 				}
 
 				/* Block. */
-				k_mutex_unlock(ctx->lock);
-				ret = wait_for_reason(ctx->sock, timeout_ms, ret);
-				k_mutex_lock(ctx->lock, K_FOREVER);
-
+				ret = tls_wait_unlocked(ctx, timeout_ms, ret);
 				if (ret == 0) {
 					/* Retry. */
 					continue;
+				} else if ((ret == TLS_WAIT_CTX_RELEASED) ||
+					   (ret == TLS_WAIT_RX_SHUTDOWN)) {
+					return ret;
 				} else {
 					return MBEDTLS_ERR_SSL_INTERNAL_ERROR;
 				}
@@ -4220,6 +4285,10 @@ static ssize_t recvfrom_dtls_client(struct tls_context *ctx, void *buf,
 {
 	int ret;
 
+	if (ctx->is_rx_shutdown) {
+		return 0;
+	}
+
 	if (!is_handshake_complete(ctx->active_session)) {
 		ret = -ENOTCONN;
 		goto error;
@@ -4228,6 +4297,15 @@ static ssize_t recvfrom_dtls_client(struct tls_context *ctx, void *buf,
 	ret = recvfrom_dtls_common(ctx, buf, max_len, flags, src_addr, addrlen);
 	if (ret >= 0) {
 		return ret;
+	}
+
+	if (ret == TLS_WAIT_CTX_RELEASED) {
+		ret = -EINTR;
+		goto error;
+	}
+
+	if (ret == TLS_WAIT_RX_SHUTDOWN) {
+		return 0;
 	}
 
 	switch (ret) {
@@ -4287,6 +4365,10 @@ static ssize_t recvfrom_dtls_server(struct tls_context *ctx, void *buf,
 	int ret;
 	bool repeat;
 	k_timeout_t timeout;
+
+	if (ctx->is_rx_shutdown) {
+		return 0;
+	}
 
 	if (!ctx->is_initialized) {
 		ret = tls_mbedtls_init(ctx, true);
@@ -4350,6 +4432,15 @@ static ssize_t recvfrom_dtls_server(struct tls_context *ctx, void *buf,
 					   src_addr, addrlen);
 		if (ret >= 0) {
 			return ret;
+		}
+
+		if (ret == TLS_WAIT_CTX_RELEASED) {
+			ret = -EINTR;
+			break;
+		}
+
+		if (ret == TLS_WAIT_RX_SHUTDOWN) {
+			return 0;
 		}
 
 		switch (ret) {
@@ -4962,6 +5053,11 @@ static int dtls_update_pollin(int fd, struct tls_context *ctx,
 			      struct zsock_pollfd *pfd)
 {
 	int ret;
+
+	if (ctx->is_rx_shutdown) {
+		pfd->revents |= ZSOCK_POLLIN;
+		goto next;
+	}
 
 	/* Already had DTLS data to read on socket. */
 	if (mbedtls_ssl_get_bytes_avail(&ctx->active_session->ssl) > 0) {
@@ -5677,8 +5773,14 @@ static int tls_sock_ioctl_vmeth(void *obj, unsigned int request, va_list args)
 static int tls_sock_shutdown_vmeth(void *obj, int how)
 {
 	struct tls_context *ctx = obj;
+	int ret;
 
-	return zsock_shutdown(ctx->sock, how);
+	ret = zsock_shutdown(ctx->sock, how);
+	if ((ret == 0) && (how != ZSOCK_SHUT_WR) && (ctx->type == NET_SOCK_DGRAM)) {
+		ctx->is_rx_shutdown = true;
+	}
+
+	return ret;
 }
 
 static int tls_sock_bind_vmeth(void *obj, const struct net_sockaddr *addr,

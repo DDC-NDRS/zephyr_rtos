@@ -111,6 +111,11 @@ Libraries / Subsystems
   * HTTP server: HTTPS services no longer run the TLS handshake inside ``accept()``. A client that
     opens a connection and then stalls its handshake used to stop the whole server, HTTP services
     included, for up to :kconfig:option:`CONFIG_NET_SOCKETS_TLS_CONNECT_TIMEOUT` per connection.
+  * The native network stack runs its protocol timers and deferred work on a dedicated work queue
+    instead of the system work queue, so that a slow system work queue item no longer delays DHCP,
+    Neighbor Discovery, address conflict detection or DNS timeouts, and the stack no longer holds
+    up other system work queue users. See :kconfig:option:`CONFIG_NET_DEDICATED_WORKQUEUE` and the
+    :ref:`migration guide <migration_4.6>`.
   * The connection manager tracks name resolution readiness, see
     :ref:`conn_mgr_monitoring_dns`: :c:macro:`NET_EVENT_L4_DNS_READY`,
     :c:macro:`NET_EVENT_L4_DNS_LOST` and :c:func:`conn_mgr_dns_is_ready`.
@@ -130,7 +135,8 @@ Libraries / Subsystems
   * Added the :ref:`STUN <stun_interface>` library, a codec for the messages of
     :rfc:`8489` with the attributes of ICE (:rfc:`8445`): parsing, building,
     MESSAGE-INTEGRITY, FINGERPRINT and the address attributes. A device finds out
-    its public address with the Binding transaction or the blocking socket client.
+    its public address with the Binding transaction, the blocking socket client
+    or the ``net stun`` shell commands.
 
   * OCPP: the charge point can authenticate to the central system with HTTP Basic
     authentication (:kconfig:option:`CONFIG_OCPP_BASIC_AUTH`), with the credentials set in the

@@ -141,7 +141,7 @@ static void mld_timer_arm(k_timepoint_t timeout)
 		remaining = K_NO_WAIT;
 	}
 
-	(void)k_work_reschedule(&mld_timer, remaining);
+	(void)net_work_reschedule(&mld_timer, remaining);
 }
 
 /* Cancel every pending query response and report retransmission of the
@@ -351,8 +351,7 @@ static int mld_send(struct net_pkt *pkt)
 		net_stats_update_icmp_drop(iface);
 		net_stats_update_ipv6_mld_drop(iface);
 
-		net_pkt_unref(pkt);
-
+		/* Caller unrefs pkt via its drop label. */
 		return ret;
 	}
 
@@ -1074,7 +1073,7 @@ static void mld_timeout(struct k_work *work)
 	}
 
 	if (!mld_timepoint_is_never(next)) {
-		(void)k_work_reschedule(&mld_timer, sys_timepoint_timeout(next));
+		(void)net_work_reschedule(&mld_timer, sys_timepoint_timeout(next));
 	}
 
 	k_mutex_unlock(&mld_lock);

@@ -16,6 +16,7 @@ LOG_MODULE_DECLARE(net_coap, CONFIG_COAP_LOG_LEVEL);
 
 #include <zephyr/net/coap.h>
 #include <zephyr/net/coap_client.h>
+#include <zephyr/sys/byteorder.h>
 
 #include "coap_client_internal.h"
 
@@ -101,6 +102,7 @@ static int receive(int sock, void *buf, size_t max_len, int flags,
 static void reset_internal_request(struct coap_client_internal_request *request)
 {
 	*request = (struct coap_client_internal_request){
+		.echo_challenge_id = -1,
 		.last_observe_seq = -1,
 	};
 }
@@ -478,10 +480,9 @@ static int coap_client_init_request(struct coap_client *client, struct coap_clie
 		}
 	}
 
-	/* Snapshot the registration token of an observe request (the initial request or
-	 * an Echo retry, both of which mint a new token). Block retrievals overwrite
-	 * request_token with fresh tokens, so the registration token is kept separately
-	 * for matching server-pushed notifications and for deregister.
+	/* Snapshot the registration token of an observe request. Block retrievals
+	 * overwrite request_token with fresh tokens, so the registration token is kept
+	 * separately for matching server-pushed notifications and for deregister.
 	 */
 	if (coap_request_is_observe(&internal_req->request)) {
 		memcpy(internal_req->observe_token, internal_req->request_token,
@@ -1330,6 +1331,97 @@ static bool observation_ended(const struct coap_client_internal_request *interna
 	       coap_get_option_int(response, COAP_OPTION_OBSERVE) < 0;
 }
 
+/* Whether the request in this slot is one of an observation: a registration,
+ * re-registration or deregister, which all go out on the registration token.
+ */
+static bool uses_observe_token(const struct coap_client_internal_request *internal_req)
+{
+	return internal_req->observe_tkl != 0 &&
+	       internal_req->request_tkl == internal_req->observe_tkl &&
+	       memcmp(internal_req->request_token, internal_req->observe_token,
+		      internal_req->observe_tkl) == 0;
+}
+
+/* Whether a request of this slot is waiting for its response. The
+ * Non-confirmable refresh of an observation arms no timeout, which would end
+ * the observation with it, so the last request of such an observation counts
+ * as waiting for as long as the observation lasts.
+ */
+static bool awaits_response(const struct coap_client_internal_request *internal_req)
+{
+	if (!internal_req->request_ongoing) {
+		return false;
+	}
+
+	if (internal_req->pending.timeout != 0) {
+		return true;
+	}
+
+	return internal_req->is_observe && uses_observe_token(internal_req) &&
+	       coap_header_get_type(&internal_req->request) == COAP_TYPE_NON_CON;
+}
+
+/* Repeat the request a 4.01 (Unauthorized) with an Echo option challenged
+ * (RFC 9175, section 2.3) as it was sent, under a new message ID. The stored
+ * request is the one the application passed first, which is not always what
+ * was challenged: rebuilding from it would turn an observe refresh or
+ * deregister into a new registration under another token, and resend a Block1
+ * upload from the block after the challenged one. The Echo option of an
+ * earlier challenge is replaced; a payload stays behind the options.
+ */
+static int resend_with_echo(struct coap_client *client,
+			    struct coap_client_internal_request *internal_req)
+{
+	uint16_t mid = coap_next_id();
+	int ret;
+
+	sys_put_be16(mid, &internal_req->request.data[2]);
+	internal_req->last_id = mid;
+
+	/* Only an observation is bound to its token; any other request is retried
+	 * under a new one, which follows the 4-byte header.
+	 */
+	if (!uses_observe_token(internal_req)) {
+		memcpy(internal_req->request_token, coap_next_token(), internal_req->request_tkl);
+		memcpy(&internal_req->request.data[4], internal_req->request_token,
+		       internal_req->request_tkl);
+	}
+
+	ret = coap_packet_remove_option(&internal_req->request, COAP_OPTION_ECHO);
+	if (ret < 0) {
+		LOG_ERR("Error creating a CoAP request");
+		return ret;
+	}
+
+	ret = coap_packet_append_option(&internal_req->request, COAP_OPTION_ECHO,
+					client->echo_option.value, client->echo_option.len);
+	if (ret < 0) {
+		LOG_ERR("Failed to append echo option");
+		return ret;
+	}
+
+	if (coap_header_get_type(&internal_req->request) == COAP_TYPE_CON) {
+		struct coap_transmission_parameters params = internal_req->pending.params;
+
+		ret = coap_pending_init(&internal_req->pending, &internal_req->request,
+					net_sad(&internal_req->addr), &params);
+		if (ret < 0) {
+			LOG_ERR("Error creating pending");
+			return ret;
+		}
+
+		coap_pending_cycle(&internal_req->pending);
+	}
+
+	ret = send_request(client->fd, internal_req->request.data, internal_req->request.offset, 0,
+			   net_sad(&internal_req->addr), internal_req->addrlen);
+	if (ret < 0) {
+		LOG_ERR("Error sending a CoAP request");
+	}
+
+	return ret;
+}
+
 static int handle_response(struct coap_client *client, const struct net_sockaddr *addr,
 			   net_socklen_t addrlen, const struct coap_packet *response,
 			   bool response_truncated)
@@ -1435,55 +1527,6 @@ static int handle_response(struct coap_client *client, const struct net_sockaddr
 	bool was_mcast = internal_req->is_mcast;
 #endif
 
-	/* Received echo option */
-	if (find_echo_option(response, &client->echo_option)) {
-		 /* Resend request with echo option */
-		if (response_code == COAP_RESPONSE_CODE_UNAUTHORIZED) {
-			ret = coap_client_init_request(client, &internal_req->coap_request,
-						       internal_req);
-
-			if (ret < 0) {
-				LOG_ERR("Error creating a CoAP request");
-				goto fail;
-			}
-
-			ret = coap_packet_append_option(&internal_req->request, COAP_OPTION_ECHO,
-							client->echo_option.value,
-							client->echo_option.len);
-			if (ret < 0) {
-				LOG_ERR("Failed to append echo option");
-				goto fail;
-			}
-
-			if (coap_header_get_type(&internal_req->request) == COAP_TYPE_CON) {
-				struct coap_transmission_parameters params =
-					internal_req->pending.params;
-				ret = coap_pending_init(&internal_req->pending,
-							&internal_req->request,
-							net_sad(&internal_req->addr), &params);
-				if (ret < 0) {
-					LOG_ERR("Error creating pending");
-					goto fail;
-				}
-
-				coap_pending_cycle(&internal_req->pending);
-			}
-
-			ret = send_request(client->fd, internal_req->request.data,
-					   internal_req->request.offset, 0,
-					   net_sad(&internal_req->addr), internal_req->addrlen);
-			if (ret < 0) {
-				LOG_ERR("Error sending a CoAP request");
-				goto fail;
-			} else {
-				return 1;
-			}
-		} else {
-			/* Send echo in next request */
-			client->send_echo = true;
-		}
-	}
-
 	/* Send ack for CON */
 	if (response_type == COAP_TYPE_CON) {
 		const struct net_sockaddr *ack_addr;
@@ -1520,6 +1563,33 @@ static int handle_response(struct coap_client *client, const struct net_sockaddr
 		dedup_cache_add(client, addr, addrlen, response_type, response_id);
 	}
 
+	/* Received echo option */
+	if (find_echo_option(response, &client->echo_option)) {
+		if (response_code != COAP_RESPONSE_CODE_UNAUTHORIZED) {
+			/* Send echo in next request */
+			client->send_echo = true;
+		} else if (response_type != COAP_TYPE_ACK &&
+			   internal_req->echo_challenge_id == (int32_t)response_id) {
+			/* The retry of an observation keeps its token, so a
+			 * challenge the server sends again still matches. It was
+			 * dropped above, unless it is remembered no more: the
+			 * request has answered it.
+			 */
+			return 0;
+		} else if (!awaits_response(internal_req)) {
+			/* With no request waiting there is nothing to retry, and
+			 * the challenge is an error response like any other.
+			 */
+		} else {
+			internal_req->echo_challenge_id =
+				(response_type != COAP_TYPE_ACK) ? (int32_t)response_id : -1;
+			ret = resend_with_echo(client, internal_req);
+			if (ret < 0) {
+				goto fail;
+			}
+			return 1;
+		}
+	}
 
 	if (!internal_req->request_ongoing) {
 		if (internal_req->is_observe) {
@@ -1899,7 +1969,8 @@ void coap_client_cancel_request(struct coap_client *client, struct coap_client_r
  * same for both.
  */
 static int coap_client_observe_resend(struct coap_client *client, struct coap_client_request *req,
-				      bool deregister)
+				      bool deregister, bool own_etag, const uint8_t *etag,
+				      size_t etag_len)
 {
 	bool matched = false;
 	int ret = 0;
@@ -1949,18 +2020,24 @@ static int coap_client_observe_resend(struct coap_client *client, struct coap_cl
 		}
 
 		/* RFC 7641 3.3.1 and 3.6: all options of a re-registration or deregister must
-		 * be identical to those of the registration request. Re-add the application's
-		 * options except Observe, which is set below.
+		 * be identical to those of the registration request, except for the ETag
+		 * options. Re-add the application's options except Observe, which is set
+		 * below, and the ETags when this refresh brings its own set.
 		 */
 		for (int j = 0; err == 0 && j < internal_req->coap_request.num_options; j++) {
 			const struct coap_client_option *opt =
 				&internal_req->coap_request.options[j];
 
-			if (opt->code == COAP_OPTION_OBSERVE) {
+			if (opt->code == COAP_OPTION_OBSERVE ||
+			    (own_etag && opt->code == COAP_OPTION_ETAG)) {
 				continue;
 			}
 
 			err = coap_packet_append_option(&pkt, opt->code, opt->value, opt->len);
+		}
+
+		if (err == 0 && own_etag && etag_len > 0) {
+			err = coap_packet_append_option(&pkt, COAP_OPTION_ETAG, etag, etag_len);
 		}
 
 		if (err == 0) {
@@ -2055,12 +2132,22 @@ static int coap_client_observe_resend(struct coap_client *client, struct coap_cl
 
 int coap_client_deregister_observe(struct coap_client *client, struct coap_client_request *req)
 {
-	return coap_client_observe_resend(client, req, true);
+	return coap_client_observe_resend(client, req, true, false, NULL, 0);
 }
 
 int coap_client_reregister_observe(struct coap_client *client, struct coap_client_request *req)
 {
-	return coap_client_observe_resend(client, req, false);
+	return coap_client_observe_resend(client, req, false, false, NULL, 0);
+}
+
+int coap_client_reregister_observe_etag(struct coap_client *client, struct coap_client_request *req,
+					const uint8_t *etag, size_t etag_len)
+{
+	if (etag_len > COAP_ETAG_MAX_LEN || (etag_len > 0 && etag == NULL)) {
+		return -EINVAL;
+	}
+
+	return coap_client_observe_resend(client, req, false, true, etag, etag_len);
 }
 
 void coap_client_recv(void *coap_cl, void *a, void *b)

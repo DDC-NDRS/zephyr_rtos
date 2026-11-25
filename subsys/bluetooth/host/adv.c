@@ -322,7 +322,7 @@ int bt_le_adv_set_enable_legacy(struct bt_le_ext_adv *adv, bool enable)
 
 	bt_hci_cmd_state_set_init(buf, &state, adv->flags, BT_ADV_ENABLED, enable);
 
-	err = bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_ADV_ENABLE, buf, NULL);
+	err = bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_ADV_ENABLE, net_buf_take_plain(&buf), NULL);
 	if (err) {
 		return err;
 	}
@@ -357,7 +357,7 @@ int bt_le_adv_set_enable_ext(struct bt_le_ext_adv *adv,
 
 	bt_hci_cmd_state_set_init(buf, &state, adv->flags, BT_ADV_ENABLED, enable);
 
-	err = bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_EXT_ADV_ENABLE, buf, NULL);
+	err = bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_EXT_ADV_ENABLE, net_buf_take_plain(&buf), NULL);
 	if (err) {
 		return err;
 	}
@@ -569,7 +569,7 @@ static int hci_set_ad(uint16_t hci_op, const struct bt_ad *ad, size_t ad_len)
 		return err;
 	}
 
-	return bt_hci_cmd_send_sync(hci_op, buf, NULL);
+	return bt_hci_cmd_send_sync(hci_op, net_buf_take_plain(&buf), NULL);
 }
 
 static int hci_set_adv_ext_complete(struct bt_le_ext_adv *adv, uint16_t hci_op,
@@ -607,7 +607,7 @@ static int hci_set_adv_ext_complete(struct bt_le_ext_adv *adv, uint16_t hci_op,
 	set_data->op = BT_HCI_LE_EXT_ADV_OP_COMPLETE_DATA;
 	set_data->frag_pref = BT_HCI_LE_EXT_ADV_FRAG_DISABLED;
 
-	return bt_hci_cmd_send_sync(hci_op, buf, NULL);
+	return bt_hci_cmd_send_sync(hci_op, net_buf_take_plain(&buf), NULL);
 }
 
 static int hci_set_adv_ext_fragmented(struct bt_le_ext_adv *adv, uint16_t hci_op,
@@ -649,7 +649,7 @@ static int hci_set_adv_ext_fragmented(struct bt_le_ext_adv *adv, uint16_t hci_op
 			set_data->op = BT_HCI_LE_EXT_ADV_OP_INTERM_FRAG;
 		}
 
-		err = bt_hci_cmd_send_sync(hci_op, buf, NULL);
+		err = bt_hci_cmd_send_sync(hci_op, net_buf_take_plain(&buf), NULL);
 		if (err) {
 			return err;
 		}
@@ -762,7 +762,8 @@ static int hci_set_per_adv_data(const struct bt_le_ext_adv *adv,
 			set_data->op = BT_HCI_LE_EXT_ADV_OP_INTERM_FRAG;
 		}
 
-		err = bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_PER_ADV_DATA, buf, NULL);
+		err = bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_PER_ADV_DATA, net_buf_take_plain(&buf),
+					   NULL);
 		if (err) {
 			return err;
 		}
@@ -1058,7 +1059,7 @@ static int adv_start_legacy(struct bt_le_ext_adv *adv,
 
 	net_buf_add_mem(buf, &set_param, sizeof(set_param));
 
-	err = bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_ADV_PARAM, buf, NULL);
+	err = bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_ADV_PARAM, net_buf_take_plain(&buf), NULL);
 	if (err) {
 		return err;
 	}
@@ -1257,7 +1258,7 @@ static int le_ext_adv_param_set(struct bt_le_ext_adv *adv,
 
 	cp->props = sys_cpu_to_le16(props);
 
-	err = bt_hci_cmd_send_sync(opcode, buf, &rsp);
+	err = bt_hci_cmd_send_sync(opcode, net_buf_take_plain(&buf), &rsp);
 	if (err) {
 		return err;
 	}
@@ -1787,7 +1788,7 @@ int bt_le_ext_adv_delete(struct bt_le_ext_adv *adv)
 	cp = net_buf_add(buf, sizeof(*cp));
 	cp->handle = adv->handle;
 
-	err = bt_hci_cmd_send_sync(BT_HCI_OP_LE_REMOVE_ADV_SET, buf, NULL);
+	err = bt_hci_cmd_send_sync(BT_HCI_OP_LE_REMOVE_ADV_SET, net_buf_take_plain(&buf), NULL);
 	if (err) {
 		return err;
 	}
@@ -1906,7 +1907,7 @@ int bt_le_per_adv_set_param(struct bt_le_ext_adv *adv,
 	}
 #endif /* CONFIG_BT_PER_ADV_RSP */
 
-	err = bt_hci_cmd_send_sync(opcode, buf, NULL);
+	err = bt_hci_cmd_send_sync(opcode, net_buf_take_plain(&buf), NULL);
 	if (err) {
 		return err;
 	}
@@ -1992,7 +1993,7 @@ int bt_le_per_adv_update_did(const struct bt_le_ext_adv *adv)
 	cp->handle = adv->handle;
 	cp->op = BT_HCI_LE_EXT_ADV_OP_UNCHANGED_DATA;
 
-	return bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_PER_ADV_DATA, buf, NULL);
+	return bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_PER_ADV_DATA, net_buf_take_plain(&buf), NULL);
 }
 
 int bt_le_per_adv_set_subevent_data(const struct bt_le_ext_adv *adv, uint8_t num_subevents,
@@ -2040,7 +2041,8 @@ int bt_le_per_adv_set_subevent_data(const struct bt_le_ext_adv *adv, uint8_t num
 		net_buf_add_mem(buf, params[i].data->data, params[i].data->len);
 	}
 
-	return bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_PER_ADV_SUBEVENT_DATA, buf, NULL);
+	return bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_PER_ADV_SUBEVENT_DATA,
+				    net_buf_take_plain(&buf), NULL);
 }
 
 static int bt_le_per_adv_enable(struct bt_le_ext_adv *adv, bool enable)
@@ -2092,7 +2094,7 @@ static int bt_le_per_adv_enable(struct bt_le_ext_adv *adv, bool enable)
 	bt_hci_cmd_state_set_init(buf, &state, adv->flags,
 				  BT_PER_ADV_ENABLED, enable);
 
-	err = bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_PER_ADV_ENABLE, buf, NULL);
+	err = bt_hci_cmd_send_sync(BT_HCI_OP_LE_SET_PER_ADV_ENABLE, net_buf_take_plain(&buf), NULL);
 	if (err) {
 		return err;
 	}
@@ -2325,8 +2327,8 @@ int bt_le_per_adv_set_info_transfer(const struct bt_le_ext_adv *adv,
 	cp->adv_handle = adv->handle;
 	cp->service_data = sys_cpu_to_le16(service_data);
 
-	return bt_hci_cmd_send_sync(BT_HCI_OP_LE_PER_ADV_SET_INFO_TRANSFER, buf,
-				    NULL);
+	return bt_hci_cmd_send_sync(BT_HCI_OP_LE_PER_ADV_SET_INFO_TRANSFER,
+				    net_buf_take_plain(&buf), NULL);
 }
 #endif /* CONFIG_BT_PER_ADV_SYNC_TRANSFER_SENDER */
 #endif /* CONFIG_BT_PER_ADV */

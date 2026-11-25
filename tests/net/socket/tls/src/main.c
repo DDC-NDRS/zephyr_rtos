@@ -1050,6 +1050,481 @@ ZTEST(net_socket_tls, test_close_while_recv)
 	k_sleep(TCP_TEARDOWN_TIMEOUT);
 }
 
+#define STOP_TEST_RCVTIMEO_S 2
+#define STOP_TEST_POLL_TIMEOUT_MS 2000
+#define STOP_TEST_WAKE_LIMIT_MS (STOP_TEST_RCVTIMEO_S * MSEC_PER_SEC / 2)
+#define STOPPER_JOIN_TIMEOUT K_SECONDS(STOP_TEST_RCVTIMEO_S + 1)
+#define STOPPER_STACK_SIZE 4096U
+#define STOPPER_PRIORITY (CONFIG_ZTEST_THREAD_PRIORITY - 1)
+
+static K_THREAD_STACK_DEFINE(stopper_stack, STOPPER_STACK_SIZE);
+static struct k_thread stopper_thread;
+static bool stopper_started;
+static int stopper_ret;
+static int stopper_errno;
+static int reopened_sock = -1;
+
+static void stopper_close(void *p1, void *p2, void *p3)
+{
+	int *sock = p1;
+
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
+	k_thread_priority_set(k_current_get(), STOPPER_PRIORITY);
+	stopper_ret = zsock_close(*sock);
+	stopper_errno = errno;
+	*sock = -1;
+}
+
+static void stopper_close_and_reopen(void *p1, void *p2, void *p3)
+{
+	stopper_close(p1, p2, p3);
+
+	reopened_sock = zsock_socket(NET_AF_INET6, NET_SOCK_DGRAM, NET_IPPROTO_DTLS_1_2);
+}
+
+static void test_set_stop_rcvtimeo(int sock)
+{
+	struct timeval optval = {
+		.tv_sec = STOP_TEST_RCVTIMEO_S,
+	};
+
+	zassert_ok(zsock_setsockopt(sock, ZSOCK_SOL_SOCKET, ZSOCK_SO_RCVTIMEO, &optval,
+				    sizeof(optval)),
+		   "setsockopt() failed (%d)", errno);
+}
+
+static void test_expect_early_wake(uint32_t timestamp)
+{
+	uint32_t elapsed = k_uptime_get_32() - timestamp;
+
+	zexpect_true(elapsed < STOP_TEST_WAKE_LIMIT_MS,
+		     "zsock_recv() returned only after %u ms", elapsed);
+}
+
+static void test_start_stopper_at(k_thread_entry_t stop_fn, int *sock, int prio)
+{
+	(void)k_thread_create(&stopper_thread, stopper_stack, K_THREAD_STACK_SIZEOF(stopper_stack),
+			      stop_fn, sock, NULL, NULL, prio, 0, K_NO_WAIT);
+	stopper_started = true;
+}
+
+static void test_start_stopper(k_thread_entry_t stop_fn, int *sock)
+{
+	test_start_stopper_at(stop_fn, sock, K_LOWEST_APPLICATION_THREAD_PRIO);
+}
+
+static int test_wait_stopper(void)
+{
+	int ret;
+
+	ret = k_thread_join(&stopper_thread, STOPPER_JOIN_TIMEOUT);
+	if (ret != 0) {
+		k_thread_abort(&stopper_thread);
+	}
+
+	return ret;
+}
+
+static void test_join_stopper(void)
+{
+	zassert_ok(test_wait_stopper(), "Stop call did not return");
+	zexpect_ok(stopper_ret, "Stop call failed (%d)", stopper_errno);
+}
+
+static void test_stop_while_recv(int *sock, k_thread_entry_t stop_fn, ssize_t expected_ret,
+				 int expected_errno)
+{
+	uint8_t rx_buf;
+	uint32_t timestamp;
+	ssize_t ret;
+	int err;
+
+	test_set_stop_rcvtimeo(*sock);
+	test_start_stopper(stop_fn, sock);
+
+	timestamp = k_uptime_get_32();
+	ret = zsock_recv(*sock, &rx_buf, sizeof(rx_buf), 0);
+	err = errno;
+	test_expect_early_wake(timestamp);
+
+	test_join_stopper();
+	zexpect_equal(ret, expected_ret, "Unexpected zsock_recv() result: %zd", ret);
+	if (ret < 0) {
+		zexpect_equal(err, expected_errno, "Unexpected errno value: %d", err);
+	}
+}
+
+ZTEST(net_socket_tls, test_close_while_recv_closer_first)
+{
+	test_prepare_tls_connection(NET_AF_INET6);
+
+	test_stop_while_recv(&new_sock, stopper_close, -1, EINTR);
+
+	test_sockets_close();
+
+	k_sleep(TCP_TEARDOWN_TIMEOUT);
+}
+
+ZTEST(net_socket_tls, test_close_while_recv_waitall_partial)
+{
+	struct zsock_pollfd fds = {
+		.events = ZSOCK_POLLIN,
+	};
+	uint8_t rx_buf[2];
+	uint8_t tx_buf = 0;
+	uint32_t timestamp;
+	ssize_t ret;
+
+	test_prepare_tls_connection(NET_AF_INET6);
+	test_set_stop_rcvtimeo(new_sock);
+
+	test_send(c_sock, &tx_buf, sizeof(tx_buf), 0);
+	fds.fd = new_sock;
+	zassert_equal(zsock_poll(&fds, 1, STOP_TEST_POLL_TIMEOUT_MS), 1,
+		      "poll() did not report data");
+
+	test_start_stopper(stopper_close, &new_sock);
+
+	timestamp = k_uptime_get_32();
+	ret = zsock_recv(fds.fd, rx_buf, sizeof(rx_buf), ZSOCK_MSG_WAITALL);
+	test_expect_early_wake(timestamp);
+
+	test_join_stopper();
+	zexpect_equal(ret, sizeof(tx_buf), "Unexpected zsock_recv() result: %zd, errno %d", ret,
+		      errno);
+
+	test_sockets_close();
+
+	k_sleep(TCP_TEARDOWN_TIMEOUT);
+}
+
+ZTEST(net_socket_tls, test_dtls_server_close_while_recv)
+{
+	test_prepare_dtls_connection(NET_AF_INET6);
+
+	test_stop_while_recv(&s_sock, stopper_close, -1, EINTR);
+}
+
+ZTEST(net_socket_tls, test_dtls_client_close_while_recv)
+{
+	test_prepare_dtls_connection(NET_AF_INET6);
+
+	test_stop_while_recv(&c_sock, stopper_close, -1, EINTR);
+}
+
+ZTEST(net_socket_tls, test_dtls_server_close_while_recv_slot_reused)
+{
+	struct net_sockaddr_in6 addr = {
+		.sin6_family = NET_AF_INET6,
+		.sin6_addr = NET_IN6ADDR_LOOPBACK_INIT,
+	};
+
+	test_prepare_dtls_connection(NET_AF_INET6);
+
+	test_stop_while_recv(&s_sock, stopper_close_and_reopen, -1, EINTR);
+
+	zassert_true(reopened_sock >= 0, "socket() failed");
+	test_bind(reopened_sock, (struct net_sockaddr *)&addr, sizeof(addr));
+	test_close(reopened_sock);
+	reopened_sock = -1;
+}
+
+ZTEST(net_socket_tls, test_dtls_server_close_while_recv_closer_last)
+{
+	struct close_data close_work_data;
+	uint8_t rx_buf;
+	uint32_t timestamp;
+	ssize_t ret;
+
+	test_prepare_dtls_connection(NET_AF_INET6);
+	test_set_stop_rcvtimeo(s_sock);
+
+	k_work_init_delayable(&close_work_data.work, close_work);
+	close_work_data.fd = &s_sock;
+	test_work_reschedule(&close_work_data.work, K_NO_WAIT);
+
+	timestamp = k_uptime_get_32();
+	ret = zsock_recv(s_sock, &rx_buf, sizeof(rx_buf), 0);
+	test_expect_early_wake(timestamp);
+	zexpect_equal(ret, -1, "zsock_recv() did not return error");
+	zexpect_equal(errno, EINTR, "Unexpected errno value: %d", errno);
+
+	test_work_wait(&close_work_data.work);
+}
+
+static void stopper_shutdown_rd(void *p1, void *p2, void *p3)
+{
+	int *sock = p1;
+
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
+	k_thread_priority_set(k_current_get(), STOPPER_PRIORITY);
+	stopper_ret = zsock_shutdown(*sock, ZSOCK_SHUT_RD);
+	stopper_errno = errno;
+}
+
+static void test_eof_after_shutdown_rd(int sock)
+{
+	struct zsock_pollfd fds = {
+		.fd = sock,
+		.events = ZSOCK_POLLIN,
+	};
+	uint8_t rx_buf;
+	ssize_t ret;
+
+	ret = zsock_poll(&fds, 1, STOP_TEST_POLL_TIMEOUT_MS);
+	zexpect_equal(ret, 1, "Unexpected zsock_poll() result: %zd", ret);
+	zexpect_true((fds.revents & ZSOCK_POLLIN) != 0, "Unexpected revents 0x%x", fds.revents);
+
+	ret = zsock_recv(sock, &rx_buf, sizeof(rx_buf), ZSOCK_MSG_DONTWAIT);
+	zexpect_equal(ret, 0, "Unexpected zsock_recv() result: %zd, errno %d", ret, errno);
+}
+
+ZTEST(net_socket_tls, test_dtls_server_shutdown_rd_while_recv)
+{
+	test_prepare_dtls_connection(NET_AF_INET6);
+
+	test_stop_while_recv(&s_sock, stopper_shutdown_rd, 0, 0);
+	test_eof_after_shutdown_rd(s_sock);
+}
+
+ZTEST(net_socket_tls, test_dtls_client_shutdown_rd_while_recv)
+{
+	test_prepare_dtls_connection(NET_AF_INET6);
+
+	test_stop_while_recv(&c_sock, stopper_shutdown_rd, 0, 0);
+	test_eof_after_shutdown_rd(c_sock);
+}
+
+ZTEST(net_socket_tls, test_dtls_server_shutdown_rd_no_session)
+{
+	struct net_sockaddr_in6 s_saddr;
+	int role = ZSOCK_TLS_DTLS_ROLE_SERVER;
+
+	prepare_sock_dtls_v6(MY_IPV6_ADDR, ANY_PORT, &s_sock, &s_saddr, NET_IPPROTO_DTLS_1_2);
+	test_config_psk(s_sock, -1);
+	zassert_ok(zsock_setsockopt(s_sock, ZSOCK_SOL_TLS, ZSOCK_TLS_DTLS_ROLE, &role,
+				    sizeof(role)),
+		   "setsockopt() failed (%d)", errno);
+	test_bind(s_sock, (struct net_sockaddr *)&s_saddr, sizeof(s_saddr));
+
+	zassert_ok(zsock_shutdown(s_sock, ZSOCK_SHUT_RD), "shutdown() failed (%d)", errno);
+	test_eof_after_shutdown_rd(s_sock);
+}
+
+ZTEST(net_socket_tls, test_dtls_client_shutdown_rd_unconnected)
+{
+	struct net_sockaddr_in6 c_saddr;
+	struct zsock_pollfd fds = {
+		.events = ZSOCK_POLLIN,
+	};
+	uint8_t rx_buf;
+	ssize_t ret;
+
+	prepare_sock_dtls_v6(MY_IPV6_ADDR, ANY_PORT, &c_sock, &c_saddr, NET_IPPROTO_DTLS_1_2);
+	test_config_psk(-1, c_sock);
+
+	zassert_ok(zsock_shutdown(c_sock, ZSOCK_SHUT_RD), "shutdown() failed (%d)", errno);
+
+	fds.fd = c_sock;
+	ret = zsock_poll(&fds, 1, STOP_TEST_POLL_TIMEOUT_MS);
+	zexpect_equal(ret, 1, "Unexpected zsock_poll() result: %zd", ret);
+	zexpect_true((fds.revents & ZSOCK_POLLHUP) != 0, "Unexpected revents 0x%x", fds.revents);
+
+	ret = zsock_recv(c_sock, &rx_buf, sizeof(rx_buf), ZSOCK_MSG_DONTWAIT);
+	zexpect_equal(ret, 0, "Unexpected zsock_recv() result: %zd, errno %d", ret, errno);
+}
+
+#define STOPPER_SPARE_SOCKS 2U
+#define STOPPER_PEND_POLL_INTERVAL K_MSEC(10)
+#define STOPPER_PEND_POLL_COUNT 200U
+
+static int spare_socks[STOPPER_SPARE_SOCKS];
+
+static void test_open_spare_socks(void)
+{
+	for (size_t i = 0U; i < ARRAY_SIZE(spare_socks); i++) {
+		spare_socks[i] = zsock_socket(NET_AF_INET6, NET_SOCK_DGRAM, NET_IPPROTO_UDP);
+		zassert_true(spare_socks[i] >= 0, "socket() failed");
+	}
+}
+
+static void test_close_spare_socks(void)
+{
+	for (size_t i = 0U; i < ARRAY_SIZE(spare_socks); i++) {
+		(void)zsock_close(spare_socks[i]);
+	}
+}
+
+static void stopper_accept(void *p1, void *p2, void *p3)
+{
+	struct net_sockaddr_storage addr = { 0 };
+	net_socklen_t addrlen = sizeof(addr);
+	int *sock = p1;
+
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
+	stopper_ret = zsock_accept(*sock, net_sad(&addr), &addrlen);
+	stopper_errno = errno;
+}
+
+static void stopper_close_listener(void *p1, void *p2, void *p3)
+{
+	stopper_close(p1, p2, p3);
+	test_close_spare_socks();
+
+	reopened_sock = zsock_socket(NET_AF_INET6, NET_SOCK_STREAM, NET_IPPROTO_TLS_1_2);
+}
+
+static int test_close_reopened(void)
+{
+	int ret;
+
+	test_start_stopper(stopper_close, &reopened_sock);
+
+	ret = test_wait_stopper();
+	if (ret != 0) {
+		reopened_sock = -1;
+	}
+
+	return ret;
+}
+
+static void test_prepare_tls_listener(struct net_sockaddr_in6 *s_saddr)
+{
+	net_socklen_t addrlen = sizeof(*s_saddr);
+	int optval = 0;
+
+	prepare_sock_tls_v6(MY_IPV6_ADDR, ANY_PORT, &s_sock, s_saddr, NET_IPPROTO_TLS_1_2);
+	test_config_psk(s_sock, -1);
+	zassert_ok(zsock_setsockopt(s_sock, ZSOCK_SOL_TLS, ZSOCK_TLS_HANDSHAKE_ON_ACCEPT, &optval,
+				    sizeof(optval)),
+		   "setsockopt() failed (%d)", errno);
+	test_bind(s_sock, (struct net_sockaddr *)s_saddr, sizeof(*s_saddr));
+	test_listen(s_sock);
+	zassert_ok(zsock_getsockname(s_sock, (struct net_sockaddr *)s_saddr, &addrlen),
+		   "getsockname() failed (%d)", errno);
+}
+
+ZTEST(net_socket_tls, test_close_while_accept_new_socket)
+{
+	struct net_sockaddr_in6 s_saddr;
+	struct net_sockaddr_storage addr = { 0 };
+	net_socklen_t addrlen = sizeof(addr);
+	const struct fd_op_vtable *vtable;
+	void *listener_obj;
+	bool reused;
+	int accept_ret, accept_errno;
+	int close_join, close_ret, close_errno, reopened_join;
+
+	test_open_spare_socks();
+	test_prepare_tls_listener(&s_saddr);
+
+	listener_obj = zvfs_get_fd_obj_and_vtable(s_sock, &vtable, NULL);
+	zassert_not_null(listener_obj, "no object for the listener");
+
+	test_start_stopper(stopper_close_listener, &s_sock);
+
+	accept_ret = zsock_accept(s_sock, net_sad(&addr), &addrlen);
+	accept_errno = errno;
+
+	close_join = test_wait_stopper();
+	close_ret = stopper_ret;
+	close_errno = stopper_errno;
+	reused = (reopened_sock >= 0) &&
+		 (zvfs_get_fd_obj_and_vtable(reopened_sock, &vtable, NULL) == listener_obj);
+
+	reopened_join = test_close_reopened();
+
+	zassert_ok(close_join, "close() of the listener did not return");
+	zassert_ok(close_ret, "close() of the listener failed (%d)", close_errno);
+	zassert_true(reused, "the new socket did not take the listener's TLS context");
+	zexpect_equal(accept_ret, -1, "accept() did not return error");
+	zexpect_equal(accept_errno, EINTR, "Unexpected errno value: %d", accept_errno);
+	zexpect_ok(reopened_join, "close() of the new socket did not return");
+	zexpect_ok(stopper_ret, "close() of the new socket failed (%d)", stopper_errno);
+
+	k_sleep(TCP_TEARDOWN_TIMEOUT);
+}
+
+ZTEST(net_socket_tls, test_close_while_accept_slot_reused)
+{
+	struct net_sockaddr_in6 s_saddr;
+	struct net_sockaddr_in6 c_saddr;
+	const struct fd_op_vtable *vtable;
+	struct k_mutex *lock;
+	void *listener_obj;
+	bool waits_on_lock = false;
+	bool reused;
+	int connect_ret, close_ret, opt_ret, unlock_ret;
+	int accept_join, accept_ret, accept_errno, reopened_join;
+	int optval = 0;
+
+	test_open_spare_socks();
+	test_prepare_tls_listener(&s_saddr);
+	prepare_sock_tcp_v6(MY_IPV6_ADDR, ANY_PORT, &c_sock, &c_saddr);
+
+	listener_obj = zvfs_get_fd_obj_and_vtable(s_sock, &vtable, &lock);
+	zassert_not_null(listener_obj, "no object for the listener");
+
+	test_start_stopper_at(stopper_accept, &s_sock, STOPPER_PRIORITY);
+	k_yield();
+
+	zassert_ok(k_mutex_lock(lock, K_FOREVER), "k_mutex_lock() failed");
+
+	connect_ret = zsock_connect(c_sock, (struct net_sockaddr *)&s_saddr, sizeof(s_saddr));
+
+	/* No socket call shows that accept() has taken the connection and now
+	 * waits for the listener's lock, so check the lock's wait queue.
+	 */
+	for (unsigned int i = 0U; i < STOPPER_PEND_POLL_COUNT; i++) {
+		if (stopper_thread.base.pended_on == &lock->wait_q) {
+			waits_on_lock = true;
+			break;
+		}
+
+		k_sleep(STOPPER_PEND_POLL_INTERVAL);
+	}
+
+	close_ret = zsock_close(s_sock);
+	s_sock = -1;
+	test_close_spare_socks();
+	reopened_sock = zsock_socket(NET_AF_INET6, NET_SOCK_STREAM, NET_IPPROTO_TLS_1_2);
+	reused = (reopened_sock >= 0) &&
+		 (zvfs_get_fd_obj_and_vtable(reopened_sock, &vtable, NULL) == listener_obj);
+	opt_ret = zsock_setsockopt(reopened_sock, ZSOCK_SOL_TLS, ZSOCK_TLS_HANDSHAKE_ON_ACCEPT,
+				   &optval, sizeof(optval));
+
+	unlock_ret = k_mutex_unlock(lock);
+
+	accept_join = test_wait_stopper();
+	accept_ret = stopper_ret;
+	accept_errno = stopper_errno;
+	if ((accept_join == 0) && (accept_ret >= 0)) {
+		(void)zsock_close(accept_ret);
+	}
+
+	reopened_join = test_close_reopened();
+
+	zassert_ok(unlock_ret, "k_mutex_unlock() failed");
+	zassert_ok(connect_ret, "connect() failed");
+	zassert_true(waits_on_lock, "accept() did not wait for the listener's lock");
+	zassert_ok(close_ret, "close() of the listener failed");
+	zassert_true(reused, "the new socket did not take the listener's TLS context");
+	zassert_ok(opt_ret, "setsockopt() failed");
+	zassert_ok(accept_join, "accept() did not return");
+	zexpect_equal(accept_ret, -1, "accept() did not return error");
+	zexpect_equal(accept_errno, EINTR, "Unexpected errno value: %d", accept_errno);
+	zexpect_ok(reopened_join, "close() of the new socket did not return");
+	zexpect_ok(stopper_ret, "close() of the new socket failed (%d)", stopper_errno);
+
+	k_sleep(TCP_TEARDOWN_TIMEOUT);
+}
+
 ZTEST(net_socket_tls, test_connect_timeout)
 {
 	struct net_sockaddr_in6 c_saddr;
@@ -3818,6 +4293,16 @@ static void *tls_tests_setup(void)
 static void tls_tests_after(void *arg)
 {
 	ARG_UNUSED(arg);
+
+	if (stopper_started) {
+		(void)test_wait_stopper();
+		stopper_started = false;
+	}
+
+	if (reopened_sock >= 0) {
+		test_close(reopened_sock);
+		reopened_sock = -1;
+	}
 
 	test_sockets_close();
 }

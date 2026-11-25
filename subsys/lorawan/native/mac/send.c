@@ -676,6 +676,8 @@ static int mac_parse_downlink(struct lwan_ctx *ctx, const uint8_t *rx_buf,
 		return -EBADMSG;
 	}
 
+	mac_cmd_dl_received(ctx);
+
 	mac_cmd_process_dl_fopts(ctx, &rx_buf[sizeof(struct pkt_data_hdr)],
 				 frame_info.fopts_len);
 
@@ -812,8 +814,8 @@ static int send_validate_payload_size(struct lwan_ctx *ctx,
 	int8_t tx_power;
 	int ret;
 
-	ret = ctx->region->get_tx_params(state->dr_idx, ctx->mac.tx_power_idx,
-					 &dr_params, &tx_power);
+	ret = lwan_region_tx_params(ctx, state->dr_idx, ctx->mac.tx_power_idx,
+				    &dr_params, &tx_power);
 	if (ret != 0) {
 		LOG_ERR("Invalid datarate DR%u: %d", state->dr_idx, ret);
 		return ret;
