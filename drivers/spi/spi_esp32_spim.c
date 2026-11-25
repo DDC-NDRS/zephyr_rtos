@@ -1100,7 +1100,7 @@ static int transceive(struct device const* dev,
 
     if (!asynchronous) {
         ret = spi_context_wait_for_completion(&data->ctx);
-        if (ret == -ETIMEDOUT) {
+        if (ret != 0) {
             /* A late ISR completion must not signal the context of
              * the next transfer
              */
