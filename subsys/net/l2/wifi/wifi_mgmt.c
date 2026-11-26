@@ -19,10 +19,11 @@ LOG_MODULE_REGISTER(net_wifi_mgmt, CONFIG_NET_L2_WIFI_MGMT_LOG_LEVEL);
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_log.h>
 #include <zephyr/net/wifi_mgmt.h>
-#include <zephyr/net/wifi_utils.h>
 #ifdef CONFIG_WIFI_NM
 #include <zephyr/net/wifi_nm.h>
 #endif /* CONFIG_WIFI_NM */
+#include <zephyr/net/wifi_utils.h>
+#include <zephyr/sys/__assert.h>
 
 #if !defined(CONFIG_WIFI_MGMT_AP_MAX_NUM_STA) /* #CUSTOM@NDRS */
 #define CONFIG_WIFI_MGMT_AP_MAX_NUM_STA     4
@@ -493,7 +494,7 @@ const char* wifi_disconn_reason_txt(enum wifi_disconn_reason reason) {
 }
 
 static struct wifi_mgmt_ops const* get_wifi_api(struct net_if* iface) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct net_wifi_mgmt_offload* off_api;
 
     if ((dev == NULL) || !net_if_is_wifi(iface)) {
@@ -511,13 +512,75 @@ static struct wifi_mgmt_ops const* get_wifi_api(struct net_if* iface) {
     return (off_api->wifi_mgmt_api);
 }
 
+void wifi_pmksa_cache_entries_clear(struct wifi_pmksa_cache_entry* entries, size_t entry_count) {
+    volatile uint8_t* p;
+    size_t bytes;
+
+    if ((entries == NULL) || (entry_count > (SIZE_MAX / sizeof(*entries)))) {
+        return;
+    }
+
+    p = (volatile uint8_t*)entries;
+    bytes = (entry_count * sizeof(*entries));
+    while (bytes-- != 0U) {
+        *p++ = 0U;
+    }
+}
+
+#ifdef CONFIG_WIFI_MGMT_PMKSA_IMPORT
+static void wifi_pmksa_cache_entry_check(struct wifi_pmksa_cache_entry const* entry, size_t index,
+                                         struct net_linkaddr const* station_addr) {
+    struct net_eth_addr bssid;
+    struct net_eth_addr spa;
+    bool spa_valid;
+
+    memcpy(bssid.addr, entry->bssid, sizeof(bssid.addr));
+    memcpy(spa.addr, entry->spa, sizeof(spa.addr));
+    spa_valid = net_eth_is_addr_valid(&spa);
+    if (!net_eth_is_addr_valid(&bssid) || !spa_valid ||
+        (entry->pmk_len < WIFI_PMKSA_PMK_MIN_LEN) || (entry->pmk_len > WIFI_PMKSA_PMK_MAX_LEN) ||
+        (entry->akm == WIFI_AKM_SUITE_UNKNOWN)    || (entry->expiration_remaining_s == 0U)     ||
+        (entry->reauth_remaining_s > entry->expiration_remaining_s)) {
+        LOG_WRN("PMKSA entry %zu is malformed", index);
+    }
+
+    if (!entry->fils_cache_id_set &&
+        ((entry->fils_cache_id[0] != 0U) || (entry->fils_cache_id[1] != 0U))) {
+        LOG_WRN("PMKSA entry %zu has an unexpected FILS cache ID", index);
+    }
+
+    if (spa_valid && (station_addr->len == WIFI_MAC_ADDR_LEN) &&
+        (memcmp(entry->spa, station_addr->addr, WIFI_MAC_ADDR_LEN) != 0)) {
+        LOG_WRN("PMKSA entry %zu does not match the station address", index);
+    }
+}
+#endif /* CONFIG_WIFI_MGMT_PMKSA_IMPORT */
+
 static int wifi_connect(uint64_t mgmt_request, struct net_if* iface,
                         void* data, size_t len) {
     struct wifi_connect_req_params* params =
         (struct wifi_connect_req_params*)data;
-    const struct device* dev = net_if_get_device(iface);
-
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
+
+    if ((data == NULL) || (len != sizeof(*params))) {
+        return (-EINVAL);
+    }
+
+    if ((params->pmksa_entries == NULL) != (params->pmksa_entry_count == 0U)) {
+        return (-EINVAL);
+    }
+
+    if (!IS_ENABLED(CONFIG_WIFI_MGMT_PMKSA_IMPORT) && params->pmksa_entry_count > 0U) {
+        return (-ENOTSUP);
+    }
+
+    #ifdef CONFIG_WIFI_MGMT_PMKSA_IMPORT
+    for (size_t i = 0U; i < params->pmksa_entry_count; ++i) {
+        wifi_pmksa_cache_entry_check(&params->pmksa_entries[i], i,
+                                     net_if_get_link_addr(iface));
+    }
+    #endif /* CONFIG_WIFI_MGMT_PMKSA_IMPORT */
 
     if ((wifi_mgmt_api == NULL) || (wifi_mgmt_api->connect == NULL)) {
         return (-ENOTSUP);
@@ -660,7 +723,7 @@ static void scan_result_cb(struct net_if* iface, int status,
 
 static int wifi_scan(uint64_t mgmt_request, struct net_if* iface,
                      void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_scan_params* params = data;
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
 
@@ -688,7 +751,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_SCAN, wifi_scan);
 
 static int wifi_disconnect(uint64_t mgmt_request, struct net_if* iface,
                            void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
 
     if ((wifi_mgmt_api == NULL) || (wifi_mgmt_api->disconnect == NULL)) {
@@ -740,10 +803,28 @@ void wifi_mgmt_raise_disconnect_result_event(struct net_if* iface, int status) {
     wifi_mgmt_raise_disconnect_result_status_event(iface, &cnx_status);
 }
 
+void wifi_mgmt_raise_pmksa_cache_event(struct net_if* iface, uint64_t event,
+                                       struct wifi_pmksa_cache_event const* info) {
+    __ASSERT((event == NET_EVENT_WIFI_PMKSA_CACHE_ADDED) ||
+             (event == NET_EVENT_WIFI_PMKSA_CACHE_REMOVED),
+             "Invalid PMKSA cache event");
+    __ASSERT(info != NULL, "PMKSA cache event requires information");
+    __ASSERT(info == NULL || info->ssid_length <= WIFI_SSID_MAX_LEN,
+             "Invalid PMKSA cache event SSID length");
+
+    if (((event != NET_EVENT_WIFI_PMKSA_CACHE_ADDED) &&
+         (event != NET_EVENT_WIFI_PMKSA_CACHE_REMOVED)) ||
+        (info == NULL) || (info->ssid_length > WIFI_SSID_MAX_LEN)) {
+        return;
+    }
+
+    net_mgmt_event_notify_with_info(event, iface, info, sizeof(*info));
+}
+
 #ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_ROAMING
 static int wifi_start_roaming(uint64_t mgmt_request, struct net_if* iface,
                               void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     int ret = -ENOTSUP;
 
@@ -804,7 +885,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_START_ROAMING, wifi_start_roa
 
 static int wifi_neighbor_rep_complete(uint64_t mgmt_request, struct net_if* iface,
                                       void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_scan_params params = {0};
 
@@ -901,7 +982,7 @@ static int wifi_ap_enable(uint64_t mgmt_request, struct net_if* iface,
                           void* data, size_t len) {
     struct wifi_connect_req_params* params =
             (struct wifi_connect_req_params*)data;
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
 
     if ((wifi_mgmt_api == NULL) ||
@@ -930,7 +1011,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_AP_ENABLE, wifi_ap_enable);
 
 static int wifi_ap_disable(uint64_t mgmt_request, struct net_if* iface,
                            void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
 
     if ((wifi_mgmt_api == NULL) ||
@@ -949,7 +1030,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_AP_DISABLE, wifi_ap_disable);
 
 static int wifi_ap_sta_disconnect(uint64_t mgmt_request, struct net_if* iface,
                                   void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     uint8_t* mac = data;
 
@@ -977,7 +1058,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_AP_STA_DISCONNECT, wifi_ap_st
 
 static int wifi_ap_config_params(uint64_t mgmt_request, struct net_if* iface,
                                  void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_ap_config_params* params = data;
 
@@ -1014,7 +1095,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_AP_CONFIG_PARAM, wifi_ap_conf
 
 static int wifi_ap_set_rts_threshold(uint64_t mgmt_request, struct net_if* iface,
                                      void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     unsigned int* rts_threshold = data;
 
@@ -1038,7 +1119,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_AP_RTS_THRESHOLD, wifi_ap_set
 
 static int wifi_iface_status(uint64_t mgmt_request, struct net_if* iface,
                              void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_iface_status* status = data;
 
@@ -1050,6 +1131,8 @@ static int wifi_iface_status(uint64_t mgmt_request, struct net_if* iface,
     if (!data || (len != sizeof(*status))) {
         return (-EINVAL);
     }
+
+    status->pmksa_cache_usage = WIFI_PMKSA_CACHE_USAGE_UNKNOWN;
 
     return wifi_mgmt_api->iface_status(dev, iface, status);
 }
@@ -1066,7 +1149,7 @@ void wifi_mgmt_raise_iface_status_event(struct net_if* iface,
 #ifdef CONFIG_NET_STATISTICS_WIFI
 static int wifi_iface_stats(uint64_t mgmt_request, struct net_if* iface,
                             void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct net_stats_wifi* stats = data;
 
@@ -1086,7 +1169,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_STATS_GET_WIFI, wifi_iface_stats);
 
 static int wifi_iface_stats_reset(uint64_t mgmt_request, struct net_if* iface,
                                   void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
 
     if ((wifi_mgmt_api == NULL) ||
@@ -1101,9 +1184,9 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_STATS_RESET_WIFI, wifi_iface_stats
 
 static int wifi_11k_cfg(uint64_t mgmt_request, struct net_if* iface,
                         void* data, size_t len) {
-    const struct device *dev = net_if_get_device(iface);
-    const struct wifi_mgmt_ops *const wifi_mgmt_api = get_wifi_api(iface);
-    struct wifi_11k_params *params = data;
+    struct device const* dev = net_if_get_device(iface);
+    struct wifi_mgmt_ops const* const wifi_mgmt_api = get_wifi_api(iface);
+    struct wifi_11k_params* params = data;
 
     if ((wifi_mgmt_api == NULL) ||
         (wifi_mgmt_api->cfg_11k == NULL)) {
@@ -1121,9 +1204,9 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_11K_CONFIG, wifi_11k_cfg);
 
 static int wifi_11k_neighbor_request(uint64_t mgmt_request, struct net_if* iface,
                                      void* data, size_t len) {
-    const struct device *dev = net_if_get_device(iface);
-    const struct wifi_mgmt_ops *const wifi_mgmt_api = get_wifi_api(iface);
-    struct wifi_11k_params *params = data;
+    struct device const* dev = net_if_get_device(iface);
+    struct wifi_mgmt_ops const* const wifi_mgmt_api = get_wifi_api(iface);
+    struct wifi_11k_params* params = data;
 
     if ((wifi_mgmt_api == NULL) ||
         (wifi_mgmt_api->send_11k_neighbor_request == NULL)) {
@@ -1142,7 +1225,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_11K_NEIGHBOR_REQUEST,
 
 static int wifi_set_power_save(uint64_t mgmt_request, struct net_if* iface,
                                void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_ps_params* ps_params = data;
     struct wifi_iface_status info = {0};
@@ -1199,7 +1282,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_PS, wifi_set_power_save);
 
 static int wifi_get_power_save_config(uint64_t mgmt_request, struct net_if* iface,
                                       void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_ps_config* ps_config = data;
 
@@ -1223,7 +1306,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_PS_CONFIG, wifi_get_power_sav
 
 static int wifi_set_twt(uint64_t mgmt_request, struct net_if* iface,
                         void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_twt_params* twt_params = data;
     struct wifi_iface_status info = {0};
@@ -1290,9 +1373,9 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_TWT, wifi_set_twt);
 
 static int wifi_set_btwt(uint64_t mgmt_request, struct net_if* iface,
                          void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
-    struct wifi_twt_params *twt_params = data;
+    struct wifi_twt_params* twt_params = data;
     struct wifi_iface_status info = { 0 };
 
     if ((wifi_mgmt_api == NULL) ||
@@ -1329,7 +1412,7 @@ void wifi_mgmt_raise_twt_event(struct net_if* iface, struct wifi_twt_params* twt
 
 static int wifi_reg_domain(uint64_t mgmt_request, struct net_if* iface,
                            void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_reg_domain* reg_domain = data;
 
@@ -1360,7 +1443,7 @@ void wifi_mgmt_raise_twt_sleep_state(struct net_if* iface,
 
 static int wifi_mode(uint64_t mgmt_request, struct net_if* iface,
                      void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_mode_info* mode_info = data;
 
@@ -1384,7 +1467,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_MODE, wifi_mode);
 
 static int wifi_packet_filter(uint64_t mgmt_request, struct net_if* iface,
                               void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_filter_info* filter_info = data;
 
@@ -1408,7 +1491,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_PACKET_FILTER, wifi_packet_fi
 
 static int wifi_channel(uint64_t mgmt_request, struct net_if* iface,
                         void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_channel_info* channel_info = data;
 
@@ -1432,9 +1515,9 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_CHANNEL, wifi_channel);
 
 static int wifi_get_version(uint64_t mgmt_request, struct net_if* iface,
                             void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
-    struct wifi_version *ver_params = data;
+    struct wifi_version* ver_params = data;
 
     if ((wifi_mgmt_api == NULL) ||
         (wifi_mgmt_api->get_version == NULL)) {
@@ -1447,9 +1530,9 @@ static int wifi_get_version(uint64_t mgmt_request, struct net_if* iface,
 NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_VERSION, wifi_get_version);
 
 static int wifi_btm_query(uint64_t mgmt_request, struct net_if* iface, void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
-    uint8_t query_reason = *((uint8_t *)data);
+    uint8_t query_reason = *((uint8_t*)data);
 
     if ((wifi_mgmt_api == NULL) ||
         (wifi_mgmt_api->btm_query == NULL)) {
@@ -1471,7 +1554,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_BTM_QUERY, wifi_btm_query);
 
 static int wifi_get_connection_params(uint64_t mgmt_request, struct net_if* iface,
                                       void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_connect_req_params* conn_params = data;
 
@@ -1490,7 +1573,7 @@ static int wifi_get_connection_params(uint64_t mgmt_request, struct net_if* ifac
 NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_CONN_PARAMS, wifi_get_connection_params);
 
 static int wifi_wps_config(uint64_t mgmt_request, struct net_if* iface, void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_wps_config_params* params = data;
 
@@ -1510,7 +1593,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_WPS_CONFIG, wifi_wps_config);
 
 static int wifi_set_rts_threshold(uint64_t mgmt_request, struct net_if* iface,
                                   void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     unsigned int* rts_threshold = data;
 
@@ -1535,9 +1618,9 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_RTS_THRESHOLD, wifi_set_rts_t
 #ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_DPP
 static int wifi_dpp(uint64_t mgmt_request, struct net_if* iface,
                     void* data, size_t len) {
-    const struct device *dev = net_if_get_device(iface);
-    const struct wifi_mgmt_ops *const wifi_mgmt_api = get_wifi_api(iface);
-    struct wifi_dpp_params *params = data;
+    struct device const* dev = net_if_get_device(iface);
+    struct wifi_mgmt_ops const* const wifi_mgmt_api = get_wifi_api(iface);
+    struct wifi_dpp_params* params = data;
 
     if ((wifi_mgmt_api == NULL) ||
         (wifi_mgmt_api->dpp_dispatch == NULL)) {
@@ -1558,7 +1641,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_DPP, wifi_dpp);
 #ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_NAN
 static int wifi_nan(uint64_t mgmt_request, struct net_if* iface,
                     void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_nan_params* params = data;
 
@@ -1578,7 +1661,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_NAN, wifi_nan);
 
 static int wifi_pmksa_flush(uint64_t mgmt_request, struct net_if* iface,
                             void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
 
     if ((wifi_mgmt_api == NULL) ||
@@ -1595,9 +1678,73 @@ static int wifi_pmksa_flush(uint64_t mgmt_request, struct net_if* iface,
 
 NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_PMKSA_FLUSH, wifi_pmksa_flush);
 
+#ifdef CONFIG_WIFI_MGMT_PMKSA_EXPORT
+static int wifi_pmksa_get(uint64_t mgmt_request, struct net_if* iface, void* data, size_t len) {
+    struct device const* dev = net_if_get_device(iface);
+    struct wifi_mgmt_ops const* const wifi_mgmt_api = get_wifi_api(iface);
+    struct wifi_pmksa_cache_query* query = data;
+    uint32_t index;
+    int ret;
+
+    if ((query == NULL) || (len != sizeof(*query))) {
+        return (-EINVAL);
+    }
+
+    index = query->index;
+    wifi_pmksa_cache_entries_clear(&query->entry, 1U);
+    query->entry_count = 0U;
+    query->index = index;
+
+    if ((wifi_mgmt_api == NULL) || (wifi_mgmt_api->pmksa_get == NULL)) {
+        return (-ENOTSUP);
+    }
+
+    if (!net_if_is_admin_up(iface)) {
+        return (-ENETDOWN);
+    }
+
+    ret = wifi_mgmt_api->pmksa_get(dev, iface, query);
+    if (ret < 0) {
+        wifi_pmksa_cache_entries_clear(&query->entry, 1U);
+        if (ret != -ENOENT) {
+            query->entry_count = 0U;
+        }
+
+        query->index = index;
+    }
+
+    return (ret);
+}
+
+NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_PMKSA_GET, wifi_pmksa_get);
+#endif /* CONFIG_WIFI_MGMT_PMKSA_EXPORT */
+
+#ifdef CONFIG_WIFI_MGMT_PMKSA_IMPORT
+static int wifi_pmksa_flush_external(uint64_t mgmt_request, struct net_if* iface, void *data,
+                                     size_t len) {
+    struct device const* dev = net_if_get_device(iface);
+    struct wifi_mgmt_ops const* const wifi_mgmt_api = get_wifi_api(iface);
+
+    ARG_UNUSED(data);
+    ARG_UNUSED(len);
+
+    if ((wifi_mgmt_api == NULL) || (wifi_mgmt_api->pmksa_flush_external == NULL)) {
+        return (-ENOTSUP);
+    }
+
+    if (!net_if_is_admin_up(iface)) {
+        return (-ENETDOWN);
+    }
+
+    return wifi_mgmt_api->pmksa_flush_external(dev, iface);
+}
+
+NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_PMKSA_FLUSH_EXTERNAL, wifi_pmksa_flush_external);
+#endif /* CONFIG_WIFI_MGMT_PMKSA_IMPORT */
+
 static int wifi_config_params(uint64_t mgmt_request, struct net_if* iface,
                               void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_config_params* params = data;
 
@@ -1625,7 +1772,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_CONFIG_PARAM, wifi_config_par
 
 static int wifi_get_rts_threshold(uint64_t mgmt_request, struct net_if* iface,
                                   void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     unsigned int *rts_threshold = data;
 
@@ -1650,7 +1797,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_RTS_THRESHOLD_CONFIG, wifi_ge
 #ifdef CONFIG_WIFI_CERTIFICATE_LIB
 static int wifi_set_enterprise_creds(uint64_t mgmt_request, struct net_if* iface,
                                      void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_enterprise_creds_params* params = data;
 
@@ -1671,7 +1818,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_ENTERPRISE_CREDS, wifi_set_en
 
 static int wifi_set_bss_max_idle_period(uint64_t mgmt_request, struct net_if* iface,
                                         void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     unsigned short* bss_max_idle_period = data;
 
@@ -1695,11 +1842,10 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_BSS_MAX_IDLE_PERIOD,
                                   wifi_set_bss_max_idle_period);
 
 #ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_BGSCAN
-static int wifi_set_bgscan(uint64_t mgmt_request, struct net_if *iface, void *data, size_t len)
-{
-    const struct device *dev = net_if_get_device(iface);
-    const struct wifi_mgmt_ops *const wifi_mgmt_api = get_wifi_api(iface);
-    struct wifi_bgscan_params *params = data;
+static int wifi_set_bgscan(uint64_t mgmt_request, struct net_if* iface, void* data, size_t len) {
+    struct device const* dev = net_if_get_device(iface);
+    struct wifi_mgmt_ops const* const wifi_mgmt_api = get_wifi_api(iface);
+    struct wifi_bgscan_params* params = data;
 
     if ((wifi_mgmt_api == NULL) ||
         (wifi_mgmt_api->set_bgscan == NULL)) {
@@ -1722,7 +1868,7 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_WIFI_BGSCAN, wifi_set_bgscan);
 #ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_P2P
 static int wifi_p2p_oper(uint64_t mgmt_request, struct net_if* iface,
                          void* data, size_t len) {
-    const struct device* dev = net_if_get_device(iface);
+    struct device const* dev = net_if_get_device(iface);
     struct wifi_mgmt_ops const* wifi_mgmt_api = get_wifi_api(iface);
     struct wifi_p2p_params* params = data;
 

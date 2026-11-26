@@ -398,6 +398,9 @@ __net_socket struct net_context {
         bool reuseport;
         #endif
 
+        /** Allow sending to a broadcast address (SO_BROADCAST). */
+        bool broadcast;
+
         #if defined(CONFIG_NET_IPV4_MAPPING_TO_IPV6)
         /** Support v4-mapped-on-v6 addresses */
         bool ipv6_v6only;
@@ -1474,6 +1477,7 @@ enum net_context_option {
     NET_OPT_UDP_OPT_UEXP      = 40, /**< UDP options: UNSAFE Experimental */
     NET_OPT_UDP_OPT_DPLPMTUD  = 41, /**< UDP options: DPLPMTUD enable (@rfc{9869}) */
     NET_OPT_UDP_OPT_DPLPMTUD_APP_RESPOND = 42, /**< UDP options: app echoes RES itself */
+    NET_OPT_BROADCAST         = 43, /**< Broadcast flag (SO_BROADCAST) */
 };
 
 /**

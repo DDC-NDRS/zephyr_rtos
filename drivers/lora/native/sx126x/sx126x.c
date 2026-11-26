@@ -831,7 +831,10 @@ static int sx126x_get_and_clear_irq(const struct device *dev, uint32_t *irq)
 	LOG_DBG("IRQ status: 0x%04x", irq_status);
 
 	/* Clear handled IRQs */
-	sx126x_clear_irq_status(dev, irq_status);
+	ret = sx126x_clear_irq_status(dev, irq_status);
+	if (ret < 0) {
+		return ret;
+	}
 
 	*irq = irq_status;
 
@@ -1034,7 +1037,7 @@ static int sx126x_rx_prepare(const struct device *dev)
 	return 0;
 }
 
-static uint32_t sx126x_lora_airtime(const struct device *dev, uint32_t data_len)
+static uint32_t sx126x_airtime(const struct device *dev, uint32_t data_len)
 {
 	struct sx126x_data *data = dev->data;
 	uint32_t t_preamble_us, t_payload_us, t_sym_us, n_payload, bw_hz;
@@ -1042,10 +1045,6 @@ static uint32_t sx126x_lora_airtime(const struct device *dev, uint32_t data_len)
 	int32_t tmp;
 	bool de, crc;
 	int ret;
-
-	if (!data->common.configured) {
-		return 0;
-	}
 
 	if (IS_ENABLED(CONFIG_LORA_GFSK) && data->gfsk) {
 		/*
@@ -1095,7 +1094,7 @@ static uint32_t sx126x_lora_airtime(const struct device *dev, uint32_t data_len)
 	return (t_preamble_us + t_payload_us + 500) / 1000;
 }
 
-static int sx126x_lora_rssi(const struct device *dev, int16_t *rssi)
+static int sx126x_get_rssi_inst(const struct device *dev, int16_t *rssi)
 {
 	uint8_t buf[1];
 	int ret;
@@ -1150,6 +1149,8 @@ static const struct lora_radio_ops sx126x_radio_ops = {
 	.rx_duty_cycle_start = sx126x_set_rx_duty_cycle,
 	.rx_read = sx126x_read_packet,
 	.cw_start = sx126x_start_cw,
+	.airtime = sx126x_airtime,
+	.rssi = sx126x_get_rssi_inst,
 };
 
 static DEVICE_API(lora, sx126x_lora_api) = {
@@ -1163,9 +1164,9 @@ static DEVICE_API(lora, sx126x_lora_api) = {
 	.recv_async = lora_radio_recv_async,
 	.recv_duty_cycle = lora_radio_recv_duty_cycle,
 	.recv_duty_cycle_async = lora_radio_recv_duty_cycle_async,
-	.airtime = sx126x_lora_airtime,
+	.airtime = lora_radio_airtime,
 	.test_cw = lora_radio_test_cw,
-	.rssi = sx126x_lora_rssi,
+	.rssi = lora_radio_rssi,
 };
 
 #ifdef CONFIG_PM_DEVICE

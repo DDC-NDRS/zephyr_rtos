@@ -82,6 +82,18 @@ Libraries / Subsystems
     :c:member:`i3c_config_controller.tcas_ps` and the ``tcas-ps`` controller
     Devicetree property.
 
+* Libc
+
+  * ``zephyr_write_stdout()`` no longer converts LF to CRLF. Backends that
+    convert on their own, such as the UART and EFI consoles, now receive a
+    single LF and emit one CRLF. With Newlib, ARCMWDT and the Picolibc POSIX
+    ``write()`` path the duplicated carriage return (CR CR LF) is gone;
+    Picolibc's ``printf()`` output is unchanged.
+
+  * ``printf()`` output to backends that pass bytes through, such as RTT, RAM
+    console, semihosting, the IPM console sender, WCH SDI, whisper and the
+    Bluetooth monitor, is now LF-only, matching ``printk()``.
+
 * LoRaWAN
 
   * The native backend now supports the KR920, AS923 and US915 regions
@@ -96,6 +108,12 @@ Libraries / Subsystems
 
   * :kconfig:option:`CONFIG_MBEDTLS_SSL_CLI_C`
   * :kconfig:option:`CONFIG_MBEDTLS_SSL_SRV_C`
+
+  * Mbed TLS was updated to version 4.1.2. Release notes (including security fixes) can be found
+    `here <https://github.com/Mbed-TLS/mbedtls/releases/tag/mbedtls-4.1.2>`_.
+
+  * TF-PSA-Crypto was updated to version 1.1.2. Release notes (including security fixes) can be
+    found `here <https://github.com/Mbed-TLS/TF-PSA-Crypto/releases/tag/tf-psa-crypto-1.1.2>`_.
 
 * Networking
 
@@ -185,6 +203,14 @@ Libraries / Subsystems
     :kconfig:option:`CONFIG_NET_TCP_MAX_RTO`. The retransmissions, and so the time until an
     unanswered connection fails with ``-ETIMEDOUT``, grow with the RTO of the connection.
 
+  * Wi-Fi
+
+    * Added external PMKSA cache import and export support, controlled by
+      :kconfig:option:`CONFIG_WIFI_MGMT_PMKSA_IMPORT` and
+      :kconfig:option:`CONFIG_WIFI_MGMT_PMKSA_EXPORT`. New requests query and selectively flush
+      the cache, and new events report added and removed entries. The hostap backend
+      implements import, export, and selective flush. (:github:`115470`)
+
 * PTP Clock
 
   * :c:func:`ptp_clock_adjust_rate` adjusts the clock rate by an offset in scaled parts per
@@ -262,6 +288,13 @@ Other notable changes
   * GIC v3 LPI and ITS tables use bounded static storage, making their memory requirements
     predictable at build time and allowing initialization without a system heap. See the
     :ref:`migration guide <migration_4.6>` for capacity sizing and heap configuration changes.
+
+* Kernel
+
+  * Threads can be created pinned to CPU 0 by default instead of being allowed on all CPUs, with
+    :kconfig:option:`CONFIG_SCHED_CPU_MASK_DEFAULT_SINGLE_CPU`. A thread's mask can be widened with
+    :c:func:`k_thread_cpu_mask_enable` while it is not runnable (before it is started, or while
+    it is blocked or suspended).
 
 ..
   Any more descriptive subsystem or driver changes. Do you really want to write

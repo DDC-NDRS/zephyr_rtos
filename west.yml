@@ -215,7 +215,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: 30375441f3bc3bd6eb56691292eadd5675ca719a
+      revision: 9fe7b49c86afadd6f8e2dce5932c0eb69b51c267
       path: modules/hal/nxp
       groups:
         - hal
@@ -297,7 +297,7 @@ manifest:
         - hal
     - name: hostap
       path: modules/lib/hostap
-      revision: ce7f2c4368d99a04fff12a468d2541053531e7c1
+      revision: 23b44823091a6ff86462257386fc586732700968
     - name: liblc3
       revision: 48bbd3eacd36e99a57317a0a4867002e0b09e183
       path: modules/lib/liblc3
@@ -327,7 +327,7 @@ manifest:
       revision: c9ffd4692de246eb911c7ba49b78a331b2c63c74
       path: modules/lib/gui/lvgl
     - name: mbedtls
-      revision: c43f34b93797e81fd0257c30004dcd0ae332ae51
+      revision: cc903e945cd1416213978f441704d4e066ca3bd7
       path: modules/crypto/mbedtls
       groups:
         - crypto
@@ -341,11 +341,6 @@ manifest:
       groups:
         - debug
       revision: 5a9d6055b62edc54566d6d0034d9daec91749b98
-    - name: mldsa-native
-      revision: 3fc19982839305d305071f0de0c540bc9c9bea8a
-      path: modules/crypto/mldsa-native
-      groups:
-        - crypto
     - name: nanopb
       revision: 0f6d088e777a33dd7b54297f137ef10d745c5da8
       path: modules/lib/nanopb
@@ -395,7 +390,7 @@ manifest:
         - testing
         - tee
     - name: tf-psa-crypto
-      revision: 765af96a20a2b408474dcd950372ba9af4d26b62
+      revision: 06810b5a216a48371c9b404653902ac28b32cc0a
       path: modules/crypto/tf-psa-crypto
       groups:
         - crypto
@@ -410,7 +405,7 @@ manifest:
       groups:
         - tee
     - name: trusted-firmware-m
-      revision: 214c1c37a0eafe5d3394d79871112cecc4ff579e
+      revision: e7899dd18db8c34386c8c23d172682eb062d57cd
       path: modules/tee/tf-m/trusted-firmware-m
       groups:
         - tee

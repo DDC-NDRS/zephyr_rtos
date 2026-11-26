@@ -19,16 +19,12 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net/http/service.h>
 #include <zephyr/net/http/server.h>
+#include <zephyr/sys/base64.h>
 
 LOG_MODULE_DECLARE(net_http_server, CONFIG_NET_HTTP_SERVER_LOG_LEVEL);
 
 #include "headers/server_internal.h"
-
-/* Largest frame payload every peer accepts, the initial value of
- * SETTINGS_MAX_FRAME_SIZE (RFC 9113, 6.5.2). A larger value advertised by the
- * peer is not used.
- */
-#define HTTP2_DEFAULT_MAX_FRAME_SIZE 16384U
+#include "headers/http2_internal.h"
 
 static const char content_404[] = {
 #ifdef INCLUDE_HTML_CONTENT
@@ -39,11 +35,6 @@ static const char content_404[] = {
 static bool is_header_flag_set(uint8_t flags, uint8_t mask)
 {
 	return (flags & mask) != 0;
-}
-
-static void clear_header_flag(uint8_t *flags, uint8_t mask)
-{
-	*flags &= ~mask;
 }
 
 static void print_http_frames(struct http_client_ctx *client)
@@ -92,6 +83,8 @@ static struct http2_stream_ctx *allocate_http_stream_context(
 			client->streams[i].stream_state = HTTP2_STREAM_OPEN;
 			client->streams[i].window_size =
 				HTTP_SERVER_INITIAL_WINDOW_SIZE;
+			client->streams[i].send_window_size =
+				(int64_t)client->peer_initial_window_size;
 			client->streams[i].headers_sent = false;
 			client->streams[i].end_stream_sent = false;
 			return &client->streams[i];
@@ -143,16 +136,6 @@ static int add_header_field(struct http_client_ctx *client, uint8_t **buf,
 	*buflen -= ret;
 
 	return 0;
-}
-
-static void encode_frame_header(uint8_t *buf, uint32_t payload_len,
-				enum http2_frame_type frame_type,
-				uint8_t flags, uint32_t stream_id)
-{
-	sys_put_be24(payload_len, &buf[HTTP2_FRAME_LENGTH_OFFSET]);
-	buf[HTTP2_FRAME_TYPE_OFFSET] = frame_type;
-	buf[HTTP2_FRAME_FLAGS_OFFSET] = flags;
-	sys_put_be32(stream_id, &buf[HTTP2_FRAME_STREAM_ID_OFFSET]);
 }
 
 static int send_headers_frame(struct http_client_ctx *client, enum http_status status,
@@ -220,7 +203,7 @@ static int send_headers_frame(struct http_client_ctx *client, enum http_status s
 	payload_len = sizeof(headers_frame) - buflen - HTTP2_FRAME_HEADER_SIZE;
 	flags |= HTTP2_FLAG_END_HEADERS;
 
-	encode_frame_header(headers_frame, payload_len, HTTP2_HEADERS_FRAME,
+	http2_frame_header_encode(headers_frame, payload_len, HTTP2_HEADERS_FRAME,
 			    flags, stream_id);
 
 	ret = http_server_sendall(client, headers_frame,
@@ -235,6 +218,19 @@ static int send_headers_frame(struct http_client_ctx *client, enum http_status s
 	return 0;
 }
 
+/* Take a sent DATA frame payload off the windows the peer advertised */
+static void consume_send_window(struct http_client_ctx *client, uint32_t stream_id, size_t length)
+{
+	struct http2_stream_ctx *stream;
+
+	client->send_window_size -= (int64_t)length;
+
+	stream = find_http_stream_context(client, stream_id);
+	if (stream != NULL) {
+		stream->send_window_size -= (int64_t)length;
+	}
+}
+
 static int send_data_frame(struct http_client_ctx *client, const char *payload,
 			   size_t length, uint32_t stream_id, uint8_t flags)
 {
@@ -245,15 +241,18 @@ static int send_data_frame(struct http_client_ctx *client, const char *payload,
 		length = 0;
 	}
 
-	/* An empty payload is still sent as one frame, it may carry END_STREAM */
+	/* An empty payload is still sent as one frame, it may carry END_STREAM.
+	 * A frame size above the default advertised by the peer is not used.
+	 */
 	do {
 		size_t frame_len = MIN(length, HTTP2_DEFAULT_MAX_FRAME_SIZE);
 		bool last = (frame_len == length);
 
-		encode_frame_header(frame_header, frame_len, HTTP2_DATA_FRAME,
-				    (last && is_header_flag_set(flags, HTTP2_FLAG_END_STREAM)) ?
-				    HTTP2_FLAG_END_STREAM : 0,
-				    stream_id);
+		http2_frame_header_encode(
+			frame_header, frame_len, HTTP2_DATA_FRAME,
+			(last && is_header_flag_set(flags, HTTP2_FLAG_END_STREAM)) ?
+			HTTP2_FLAG_END_STREAM : 0,
+			stream_id);
 
 		ret = http_server_sendall(client, frame_header, sizeof(frame_header));
 		if (ret < 0) {
@@ -268,6 +267,7 @@ static int send_data_frame(struct http_client_ctx *client, const char *payload,
 				break;
 			}
 
+			consume_send_window(client, stream_id, frame_len);
 			payload += frame_len;
 			length -= frame_len;
 		}
@@ -278,36 +278,19 @@ static int send_data_frame(struct http_client_ctx *client, const char *payload,
 
 int send_settings_frame(struct http_client_ctx *client, bool ack)
 {
-	uint8_t settings_frame[HTTP2_FRAME_HEADER_SIZE +
-			       2 * sizeof(struct http2_settings_field)];
-	struct http2_settings_field *setting;
-	size_t len;
+	static const struct http2_setting settings[] = {
+		{ HTTP2_SETTINGS_HEADER_TABLE_SIZE, 0 },
+		{ HTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, CONFIG_HTTP_SERVER_MAX_STREAMS },
+	};
+	uint8_t settings_frame[HTTP2_SETTINGS_FRAME_SIZE(ARRAY_SIZE(settings))];
+	int len;
 	int ret;
 
 	if (ack) {
-		encode_frame_header(settings_frame, 0,
-				    HTTP2_SETTINGS_FRAME,
-				    HTTP2_FLAG_SETTINGS_ACK, 0);
-		len = HTTP2_FRAME_HEADER_SIZE;
+		len = http2_frame_settings_ack_encode(settings_frame, sizeof(settings_frame));
 	} else {
-		encode_frame_header(settings_frame,
-				    2 * sizeof(struct http2_settings_field),
-				    HTTP2_SETTINGS_FRAME, 0, 0);
-
-		setting = (struct http2_settings_field *)
-			(settings_frame + HTTP2_FRAME_HEADER_SIZE);
-		UNALIGNED_PUT(net_htons(HTTP2_SETTINGS_HEADER_TABLE_SIZE),
-			      UNALIGNED_MEMBER_ADDR(setting, id));
-		UNALIGNED_PUT(0, UNALIGNED_MEMBER_ADDR(setting, value));
-
-		setting++;
-		UNALIGNED_PUT(net_htons(HTTP2_SETTINGS_MAX_CONCURRENT_STREAMS),
-			      UNALIGNED_MEMBER_ADDR(setting, id));
-		UNALIGNED_PUT(net_htonl(CONFIG_HTTP_SERVER_MAX_STREAMS),
-			      UNALIGNED_MEMBER_ADDR(setting, value));
-
-		len = HTTP2_FRAME_HEADER_SIZE +
-		      2 * sizeof(struct http2_settings_field);
+		len = http2_frame_settings_encode(settings_frame, sizeof(settings_frame),
+						  settings, ARRAY_SIZE(settings));
 	}
 
 	ret = http_server_sendall(client, settings_frame, len);
@@ -322,12 +305,11 @@ int send_settings_frame(struct http_client_ctx *client, bool ack)
 static int send_rst_stream_frame(struct http_client_ctx *client, uint32_t stream_id,
 				 uint32_t error_code)
 {
-	uint8_t rst_stream_frame[HTTP2_FRAME_HEADER_SIZE + HTTP2_RST_STREAM_FRAME_LEN];
+	uint8_t rst_stream_frame[HTTP2_RST_STREAM_FRAME_SIZE];
 	int ret;
 
-	encode_frame_header(rst_stream_frame, HTTP2_RST_STREAM_FRAME_LEN, HTTP2_RST_STREAM_FRAME, 0,
-			    stream_id);
-	sys_put_be32(error_code, rst_stream_frame + HTTP2_FRAME_HEADER_SIZE);
+	(void)http2_frame_rst_stream_encode(rst_stream_frame, sizeof(rst_stream_frame), stream_id,
+					    error_code);
 
 	ret = http_server_sendall(client, rst_stream_frame, sizeof(rst_stream_frame));
 	if (ret < 0) {
@@ -341,8 +323,7 @@ static int send_rst_stream_frame(struct http_client_ctx *client, uint32_t stream
 int send_window_update_frame(struct http_client_ctx *client,
 			     struct http2_stream_ctx *stream)
 {
-	uint8_t window_update_frame[HTTP2_FRAME_HEADER_SIZE +
-				    sizeof(uint32_t)];
+	uint8_t window_update_frame[HTTP2_WINDOW_UPDATE_FRAME_SIZE];
 	uint32_t window_update;
 	uint32_t stream_id;
 	int ret;
@@ -364,11 +345,8 @@ int send_window_update_frame(struct http_client_ctx *client,
 		return 0;
 	}
 
-	encode_frame_header(window_update_frame, sizeof(uint32_t),
-			    HTTP2_WINDOW_UPDATE_FRAME,
-			    0, stream_id);
-	sys_put_be32(window_update,
-		     window_update_frame + HTTP2_FRAME_HEADER_SIZE);
+	(void)http2_frame_window_update_encode(window_update_frame, sizeof(window_update_frame),
+					       stream_id, window_update);
 
 	ret = http_server_sendall(client, window_update_frame,
 				  sizeof(window_update_frame));
@@ -607,14 +585,16 @@ static int handle_http2_static_fs_resource(struct http_resource_detail_static_fs
 		}
 
 		remaining -= len;
-		encode_frame_header(tmp, len, HTTP2_DATA_FRAME,
-				    (remaining > 0) ? 0 : HTTP2_FLAG_END_STREAM,
-				    frame->stream_identifier);
+		http2_frame_header_encode(tmp, len, HTTP2_DATA_FRAME,
+					  (remaining > 0) ? 0 : HTTP2_FLAG_END_STREAM,
+					  frame->stream_identifier);
 		ret = http_server_sendall(client, tmp, HTTP2_FRAME_HEADER_SIZE + len);
 		if (ret < 0) {
 			LOG_DBG("Cannot write to socket (%d)", ret);
 			goto out;
 		}
+
+		consume_send_window(client, frame->stream_identifier, len);
 	}
 
 	client->current_stream->end_stream_sent = true;
@@ -958,6 +938,25 @@ int enter_http2_request(struct http_client_ctx *client)
 
 static int enter_http_frame_settings_state(struct http_client_ctx *client)
 {
+	struct http2_frame *frame = &client->current_frame;
+
+	if (frame->stream_identifier != 0U) {
+		LOG_DBG("SETTINGS frame on stream %u", frame->stream_identifier);
+		return -EBADMSG;
+	}
+
+	if (is_header_flag_set(frame->flags, HTTP2_FLAG_SETTINGS_ACK)) {
+		if (frame->length != 0U) {
+			LOG_DBG("SETTINGS ACK with a payload of %u bytes", frame->length);
+			return -EBADMSG;
+		}
+	} else {
+		if ((frame->length % HTTP2_SETTINGS_FIELD_LEN) != 0U) {
+			LOG_DBG("SETTINGS frame length %u", frame->length);
+			return -EBADMSG;
+		}
+	}
+
 	client->server_state = HTTP_SERVER_FRAME_SETTINGS_STATE;
 
 	return 0;
@@ -1074,6 +1073,13 @@ static int enter_http_frame_continuation_state(struct http_client_ctx *client)
 
 static int enter_http_frame_window_update_state(struct http_client_ctx *client)
 {
+	struct http2_frame *frame = &client->current_frame;
+
+	if (frame->length != HTTP2_WINDOW_UPDATE_FRAME_LEN) {
+		LOG_DBG("WINDOW_UPDATE frame length %u", frame->length);
+		return -EBADMSG;
+	}
+
 	client->server_state = HTTP_SERVER_FRAME_WINDOW_UPDATE_STATE;
 
 	return 0;
@@ -1353,66 +1359,40 @@ error:
 
 static int parse_http_frame_padded_field(struct http_client_ctx *client)
 {
-	struct http2_frame *frame = &client->current_frame;
+	int ret;
 
-	/* The Pad Length field itself has to fit the frame. */
-	if (frame->length == 0) {
-		return -EBADMSG;
-	}
-
-	if (client->data_len == 0) {
-		return -EAGAIN;
-	}
-
-	frame->padding_len = *client->cursor;
-	client->cursor++;
-	client->data_len--;
-	frame->length--;
-
-	/* The padding may take the whole payload, but not more (RFC 9113,
-	 * Section 6.1).
-	 */
-	if (frame->length < frame->padding_len) {
-		return -EBADMSG;
-	}
-
-	/* Subtract the padding length from frame length now to simplify
-	 * payload processing. Padding will be handled based on
-	 * frame->padding_len in a separate state.
-	 */
-	frame->length -= frame->padding_len;
-
-	/* Clear the padded flag, this indicates that padding field was
+	/* The padding itself is handled based on frame->padding_len in a
+	 * separate state. The cleared PADDED flag indicates that the field was
 	 * already parsed.
 	 */
-	clear_header_flag(&frame->flags, HTTP2_FLAG_PADDED);
+	ret = http2_frame_parse_padded_field(&client->current_frame, client->cursor,
+					     client->data_len);
+	if (ret < 0) {
+		return ret;
+	}
+
+	client->cursor += ret;
+	client->data_len -= ret;
 
 	return 0;
 }
 
 static int parse_http_frame_priority_field(struct http_client_ctx *client)
 {
-	struct http2_frame *frame = &client->current_frame;
-
-	if (frame->length < HTTP2_HEADERS_FRAME_PRIORITY_LEN) {
-		return -EBADMSG;
-	}
-
-	if (client->data_len < HTTP2_HEADERS_FRAME_PRIORITY_LEN) {
-		return -EAGAIN;
-	}
+	int ret;
 
 	/* Priority signalling is deprecated by RFC 9113, however it still
-	 * should be expected to receive, just drop the bytes.
+	 * should be expected to receive, just drop the bytes. The cleared
+	 * PRIORITY flag indicates that the field was already parsed.
 	 */
-	client->cursor += HTTP2_HEADERS_FRAME_PRIORITY_LEN;
-	client->data_len -= HTTP2_HEADERS_FRAME_PRIORITY_LEN;
-	frame->length -= HTTP2_HEADERS_FRAME_PRIORITY_LEN;
+	ret = http2_frame_parse_priority_field(&client->current_frame, client->cursor,
+					       client->data_len);
+	if (ret < 0) {
+		return ret;
+	}
 
-	/* Clear the priority flag, this indicates that priority field was
-	 * already parsed.
-	 */
-	clear_header_flag(&frame->flags, HTTP2_FLAG_PRIORITY);
+	client->cursor += ret;
+	client->data_len -= ret;
 
 	return 0;
 }
@@ -1981,7 +1961,7 @@ int handle_http_frame_priority(struct http_client_ctx *client)
 int handle_http_frame_ping(struct http_client_ctx *client)
 {
 	struct http2_frame *frame = &client->current_frame;
-	uint8_t ping_ack[HTTP2_FRAME_HEADER_SIZE + HTTP2_PING_FRAME_LEN];
+	uint8_t ping_ack[HTTP2_PING_FRAME_SIZE];
 	int ret;
 
 	LOG_DBG("HTTP_SERVER_FRAME_PING_STATE");
@@ -1994,9 +1974,7 @@ int handle_http_frame_ping(struct http_client_ctx *client)
 	 * answered (RFC 9113, Section 6.7).
 	 */
 	if (!is_header_flag_set(frame->flags, HTTP2_FLAG_PING_ACK)) {
-		encode_frame_header(ping_ack, HTTP2_PING_FRAME_LEN, HTTP2_PING_FRAME,
-				    HTTP2_FLAG_PING_ACK, 0);
-		memcpy(&ping_ack[HTTP2_FRAME_HEADER_SIZE], client->cursor, HTTP2_PING_FRAME_LEN);
+		(void)http2_frame_ping_encode(ping_ack, sizeof(ping_ack), true, client->cursor);
 
 		ret = http_server_sendall(client, ping_ack, sizeof(ping_ack));
 		if (ret < 0) {
@@ -2077,6 +2055,145 @@ int handle_http_frame_rst_stream(struct http_client_ctx *client)
 	return 0;
 }
 
+static int set_peer_initial_window_size(struct http_client_ctx *client, uint32_t value)
+{
+	int64_t delta;
+
+	if (value > HTTP2_MAX_WINDOW_SIZE) {
+		LOG_DBG("SETTINGS_INITIAL_WINDOW_SIZE %u", value);
+		return -EBADMSG;
+	}
+
+	/* The change applies to the windows of the streams already open */
+	delta = (int64_t)value - (int64_t)client->peer_initial_window_size;
+
+	ARRAY_FOR_EACH(client->streams, i) {
+		struct http2_stream_ctx *stream = &client->streams[i];
+
+		if (stream->stream_state == HTTP2_STREAM_IDLE) {
+			continue;
+		}
+
+		if (stream->send_window_size + delta > HTTP2_MAX_WINDOW_SIZE) {
+			LOG_DBG("Stream %d window overflow", stream->stream_id);
+			return -EBADMSG;
+		}
+
+		stream->send_window_size += delta;
+	}
+
+	client->peer_initial_window_size = value;
+
+	return 0;
+}
+
+static int apply_peer_setting(struct http_client_ctx *client, uint16_t id, uint32_t value)
+{
+	switch (id) {
+	case HTTP2_SETTINGS_ENABLE_PUSH:
+		if (value > 1U) {
+			LOG_DBG("SETTINGS_ENABLE_PUSH %u", value);
+			return -EBADMSG;
+		}
+
+		break;
+	case HTTP2_SETTINGS_INITIAL_WINDOW_SIZE:
+		return set_peer_initial_window_size(client, value);
+	case HTTP2_SETTINGS_MAX_FRAME_SIZE:
+		/* The value is only checked: no frame is sent larger than the
+		 * default, which every peer accepts.
+		 */
+		if (value < HTTP2_DEFAULT_MAX_FRAME_SIZE || value > HTTP2_MAX_FRAME_SIZE_LIMIT) {
+			LOG_DBG("SETTINGS_MAX_FRAME_SIZE %u", value);
+			return -EBADMSG;
+		}
+
+		break;
+	default:
+		/* The other settings do not change what the server sends: it
+		 * never pushes and never adds to the peer's HPACK dynamic table.
+		 * Unknown settings are ignored.
+		 */
+		break;
+	}
+
+	return 0;
+}
+
+/* Apply the HTTP2-Settings header of an h2c upgrade request. The value is the
+ * payload of a SETTINGS frame, base64url encoded without padding
+ * (RFC 7540, Section 3.2.1). It is applied before any stream is open, and
+ * nothing is applied if the value is invalid.
+ */
+int http2_apply_upgrade_settings(struct http_client_ctx *client, const char *value, size_t len)
+{
+	uint8_t encoded[HTTP_SERVER_HTTP2_SETTINGS_MAX_LEN];
+	uint8_t payload[HTTP_SERVER_HTTP2_SETTINGS_MAX_LEN / 4U * 3U];
+	uint32_t initial_window_size = client->peer_initial_window_size;
+	size_t encoded_len;
+	size_t payload_len;
+	int ret;
+
+	BUILD_ASSERT((HTTP_SERVER_HTTP2_SETTINGS_MAX_LEN % 4U) == 0U);
+
+	/* A single character left over does not encode a byte */
+	if (len > sizeof(encoded) || (len % 4U) == 1U) {
+		LOG_DBG("HTTP2-Settings length %zu", len);
+		return -EBADMSG;
+	}
+
+	/* base64_decode() takes the standard alphabet, with padding */
+	for (encoded_len = 0; encoded_len < len; encoded_len++) {
+		char c = value[encoded_len];
+
+		switch (c) {
+		case '-':
+			c = '+';
+			break;
+		case '_':
+			c = '/';
+			break;
+		default:
+			/* The other characters are the same in both alphabets */
+			if (isalnum((unsigned char)c) == 0) {
+				LOG_DBG("HTTP2-Settings is not base64url");
+				return -EBADMSG;
+			}
+
+			break;
+		}
+
+		encoded[encoded_len] = (uint8_t)c;
+	}
+
+	while ((encoded_len % 4U) != 0U) {
+		encoded[encoded_len] = '=';
+		encoded_len++;
+	}
+
+	ret = base64_decode(payload, sizeof(payload), &payload_len, encoded, encoded_len);
+	if (ret < 0) {
+		LOG_DBG("HTTP2-Settings is not base64url (%d)", ret);
+		return -EBADMSG;
+	}
+
+	if ((payload_len % HTTP2_SETTINGS_FIELD_LEN) != 0U) {
+		LOG_DBG("HTTP2-Settings length %zu", payload_len);
+		return -EBADMSG;
+	}
+
+	for (size_t pos = 0; pos < payload_len; pos += HTTP2_SETTINGS_FIELD_LEN) {
+		ret = apply_peer_setting(client, sys_get_be16(&payload[pos]),
+					 sys_get_be32(&payload[pos + sizeof(uint16_t)]));
+		if (ret < 0) {
+			client->peer_initial_window_size = initial_window_size;
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
 int handle_http_frame_settings(struct http_client_ctx *client)
 {
 	struct http2_frame *frame = &client->current_frame;
@@ -2086,6 +2203,19 @@ int handle_http_frame_settings(struct http_client_ctx *client)
 
 	if (client->data_len < frame->length) {
 		return -EAGAIN;
+	}
+
+	if (!is_header_flag_set(frame->flags, HTTP2_FLAG_SETTINGS_ACK)) {
+		for (size_t pos = 0; pos < frame->length; pos += HTTP2_SETTINGS_FIELD_LEN) {
+			int ret;
+
+			ret = apply_peer_setting(client, sys_get_be16(client->cursor + pos),
+						 sys_get_be32(client->cursor + pos +
+							      sizeof(uint16_t)));
+			if (ret < 0) {
+				return ret;
+			}
+		}
 	}
 
 	bytes_consumed = client->current_frame.length;
@@ -2138,19 +2268,52 @@ int handle_http_frame_goaway(struct http_client_ctx *client)
 int handle_http_frame_window_update(struct http_client_ctx *client)
 {
 	struct http2_frame *frame = &client->current_frame;
+	struct http2_stream_ctx *stream;
+	int64_t *window;
+	uint32_t increment;
 	int bytes_consumed;
 
 	LOG_DBG("HTTP_SERVER_FRAME_WINDOW_UPDATE");
-
-	/* TODO Implement flow control, for now just ignore. */
 
 	if (client->data_len < frame->length) {
 		return -EAGAIN;
 	}
 
+	increment = sys_get_be32(client->cursor) & HTTP2_FRAME_STREAM_ID_MASK;
+
 	bytes_consumed = client->current_frame.length;
 	client->data_len -= bytes_consumed;
 	client->cursor += bytes_consumed;
+
+	if (frame->stream_identifier == 0U) {
+		window = &client->send_window_size;
+	} else {
+		stream = find_http_stream_context(client, frame->stream_identifier);
+		if (stream == NULL) {
+			/* A WINDOW_UPDATE on a closed stream is not an error.
+			 * Idle streams are not detected yet and are treated
+			 * as closed ones.
+			 */
+			client->server_state = HTTP_SERVER_FRAME_HEADER_STATE;
+			return 0;
+		}
+
+		window = &stream->send_window_size;
+	}
+
+	/* Errors on a stream are treated as connection errors too */
+	if (increment == 0U) {
+		LOG_DBG("WINDOW_UPDATE of 0 on stream %u", frame->stream_identifier);
+		return -EBADMSG;
+	}
+
+	if (*window + increment > HTTP2_MAX_WINDOW_SIZE) {
+		LOG_DBG("WINDOW_UPDATE overflows the window of stream %u",
+			frame->stream_identifier);
+		return -EBADMSG;
+	}
+
+	*window += increment;
 
 	client->server_state = HTTP_SERVER_FRAME_HEADER_STATE;
 
@@ -2188,48 +2351,19 @@ int handle_http_frame_padding(struct http_client_ctx *client)
 
 const char *get_frame_type_name(enum http2_frame_type type)
 {
-	switch (type) {
-	case HTTP2_DATA_FRAME:
-		return "DATA";
-	case HTTP2_HEADERS_FRAME:
-		return "HEADERS";
-	case HTTP2_PRIORITY_FRAME:
-		return "PRIORITY";
-	case HTTP2_RST_STREAM_FRAME:
-		return "RST_STREAM";
-	case HTTP2_SETTINGS_FRAME:
-		return "SETTINGS";
-	case HTTP2_PUSH_PROMISE_FRAME:
-		return "PUSH_PROMISE";
-	case HTTP2_PING_FRAME:
-		return "PING";
-	case HTTP2_GOAWAY_FRAME:
-		return "GOAWAY";
-	case HTTP2_WINDOW_UPDATE_FRAME:
-		return "WINDOW_UPDATE";
-	case HTTP2_CONTINUATION_FRAME:
-		return "CONTINUATION";
-	default:
-		return "UNKNOWN";
-	}
+	return http2_frame_type_name(type);
 }
 
 int parse_http_frame_header(struct http_client_ctx *client, const uint8_t *buffer,
 			    size_t buflen)
 {
 	struct http2_frame *frame = &client->current_frame;
+	int ret;
 
-	if (buflen < HTTP2_FRAME_HEADER_SIZE) {
-		return -EAGAIN;
+	ret = http2_frame_header_parse(buffer, buflen, frame);
+	if (ret < 0) {
+		return ret;
 	}
-
-	frame->length = sys_get_be24(&buffer[HTTP2_FRAME_LENGTH_OFFSET]);
-	frame->type = buffer[HTTP2_FRAME_TYPE_OFFSET];
-	frame->flags = buffer[HTTP2_FRAME_FLAGS_OFFSET];
-	frame->stream_identifier = sys_get_be32(
-				&buffer[HTTP2_FRAME_STREAM_ID_OFFSET]);
-	frame->stream_identifier &= HTTP2_FRAME_STREAM_ID_MASK;
-	frame->padding_len = 0;
 
 	LOG_DBG("Frame len %d type 0x%02x flags 0x%02x id %d",
 		frame->length, frame->type, frame->flags, frame->stream_identifier);

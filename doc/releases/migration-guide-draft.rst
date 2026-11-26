@@ -358,6 +358,10 @@ Ethernet
   :c:enum:`ethernet_hw_caps` have been removed. Use :c:func:`net_eth_get_dsa_port_type` to get the
   DSA port type of an interface instead. (:github:`124790`)
 
+* gPTP now drops received event messages (Sync, Pdelay_Req, Pdelay_Resp) for which the driver
+  has not called :c:func:`net_pkt_set_rx_timestamping`. Out-of-tree Ethernet drivers that
+  only populate ``pkt->timestamp`` must set the flag, or gPTP will not synchronize.
+
 Flash
 =====
 
@@ -613,6 +617,10 @@ Wi-Fi
   ``SYS_FOREVER_MS`` retries until the application disconnects. A wrong WPA3-SAE password cannot
   be told apart from such a rejection, so it is retried as well.
 
+* The Atmel WINC1500 Wi-Fi driver has been removed together with ``CONFIG_WIFI_WINC1500``, the
+  ``atmel,winc1500`` devicetree binding and the ``adafruit_winc1500`` shield. It was deprecated
+  in Zephyr 4.4 for lack of a maintainer and has no in-tree replacement.
+
 .. zephyr-keep-sorted-stop
 
 Bluetooth
@@ -846,6 +854,17 @@ OpenThread
 
 * Applications that require an older OpenThread version must explicitly select the desired version in their project Kconfig configuration.
 
+WiFi
+====
+
+* :c:struct:`wifi_connect_req_params` gained PMKSA import fields, and
+  :c:macro:`NET_REQUEST_WIFI_CONNECT` now requires a payload of exactly
+  ``sizeof(struct wifi_connect_req_params)``. Zero-initialize the structure and leave
+  ``pmksa_entries`` as ``NULL`` and ``pmksa_entry_count`` as zero when not importing entries.
+  A mismatched pointer/count pair returns ``-EINVAL``; a nonzero count with
+  :kconfig:option:`CONFIG_WIFI_MGMT_PMKSA_IMPORT` disabled returns ``-ENOTSUP``.
+  (:github:`115470`)
+
 Other subsystems
 ****************
 
@@ -923,3 +942,9 @@ Architectures
   power-management units (the ``pmu`` name is used by both). The header
   :file:`include/zephyr/arch/pmu.h` is now :file:`include/zephyr/arch/perf_counter.h`, and its
   ``pmu_*`` functions and types gained a ``perf_counter_`` prefix. (:github:`125939`)
+
+* On Xtensa, the HiFi register sharing code was generalized to any coprocessor, and the fields
+  it adds to the architecture structures were renamed: ``hifi_regs`` in ``struct _thread_arch``
+  is now ``cp_regs``, and ``hifi_owner`` and ``save_hifi`` in ``struct _cpu_arch`` are now
+  ``cp_owner`` and ``save_cp``. Code accessing these fields must use the new names. The
+  :kconfig:option:`CONFIG_XTENSA_HIFI_SHARING` options are unchanged. (:github:`120790`)

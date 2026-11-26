@@ -23,6 +23,8 @@ struct lora_radio_waiter {
 	uint8_t size;
 	int16_t *rssi;
 	int8_t *snr;
+	/* Waiting on a reception without limit, which a packet does not end */
+	bool continuous;
 };
 
 /* Claim the radio for an operation and wake it up */
@@ -30,6 +32,7 @@ static int lora_radio_op_begin(const struct device *dev, enum lora_radio_op op)
 {
 	const struct lora_radio_config *config = dev->config;
 	struct lora_radio_data *data = dev->data;
+	uint32_t stale;
 	int ret;
 
 	if (data->op != LORA_RADIO_OP_NONE) {
@@ -39,6 +42,17 @@ static int lora_radio_op_begin(const struct device *dev, enum lora_radio_op op)
 	ret = config->ops->wake(dev);
 	if (ret < 0) {
 		return ret;
+	}
+
+	/* Interrupts an earlier operation left behind are not this one's */
+	if (data->irq_stale) {
+		ret = config->ops->irq_get(dev, &stale);
+		if (ret < 0) {
+			config->ops->sleep(dev);
+			return ret;
+		}
+
+		data->irq_stale = false;
 	}
 
 	data->op = op;
@@ -61,6 +75,7 @@ static void lora_radio_op_end(const struct device *dev, int status)
 
 	config->ops->sleep(dev);
 	data->op = LORA_RADIO_OP_NONE;
+	data->ops_ended++;
 
 	if (async != NULL) {
 		k_poll_signal_raise(async, status);
@@ -77,8 +92,11 @@ static void lora_radio_op_abort(const struct device *dev, int status)
 {
 	const struct lora_radio_config *config = dev->config;
 	struct lora_radio_data *data = dev->data;
+	uint32_t stale;
 
 	config->ops->stop(dev, data->op);
+	/* What it raised meanwhile must not be taken for the next operation's */
+	data->irq_stale = (config->ops->irq_get(dev, &stale) < 0);
 	lora_radio_op_end(dev, status);
 }
 
@@ -129,12 +147,13 @@ static int lora_radio_rx_arm(const struct device *dev, uint32_t timeout_ms)
 
 static void lora_radio_rx_restart(const struct device *dev)
 {
-	struct lora_radio_data *data = dev->data;
 	int ret;
 
 	ret = lora_radio_rx_arm(dev, 0);
-	if (ret < 0 && data->op == LORA_RADIO_OP_RX_DUTY_CYCLE) {
-		lora_radio_op_end(dev, ret);
+	if (ret < 0) {
+		LOG_ERR("Failed to restart reception: %d", ret);
+		/* A continuous reception is still running */
+		lora_radio_op_abort(dev, ret);
 	}
 }
 
@@ -145,6 +164,7 @@ static void lora_radio_rx_done(const struct device *dev, uint32_t irq_status)
 	struct lora_radio_waiter *waiter = data->waiter;
 	lora_recv_cb cb = data->rx_cb;
 	void *user_data = data->rx_cb_user_data;
+	uint32_t ended = data->ops_ended;
 	int16_t rssi = 0;
 	int8_t snr = 0;
 	int len;
@@ -164,7 +184,11 @@ static void lora_radio_rx_done(const struct device *dev, uint32_t irq_status)
 			}
 		}
 
-		lora_radio_op_end(dev, len);
+		if (waiter != NULL && waiter->continuous) {
+			lora_radio_op_abort(dev, len);
+		} else {
+			lora_radio_op_end(dev, len);
+		}
 		return;
 	}
 
@@ -176,8 +200,8 @@ static void lora_radio_rx_done(const struct device *dev, uint32_t irq_status)
 		k_mutex_lock(&data->lock, K_FOREVER);
 	}
 
-	/* Restart reception unless the callback stopped it */
-	if (data->rx_cb != NULL) {
+	/* Restart the reception unless the callback ended it, even to start another */
+	if (data->ops_ended == ended) {
 		lora_radio_rx_restart(dev);
 	}
 }
@@ -200,7 +224,13 @@ static void lora_radio_irq_work_handler(struct k_work *work)
 
 	ret = ops->irq_get(dev, &irq_status);
 	if (ret < 0) {
-		LOG_ERR("Failed to get IRQ status");
+		LOG_ERR("Failed to get IRQ status: %d", ret);
+		/* How the operation went is unknown. CW is ended by its own caller. */
+		if (data->op != LORA_RADIO_OP_NONE && data->op != LORA_RADIO_OP_CW) {
+			lora_radio_op_abort(dev, ret);
+		} else {
+			data->irq_stale = true;
+		}
 		goto unlock;
 	}
 
@@ -274,9 +304,8 @@ int lora_radio_configure(const struct device *dev, lora_radio_config_fn fn, cons
 	}
 
 	ret = fn(dev, cfg);
-	if (ret >= 0) {
-		data->configured = true;
-	}
+	/* A configuration that failed may have left the radio half set up */
+	data->configured = (ret >= 0);
 
 	lora_radio_op_end(dev, 0);
 
@@ -424,8 +453,6 @@ static int lora_radio_rx_stop(const struct device *dev, enum lora_radio_op op)
 
 	k_mutex_lock(&data->lock, K_FOREVER);
 
-	data->rx_cb = NULL;
-	data->rx_cb_user_data = NULL;
 	if (data->op == op) {
 		lora_radio_op_abort(dev, -EAGAIN);
 	}
@@ -451,6 +478,7 @@ int lora_radio_recv(const struct device *dev, uint8_t *data_buf,
 	/* 0 = continuous for K_FOREVER */
 	timeout_ms = K_TIMEOUT_EQ(timeout, K_FOREVER)
 		     ? 0 : k_ticks_to_ms_ceil32(timeout.ticks);
+	waiter.continuous = (timeout_ms == 0);
 	ret = lora_radio_rx_start(dev, LORA_RADIO_OP_RX, timeout_ms, 0, NULL, NULL, &waiter);
 	if (ret < 0) {
 		return ret;
@@ -541,4 +569,45 @@ unlock:
 	k_mutex_unlock(&data->lock);
 
 	return ret;
+}
+
+int lora_radio_rssi(const struct device *dev, int16_t *rssi)
+{
+	const struct lora_radio_config *config = dev->config;
+	struct lora_radio_data *data = dev->data;
+	int ret;
+
+	if (config->ops->rssi == NULL) {
+		return -ENOSYS;
+	}
+
+	k_mutex_lock(&data->lock, K_FOREVER);
+
+	/* Not in a duty cycle: the radio is asleep for most of it */
+	if (data->op == LORA_RADIO_OP_RX) {
+		ret = config->ops->rssi(dev, rssi);
+	} else {
+		ret = -EBUSY;
+	}
+
+	k_mutex_unlock(&data->lock);
+
+	return ret;
+}
+
+uint32_t lora_radio_airtime(const struct device *dev, uint32_t data_len)
+{
+	const struct lora_radio_config *config = dev->config;
+	struct lora_radio_data *data = dev->data;
+	uint32_t airtime = 0;
+
+	k_mutex_lock(&data->lock, K_FOREVER);
+
+	if (data->configured) {
+		airtime = config->ops->airtime(dev, data_len);
+	}
+
+	k_mutex_unlock(&data->lock);
+
+	return airtime;
 }

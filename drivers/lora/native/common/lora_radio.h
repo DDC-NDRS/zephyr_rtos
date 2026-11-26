@@ -14,7 +14,7 @@
 
 /*
  * The radio is woken when an operation claims it and put to rest when the
- * operation ends. An operation the radio refuses to start, or a duty cycle it
+ * operation ends. An operation the radio refuses to start, or a reception it
  * fails to resume, ends at once. A call that finds the radio claimed returns
  * -EBUSY, except during a configuration: that one holds the lock for as long
  * as it runs, so the call waits for it and is checked against what it set.
@@ -33,9 +33,9 @@ enum lora_radio_op {
 /*
  * What the operation handling needs from a radio. Everything is called with
  * the lock held. The radio is claimed and awake by then, except that wake()
- * is what wakes it for the claim, tx_check() comes before the claim and must
- * not talk to the radio, and a radio that does not sleep gets irq_get() with
- * nothing in flight too.
+ * is what wakes it for the claim, tx_check() and airtime() come without the
+ * claim and must not talk to the radio, and a radio that does not sleep gets
+ * irq_get() with nothing in flight too.
  */
 struct lora_radio_ops {
 	/* Interrupt status bits, as irq_get() reports them */
@@ -74,6 +74,12 @@ struct lora_radio_ops {
 
 	/* Emit an unmodulated carrier */
 	int (*cw_start)(const struct device *dev, uint32_t frequency, int8_t tx_power);
+
+	/* Time on air, in ms, of len bytes as the radio is configured */
+	uint32_t (*airtime)(const struct device *dev, uint32_t len);
+
+	/* Optional. Signal level as it is now, asked for during a plain reception only. */
+	int (*rssi)(const struct device *dev, int16_t *rssi);
 };
 
 /* Constant part of a radio. Must be the first member of the driver config. */
@@ -90,7 +96,11 @@ struct lora_radio_data {
 	/* Guards the operation state and the operations' exchanges with the radio */
 	struct k_mutex lock;
 	enum lora_radio_op op;
+	/* How many operations have ended, to tell one from the next */
+	uint32_t ops_ended;
 	bool configured;
+	/* Interrupts of an ended operation are still to be cleared */
+	bool irq_stale;
 
 	struct lora_radio_waiter *waiter;
 
@@ -143,5 +153,7 @@ int lora_radio_recv_duty_cycle_async(const struct device *dev, k_timeout_t rx_pe
 				     k_timeout_t sleep_period, lora_recv_cb cb, void *user_data);
 int lora_radio_test_cw(const struct device *dev, uint32_t frequency, int8_t tx_power,
 		       uint16_t duration);
+int lora_radio_rssi(const struct device *dev, int16_t *rssi);
+uint32_t lora_radio_airtime(const struct device *dev, uint32_t data_len);
 
 #endif /* ZEPHYR_DRIVERS_LORA_NATIVE_COMMON_LORA_RADIO_H_ */

@@ -42,11 +42,15 @@
 #define EVENT_CTX_M1        0x64
 #define EVENT_CTX_USR       0x68
 #define EVENT_CTX_R28       0x6C
-#define EVENT_CTX_SCRATCH   0x70
+#define EVENT_CTX_GOSP      0x70
+#define EVENT_CTX_GBADVA    0x74
+/* EVENT_EXIT reuses the GOSP slot after the handler returns. */
+#define EVENT_CTX_SCRATCH   EVENT_CTX_GOSP
 #define EVENT_CTX_SIZE      0x78  /* 8-byte aligned */
 
 GTEXT(z_hexagon_enhanced_machine_check)
 GTEXT(z_hexagon_enhanced_exception)
+GTEXT(z_hexagon_enhanced_debug)
 GTEXT(z_hexagon_enhanced_trap0)
 GTEXT(z_hexagon_enhanced_interrupt)
 GTEXT(z_hexagon_event_handler)
@@ -145,6 +149,12 @@ GDATA(_kernel)
 
 	/* Save r28 (caller-saved, not part of r0-r15 register pairs) */
 	memw(r29+#EVENT_CTX_R28) = r28
+
+	/* Save GOSP (G2) and GBADVA (G3) as raw event-time values. */
+	r0 = g2
+	memw(r29+#EVENT_CTX_GOSP) = r0
+	r0 = g3
+	memw(r29+#EVENT_CTX_GBADVA) = r0
 
 	/* Save hardware loop, modifier, and USR registers.
 	 * These are caller-saved and will be clobbered by the C handler.
@@ -388,6 +398,11 @@ SECTION_FUNC(TEXT, z_hexagon_enhanced_exception)
 	EVENT_ENTRY 2
 	EVENT_EXIT 2
 
+/* Enhanced debug handler */
+SECTION_FUNC(TEXT, z_hexagon_enhanced_debug)
+	EVENT_ENTRY 3
+	EVENT_EXIT 3
+
 /* Enhanced trap0 (syscall) handler */
 SECTION_FUNC(TEXT, z_hexagon_enhanced_trap0)
 	EVENT_ENTRY 5
@@ -397,3 +412,20 @@ SECTION_FUNC(TEXT, z_hexagon_enhanced_trap0)
 SECTION_FUNC(TEXT, z_hexagon_enhanced_interrupt)
 	EVENT_ENTRY 7
 	EVENT_EXIT 7
+
+#if defined(CONFIG_ARCH_STACKWALK) && defined(CONFIG_MULTITHREADING)
+/*
+ * Return addresses of the EVENT_EXIT context switch call, zero-terminated.
+ * A switch frame whose LR is one of these was saved by a thread preempted
+ * by an event; arch_stack_walk() unwinds it through the event frame.
+ */
+GDATA(z_hexagon_event_switch_ret)
+SECTION_VAR(RODATA, z_hexagon_event_switch_ret)
+	.balign 4
+	.word _event_no_switch_1
+	.word _event_no_switch_2
+	.word _event_no_switch_3
+	.word _event_no_switch_5
+	.word _event_no_switch_7
+	.word 0
+#endif
