@@ -153,6 +153,14 @@ Boards
   that relied on the alias, such as :zephyr:code-sample:`blinky`, need an
   overlay pointing at a LED wired to the headers.
 
+* The RAKwireless ``rak3112`` board is renamed to :zephyr:board:`rak3212`. It
+  was named after the WisDuo stamp module it carries rather than the board it
+  describes, which is the RAK3212 Breakout Board. The other carrier for the
+  same module is the new :zephyr:board:`rak3312` WisBlock Core Module.
+  :file:`boards/deprecated.cmake` keeps ``-b rak3112/esp32s3/procpu`` and
+  ``-b rak3112/esp32s3/appcpu`` working with a warning, but out-of-tree code
+  testing ``CONFIG_BOARD_RAK3112`` must switch to ``CONFIG_BOARD_RAK3212``.
+
 * The Espressif SoC family is renamed from ``espressif_esp32`` to ``espressif``. The
   :kconfig:option:`CONFIG_SOC_FAMILY` string is now ``"espressif"`` and the family option is
   :kconfig:option:`CONFIG_SOC_FAMILY_ESPRESSIF`. ``CONFIG_SOC_FAMILY_ESPRESSIF_ESP32`` is still set
@@ -331,6 +339,24 @@ Comparator
   Refer to :zephyr_file:`dts/bindings/comparator/nxp,lpcmp.yaml` for the property definitions. The
   :zephyr_file:`tests/drivers/comparator/gpio_loopback` test provides an example of the comparator
   API. (:github:`124232`).
+
+Entropy
+=======
+
+* On the Nordic nRF54L05/10/15, nRF54LM20, nRF54LV10A and nRF7120 SoCs, the
+  :dtcompatible:`nordic,nrf-cracen-ctrdrbg` ``rng`` node is now a child of the new
+  :dtcompatible:`nordic,nrf-cracen` ``cracen`` node, which only exists in the secure address map.
+  The ``rng`` label is unchanged, but references to the node by path (``/rng``) must be updated
+  to use ``&rng``. As the node no longer exists in non-secure builds, non-secure board files no
+  longer need ``/delete-node/ rng;``, which can be removed, and must not reference ``&rng``; they
+  should select a :dtcompatible:`zephyr,psa-crypto-rng` node as ``zephyr,entropy`` instead.
+
+* Initialisation of the nrfx CRACEN library and arbitration of access to the CRACEN hardware have
+  moved from the entropy driver to the new :kconfig:option:`CONFIG_NORDIC_CRACEN` driver. It is
+  enabled by default whenever the ``rng`` node is enabled. To use the CRACEN exclusively from the
+  PSA crypto CRACEN driver, disable ``&rng`` and select ``psa_rng`` as ``zephyr,entropy``, as
+  before. Application code that accesses the CRACEN through nrfx directly while ``rng`` is enabled
+  must wrap each access in :c:func:`nordic_cracen_acquire` and :c:func:`nordic_cracen_release`.
 
 Ethernet
 ========
@@ -892,6 +918,9 @@ Tools
 
 * The stm32flash runner now defaults to 115200 baud instead of 57600 when no ``--baud-rate`` is
   given. Pass ``--baud-rate=57600`` to keep the previous speed.
+
+* The deprecated ``--toolchains`` and ``--no-toolchains`` options of ``west sdk install`` have been
+  removed. Use ``--gnu-toolchains`` and ``--no-gnu-toolchains`` instead.
 
 
 IPC

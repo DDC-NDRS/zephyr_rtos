@@ -9774,8 +9774,14 @@ static void receive_data(int sock, struct quic_endpoint *ep_hint)
 	ep->pending.len = 0;
 	ep->pending.pos = 0;
 
-	len = zsock_recvfrom(sock, ep->pending.data, sizeof(ep->pending.data), 0,
-			     (struct net_sockaddr *)&addr, &addrlen);
+	/* The socket service can report a socket that has nothing to read:
+	 * a poll result of a closed socket can be delivered for a new socket
+	 * that got the same descriptor. A blocking read would then stop the
+	 * service thread, and with it every QUIC socket, until that socket
+	 * receives something.
+	 */
+	len = zsock_recvfrom(sock, ep->pending.data, sizeof(ep->pending.data),
+			     ZSOCK_MSG_DONTWAIT, (struct net_sockaddr *)&addr, &addrlen);
 	if (len <= 0) {
 		if (len < 0) {
 			NET_DBG("recv (%d)", -errno);
@@ -9841,6 +9847,14 @@ out:
 	quic_endpoint_unref(ep);
 }
 
+#if defined(CONFIG_NET_TEST)
+/* Let tests run the socket service handler for a socket */
+void quic_test_receive_data(int sock, struct quic_endpoint *ep_hint)
+{
+	receive_data(sock, ep_hint);
+}
+#endif /* CONFIG_NET_TEST */
+
 static void quic_svc_handler(struct net_socket_service_event *pev)
 {
 	struct zsock_pollfd *pfd = &pev->event;
@@ -9866,12 +9880,12 @@ static void init_quic_service(void)
 	k_tid_t tid;
 	static struct k_thread quic_thread;
 
-	static K_THREAD_STACK_DEFINE(quic_thread_stack,
+	static K_KERNEL_STACK_DEFINE(quic_thread_stack,
 				     CONFIG_QUIC_SERVICE_STACK_SIZE);
 
 	tid = k_thread_create(&quic_thread,
 			      quic_thread_stack,
-			      K_THREAD_STACK_SIZEOF(quic_thread_stack),
+			      K_KERNEL_STACK_SIZEOF(quic_thread_stack),
 			      (k_thread_entry_t)quic_service_thread, NULL, NULL, NULL,
 			      CLAMP(CONFIG_QUIC_SERVICE_THREAD_PRIO,
 				    K_HIGHEST_APPLICATION_THREAD_PRIO,

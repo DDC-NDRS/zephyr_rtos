@@ -1271,7 +1271,8 @@ int k_thread_cpu_mask_enable_all(k_tid_t thread);
  *
  * @param thread Thread to operate upon
  * @param cpu CPU index
- * @return Zero on success, otherwise error code
+ * @retval 0 Success
+ * @retval -EINVAL @p cpu is out of range, or the thread is currently runnable
  */
 int k_thread_cpu_mask_enable(k_tid_t thread, int cpu);
 
@@ -1290,7 +1291,8 @@ int k_thread_cpu_mask_enable(k_tid_t thread, int cpu);
  *
  * @param thread Thread to operate upon
  * @param cpu CPU index
- * @return Zero on success, otherwise error code
+ * @retval 0 Success
+ * @retval -EINVAL @p cpu is out of range, or the thread is currently runnable
  */
 int k_thread_cpu_mask_disable(k_tid_t thread, int cpu);
 
@@ -1302,7 +1304,8 @@ int k_thread_cpu_mask_disable(k_tid_t thread, int cpu);
  *
  * @param thread Thread to operate upon
  * @param cpu CPU index
- * @return Zero on success, otherwise error code
+ * @retval 0 Success
+ * @retval -EINVAL @p cpu is out of range, or the thread is currently runnable
  */
 int k_thread_cpu_pin(k_tid_t thread, int cpu);
 #endif
@@ -6909,6 +6912,27 @@ void k_heap_free(struct k_heap* h, void* mem) __attribute_nonnull(1);
     }
 
 /**
+ * @brief Define a static k_heap in the specified linker section in a private (static) scope.
+ *
+ * Same as Z_HEAP_DEFINE_IN_SECT(), but both the memory region and the k_heap object have
+ * internal linkage.
+ *
+ * @param name Symbol name for the struct k_heap object
+ * @param bytes Size of memory region, in bytes
+ * @param in_section Section attribute specifier such as Z_GENERIC_SECTION.
+ */
+#define Z_HEAP_DEFINE_IN_SECT_STATIC(name, bytes, in_section)	\
+	static char in_section					\
+	     __aligned(8) /* CHUNK_UNIT */			\
+	     kheap_##name[MAX(bytes, Z_HEAP_MIN_SIZE)];		\
+	static STRUCT_SECTION_ITERABLE(k_heap, name) = {	\
+		.heap = {					\
+			.init_mem = kheap_##name,		\
+			.init_bytes = MAX(bytes, Z_HEAP_MIN_SIZE), \
+		 },						\
+	}
+
+/**
  * @brief Define a static k_heap
  *
  * This macro defines and initializes a static memory region and
@@ -6925,6 +6949,26 @@ void k_heap_free(struct k_heap* h, void* mem) __attribute_nonnull(1);
 #define K_HEAP_DEFINE(name, bytes)                              \
     Z_HEAP_DEFINE_IN_SECT(name, bytes,                          \
                           __noinit_named(kheap_buf_##name))
+
+/**
+ * @brief Define a static k_heap in a private (static) scope.
+ *
+ * This macro defines and initializes a static memory region and
+ * k_heap of the requested size. Both have internal linkage, so the
+ * heap is only visible in the translation unit that defines it.
+ * After kernel start, &name can be used as if k_heap_init() had been
+ * called.
+ *
+ * Note that this macro enforces a minimum size on the memory region
+ * to accommodate metadata requirements.  Very small heaps will be
+ * padded to fit.
+ *
+ * @param name Symbol name for the struct k_heap object
+ * @param bytes Size of memory region, in bytes
+ */
+#define K_HEAP_DEFINE_STATIC(name, bytes)			\
+	Z_HEAP_DEFINE_IN_SECT_STATIC(name, bytes,		\
+				     __noinit_named(kheap_buf_##name))
 
 /**
  * @brief Define a static k_heap in uncached memory

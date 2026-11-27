@@ -630,7 +630,8 @@ static size_t build_header_capture_headers_frame(uint8_t *buf, size_t buflen,
 						 enum http_method method,
 						 const char *path,
 						 const char *user_agent,
-						 const char *test_header)
+						 const char *test_header,
+						 bool never_indexed)
 {
 	uint8_t frame_header[4];
 	size_t path_len = strlen(path);
@@ -667,7 +668,10 @@ static size_t build_header_capture_headers_frame(uint8_t *buf, size_t buflen,
 		pos += path_len;
 	}
 
-	ret = qpack_encode_int(buf + pos, buflen - pos, 4, 0x50U,
+	/* N bit: never insert into a dynamic table (RFC 9204 Sections 4.5.4
+	 * and 4.5.6); 01NT for a name reference, 001NH for a literal name.
+	 */
+	ret = qpack_encode_int(buf + pos, buflen - pos, 4, never_indexed ? 0x70U : 0x50U,
 			       QPACK_STATIC_USER_AGENT);
 	zassert_true(ret > 0, "Failed to encode user-agent name index");
 	pos += ret;
@@ -677,7 +681,7 @@ static size_t build_header_capture_headers_frame(uint8_t *buf, size_t buflen,
 	memcpy(buf + pos, user_agent, user_agent_len);
 	pos += user_agent_len;
 
-	ret = qpack_encode_int(buf + pos, buflen - pos, 3, 0x20U,
+	ret = qpack_encode_int(buf + pos, buflen - pos, 3, never_indexed ? 0x30U : 0x20U,
 			       sizeof("test-header") - 1);
 	zassert_true(ret > 0, "Failed to encode header name length");
 	pos += ret;
@@ -1893,7 +1897,7 @@ ZTEST(server_h3_tests, test_h3_get_captures_request_headers)
 							 HTTP_GET,
 							 "/header_capture",
 							 "h3-test-agent/1.0",
-							 "capture-me");
+							 "capture-me", false);
 	send_all(stream_fd, headers, headers_len);
 	expect_headers_only_response(stream_fd);
 
@@ -1909,6 +1913,44 @@ ZTEST(server_h3_tests, test_h3_get_captures_request_headers)
 	zassert_mem_equal(hdrs[1].name, "Test-Header", strlen("Test-Header"),
 			  "Unexpected second captured header name");
 	zassert_mem_equal(hdrs[1].value, "capture-me", strlen("capture-me"),
+			  "Unexpected second captured header value");
+
+	ret = zsock_close(stream_fd);
+	zassert_ok(ret, "Failed to close header capture stream (%d)", errno);
+	untrack_stream_fd(stream_fd);
+}
+
+ZTEST(server_h3_tests, test_h3_get_captures_never_indexed_request_headers)
+{
+	uint8_t headers[128];
+	size_t headers_len;
+	struct http_header *hdrs = request_headers_clone.headers;
+	int stream_fd;
+	int ret;
+
+	start_h3_session(false);
+
+	stream_fd = open_client_stream(QUIC_STREAM_BIDIRECTIONAL);
+	headers_len = build_header_capture_headers_frame(headers, sizeof(headers),
+							 HTTP_GET,
+							 "/header_capture",
+							 "h3-never-agent/1.0",
+							 "never-capture", true);
+	send_all(stream_fd, headers, headers_len);
+	expect_headers_only_response(stream_fd);
+
+	zassert_equal(request_headers_clone.count, 2,
+		      "Unexpected captured header count");
+	zexpect_equal(request_headers_clone.status, HTTP_HEADER_STATUS_OK,
+		      "Unexpected captured header status");
+	zexpect_mem_equal(hdrs[0].name, "User-Agent", strlen("User-Agent"),
+			  "Unexpected first captured header name");
+	zexpect_mem_equal(hdrs[0].value, "h3-never-agent/1.0",
+			  strlen("h3-never-agent/1.0"),
+			  "Unexpected first captured header value");
+	zexpect_mem_equal(hdrs[1].name, "Test-Header", strlen("Test-Header"),
+			  "Unexpected second captured header name");
+	zexpect_mem_equal(hdrs[1].value, "never-capture", strlen("never-capture"),
 			  "Unexpected second captured header value");
 
 	ret = zsock_close(stream_fd);
@@ -1934,7 +1976,7 @@ ZTEST(server_h3_tests, test_h3_post_captures_request_headers_on_first_data_callb
 							 HTTP_POST,
 							 "/header_capture",
 							 "h3-post-agent/1.0",
-							 "post-capture");
+							 "post-capture", false);
 	send_all(stream_fd, headers, headers_len);
 
 	data_len = build_data_frame(data_frame, payload, sizeof(payload) - 1);
@@ -1980,7 +2022,7 @@ ZTEST(server_h3_tests, test_h3_resumed_early_get_reaches_callback)
 	stream_fd = open_client_stream(QUIC_STREAM_BIDIRECTIONAL);
 	headers_len = build_header_capture_headers_frame(headers, sizeof(headers),
 							 HTTP_GET, "/header_capture",
-							 "h3-0rtt", "early-get");
+							 "h3-0rtt", "early-get", false);
 	send_all(stream_fd, headers, headers_len);
 
 	expect_headers_only_status_response(stream_fd, HTTP_200_OK);
@@ -2253,6 +2295,32 @@ ZTEST(server_h3_function_tests, test_h3_qpack_truncated_after_name_ref)
 		     ret);
 }
 
+/* Two field lines whose value is an empty string with the Huffman flag, one
+ * with a static and one with a literal name, then the path.
+ */
+static const uint8_t qpack_block_empty_huffman_values[] = {
+	0x00,                      /* Required Insert Count = 0 */
+	0x00,                      /* Delta Base = 0 */
+	0x50, 0x80,                /* :authority, value: H = 1, length 0 */
+	0x23, 'x', '-', 'a', 0x80, /* x-a, value: H = 1, length 0 */
+	0x51, 0x02, '/', 'x',      /* :path /x */
+};
+
+ZTEST(server_h3_function_tests, test_h3_qpack_empty_huffman_value)
+{
+	static struct http_client_ctx client;
+	int ret;
+
+	memset(&client, 0, sizeof(client));
+	client.fd = -1;
+
+	ret = h3_parse_qpack_headers(&client, qpack_block_empty_huffman_values,
+				     sizeof(qpack_block_empty_huffman_values));
+	zassert_ok(ret, "Parser refused an empty Huffman-coded value (ret %d)", ret);
+	zassert_str_equal((const char *)client.url_buffer, "/x",
+			  "Field line after the empty values was not parsed");
+}
+
 ZTEST(server_h3_tests, test_http1_alt_svc_is_service_scoped)
 {
 	expect_http1_alt_svc_response(SERVER_PORT, true, SERVER_PORT,
@@ -2260,8 +2328,8 @@ ZTEST(server_h3_tests, test_http1_alt_svc_is_service_scoped)
 	expect_http1_alt_svc_response(ALT_SVC_DISABLED_PORT, false, 0U, 0U);
 }
 
-/* Send a frame that is not allowed on a request stream and check that the
- * server answers with a connection error and keeps running.
+/* Send a frame that is a connection error on a request stream and check that
+ * the server closes the connection and keeps running.
  */
 static void expect_request_stream_frame_closes_connection(const uint8_t *frame,
 							  size_t frame_len)
@@ -2343,6 +2411,36 @@ ZTEST(server_h3_tests, test_h3_max_push_id_on_request_stream_is_connection_error
 ZTEST(server_h3_tests, test_h3_push_promise_on_request_stream_is_connection_error)
 {
 	static const uint8_t frame[] = { H3_FRAME_PUSH_PROMISE, 0x01, 0x00 };
+
+	expect_request_stream_frame_closes_connection(frame, sizeof(frame));
+}
+
+/* The server offers no dynamic table, so a field section must not refer to it
+ * (RFC 9204 Sections 2.2.3 and 4.5.1.1).
+ */
+ZTEST(server_h3_tests, test_h3_dynamic_table_reference_is_connection_error)
+{
+	static const uint8_t frame[] = {
+		H3_FRAME_HEADERS, 0x05,
+		0x00,                            /* Required Insert Count = 0 */
+		0x00,                            /* Delta Base = 0 */
+		0xc0U | QPACK_STATIC_METHOD_GET,
+		0xc0U | QPACK_STATIC_PATH_SLASH,
+		0x80,                            /* indexed, dynamic table, index 0 */
+	};
+
+	expect_request_stream_frame_closes_connection(frame, sizeof(frame));
+}
+
+ZTEST(server_h3_tests, test_h3_required_insert_count_is_connection_error)
+{
+	static const uint8_t frame[] = {
+		H3_FRAME_HEADERS, 0x04,
+		0x01,                            /* Required Insert Count = 1 */
+		0x00,                            /* Delta Base = 0 */
+		0xc0U | QPACK_STATIC_METHOD_GET,
+		0xc0U | QPACK_STATIC_PATH_SLASH,
+	};
 
 	expect_request_stream_frame_closes_connection(frame, sizeof(frame));
 }

@@ -99,8 +99,8 @@ int http_hpack_huffman_decode(const uint8_t *encoded_buf, size_t encoded_len,
 /* QPACK header field representation prefixes (RFC 9204 Section 4.5) */
 #define QPACK_INDEXED_STATIC         0xc0  /* 11xxxxxx: indexed, static table */
 #define QPACK_INDEXED_STATIC_MASK    0xc0
-#define QPACK_LIT_NAME_REF_STATIC    0x50  /* 0101xxxx: literal with name ref, static */
-#define QPACK_LIT_NAME_REF_MASK      0xf0
+#define QPACK_LIT_NAME_REF_STATIC    0x50  /* 01N1xxxx: literal with name ref, static */
+#define QPACK_LIT_NAME_REF_MASK      0xd0
 #define QPACK_LIT_WITHOUT_NAME_REF   0x20  /* 001xxxxx: literal without name ref */
 #define QPACK_LIT_WITHOUT_NAME_MASK  0xe0
 
@@ -764,7 +764,7 @@ static void h3_process_request_header(struct http_client_ctx *client,
 
 	if (name_len == (sizeof(":authority") - 1) &&
 	    memcmp(name, ":authority", name_len) == 0) {
-		LOG_DBG("[%p] H3: authority=%.*s", client, (int)value_len, value);
+		LOG_HEXDUMP_DBG(value, value_len, "H3: authority");
 	}
 }
 
@@ -1925,8 +1925,10 @@ ZTESTABLE_STATIC int h3_parse_qpack_headers(struct http_client_ctx *client,
 				return -EINVAL;
 			}
 
-			/* Decode value (Huffman or literal) */
-			if (huffman) {
+			/* Decode value (Huffman or literal). An empty string
+			 * is the same in either coding.
+			 */
+			if (huffman && val_len > 0) {
 				ret = http_hpack_huffman_decode(buf + pos, val_len,
 							       value_buf,
 							       sizeof(value_buf) - 1);
@@ -1968,7 +1970,7 @@ ZTESTABLE_STATIC int h3_parse_qpack_headers(struct http_client_ctx *client,
 			}
 
 			/* Decode and log name */
-			if (name_huffman) {
+			if (name_huffman && name_len > 0) {
 				ret = http_hpack_huffman_decode(buf + pos, name_len,
 							       name_buf,
 							       sizeof(name_buf) - 1);
@@ -1985,8 +1987,7 @@ ZTESTABLE_STATIC int h3_parse_qpack_headers(struct http_client_ctx *client,
 			} else {
 				name_ptr = buf + pos;
 				decoded_name_len = name_len;
-				LOG_DBG("[%p] H3: header name=%.*s", client,
-					(int)name_len, buf + pos);
+				LOG_HEXDUMP_DBG(buf + pos, name_len, "H3: header name");
 			}
 
 			pos += name_len;
@@ -2011,7 +2012,7 @@ ZTESTABLE_STATIC int h3_parse_qpack_headers(struct http_client_ctx *client,
 			}
 
 			/* Decode and log value */
-			if (huffman) {
+			if (huffman && val_len > 0) {
 				ret = http_hpack_huffman_decode(buf + pos, val_len,
 							       value_buf,
 							       sizeof(value_buf) - 1);
@@ -2028,8 +2029,7 @@ ZTESTABLE_STATIC int h3_parse_qpack_headers(struct http_client_ctx *client,
 			} else {
 				value_ptr = buf + pos;
 				decoded_len = val_len;
-				LOG_DBG("[%p] H3: header value=%.*s", client,
-					(int)val_len, buf + pos);
+				LOG_HEXDUMP_DBG(buf + pos, val_len, "H3: header value");
 			}
 
 			h3_process_request_header(client, name_ptr, decoded_name_len,
@@ -2737,7 +2737,7 @@ static int h3_process_frames(struct http_client_ctx *client, bool stream_fin)
 
 			ret = h3_parse_qpack_headers(client, payload,
 						     (size_t)frame_len);
-			if (ret < 0 && ret != -ENOTSUP) {
+			if (ret < 0) {
 				LOG_DBG("[%p] H3: QPACK parse error (%d)", client, ret);
 				return ret;
 			}
