@@ -497,7 +497,7 @@ static void advertise_receive_buf_stats(struct modem_ppp* ppp, uint32_t length) 
 }
 #endif
 
-static void modem_ppp_pipe_callback(struct modem_pipe const* pipe, enum modem_pipe_event event,
+static void modem_ppp_pipe_callback(struct modem_pipe* pipe, enum modem_pipe_event event,
                                     void* user_data) {
     struct modem_ppp* ppp = (struct modem_ppp*)user_data;
     ARG_UNUSED(pipe);

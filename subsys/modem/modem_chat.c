@@ -836,7 +836,7 @@ static void modem_chat_process_handler(struct k_work *item)
 	modem_work_submit(&chat->receive_work);
 }
 
-static void modem_chat_pipe_callback(struct modem_pipe const* pipe, enum modem_pipe_event event,
+static void modem_chat_pipe_callback(struct modem_pipe* pipe, enum modem_pipe_event event,
 				     void *user_data)
 {
 	struct modem_chat *chat = (struct modem_chat *)user_data;

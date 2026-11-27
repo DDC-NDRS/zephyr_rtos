@@ -126,6 +126,11 @@ struct esp32_wifi_runtime {
     struct k_work_delayable connect_timeout_work;
     bool ap_config_busy;
     bool ap_running;
+
+    /* Configured soft-AP station limit, 0 for the default. Only used in
+     * esp32_data as there is a single soft-AP.
+     */
+    uint8_t ap_max_num_sta;
     struct k_mutex send_lock;
     struct k_sem tx_done_sem;
 
@@ -2481,6 +2486,10 @@ static int esp32_wifi_ap_enable(const struct device* dev __unused, struct net_if
         (k_current_get() != esp32_wifi_event_tid) &&
         (esp32_wifi_post_ap_config_event(ESP32_WIFI_EVENT_AP_CONFIG_BEGIN, K_NO_WAIT) == 0);
 
+    if (esp32_data.ap_max_num_sta != 0U) {
+        wifi_config.ap.max_connection = esp32_data.ap_max_num_sta;
+    }
+
     err = esp_wifi_get_mode(&mode);
     if (IS_ENABLED(CONFIG_ESP32_WIFI_AP_STA_MODE) &&
         ((mode == ESP32_WIFI_MODE_STA) || (mode == ESP32_WIFI_MODE_APSTA))) {
@@ -2584,6 +2593,14 @@ static int esp32_wifi_ap_sta_disconnect(const struct device* dev, struct net_if*
 
     ARG_UNUSED(dev);
     ARG_UNUSED(iface);
+
+    #if defined(CONFIG_WIFI_ESP32_MESH)
+    /* The mesh stack owns the softAP interface while it runs. */
+    if (esp_wifi_mesh_is_active()) {
+        LOG_WRN("ap_sta_disconnect rejected: mesh owns the Wi-Fi interface");
+        return (-EBUSY);
+    }
+    #endif
 
     err = esp_wifi_ap_get_sta_aid(mac, &aid);
     if (err != ESP_OK) {
@@ -2831,10 +2848,20 @@ static int esp32_wifi_channel(struct device const* dev, struct net_if* iface,
         (void) second_chan;
     }
     else { /* WIFI_MGMT_SET */
-        struct esp32_wifi_runtime const* data = esp32_wifi_data_get(iface);
+        #if defined(CONFIG_WIFI_ESP32_MESH)
+        if (esp_wifi_mesh_is_active()) {
+            LOG_WRN("channel set rejected: mesh owns the Wi-Fi interface");
+            return (-EBUSY);
+        }
+        #endif
 
-        /* Changing channel would drop the ongoing STA association */
-        if ((data->state == ESP32_STA_CONNECTING) || (data->state == ESP32_STA_CONNECTED)) {
+        /* The radio is shared: check the station whichever interface asked.
+         * Changing channel would disturb a scan or the STA association.
+         */
+        if ((esp32_data.scan_cb != NULL) ||
+            (esp32_data.state == ESP32_STA_CONNECTING) ||
+            (esp32_data.state == ESP32_STA_CONNECTED) ||
+            (esp32_data.state == ESP32_STA_ROAMING)) {
             return (-EBUSY);
         }
 
@@ -2859,7 +2886,9 @@ static int esp32_wifi_channel(struct device const* dev, struct net_if* iface,
 static int esp32_wifi_ap_config_params(const struct device* dev, struct net_if* iface,
                                        struct wifi_ap_config_params* params) {
     wifi_config_t wifi_config;
+    wifi_mode_t mode;
     esp_err_t err;
+    int ret = 0;
 
     ARG_UNUSED(dev);
     ARG_UNUSED(iface);
@@ -2876,44 +2905,63 @@ static int esp32_wifi_ap_config_params(const struct device* dev, struct net_if* 
     }
 
     if (((params->type & WIFI_AP_CONFIG_PARAM_MAX_NUM_STA) != 0) &&
-        (params->max_num_sta > UINT8_MAX)) {
+        ((params->max_num_sta == 0U) || (params->max_num_sta > ESP_WIFI_MAX_CONN_NUM))) {
         return (-EINVAL);
     }
 
-    err = esp_wifi_get_config(WIFI_IF_AP, &wifi_config);
-    if (err != ESP_OK) {
-        return (-EIO);
+    #if defined(CONFIG_WIFI_ESP32_MESH)
+    /* The mesh stack owns the softAP interface while it runs. */
+    if (esp_wifi_mesh_is_active()) {
+        LOG_WRN("ap_config_params rejected: mesh owns the Wi-Fi interface");
+        return (-EBUSY);
     }
+    #endif
+
+    (void) k_mutex_lock(&esp32_wifi_ap_lock, K_FOREVER);
 
     if ((params->type & WIFI_AP_CONFIG_PARAM_MAX_INACTIVITY) != 0) {
         err = esp_wifi_set_inactive_time(WIFI_IF_AP, (uint16_t)params->max_inactivity);
-        if (err == ESP_ERR_INVALID_ARG) {
-            return (-EINVAL);
-        }
-
         if (err != ESP_OK) {
-            return (-EIO);
+            ret = (err == ESP_ERR_INVALID_ARG) ? -EINVAL : -EIO;
+            goto out;
         }
     }
 
     if ((params->type & WIFI_AP_CONFIG_PARAM_MAX_NUM_STA) != 0) {
-        /* Note: this re-applies the whole AP configuration, which may drop
-         * connected stations; it fails with -EIO while the AP is not up.
-         */
-        wifi_config.ap.max_connection = (uint8_t)params->max_num_sta;
-
-        /* The driver rejects values above the chip's soft-AP limit */
-        err = esp_wifi_set_config(WIFI_IF_AP, &wifi_config);
-        if (err == ESP_ERR_INVALID_ARG) {
-            return (-EINVAL);
-        }
-
+        err = esp_wifi_get_mode(&mode);
         if (err != ESP_OK) {
-            return (-EIO);
+            ret = -EIO;
+            goto out;
         }
+
+        /* Without a soft-AP in the current mode the limit is only stored,
+         * for the next AP enable.
+         */
+        if ((mode == ESP32_WIFI_MODE_AP) || (mode == ESP32_WIFI_MODE_APSTA)) {
+            err = esp_wifi_get_config(WIFI_IF_AP, &wifi_config);
+            if (err != ESP_OK) {
+                ret = -EIO;
+                goto out;
+            }
+
+            /* Note: this re-applies the whole AP configuration, which may
+             * drop connected stations.
+             */
+            wifi_config.ap.max_connection = (uint8_t)params->max_num_sta;
+            err = esp_wifi_set_config(WIFI_IF_AP, &wifi_config);
+            if (err != ESP_OK) {
+                ret = (err == ESP_ERR_INVALID_ARG) ? -EINVAL : -EIO;
+                goto out;
+            }
+        }
+
+        esp32_data.ap_max_num_sta = (uint8_t)params->max_num_sta;
     }
 
-    return (0);
+out :
+    (void) k_mutex_unlock(&esp32_wifi_ap_lock);
+
+    return (ret);
 }
 
 static int esp32_wifi_set_power_save(const struct device* dev __unused,

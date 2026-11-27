@@ -178,7 +178,7 @@ static void smp_udp_ud_init(struct net_buf* nb, void* priv) {
 static int create_socket(enum smp_udp_proto_type proto, int* sock) {
     int tmp_sock;
     int err;
-    struct net_sockaddr_storage addr_storage;
+    struct net_sockaddr_storage addr_storage = {0};
     struct net_sockaddr* addr = (struct net_sockaddr*)&addr_storage;
     net_socklen_t addr_len = 0;
 
@@ -190,7 +190,6 @@ static int create_socket(enum smp_udp_proto_type proto, int* sock) {
         (proto == PROTOCOL_IPV4)) {
         struct net_sockaddr_in* addr4 = (struct net_sockaddr_in*)addr;
 
-        /* Intentional to not zero initialize addr4 since all fields are explicitly set */
         addr4->sin_family = NET_AF_INET;
         addr4->sin_port = net_htons(CONFIG_MCUMGR_TRANSPORT_UDP_PORT);
         addr4->sin_addr.s_addr_be = net_htonl(NET_INADDR_ANY);
@@ -200,11 +199,9 @@ static int create_socket(enum smp_udp_proto_type proto, int* sock) {
              (proto == PROTOCOL_IPV6)) {
         struct net_sockaddr_in6* addr6 = (struct net_sockaddr_in6*)addr;
 
-        /* Intentional to not zero initialize addr6 since all fields are explicitly set */
         addr6->sin6_family = NET_AF_INET6;
         addr6->sin6_port = net_htons(CONFIG_MCUMGR_TRANSPORT_UDP_PORT);
         addr6->sin6_addr = net_in6addr_any;
-        addr6->sin6_scope_id = 0;
         addr_len = sizeof(*addr6);
     }
 

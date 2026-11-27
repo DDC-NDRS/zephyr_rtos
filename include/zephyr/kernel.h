@@ -968,7 +968,8 @@ struct _static_thread_data {
 #define Z_THREAD_INIT_DELAY_INITIALIZER(ms) .init_delay_ms = (ms)
 #define Z_THREAD_INIT_DELAY(thread)         SYS_TIMEOUT_MS((thread)->init_delay_ms)
 #else
-#define Z_THREAD_INIT_DELAY_INITIALIZER(ms) .init_delay = SYS_TIMEOUT_MS(ms)
+/* #CUSTOM@NDRS, MSVC does not accept a compound literal as a static initializer */
+#define Z_THREAD_INIT_DELAY_INITIALIZER(ms) .init_delay = SYS_TIMEOUT_MS_INIT(ms)
 #define Z_THREAD_INIT_DELAY(thread)         (thread)->init_delay
 #endif
 
@@ -996,6 +997,7 @@ struct _static_thread_data {
                                entry, p1, p2, p3,           \
                                prio, options, delay)        \
     struct k_thread _k_thread_obj_##name;                   \
+    MSC_DECLARE_SECTION(".__static_thread_data.static")     \
     const STRUCT_SECTION_ITERABLE(_static_thread_data,      \
                             _k_thread_data_##name) =        \
         Z_THREAD_INITIALIZER(&_k_thread_obj_##name,         \

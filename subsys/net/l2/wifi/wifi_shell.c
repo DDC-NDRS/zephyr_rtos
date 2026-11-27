@@ -119,7 +119,7 @@ struct wifi_ap_sta_node {
 #endif
 
 #if !defined(CONFIG_WIFI_MGMT_AP_MAX_NUM_STA)
-#define CONFIG_WIFI_MGMT_AP_MAX_NUM_STA     2
+#define CONFIG_WIFI_MGMT_AP_MAX_NUM_STA     4
 #endif
 
 static struct wifi_ap_sta_node sta_list[CONFIG_WIFI_SHELL_MAX_AP_STA];

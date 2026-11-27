@@ -563,7 +563,7 @@ static void modem_cmux_raise_event(struct modem_cmux* cmux, enum modem_cmux_even
     cmux->config.callback(cmux, event, cmux->config.user_data);
 }
 
-static void modem_cmux_bus_callback(struct modem_pipe const* pipe, enum modem_pipe_event event,
+static void modem_cmux_bus_callback(struct modem_pipe* pipe, enum modem_pipe_event event,
                                     void* user_data) {
     struct modem_cmux* cmux = (struct modem_cmux*)user_data;
 

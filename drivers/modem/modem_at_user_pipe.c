@@ -29,7 +29,7 @@ static atomic_t at_util_state;
 
 LOG_MODULE_REGISTER(modem_at_user_pipe, CONFIG_MODEM_LOG_LEVEL);
 
-static void at_util_pipe_callback(struct modem_pipe const *pipe, enum modem_pipe_event event,
+static void at_util_pipe_callback(struct modem_pipe *pipe, enum modem_pipe_event event,
 				  void *user_data)
 {
 	ARG_UNUSED(user_data);

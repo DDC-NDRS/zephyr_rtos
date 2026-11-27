@@ -390,7 +390,7 @@ static void modem_cellular_notify_user_pipes_disconnected(struct modem_cellular_
     }
 }
 
-static void modem_cellular_bus_pipe_handler(struct modem_pipe const* pipe,
+static void modem_cellular_bus_pipe_handler(struct modem_pipe* pipe,
                                             enum modem_pipe_event event,
                                             void* user_data) {
     struct modem_cellular_data* data = user_data;
@@ -409,7 +409,7 @@ static void modem_cellular_bus_pipe_handler(struct modem_pipe const* pipe,
     }
 }
 
-static void modem_cellular_dlci1_pipe_handler(struct modem_pipe const* pipe,
+static void modem_cellular_dlci1_pipe_handler(struct modem_pipe* pipe,
                                               enum modem_pipe_event event,
                                               void* user_data) {
     struct modem_cellular_data* data = user_data;
@@ -424,7 +424,7 @@ static void modem_cellular_dlci1_pipe_handler(struct modem_pipe const* pipe,
     }
 }
 
-static void modem_cellular_dlci2_pipe_handler(struct modem_pipe const* pipe,
+static void modem_cellular_dlci2_pipe_handler(struct modem_pipe* pipe,
                                               enum modem_pipe_event event,
                                               void* user_data) {
     struct modem_cellular_data* data = user_data;
