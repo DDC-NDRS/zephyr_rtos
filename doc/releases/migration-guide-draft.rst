@@ -647,6 +647,14 @@ Wi-Fi
   ``atmel,winc1500`` devicetree binding and the ``adafruit_winc1500`` shield. It was deprecated
   in Zephyr 4.4 for lack of a maintainer and has no in-tree replacement.
 
+* Wi-Fi drivers now advertise the frequency bands their hardware supports by selecting
+  :kconfig:option:`CONFIG_WIFI_HAS_SUB_1_GHZ`, :kconfig:option:`CONFIG_WIFI_HAS_2_4_GHZ`,
+  :kconfig:option:`CONFIG_WIFI_HAS_5_GHZ` and :kconfig:option:`CONFIG_WIFI_HAS_6_GHZ`.
+  :kconfig:option:`CONFIG_WIFI_NM_WPA_SUPPLICANT_NO_6GHZ` now defaults to ``y`` unless
+  :kconfig:option:`CONFIG_WIFI_HAS_6_GHZ` is enabled, so out-of-tree drivers that do not select
+  it lose 6 GHz scanning and association. Out-of-tree Wi-Fi drivers must select the
+  ``CONFIG_WIFI_HAS_*`` symbols for every band their hardware supports.
+
 .. zephyr-keep-sorted-stop
 
 Bluetooth
@@ -780,6 +788,21 @@ Networking
   :kconfig:option:`CONFIG_NET_DEDICATED_WORKQUEUE_STACK_SIZE` instead. Disabling
   :kconfig:option:`CONFIG_NET_DEDICATED_WORKQUEUE` restores the previous behavior and saves the
   thread and its stack.
+
+* :c:func:`zsock_poll` on a DTLS server socket now wakes for its handshake retransmission timer,
+  so that the server retransmits without the caller polling with a timeout. A DTLS server whose
+  handshake stalls can now report ``POLLHUP`` once its session expires
+  (:kconfig:option:`CONFIG_NET_SOCKETS_DTLS_TIMEOUT`), not only when the next datagram arrives.
+
+* With :kconfig:option:`CONFIG_NET_SOCKETS_ENABLE_DTLS` and
+  :kconfig:option:`CONFIG_MBEDTLS_SSL_SRV_C` enabled, :c:func:`zsock_poll` now has room for one
+  more ``struct k_poll_event`` per TLS context
+  (:kconfig:option:`CONFIG_NET_SOCKETS_TLS_MAX_CONTEXTS`, at most
+  :kconfig:option:`CONFIG_ZVFS_POLL_MAX`), so that a DTLS server socket can take a second one.
+  Each thread that calls it or :c:func:`zsock_select` needs that many times
+  ``sizeof(struct k_poll_event)`` more stack. A DTLS server socket listed more than once in one
+  :c:func:`zsock_poll` call takes a second entry for each listing, which can leave no entry for a
+  later descriptor, and the call then fails with ``ENOMEM``.
 
 * Network interface driver APIs are now device API classes. Out-of-tree network drivers must define
   their API instances with :c:macro:`DEVICE_API` and use the renamed structs:
@@ -956,6 +979,23 @@ Modules
   Rust language support is no longer an optional module of the Zephyr manifest. It is now an
   :ref:`external module <external_module_rust>`; add it to the application manifest to keep using
   Rust. The ``manifest.project-filter +zephyr-lang-rust`` west setting no longer has an effect.
+
+HostAP
+======
+
+* RSA support is now only enabled by
+  :kconfig:option:`CONFIG_WIFI_NM_WPA_SUPPLICANT_CRYPTO_ENTERPRISE`. Without it,
+  :kconfig:option:`CONFIG_WIFI_NM_WPA_SUPPLICANT_CRYPTO_ALT` no longer selects the
+  ``TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`` and ``TLS_ECDHE_PSK_WITH_AES_256_CBC_SHA384``
+  ciphersuites, and :kconfig:option:`CONFIG_WIFI_NM_WPA_SUPPLICANT_CRYPTO_MBEDTLS_PSA` no longer
+  selects the PSA RSA key types. This also drops what those options enabled indirectly:
+  the ECDHE-RSA and ECDHE-PSK key exchanges, TLS 1.2, X.509 certificate parsing and the
+  RSA PKCS#1 v1.5, RSA-PSS and ECDSA PSA algorithms (ECDSA is still enabled when DPP or
+  enterprise support is enabled). Applications that use TLS or X.509 themselves and relied on
+  the Wi-Fi supplicant to enable these options must now enable them explicitly, for example
+  :kconfig:option:`CONFIG_MBEDTLS_X509_CRT_PARSE_C`,
+  :kconfig:option:`CONFIG_MBEDTLS_CIPHERSUITE_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256` and
+  :kconfig:option:`CONFIG_PSA_WANT_KEY_TYPE_RSA_PUBLIC_KEY`.
 
 Architectures
 *************

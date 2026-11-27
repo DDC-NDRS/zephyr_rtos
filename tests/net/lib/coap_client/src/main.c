@@ -2304,6 +2304,31 @@ ZTEST(coap_client, test_duplicate_response_other_socket)
 	zassert_equal(z_impl_zsock_recvfrom_fake.call_count, ARRAY_SIZE(socks));
 }
 
+/* A socket closed after the requests are cancelled is replaced by another one,
+ * which may get the same descriptor: a response on it is no duplicate of one
+ * received before.
+ */
+ZTEST(coap_client, test_duplicate_response_after_cancel)
+{
+	z_impl_zsock_sendto_fake.custom_fake = z_impl_zsock_sendto_custom_fake_same_mid;
+	z_impl_zsock_recvfrom_fake.custom_fake = z_impl_zsock_recvfrom_custom_fake_same_mid;
+
+	zassert_ok(coap_client_req(&client, 0, net_sad(&dst_address), &short_request, NULL));
+	zassert_ok(k_sem_take(&sem1, K_MSEC(MORE_THAN_ACK_TIMEOUT_MS)));
+	zexpect_equal(last_response_code, COAP_RESPONSE_CODE_CONTENT, "Unexpected response");
+
+	/* The request is over once its callback has returned */
+	wait_callbacks_done();
+	coap_client_cancel_requests(&client);
+
+	last_response_code = 0;
+	zassert_ok(coap_client_req(&client, 0, net_sad(&dst_address), &short_request, NULL));
+	zassert_ok(k_sem_take(&sem1, K_MSEC(MORE_THAN_ACK_TIMEOUT_MS)));
+	zexpect_equal(last_response_code, COAP_RESPONSE_CODE_CONTENT, "Unexpected response");
+
+	zexpect_equal(z_impl_zsock_recvfrom_fake.call_count, 2);
+}
+
 /* A socket that failed is replaced by another one, which may get the same
  * descriptor: a response on it is no duplicate of one received before.
  */
@@ -2344,9 +2369,12 @@ static ssize_t z_impl_zsock_sendto_custom_fake_same_mid_once(int sock, void *buf
 		same_mid_ack_cnt++;
 	} else if (type == COAP_TYPE_RESET) {
 		rst_sent_cnt++;
-	} else if (same_mid_req_cnt++ == 0) {
+	} else if (same_mid_req_cnt == 0) {
+		same_mid_req_cnt++;
 		return z_impl_zsock_sendto_custom_fake_same_mid(sock, buf, len, flags, dest_addr,
 								addrlen);
+	} else {
+		/* A later request gets no answer */
 	}
 
 	return 1;
@@ -4853,6 +4881,8 @@ static ssize_t z_impl_zsock_recvfrom_custom_fake_multicast_again(int sock, void 
 		set_socket_events(sock, ZSOCK_POLLIN);
 	} else if (index == 2) {
 		net_sin(src_addr)->sin_addr.s_addr = net_htonl(MULTICAST_SERVER_START_IP);
+	} else {
+		/* The other responses come as they are */
 	}
 
 	return ret;

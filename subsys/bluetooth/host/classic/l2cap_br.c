@@ -163,6 +163,8 @@ enum {
 	L2CAP_FLAG_CONN_ACCEPTOR,         /* getting incoming connection req */
 	L2CAP_FLAG_CONN_PENDING,          /* remote sent pending result in rsp */
 	L2CAP_FLAG_CONN_CONF_RSP_SENDING, /* waiting for config response sent */
+	L2CAP_FLAG_CONN_CONF_RSP_SENT,    /* config response sent, complete it */
+	L2CAP_FLAG_CONN_CONF_RSP_FAILED,  /* config response failed, disconnect */
 	L2CAP_FLAG_CONN_RSP_SEC_BLOCK,    /* retry conn rsp with sec block err */
 	L2CAP_FLAG_CONN_RSP_SUCCESS,      /* retry conn rsp without err */
 	L2CAP_FLAG_CONN_CONF_REQ,         /* retry config req */
@@ -5060,18 +5062,40 @@ static void l2cap_br_config_rsp_sent_cb(struct bt_conn *conn, void *user_data, i
 	uint16_t scid = POINTER_TO_UINT(user_data);
 	struct bt_l2cap_chan *chan;
 
+	/* This runs on the TX notification context, while the channel is
+	 * handled and closed on the Bluetooth workqueue. Use the channel under
+	 * the host lock, which removals hold, and complete the configuration
+	 * on the Bluetooth workqueue, as when data from the peer completes it,
+	 * so that connected() is called there.
+	 */
+	bt_dev_lock();
+
 	chan = bt_l2cap_br_lookup_tx_cid(conn, scid);
 	if (chan == NULL) {
+		bt_dev_unlock();
 		return;
 	}
 
 	if (err != 0) {
+		/* If data from the peer has completed the configuration, the
+		 * peer has the response. Otherwise, clear the flag so that data
+		 * from the peer cannot complete it meanwhile.
+		 */
+		if (!atomic_test_and_clear_bit(BR_CHAN(chan)->flags,
+					       L2CAP_FLAG_CONN_CONF_RSP_SENDING)) {
+			bt_dev_unlock();
+			return;
+		}
+
 		LOG_ERR("Config response of chan %p failed to send (%d)", BR_CHAN(chan), err);
-		l2cap_br_chan_disconn(chan);
-		return;
+		atomic_set_bit(BR_CHAN(chan)->flags, L2CAP_FLAG_CONN_CONF_RSP_FAILED);
+	} else {
+		atomic_set_bit(BR_CHAN(chan)->flags, L2CAP_FLAG_CONN_CONF_RSP_SENT);
 	}
 
-	l2cap_br_config_rsp_complete(chan);
+	(void)bt_work_reschedule(&BR_CHAN(chan)->retry_work, K_NO_WAIT);
+
+	bt_dev_unlock();
 }
 
 static void l2cap_br_conf_req(struct bt_l2cap_br *l2cap, uint8_t ident, uint16_t len,
@@ -5265,35 +5289,14 @@ send_rsp:
 	}
 }
 
-static struct bt_l2cap_br_chan *l2cap_br_remove_tx_cid(struct bt_conn *conn, uint16_t cid)
-{
-	struct bt_l2cap_chan *chan;
-	sys_snode_t *prev = NULL;
-
-	/* Protect fixed channels against accidental removal */
-	if (!L2CAP_BR_CID_IS_DYN(cid)) {
-		return NULL;
-	}
-
-	SYS_SLIST_FOR_EACH_CONTAINER(&conn->channels, chan, node) {
-		if (BR_CHAN(chan)->tx.cid == cid) {
-			sys_slist_remove(&conn->channels, prev, &chan->node);
-			return BR_CHAN(chan);
-		}
-
-		prev = &chan->node;
-	}
-
-	return NULL;
-}
-
 static void l2cap_br_disconn_req(struct bt_l2cap_br *l2cap, uint8_t ident, struct net_buf *buf)
 {
 	struct bt_conn *conn = l2cap->chan.chan.conn;
-	struct bt_l2cap_br_chan *chan;
+	struct bt_l2cap_br_chan *chan = NULL;
 	struct bt_l2cap_disconn_req *req = (void *)buf->data;
 	struct bt_l2cap_disconn_rsp *rsp;
 	struct bt_l2cap_sig_hdr *hdr;
+	struct bt_l2cap_chan *ch = NULL;
 	uint16_t scid, dcid;
 
 	if (buf->len < sizeof(*req)) {
@@ -5304,15 +5307,43 @@ static void l2cap_br_disconn_req(struct bt_l2cap_br *l2cap, uint8_t ident, struc
 	dcid = sys_le16_to_cpu(req->dcid);
 	scid = sys_le16_to_cpu(req->scid);
 
-	LOG_DBG("scid 0x%04x dcid 0x%04x", dcid, scid);
+	LOG_DBG("dcid 0x%04x scid 0x%04x", dcid, scid);
 
-	chan = l2cap_br_remove_tx_cid(conn, scid);
-	if (!chan) {
+	/* Lookup, CID checks and removal see one state of the channel list,
+	 * whatever thread adds or removes channels meanwhile
+	 */
+	bt_dev_lock();
+
+	/* Fixed channels are never disconnected */
+	if (L2CAP_BR_CID_IS_DYN(dcid)) {
+		ch = bt_l2cap_br_lookup_rx_cid(conn, dcid);
+	}
+
+	/* The source CID must be the peer's endpoint of the channel, which a
+	 * fixed CID never is
+	 */
+	if ((ch != NULL) && L2CAP_BR_CID_IS_DYN(scid) && (BR_CHAN(ch)->tx.cid == scid)) {
+		chan = BR_CHAN(ch);
+		bt_l2cap_chan_remove(conn, ch);
+	}
+
+	bt_dev_unlock();
+
+	if (ch == NULL) {
 		struct bt_l2cap_cmd_reject_cid_data data;
 
-		data.scid = req->scid;
-		data.dcid = req->dcid;
+		/* Local endpoint first, which is the destination of the request */
+		data.scid = req->dcid;
+		data.dcid = req->scid;
 		l2cap_br_send_reject(l2cap, ident, BT_L2CAP_REJ_INVALID_CID, &data, sizeof(data));
+		return;
+	}
+
+	if (chan == NULL) {
+		/* The destination CID names a channel and the source CID does
+		 * not: the request is silently discarded
+		 */
+		LOG_WRN("scid 0x%04x is not the remote endpoint of dcid 0x%04x", scid, dcid);
 		return;
 	}
 
@@ -5421,8 +5452,9 @@ int bt_l2cap_br_chan_disconnect(struct bt_l2cap_chan *chan)
 static void l2cap_br_disconn_rsp(struct bt_l2cap_br *l2cap, uint8_t ident, struct net_buf *buf)
 {
 	struct bt_conn *conn = l2cap->chan.chan.conn;
-	struct bt_l2cap_br_chan *chan;
+	struct bt_l2cap_br_chan *chan = NULL;
 	struct bt_l2cap_disconn_rsp *rsp = (void *)buf->data;
+	struct bt_l2cap_chan *ch = NULL;
 	uint16_t dcid, scid;
 
 	if (buf->len < sizeof(*rsp)) {
@@ -5435,17 +5467,33 @@ static void l2cap_br_disconn_rsp(struct bt_l2cap_br *l2cap, uint8_t ident, struc
 
 	LOG_DBG("dcid 0x%04x scid 0x%04x", dcid, scid);
 
-	chan = l2cap_br_remove_tx_cid(conn, dcid);
-	if (!chan) {
+	/* Lookup, identifier check and removal see one state of the channel
+	 * list, whatever thread adds or removes channels meanwhile
+	 */
+	bt_dev_lock();
+
+	/* Fixed channels are never disconnected */
+	if (L2CAP_BR_CID_IS_DYN(dcid)) {
+		ch = bt_l2cap_br_lookup_tx_cid(conn, dcid);
+	}
+
+	if ((ch != NULL) && (BR_CHAN(ch)->ident == ident)) {
+		chan = BR_CHAN(ch);
+		bt_l2cap_chan_remove(conn, ch);
+	}
+
+	bt_dev_unlock();
+
+	if (ch == NULL) {
 		LOG_WRN("No dcid 0x%04x channel found", dcid);
 		return;
 	}
 
-	if (chan->ident != ident) {
-		LOG_WRN("ident mismatch (%u != %u)!", chan->ident, ident);
+	if (chan == NULL) {
+		LOG_WRN("ident %u is not the pending request's on dcid 0x%04x", ident, dcid);
 		return;
 	}
-	chan->ident = 0;
+	chan->ident = 0U;
 
 	bt_l2cap_br_chan_del(&chan->chan);
 }
@@ -6071,6 +6119,25 @@ static void l2cap_br_retry_handler(struct k_work *work)
 		 * left for the timeout to act on.
 		 */
 		return;
+	}
+
+	/* Sending the configuration response completed, see
+	 * l2cap_br_config_rsp_sent_cb()
+	 */
+	if (atomic_test_and_clear_bit(chan->flags, L2CAP_FLAG_CONN_CONF_RSP_FAILED)) {
+		/* A channel that is already disconnecting is cleaned up by its
+		 * rtx_work or with the ACL. Cleaning it up here would cancel
+		 * this work item from its own handler.
+		 */
+		if (chan->state == BT_L2CAP_CONFIG) {
+			(void)bt_l2cap_br_chan_disconnect(&chan->chan);
+		}
+
+		return;
+	}
+
+	if (atomic_test_and_clear_bit(chan->flags, L2CAP_FLAG_CONN_CONF_RSP_SENT)) {
+		l2cap_br_config_rsp_complete(&chan->chan);
 	}
 
 	if (l2cap == NULL) {

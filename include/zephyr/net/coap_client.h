@@ -240,9 +240,11 @@ struct coap_client {
 	struct k_mutex lock;
 	uint8_t recv_buf[MAX_COAP_MSG_LEN];
 	struct coap_client_internal_request requests[CONFIG_COAP_CLIENT_MAX_REQUESTS];
+#if CONFIG_COAP_CLIENT_DEDUP_CACHE_SIZE > 0
 	struct coap_client_dedup_entry dedup_cache[CONFIG_COAP_CLIENT_DEDUP_CACHE_SIZE];
 	/* Entry of dedup_cache the next response replaces */
 	uint8_t dedup_next;
+#endif
 	struct coap_option echo_option;
 	bool send_echo;
 	/** @endcond */
@@ -299,7 +301,10 @@ int coap_client_req(struct coap_client *client, int sock, const struct net_socka
  * This is intended for canceling long-running requests (e.g. GETs with the OBSERVE option set)
  * which has gone stale for some reason.
  * The function should also be called before the corresponding client socket is closed,
- * to prevent the socket from being monitored by the internal polling thread.
+ * to prevent the socket from being monitored by the internal polling thread. The responses
+ * the client remembers to detect duplicates are forgotten as well, so that those of a socket
+ * opened afterwards are not taken for duplicates. A response the server repeats afterwards
+ * on the same socket is then rejected with a Reset message instead of acknowledged again.
  *
  * @param client Client instance.
  */
