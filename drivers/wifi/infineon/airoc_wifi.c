@@ -164,8 +164,8 @@ static whd_netif_funcs_t const airoc_wifi_netif_if_default = {
 };
 
 struct airoc_wifi_event_t {
-    uint8_t is_ap_event;
     whd_event_data_t* whd_event_data;
+    uint8_t is_ap_event;
 };
 
 K_MSGQ_DEFINE_STATIC_TYPE(airoc_wifi_msgq, struct airoc_wifi_event_t, 10);
@@ -197,9 +197,13 @@ static void airoc_wifi_scan_cb_search(whd_scan_result_t** result_ptr, void* user
         k_sem_give(&airoc_wifi_data.sema_scan);
     }
     else if ((status == WHD_SCAN_INCOMPLETE) && (match != NULL) &&
-             ((**result_ptr).SSID.length == match->ssid.length)) {
-        if (memcmp(match->ssid.value, (**result_ptr).SSID.value, match->ssid.length) == 0) {
-            match->security = (**result_ptr).security;
+             (result_ptr != NULL) && (*result_ptr != NULL)) {
+        whd_scan_result_t* result = *result_ptr;
+
+        if (result->SSID.length == match->ssid.length) {
+            if (memcmp(match->ssid.value, result->SSID.value, match->ssid.length) == 0) {
+                match->security = result->security;
+            }
         }
     }
     else {
@@ -383,7 +387,8 @@ static void parse_scan_result(whd_scan_result_t* p_whd_result, struct wifi_scan_
     }
 }
 
-static void scan_callback(whd_scan_result_t** result_ptr, void* user_data, whd_scan_status_t status) {
+static void airoc_wifi_scan_callback(whd_scan_result_t** result_ptr, void* user_data,
+                                     whd_scan_status_t status) {
     struct airoc_wifi_data* data = user_data;
     whd_scan_result_t whd_scan_result;
     struct wifi_scan_result zephyr_scan_result = {0};
@@ -400,11 +405,13 @@ static void scan_callback(whd_scan_result_t** result_ptr, void* user_data, whd_s
 
     /* We received scan data so process it */
     if ((result_ptr != NULL) && (*result_ptr != NULL)) {
-        memcpy(&whd_scan_result, *result_ptr, sizeof(whd_scan_result_t));
+        whd_scan_result_t* result = *result_ptr;
+
+        memcpy(&whd_scan_result, result, sizeof(whd_scan_result_t));
         parse_scan_result(&whd_scan_result, &zephyr_scan_result);
         data->scan_rslt_cb(data->iface, 0, &zephyr_scan_result);
+        memset(result, 0, sizeof(whd_scan_result_t));
     }
-    memset(*result_ptr, 0, sizeof(whd_scan_result_t));
 }
 
 /*
@@ -418,7 +425,7 @@ static whd_result_t airoc_wifi_host_buffer_get(whd_buffer_t* buffer, whd_buffer_
 
     buf = net_buf_alloc_len(&airoc_pool, size, K_NO_WAIT);
     if (buf == NULL) {
-        return WHD_BUFFER_ALLOC_FAIL;
+        return (WHD_BUFFER_ALLOC_FAIL);
     }
 
     if (buf->size < size) {
@@ -426,7 +433,7 @@ static whd_result_t airoc_wifi_host_buffer_get(whd_buffer_t* buffer, whd_buffer_
          * release it before failing or it leaks from airoc_pool.
          */
         net_buf_unref(buf);
-        return WHD_BUFFER_ALLOC_FAIL;
+        return (WHD_BUFFER_ALLOC_FAIL);
     }
     *buffer = buf;
 
@@ -437,26 +444,24 @@ static whd_result_t airoc_wifi_host_buffer_get(whd_buffer_t* buffer, whd_buffer_
 }
 
 static void airoc_wifi_buffer_release(whd_buffer_t buffer, whd_buffer_dir_t direction) {
-    CY_UNUSED_PARAMETER(direction);
+    ARG_UNUSED(direction);
+
     net_buf_unref((struct net_buf*)buffer);
 }
 
 static uint8_t* airoc_wifi_buffer_get_current_piece_data_pointer(whd_buffer_t buffer) {
-    CY_ASSERT(buffer != NULL);
     struct net_buf* buf = (struct net_buf*)buffer;
 
     return (uint8_t*)buf->data;
 }
 
 static uint16_t airoc_wifi_buffer_get_current_piece_size(whd_buffer_t buffer) {
-    CY_ASSERT(buffer != NULL);
     struct net_buf* buf = (struct net_buf*)buffer;
 
     return (uint16_t)buf->size;
 }
 
 static whd_result_t airoc_wifi_buffer_set_size(whd_buffer_t buffer, unsigned short size) {
-    CY_ASSERT(buffer != NULL);
     struct net_buf* buf = (struct net_buf*)buffer;
 
     buf->size = size;
@@ -466,16 +471,15 @@ static whd_result_t airoc_wifi_buffer_set_size(whd_buffer_t buffer, unsigned sho
 
 static whd_result_t airoc_wifi_buffer_add_remove_at_front(whd_buffer_t* buffer,
                                                           int32_t add_remove_amount) {
-    CY_ASSERT(buffer != NULL);
-    struct net_buf** buf = (struct net_buf**)buffer;
+    struct net_buf* buf = (struct net_buf*)*buffer;
 
     if (add_remove_amount > 0) {
-        (*buf)->len  = (*buf)->size;
-        (*buf)->data = net_buf_pull(*buf, add_remove_amount);
+        buf->len = buf->size;
+        (void) net_buf_pull(buf, add_remove_amount);
     }
     else {
-        (*buf)->data = net_buf_push(*buf, -add_remove_amount);
-        (*buf)->len  = (*buf)->size;
+        (void) net_buf_push(buf, -add_remove_amount);
+        buf->len = buf->size;
     }
 
     return (WHD_SUCCESS);
@@ -919,6 +923,7 @@ static int airoc_mgmt_scan(struct device const* dev,
     struct airoc_wifi_data* data = dev->data;
     enum wifi_scan_type scan_type = WIFI_SCAN_TYPE_ACTIVE;
     whd_result_t result;
+    int ret;
 
     if (params != NULL) {
         scan_type = params->scan_type;
@@ -940,16 +945,19 @@ static int airoc_mgmt_scan(struct device const* dev,
     /* Connect to the network */
     result = whd_wifi_scan(airoc_sta_if, (whd_scan_type_t)scan_type, WHD_BSS_TYPE_ANY,
                            &data->ssid, NULL, NULL, NULL,
-                           scan_callback, &data->scan_result, data);
-    if (result != WHD_SUCCESS) {
+                           airoc_wifi_scan_callback, &data->scan_result, data);
+    if (result == WHD_SUCCESS) {
+        ret = 0;
+    }
+    else {
         LOG_ERR("Failed to start scan");
         data->scan_rslt_cb = NULL;
-        k_sem_give(&data->sema_common);
-        return (-EAGAIN);
+        ret = -EAGAIN;
     }
 
     k_sem_give(&data->sema_common);
-    return (0);
+
+    return (ret);
 }
 
 static bool is_invalid_security(int security, uint8_t psk_length) {
@@ -1087,10 +1095,10 @@ static int airoc_mgmt_disconnect(struct device const* dev, struct net_if* iface)
 static void* airoc_wifi_ap_link_events_handler(whd_interface_t ifp,
                                                whd_event_header_t const* event_header,
                                                uint8_t const* event_data, void* handler_user_data) {
-    struct airoc_wifi_event_t airoc_event = {0};
+    struct airoc_wifi_event_t airoc_event;
 
-    airoc_event.is_ap_event    = 1;
     airoc_event.whd_event_data = (whd_event_data_t*)whd_mem_malloc(sizeof(whd_event_data_t));
+    airoc_event.is_ap_event    = 1;
 
     if (airoc_event.whd_event_data) {
         airoc_event.whd_event_data->event_header =
@@ -1100,7 +1108,7 @@ static void* airoc_wifi_ap_link_events_handler(whd_interface_t ifp,
                    sizeof(whd_event_header_t));
         }
 
-        if (event_header->datalen > 0 && event_data != NULL) {
+        if ((event_header->datalen > 0) && (event_data != NULL)) {
             airoc_event.whd_event_data->event_data =
                 (uint8_t*)whd_mem_malloc(event_header->datalen);
             if (airoc_event.whd_event_data->event_data) {
@@ -1112,6 +1120,7 @@ static void* airoc_wifi_ap_link_events_handler(whd_interface_t ifp,
             airoc_event.whd_event_data->event_data = NULL;
         }
     }
+
     k_msgq_put(&airoc_wifi_msgq, &airoc_event, K_FOREVER);
 
     return (NULL);
@@ -1228,15 +1237,15 @@ static int airoc_mgmt_ap_enable(struct device const* dev,
     result = whd_management_set_event_handler(airoc_ap_if, ap_link_events,
                                               airoc_wifi_ap_link_events_handler, NULL,
                                               &ap_event_handler_index);
-    if (result != WHD_SUCCESS) {
+    if (result == WHD_SUCCESS) {
+        data->is_ap_up = true;
+        airoc_if = airoc_ap_if;
+        net_if_dormant_off(iface);
+    }
+    else {
         whd_wifi_stop_ap(airoc_ap_if);
         ret = -EAGAIN;
-        goto error;
     }
-
-    data->is_ap_up = true;
-    airoc_if = airoc_ap_if;
-    net_if_dormant_off(iface);
 
 error :
     k_sem_give(&data->sema_common);
